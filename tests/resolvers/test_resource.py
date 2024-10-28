@@ -6,6 +6,7 @@ import pytest
 from modern_di import Container, Scope, resolvers
 from tests.creators import create_async_resource, create_sync_resource
 
+
 async_resource = resolvers.Resource(Scope.APP, create_async_resource)
 sync_resource = resolvers.Resource(Scope.APP, create_sync_resource)
 
