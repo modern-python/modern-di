@@ -17,7 +17,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
     __slots__ = "scope", "parent_container", "_is_async", "_resolver_states", "_overrides"
 
     def __init__(self, *, scope: enum.IntEnum, parent_container: typing.Optional["Container"] = None) -> None:
-        if scope.value != 1 and parent_container is not None:
+        if scope.value != 1 and parent_container is None:
             msg = "Only first scope can be used without parent_container"
             raise RuntimeError(msg)
 
