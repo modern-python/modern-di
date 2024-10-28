@@ -12,7 +12,13 @@ class SimpleFactory:
     dep1: str
 
 
+@dataclasses.dataclass(kw_only=True, slots=True)
+class RequestFactory:
+    dep1: SimpleFactory
+
+
 singleton = resolvers.Factory(Scope.APP, SimpleFactory, dep1="original")
+request_factory = resolvers.Factory(Scope.REQUEST, RequestFactory, dep1=singleton.cast)
 
 
 async def test_factory() -> None:
@@ -33,6 +39,21 @@ async def test_factory() -> None:
         assert singleton5 is singleton6
         assert singleton5 is not singleton3
         assert singleton5 is not singleton1
+
+
+async def test_factory_in_request_scope() -> None:
+    with Container(scope=Scope.APP) as app_container:
+        with app_container.build_child_container() as request_container:
+            instance1 = request_factory.sync_resolve(request_container)
+            instance2 = request_factory.sync_resolve(request_container)
+            assert instance1 is instance2
+
+        async with app_container.build_child_container() as request_container:
+            instance3 = await request_factory.async_resolve(request_container)
+            instance4 = await request_factory.async_resolve(request_container)
+            assert instance3 is instance4
+
+        assert instance1 is not instance3
 
 
 async def test_factory_overridden() -> None:

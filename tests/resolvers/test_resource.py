@@ -1,31 +1,10 @@
 import asyncio
-import datetime
-import logging
 import typing
 
 import pytest
 
 from modern_di import Container, Scope, resolvers
-
-
-logger = logging.getLogger(__name__)
-
-
-async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
-    logger.debug("Async resource initiated")
-    try:
-        yield datetime.datetime.now(tz=datetime.timezone.utc)
-    finally:
-        logger.debug("Async resource destructed")
-
-
-def create_sync_resource() -> typing.Iterator[datetime.datetime]:
-    logger.debug("Resource initiated")
-    try:
-        yield datetime.datetime.now(tz=datetime.timezone.utc)
-    finally:
-        logger.debug("Resource destructed")
-
+from tests.creators import create_async_resource, create_sync_resource
 
 async_resource = resolvers.Resource(Scope.APP, create_async_resource)
 sync_resource = resolvers.Resource(Scope.APP, create_sync_resource)
@@ -42,6 +21,21 @@ async def test_async_resource() -> None:
         async_resource4 = async_resource.sync_resolve(app_container)
         assert async_resource3 is async_resource4
         assert async_resource3 is not async_resource1
+
+
+async def test_async_resource_in_sync_container() -> None:
+    with (
+        Container(scope=Scope.APP) as app_container,
+        pytest.raises(RuntimeError, match="Resolving async resource in sync container is not allowed"),
+    ):
+        await async_resource.async_resolve(app_container)
+
+
+async def test_async_resource_calling_sync_exit() -> None:
+    async with Container(scope=Scope.APP) as app_container:
+        await async_resource.async_resolve(app_container)
+        with pytest.raises(RuntimeError, match="Cannot tear down async context in `sync_tear_down`"):
+            app_container.__exit__(None, None, None)
 
 
 async def test_sync_resource() -> None:
