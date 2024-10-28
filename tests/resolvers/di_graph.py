@@ -44,15 +44,25 @@ class SingletonFactory:
 
 
 class DIGraph(BaseGraph):
-    sync_resource = resolvers.Resource(Scope.APP, create_sync_resource)
-    async_resource = resolvers.Resource(Scope.APP, create_async_resource)
+    sync_resource_app = resolvers.Resource(Scope.APP, create_sync_resource)
+    async_resource_app = resolvers.Resource(Scope.APP, create_async_resource)
+
+    sync_resource_request = resolvers.Resource(Scope.REQUEST, create_sync_resource)
+    async_resource_request = resolvers.Resource(Scope.REQUEST, create_async_resource)
 
     simple_factory = resolvers.Factory(Scope.REQUEST, SimpleFactory, dep1="text", dep2=123)
     dependent_factory = resolvers.Factory(
         Scope.REQUEST,
         DependentFactory,
         simple_factory=simple_factory.cast,
-        sync_resource=sync_resource.cast,
-        async_resource=async_resource.cast,
+        sync_resource=sync_resource_app.cast,
+        async_resource=async_resource_app.cast,
+    )
+    dependent_factory_on_request_resources = resolvers.Factory(
+        Scope.REQUEST,
+        DependentFactory,
+        simple_factory=simple_factory.cast,
+        sync_resource=sync_resource_request.cast,
+        async_resource=async_resource_request.cast,
     )
     singleton = resolvers.Factory(Scope.APP, SingletonFactory, dep1=True)

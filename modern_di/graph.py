@@ -1,7 +1,7 @@
 import typing
 
-from modern_di.containers import AsyncContainer, SyncContainer
-from modern_di.resolvers import AbstractResolver, Factory
+from modern_di import Container
+from modern_di.resolvers import AbstractResolver, BaseCreatorResolver
 
 
 if typing.TYPE_CHECKING:
@@ -27,15 +27,15 @@ class BaseGraph:
         return cls.resolvers
 
     @classmethod
-    async def async_resolve_factories(cls, container: AsyncContainer) -> None:
+    async def async_resolve_creators(cls, container: Container) -> None:
         for resolver in cls.get_resolvers().values():
-            if isinstance(resolver, Factory) and resolver.scope == container.scope:
+            if isinstance(resolver, BaseCreatorResolver) and resolver.scope == container.scope:
                 await resolver.async_resolve(container)
 
     @classmethod
-    def sync_resolve_factories(cls, container: SyncContainer) -> None:
+    def sync_resolve_creators(cls, container: Container) -> None:
         for resolver in cls.get_resolvers().values():
-            if isinstance(resolver, Factory) and resolver.scope == container.scope:
+            if isinstance(resolver, BaseCreatorResolver) and resolver.scope == container.scope:
                 resolver.sync_resolve(container)
 
     @classmethod

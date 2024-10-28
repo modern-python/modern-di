@@ -2,7 +2,7 @@ import enum
 
 
 class Scope(enum.IntEnum):
-    APP = enum.auto
-    REQUEST = enum.auto
-    ACTION = enum.auto
-    STEP = enum.auto
+    APP = 1
+    REQUEST = 2
+    ACTION = 3
+    STEP = 4

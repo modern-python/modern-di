@@ -1,19 +1,18 @@
 import contextlib
 import enum
 import inspect
-import itertools
 import typing
 
-from modern_di.containers import AsyncContainer, SyncContainer
-from modern_di.resolvers import AbstractResolver
+from modern_di import Container
+from modern_di.resolvers import AbstractResolver, BaseCreatorResolver
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
 
 
-class Resource(AbstractResolver[T_co]):
-    __slots__ = [*AbstractResolver.BASE_SLOTS, "_creator", "_args", "_kwargs", "_is_async"]
+class Resource(BaseCreatorResolver[T_co]):
+    __slots__ = [*BaseCreatorResolver.BASE_SLOTS, "_creator", "_args", "_kwargs", "_is_async"]
 
     def _is_creator_async(
         self,
@@ -28,7 +27,7 @@ class Resource(AbstractResolver[T_co]):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
-        super().__init__(scope)
+        super().__init__(scope, *args, **kwargs)
         self._creator: typing.Any
         if inspect.isasyncgenfunction(creator):
             self._is_async = True
@@ -40,19 +39,12 @@ class Resource(AbstractResolver[T_co]):
             msg = "Unsupported resource type"
             raise RuntimeError(msg)
 
-        if any(x.scope > self.scope for x in itertools.chain(args, kwargs.values()) if isinstance(x, AbstractResolver)):
-            msg = "Scope of dependency cannot be more than scope of dependent"
-            raise RuntimeError(msg)
-
-        self._args: typing.Final = args
-        self._kwargs: typing.Final = kwargs
-
-    async def async_resolve(self, container: AsyncContainer) -> T_co:
+    async def async_resolve(self, container: Container) -> T_co:
         if self._override:
             return typing.cast(T_co, self._override)
 
         container = container.find_container(self.scope)
-        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=True)
+        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=True, is_resource=True)
         if factory_state.instance:
             return typing.cast(T_co, factory_state.instance)
 
@@ -89,12 +81,12 @@ class Resource(AbstractResolver[T_co]):
 
         return typing.cast(T_co, factory_state.instance)
 
-    def sync_resolve(self, container: SyncContainer) -> T_co:
+    def sync_resolve(self, container: Container) -> T_co:
         if self._override:
             return typing.cast(T_co, self._override)
 
         container = container.find_container(self.scope)
-        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=False)
+        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=False, is_resource=True)
         if factory_state.instance:
             return typing.cast(T_co, factory_state.instance)
 
