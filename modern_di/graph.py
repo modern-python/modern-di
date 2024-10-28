@@ -37,8 +37,3 @@ class BaseGraph:
         for resolver in cls.get_resolvers().values():
             if isinstance(resolver, BaseCreatorResolver) and resolver.scope == container.scope:
                 resolver.sync_resolve(container)
-
-    @classmethod
-    def reset_override(cls) -> None:
-        for resolver in cls.get_resolvers().values():
-            resolver.reset_override()

@@ -4,7 +4,7 @@ import inspect
 import typing
 
 from modern_di import Container
-from modern_di.resolvers import AbstractResolver, BaseCreatorResolver
+from modern_di.resolvers import BaseCreatorResolver
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -27,89 +27,69 @@ class Resource(BaseCreatorResolver[T_co]):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
-        super().__init__(scope, *args, **kwargs)
-        self._creator: typing.Any
+        new_creator: typing.Any
         if inspect.isasyncgenfunction(creator):
             self._is_async = True
-            self._creator = contextlib.asynccontextmanager(creator)
+            new_creator = contextlib.asynccontextmanager(creator)
         elif inspect.isgeneratorfunction(creator):
             self._is_async = False
-            self._creator = contextlib.contextmanager(creator)
+            new_creator = contextlib.contextmanager(creator)
         else:
             msg = "Unsupported resource type"
             raise RuntimeError(msg)
 
+        super().__init__(scope, new_creator, *args, **kwargs)
+
     async def async_resolve(self, container: Container) -> T_co:
-        if self._override:
-            return typing.cast(T_co, self._override)
-
         container = container.find_container(self.scope)
-        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=True, is_resource=True)
-        if factory_state.instance:
-            return typing.cast(T_co, factory_state.instance)
+        if (override := container.fetch_override(self.resolver_id)) is not None:
+            return typing.cast(T_co, override)
 
-        if factory_state.resolver_lock:
-            await factory_state.resolver_lock.acquire()
+        resolver_state = container.fetch_resolver_state(
+            self.resolver_id, is_async_resource=self._is_async, is_lock_required=self._is_async
+        )
+        if resolver_state.instance is not None:
+            return typing.cast(T_co, resolver_state.instance)
+
+        if resolver_state.resolver_lock:
+            await resolver_state.resolver_lock.acquire()
 
         try:
-            if factory_state.instance:
-                return typing.cast(T_co, factory_state.instance)
+            if resolver_state.instance is not None:
+                return typing.cast(T_co, resolver_state.instance)
 
-            _intermediate_ = self._creator(
-                *typing.cast(
-                    P.args,
-                    [await x.async_resolve(container) if isinstance(x, AbstractResolver) else x for x in self._args],
-                ),
-                **typing.cast(
-                    P.kwargs,
-                    {
-                        k: await v.async_resolve(container) if isinstance(v, AbstractResolver) else v
-                        for k, v in self._kwargs.items()
-                    },
-                ),
-            )
+            _intermediate_ = await self._async_build_creator(container)
 
-            if self._is_creator_async(self._creator):
-                factory_state.context_stack = contextlib.AsyncExitStack()
-                factory_state.instance = await factory_state.context_stack.enter_async_context(_intermediate_)
+            if self._is_creator_async(self._creator):  # type: ignore[arg-type]
+                resolver_state.context_stack = contextlib.AsyncExitStack()
+                resolver_state.instance = await resolver_state.context_stack.enter_async_context(_intermediate_)
             else:
-                factory_state.context_stack = contextlib.ExitStack()
-                factory_state.instance = factory_state.context_stack.enter_context(_intermediate_)
+                resolver_state.context_stack = contextlib.ExitStack()
+                resolver_state.instance = resolver_state.context_stack.enter_context(_intermediate_)
         finally:
-            if factory_state.resolver_lock:
-                factory_state.resolver_lock.release()
+            if resolver_state.resolver_lock:
+                resolver_state.resolver_lock.release()
 
-        return typing.cast(T_co, factory_state.instance)
+        return typing.cast(T_co, resolver_state.instance)
 
     def sync_resolve(self, container: Container) -> T_co:
-        if self._override:
-            return typing.cast(T_co, self._override)
-
         container = container.find_container(self.scope)
-        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=False, is_resource=True)
-        if factory_state.instance:
-            return typing.cast(T_co, factory_state.instance)
+        if (override := container.fetch_override(self.resolver_id)) is not None:
+            return typing.cast(T_co, override)
+
+        resolver_state = container.fetch_resolver_state(self.resolver_id)
+        if resolver_state.instance is not None:
+            return typing.cast(T_co, resolver_state.instance)
 
         if self._is_async:
             msg = "Async resource cannot be resolved synchronously"
             raise RuntimeError(msg)
 
-        _intermediate_ = self._creator(
-            *typing.cast(
-                P.args, [x.sync_resolve(container) if isinstance(x, AbstractResolver) else x for x in self._args]
-            ),
-            **typing.cast(
-                P.kwargs,
-                {
-                    k: v.sync_resolve(container) if isinstance(v, AbstractResolver) else v
-                    for k, v in self._kwargs.items()
-                },
-            ),
-        )
+        _intermediate_ = self._sync_build_creator(container)
 
-        factory_state.context_stack = contextlib.ExitStack()
-        factory_state.instance = factory_state.context_stack.enter_context(
+        resolver_state.context_stack = contextlib.ExitStack()
+        resolver_state.instance = resolver_state.context_stack.enter_context(
             typing.cast(contextlib.AbstractContextManager[typing.Any], _intermediate_)
         )
 
-        return typing.cast(T_co, factory_state.instance)
+        return typing.cast(T_co, resolver_state.instance)

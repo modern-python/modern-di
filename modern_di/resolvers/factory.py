@@ -2,7 +2,7 @@ import enum
 import typing
 
 from modern_di import Container
-from modern_di.resolvers import AbstractResolver, BaseCreatorResolver
+from modern_di.resolvers import BaseCreatorResolver
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -19,63 +19,28 @@ class Factory(BaseCreatorResolver[T_co]):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
-        super().__init__(scope, *args, **kwargs)
-        self._creator = creator
+        super().__init__(scope, creator, *args, **kwargs)
 
     async def async_resolve(self, container: Container) -> T_co:
-        if self._override:
-            return typing.cast(T_co, self._override)
-
         container = container.find_container(self.scope)
-        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=True, is_resource=False)
-        if factory_state.instance:
-            return typing.cast(T_co, factory_state.instance)
+        if (override := container.fetch_override(self.resolver_id)) is not None:
+            return typing.cast(T_co, override)
 
-        if factory_state.resolver_lock:
-            await factory_state.resolver_lock.acquire()
+        resolver_state = container.fetch_resolver_state(self.resolver_id)
+        if resolver_state.instance is not None:
+            return typing.cast(T_co, resolver_state.instance)
 
-        try:
-            if factory_state.instance:
-                return typing.cast(T_co, factory_state.instance)
-
-            factory_state.instance = self._creator(
-                *typing.cast(
-                    P.args,
-                    [await x.async_resolve(container) if isinstance(x, AbstractResolver) else x for x in self._args],
-                ),
-                **typing.cast(
-                    P.kwargs,
-                    {
-                        k: await v.async_resolve(container) if isinstance(v, AbstractResolver) else v
-                        for k, v in self._kwargs.items()
-                    },
-                ),
-            )
-        finally:
-            if factory_state.resolver_lock:
-                factory_state.resolver_lock.release()
-
-        return factory_state.instance
+        resolver_state.instance = typing.cast(T_co, await self._async_build_creator(container))
+        return resolver_state.instance
 
     def sync_resolve(self, container: Container) -> T_co:
-        if self._override:
-            return typing.cast(T_co, self._override)
-
         container = container.find_container(self.scope)
-        factory_state = container.fetch_resolver_state(self.resolver_id, is_async=False, is_resource=False)
-        if factory_state.instance:
-            return typing.cast(T_co, factory_state.instance)
+        if (override := container.fetch_override(self.resolver_id)) is not None:
+            return typing.cast(T_co, override)
 
-        factory_state.instance = self._creator(
-            *typing.cast(
-                P.args, [x.sync_resolve(container) if isinstance(x, AbstractResolver) else x for x in self._args]
-            ),
-            **typing.cast(
-                P.kwargs,
-                {
-                    k: v.sync_resolve(container) if isinstance(v, AbstractResolver) else v
-                    for k, v in self._kwargs.items()
-                },
-            ),
-        )
-        return factory_state.instance
+        resolver_state = container.fetch_resolver_state(self.resolver_id)
+        if resolver_state.instance is not None:
+            return typing.cast(T_co, resolver_state.instance)
+
+        resolver_state.instance = self._sync_build_creator(container)
+        return typing.cast(T_co, resolver_state.instance)

@@ -9,10 +9,10 @@ T_co = typing.TypeVar("T_co", covariant=True)
 class ResolverState(typing.Generic[T_co]):
     __slots__ = "context_stack", "instance", "resolver_lock"
 
-    def __init__(self, is_async: bool) -> None:
+    def __init__(self, is_lock_required: bool) -> None:
         self.context_stack: contextlib.AsyncExitStack | contextlib.ExitStack | None = None
         self.instance: T_co | None = None
-        self.resolver_lock: typing.Final = asyncio.Lock() if is_async else None
+        self.resolver_lock: typing.Final = asyncio.Lock() if is_lock_required else None
 
     async def async_tear_down(self) -> None:
         if self.context_stack is None:
