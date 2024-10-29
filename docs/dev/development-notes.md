@@ -4,21 +4,21 @@
 - any int enum, starting from 1 with step 1
 
 ### Container
-- stateful
-- contains resolved dependencies
-- contains context stacks to finalize
-- if scope is not the first than must have parent `Container`
+- all states live in containers:
+  - resolved dependencies
+  - context stacks for resources
+  - overrides
 
 ### Resolvers
-- stateless
-- build dependency and save it to `Container`
+- completely stateless
 - if dependency is already saved or overridden in `Container`, returns it
+- otherwise build dependency and save it to `Container`
 - can have dependencies only the same or lower scope, check in init
 
 ### Graph
 - Cannot be instantiated
 - Contains graph of `Resolvers`
-- Can initialize its resources
+- Can initialize its resources and factories to container
 
 ### Questions
 1. Thread-safety

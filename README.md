@@ -9,12 +9,11 @@
 Dependency injection framework for Python inspired by `dependency-injector` and `dishka`.
 
 It is production-ready and gives you the following:
-- Simple async-first DI framework with IOC-container.
-- Python 3.10-3.12 support.
+- Simple DI framework with IOC-container.
+- Async and sync resolving.
+- Python 3.10-3.13 support.
 - Full coverage by types annotations (mypy in strict mode).
-- FastAPI and LiteStar compatibility.
 - Overriding dependencies for tests.
-- Injecting dependencies in functions and coroutines without wiring.
 - Package with zero dependencies.
 
 📚 [Documentation](https://modern-di.readthedocs.io)
