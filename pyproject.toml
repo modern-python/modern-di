@@ -1,6 +1,6 @@
 [project]
 name = "modern-di"
-description = "Simple Dependency Injection framework"
+description = "Dependency Injection framework with IOC-container and scopes"
 authors = [
     { name = "Artur Shiriev", email = "me@shiriev.ru" },
 ]
@@ -22,8 +22,8 @@ packages = [
 ]
 
 [project.urls]
-repository = "https://github.com/modern-python/that-depends"
-docs = "https://that-depends.readthedocs.io"
+repository = "https://github.com/modern-python/modern-di"
+docs = "https://modern-di.readthedocs.io"
 
 [dependency-groups]
 dev = [
