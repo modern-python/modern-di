@@ -103,7 +103,7 @@ async def test_singleton_race_condition() -> None:
     async with Container(scope=Scope.APP) as app_container:
         client1, client2 = await asyncio.gather(resolve_factory(app_container), resolve_factory(app_container))
 
-    assert client1 == client2
+    assert client1 is client2
     assert calls == 1
 
 

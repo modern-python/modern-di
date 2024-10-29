@@ -46,13 +46,13 @@ class Resource(BaseCreatorResolver[T_co]):
             return typing.cast(T_co, override)
 
         resolver_state = container.fetch_resolver_state(
-            self.resolver_id, is_async_resource=self._is_async, is_lock_required=self._is_async
+            self.resolver_id, is_async_resource=self._is_async, is_lock_required=True
         )
         if resolver_state.instance is not None:
             return typing.cast(T_co, resolver_state.instance)
 
-        if resolver_state.resolver_lock:
-            await resolver_state.resolver_lock.acquire()
+        assert resolver_state.resolver_lock
+        await resolver_state.resolver_lock.acquire()
 
         try:
             if resolver_state.instance is not None:
@@ -67,8 +67,7 @@ class Resource(BaseCreatorResolver[T_co]):
                 resolver_state.context_stack = contextlib.ExitStack()
                 resolver_state.instance = resolver_state.context_stack.enter_context(_intermediate_)
         finally:
-            if resolver_state.resolver_lock:
-                resolver_state.resolver_lock.release()
+            resolver_state.resolver_lock.release()
 
         return typing.cast(T_co, resolver_state.instance)
 

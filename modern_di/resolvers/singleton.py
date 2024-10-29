@@ -26,11 +26,21 @@ class Singleton(BaseCreatorResolver[T_co]):
         if (override := container.fetch_override(self.resolver_id)) is not None:
             return typing.cast(T_co, override)
 
-        resolver_state = container.fetch_resolver_state(self.resolver_id)
+        resolver_state = container.fetch_resolver_state(self.resolver_id, is_lock_required=True)
         if resolver_state.instance is not None:
             return typing.cast(T_co, resolver_state.instance)
 
-        resolver_state.instance = typing.cast(T_co, await self._async_build_creator(container))
+        assert resolver_state.resolver_lock
+        await resolver_state.resolver_lock.acquire()
+
+        try:
+            if resolver_state.instance is not None:
+                return typing.cast(T_co, resolver_state.instance)
+
+            resolver_state.instance = typing.cast(T_co, await self._async_build_creator(container))
+        finally:
+            resolver_state.resolver_lock.release()
+
         return resolver_state.instance
 
     def sync_resolve(self, container: Container) -> T_co:
