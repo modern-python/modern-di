@@ -56,6 +56,17 @@ async def test_factory_in_request_scope() -> None:
         assert instance1 is not instance3
 
 
+async def test_app_scoped_factory_in_request_scope() -> None:
+    with Container(scope=Scope.APP) as app_container:
+        with app_container.build_child_container():
+            singleton1 = await singleton.async_resolve(app_container)
+
+        async with app_container.build_child_container():
+            singleton2 = await singleton.async_resolve(app_container)
+
+        assert singleton1 is singleton2
+
+
 async def test_factory_overridden() -> None:
     async with Container(scope=Scope.APP) as app_container:
         singleton1 = singleton.sync_resolve(app_container)
