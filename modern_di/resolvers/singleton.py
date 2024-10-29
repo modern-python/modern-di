@@ -9,7 +9,7 @@ T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
 
 
-class Factory(BaseCreatorResolver[T_co]):
+class Singleton(BaseCreatorResolver[T_co]):
     __slots__ = [*BaseCreatorResolver.BASE_SLOTS, "_creator"]
 
     def __init__(
@@ -26,11 +26,21 @@ class Factory(BaseCreatorResolver[T_co]):
         if (override := container.fetch_override(self.resolver_id)) is not None:
             return typing.cast(T_co, override)
 
-        return typing.cast(T_co, await self._async_build_creator(container))
+        resolver_state = container.fetch_resolver_state(self.resolver_id)
+        if resolver_state.instance is not None:
+            return typing.cast(T_co, resolver_state.instance)
+
+        resolver_state.instance = typing.cast(T_co, await self._async_build_creator(container))
+        return resolver_state.instance
 
     def sync_resolve(self, container: Container) -> T_co:
         container = container.find_container(self.scope)
         if (override := container.fetch_override(self.resolver_id)) is not None:
             return typing.cast(T_co, override)
 
-        return typing.cast(T_co, self._sync_build_creator(container))
+        resolver_state = container.fetch_resolver_state(self.resolver_id)
+        if resolver_state.instance is not None:
+            return typing.cast(T_co, resolver_state.instance)
+
+        resolver_state.instance = self._sync_build_creator(container)
+        return typing.cast(T_co, resolver_state.instance)

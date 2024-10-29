@@ -1,6 +1,4 @@
-import asyncio
 import dataclasses
-import typing
 
 import pytest
 
@@ -8,108 +6,82 @@ from modern_di import Container, Scope, resolvers
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class SimpleFactory:
+class SimpleCreator:
     dep1: str
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class RequestFactory:
-    dep1: SimpleFactory
+class DependentCreator:
+    dep1: SimpleCreator
 
 
-singleton = resolvers.Factory(Scope.APP, SimpleFactory, dep1="original")
-request_factory = resolvers.Factory(Scope.REQUEST, RequestFactory, dep1=singleton.cast)
+app_factory = resolvers.Factory(Scope.APP, SimpleCreator, dep1="original")
+request_factory = resolvers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
 
 
-async def test_factory() -> None:
+async def test_app_factory() -> None:
     async with Container(scope=Scope.APP) as app_container:
-        singleton1 = await singleton.async_resolve(app_container)
-        singleton2 = await singleton.async_resolve(app_container)
-        assert singleton1 is singleton2
+        instance1 = await app_factory.async_resolve(app_container)
+        instance2 = await app_factory.async_resolve(app_container)
+        assert instance1 is not instance2
 
     with Container(scope=Scope.APP) as app_container:
-        singleton3 = singleton.sync_resolve(app_container)
-        singleton4 = singleton.sync_resolve(app_container)
-        assert singleton3 is singleton4
-        assert singleton3 is not singleton1
-
-    async with Container(scope=Scope.APP) as app_container:
-        singleton5 = await singleton.async_resolve(app_container)
-        singleton6 = await singleton.async_resolve(app_container)
-        assert singleton5 is singleton6
-        assert singleton5 is not singleton3
-        assert singleton5 is not singleton1
+        instance3 = app_factory.sync_resolve(app_container)
+        instance4 = app_factory.sync_resolve(app_container)
+        assert instance3 is not instance4
+        assert instance1 is not instance3
 
 
-async def test_factory_in_request_scope() -> None:
+async def test_request_factory() -> None:
     with Container(scope=Scope.APP) as app_container:
         with app_container.build_child_container() as request_container:
             instance1 = request_factory.sync_resolve(request_container)
             instance2 = request_factory.sync_resolve(request_container)
-            assert instance1 is instance2
+            assert instance1 is not instance2
 
         async with app_container.build_child_container() as request_container:
             instance3 = await request_factory.async_resolve(request_container)
             instance4 = await request_factory.async_resolve(request_container)
-            assert instance3 is instance4
+            assert instance3 is not instance4
 
         assert instance1 is not instance3
 
 
-async def test_app_scoped_factory_in_request_scope() -> None:
+async def test_app_factory_in_request_scope() -> None:
     with Container(scope=Scope.APP) as app_container:
         with app_container.build_child_container():
-            singleton1 = await singleton.async_resolve(app_container)
+            instance1 = await app_factory.async_resolve(app_container)
 
         async with app_container.build_child_container():
-            singleton2 = await singleton.async_resolve(app_container)
+            instance2 = await app_factory.async_resolve(app_container)
 
-        assert singleton1 is singleton2
+        assert instance1 is not instance2
 
 
 async def test_factory_overridden() -> None:
     async with Container(scope=Scope.APP) as app_container:
-        singleton1 = singleton.sync_resolve(app_container)
+        instance1 = app_factory.sync_resolve(app_container)
 
-        singleton.override(SimpleFactory(dep1="override"), container=app_container)
+        app_factory.override(SimpleCreator(dep1="override"), container=app_container)
 
-        singleton2 = singleton.sync_resolve(app_container)
-        singleton3 = await singleton.async_resolve(app_container)
+        instance2 = app_factory.sync_resolve(app_container)
+        instance3 = await app_factory.async_resolve(app_container)
+        assert instance1 is not instance2
+        assert instance2 is instance3
+        assert instance2.dep1 != instance1.dep1
 
-        singleton.reset_override(app_container)
+        app_factory.reset_override(app_container)
 
-        singleton4 = singleton.sync_resolve(app_container)
+        instance4 = app_factory.sync_resolve(app_container)
 
-        assert singleton2 is not singleton1
-        assert singleton2 is singleton3
-        assert singleton4 is singleton1
+        assert instance4.dep1 == instance1.dep1
 
-
-async def test_factory_race_condition() -> None:
-    calls: int = 0
-
-    async def create_resource() -> typing.AsyncIterator[str]:
-        nonlocal calls
-        calls += 1
-        await asyncio.sleep(0)
-        yield ""
-
-    resource = resolvers.Resource(Scope.APP, create_resource)
-    factory_with_resource = resolvers.Factory(Scope.APP, SimpleFactory, dep1=resource.cast)
-
-    async def resolve_factory(container: Container) -> SimpleFactory:
-        return await factory_with_resource.async_resolve(container)
-
-    async with Container(scope=Scope.APP) as app_container:
-        client1, client2 = await asyncio.gather(resolve_factory(app_container), resolve_factory(app_container))
-
-    assert client1 == client2
-    assert calls == 1
+        assert instance3 is not instance4
 
 
 async def test_factory_wrong_dependency_scope() -> None:
-    def some_factory(_: SimpleFactory) -> None: ...
+    def some_factory(_: SimpleCreator) -> None: ...
 
-    request_factory = resolvers.Factory(Scope.REQUEST, SimpleFactory, dep1="original")
+    request_factory_ = resolvers.Factory(Scope.REQUEST, SimpleCreator, dep1="original")
     with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
-        resolvers.Factory(Scope.APP, some_factory, request_factory.cast)
+        resolvers.Singleton(Scope.APP, some_factory, request_factory_.cast)
