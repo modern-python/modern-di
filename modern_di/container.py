@@ -14,15 +14,22 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 
 class Container(contextlib.AbstractAsyncContextManager["Container"]):
-    __slots__ = "scope", "parent_container", "_is_async", "_resolver_states", "_overrides"
+    __slots__ = "scope", "parent_container", "context", "_is_async", "_resolver_states", "_overrides"
 
-    def __init__(self, *, scope: enum.IntEnum, parent_container: typing.Optional["Container"] = None) -> None:
+    def __init__(
+        self,
+        *,
+        scope: enum.IntEnum,
+        parent_container: typing.Optional["Container"] = None,
+        context: dict[str, typing.Any] | None = None,
+    ) -> None:
         if scope.value != 1 and parent_container is None:
             msg = "Only first scope can be used without parent_container"
             raise RuntimeError(msg)
 
         self.scope = scope
         self.parent_container = parent_container
+        self.context: dict[str, typing.Any] = context or {}
         self._is_async: bool | None = None
         self._resolver_states: dict[str, ResolverState[typing.Any]] = {}
         self._overrides: dict[str, typing.Any] = {}
@@ -30,13 +37,14 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
     def _exit(self) -> None:
         self._is_async = None
         self._resolver_states = {}
+        self._overrides = {}
 
     def _check_entered(self) -> None:
         if self._is_async is None:
             msg = "Enter the context first"
             raise RuntimeError(msg)
 
-    def build_child_container(self) -> "typing_extensions.Self":
+    def build_child_container(self, context: dict[str, typing.Any] | None = None) -> "typing_extensions.Self":
         self._check_entered()
 
         try:
@@ -45,7 +53,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
             msg = f"Max scope is reached, {self.scope.name}"
             raise RuntimeError(msg) from exc
 
-        return self.__class__(scope=new_scope, parent_container=self)
+        return self.__class__(scope=new_scope, parent_container=self, context=context)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         container = self
