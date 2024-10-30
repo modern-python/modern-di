@@ -9,6 +9,7 @@ import pytest
 from asgi_lifespan import LifespanManager
 from modern_di import Scope, resolvers
 from starlette import status
+from starlette.requests import Request
 
 import modern_di_fastapi
 from modern_di_fastapi import FromDI
@@ -36,18 +37,24 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
+def context_adapter_function(*, request: Request, **_: object) -> str:
+    return request.method
+
+
 app_factory = resolvers.Factory(Scope.APP, SimpleCreator, dep1="original")
 request_factory = resolvers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
+context_adapter = resolvers.ContextAdapter(Scope.REQUEST, context_adapter_function)
 
 
 @app.get("/")
 async def read_root(
     app_factory_instance: typing.Annotated[SimpleCreator, FromDI(app_factory)],
     request_factory_instance: typing.Annotated[DependentCreator, FromDI(request_factory)],
+    method: typing.Annotated[str, FromDI(context_adapter)],
 ) -> str:
     assert isinstance(app_factory_instance, SimpleCreator)
     assert isinstance(request_factory_instance, DependentCreator)
-    return app_factory_instance.dep1
+    return method
 
 
 @pytest.fixture(scope="session")
@@ -59,3 +66,4 @@ async def client() -> typing.AsyncIterator[httpx.AsyncClient]:
 async def test_read_main(client: httpx.AsyncClient) -> None:
     response = await client.get("/")
     assert response.status_code == status.HTTP_200_OK
+    assert response.json() == "GET"

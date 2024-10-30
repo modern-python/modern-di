@@ -13,7 +13,7 @@ class Dependency(typing.Generic[T_co]):
     dependency: modern_di.resolvers.AbstractResolver[T_co]
 
     async def __call__(self, request: fastapi.Request) -> T_co:
-        return await self.dependency.async_resolve(request.app.state.modern_di_container)
+        return await self.dependency.async_resolve(request.state.modern_di_container)
 
 
 def FromDI(dependency: modern_di.resolvers.AbstractResolver[T_co], *, use_cache: bool = True) -> T_co:  # noqa: N802
