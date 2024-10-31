@@ -7,7 +7,7 @@ on:
 
 jobs:
   publish-core:
-    if: startsWith(github.ref, 'core')
+    if: startsWith(github.ref_name, 'core')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
   publish-fastapi:
-    if: startsWith(github.ref, 'fastapi')
+    if: startsWith(github.ref_name, 'fastapi')
     runs-on: ubuntu-latest
     defaults:
       run:
