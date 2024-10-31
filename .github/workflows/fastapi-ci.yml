@@ -1,4 +1,4 @@
-name: main
+name: fastapi ci
 
 on:
   push:
