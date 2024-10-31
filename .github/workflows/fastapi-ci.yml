@@ -7,7 +7,10 @@ on:
     paths:
       - 'integrations/fastapi/**'
       - '.github/workflows/fastapi-ci.yml'
-  pull_request: {}
+  pull_request:
+    paths:
+      - 'integrations/fastapi/**'
+      - '.github/workflows/fastapi-ci.yml'
 
 defaults:
   run:

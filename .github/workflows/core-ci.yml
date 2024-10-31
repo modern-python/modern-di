@@ -8,7 +8,11 @@ on:
       - 'modern_di/**'
       - 'tests/**'
       - '.github/workflows/core-ci.yml'
-  pull_request: {}
+  pull_request:
+    paths:
+      - 'modern_di/**'
+      - 'tests/**'
+      - '.github/workflows/core-ci.yml'
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
