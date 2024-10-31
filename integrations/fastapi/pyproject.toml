@@ -51,7 +51,7 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0"
-tag-pattern = '^w*(\d+\.\d+\.\d+)$'
+tag-pattern = '^\w*-?(\d+\.\d+\.\d+)$'
 
 [tool.mypy]
 python_version = "3.10"
