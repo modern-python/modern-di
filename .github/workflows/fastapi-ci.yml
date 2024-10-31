@@ -5,8 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'modern_di/**'
-      - 'tests/**'
+      - 'integrations/fastapi/**'
       - '.github/workflows/core-ci.yml'
   pull_request: {}
 
@@ -25,6 +24,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
       - run: uv python install 3.10
+      - run: cd integrations/fastapi
       - run: just install lint-ci
 
   pytest:
@@ -45,4 +45,5 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
+      - run: cd integrations/fastapi
       - run: just install test . --cov=. --cov-report xml
