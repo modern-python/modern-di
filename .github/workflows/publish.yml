@@ -23,9 +23,6 @@ jobs:
   publish-fastapi:
     if: startsWith(github.ref_name, 'fastapi')
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: integrations/fastapi
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
@@ -33,6 +30,8 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
-      - run: just publish
+      - run: |
+          cd integrations/fastapi
+          just publish
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
