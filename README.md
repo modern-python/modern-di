@@ -1,6 +1,5 @@
 "Modern-DI"
 ==
-[![Test Coverage](https://codecov.io/gh/modern-python/modern-di/branch/main/graph/badge.svg)](https://codecov.io/gh/modern-python/modern-di)
 [![MyPy Strict](https://img.shields.io/badge/mypy-strict-blue)](https://mypy.readthedocs.io/en/stable/getting_started.html#strict-mode-and-configuration)
 [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di.svg)](https://pypi.python.org/pypi/modern-di)
 [![downloads](https://img.shields.io/pypi/dm/modern-di.svg)](https://pypistats.org/packages/modern-di)

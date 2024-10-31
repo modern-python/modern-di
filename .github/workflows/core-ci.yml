@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '/modern_di/**'
+      - '/tests/**'
+      - '.github/workflows/core-ci.yml'
   pull_request: {}
 
 concurrency:
@@ -19,7 +23,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: "pyproject.toml"
       - run: uv python install 3.10
       - run: just install lint-ci
 
@@ -39,13 +43,6 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: "pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
       - run: just install test . --cov=. --cov-report xml
-      - uses: codecov/codecov-action@v4.0.1
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          files: ./coverage.xml
-          flags: unittests
-          name: codecov-${{ matrix.python-version }}

@@ -12,7 +12,7 @@ from starlette import status
 from starlette.requests import Request
 
 import modern_di_fastapi
-from modern_di_fastapi import FromDI
+from modern_di_fastapi import ContainerMiddleware, FromDI
 
 
 @contextlib.asynccontextmanager
@@ -24,7 +24,7 @@ async def lifespan(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]:
 
 
 app = fastapi.FastAPI(lifespan=lifespan)
-app.add_middleware(modern_di_fastapi.ContainerMiddleware)
+app.add_middleware(ContainerMiddleware)
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
