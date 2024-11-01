@@ -27,18 +27,25 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
     def sync_resolve(self, container: Container) -> T_co:
         """Resolve dependency synchronously."""
 
+    @property
+    def cast(self) -> T_co:
+        return typing.cast(T_co, self)
+
+    def _check_providers_scope(self, providers: typing.Iterable[typing.Any]) -> None:
+        if any(x.scope > self.scope for x in providers if isinstance(x, AbstractProvider)):
+            msg = "Scope of dependency cannot be more than scope of dependent"
+            raise RuntimeError(msg)
+
+
+class AbstractOverrideProvider(AbstractProvider[T_co], abc.ABC):
     def override(self, override_object: object, container: Container) -> None:
         container.override(self.provider_id, override_object)
 
     def reset_override(self, container: Container) -> None:
         container.reset_override(self.provider_id)
 
-    @property
-    def cast(self) -> T_co:
-        return typing.cast(T_co, self)
 
-
-class BaseCreatorProvider(AbstractProvider[T_co], abc.ABC):
+class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
     BASE_SLOTS: typing.ClassVar = [*AbstractProvider.BASE_SLOTS, "_args", "_kwargs", "_creator"]
 
     def __init__(
@@ -49,11 +56,7 @@ class BaseCreatorProvider(AbstractProvider[T_co], abc.ABC):
         **kwargs: P.kwargs,
     ) -> None:
         super().__init__(scope)
-
-        if any(x.scope > self.scope for x in itertools.chain(args, kwargs.values()) if isinstance(x, AbstractProvider)):
-            msg = "Scope of dependency cannot be more than scope of dependent"
-            raise RuntimeError(msg)
-
+        self._check_providers_scope(itertools.chain(args, kwargs.values()))
         self._creator: typing.Final = creator
         self._args: typing.Final = args
         self._kwargs: typing.Final = kwargs

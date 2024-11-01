@@ -2,15 +2,15 @@ import enum
 import typing
 
 from modern_di import Container
-from modern_di.providers import BaseCreatorProvider
+from modern_di.providers.abstract import AbstractCreatorProvider
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
 
 
-class Singleton(BaseCreatorProvider[T_co]):
-    __slots__ = [*BaseCreatorProvider.BASE_SLOTS, "_creator"]
+class Singleton(AbstractCreatorProvider[T_co]):
+    __slots__ = [*AbstractCreatorProvider.BASE_SLOTS, "_creator"]
 
     def __init__(
         self,

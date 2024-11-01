@@ -1,7 +1,7 @@
 import typing
 
 from modern_di import Container
-from modern_di.providers import AbstractProvider, BaseCreatorProvider
+from modern_di.providers.abstract import AbstractCreatorProvider, AbstractProvider
 
 
 if typing.TYPE_CHECKING:
@@ -29,11 +29,11 @@ class BaseGraph:
     @classmethod
     async def async_resolve_creators(cls, container: Container) -> None:
         for provider in cls.get_providers().values():
-            if isinstance(provider, BaseCreatorProvider) and provider.scope == container.scope:
+            if isinstance(provider, AbstractCreatorProvider) and provider.scope == container.scope:
                 await provider.async_resolve(container)
 
     @classmethod
     def sync_resolve_creators(cls, container: Container) -> None:
         for provider in cls.get_providers().values():
-            if isinstance(provider, BaseCreatorProvider) and provider.scope == container.scope:
+            if isinstance(provider, AbstractCreatorProvider) and provider.scope == container.scope:
                 provider.sync_resolve(container)
