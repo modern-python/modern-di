@@ -7,7 +7,7 @@ import httpx
 import modern_di
 import pytest
 from asgi_lifespan import LifespanManager
-from modern_di import Scope, resolvers
+from modern_di import Scope, providers
 from starlette import status
 from starlette.requests import Request
 
@@ -41,9 +41,9 @@ def context_adapter_function(*, request: Request, **_: object) -> str:
     return request.method
 
 
-app_factory = resolvers.Factory(Scope.APP, SimpleCreator, dep1="original")
-request_factory = resolvers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
-context_adapter = resolvers.ContextAdapter(Scope.REQUEST, context_adapter_function)
+app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
+request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
+context_adapter = providers.ContextAdapter(Scope.REQUEST, context_adapter_function)
 
 
 @app.get("/")

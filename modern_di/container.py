@@ -3,7 +3,7 @@ import enum
 import types
 import typing
 
-from modern_di.resolver_state import ResolverState
+from modern_di.provider_state import ProviderState
 
 
 if typing.TYPE_CHECKING:
@@ -14,7 +14,7 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 
 class Container(contextlib.AbstractAsyncContextManager["Container"]):
-    __slots__ = "scope", "parent_container", "context", "_is_async", "_resolver_states", "_overrides"
+    __slots__ = "scope", "parent_container", "context", "_is_async", "_provider_states", "_overrides"
 
     def __init__(
         self,
@@ -31,12 +31,12 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         self.parent_container = parent_container
         self.context: dict[str, typing.Any] = context or {}
         self._is_async: bool | None = None
-        self._resolver_states: dict[str, ResolverState[typing.Any]] = {}
+        self._provider_states: dict[str, ProviderState[typing.Any]] = {}
         self._overrides: dict[str, typing.Any] = {}
 
     def _exit(self) -> None:
         self._is_async = None
-        self._resolver_states = {}
+        self._provider_states = {}
         self._overrides = {}
 
     def _check_entered(self) -> None:
@@ -61,30 +61,30 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
             container = typing.cast("typing_extensions.Self", container.parent_container)
         return container
 
-    def fetch_resolver_state(
-        self, resolver_id: str, is_async_resource: bool = False, is_lock_required: bool = False
-    ) -> ResolverState[typing.Any]:
+    def fetch_provider_state(
+        self, provider_id: str, is_async_resource: bool = False, is_lock_required: bool = False
+    ) -> ProviderState[typing.Any]:
         self._check_entered()
         if is_async_resource and self._is_async is False:
             msg = "Resolving async resource in sync container is not allowed"
             raise RuntimeError(msg)
 
-        if resolver_id not in self._resolver_states:
-            self._resolver_states[resolver_id] = ResolverState(is_lock_required=is_lock_required)
+        if provider_id not in self._provider_states:
+            self._provider_states[provider_id] = ProviderState(is_lock_required=is_lock_required)
 
-        return self._resolver_states[resolver_id]
+        return self._provider_states[provider_id]
 
-    def override(self, resolver_id: str, override_object: object) -> None:
-        self._overrides[resolver_id] = override_object
+    def override(self, provider_id: str, override_object: object) -> None:
+        self._overrides[provider_id] = override_object
 
-    def fetch_override(self, resolver_id: str) -> object | None:
-        return self._overrides.get(resolver_id)
+    def fetch_override(self, provider_id: str) -> object | None:
+        return self._overrides.get(provider_id)
 
-    def reset_override(self, resolver_id: str | None = None) -> None:
-        if resolver_id is None:
+    def reset_override(self, provider_id: str | None = None) -> None:
+        if provider_id is None:
             self._overrides = {}
         else:
-            self._overrides.pop(resolver_id, None)
+            self._overrides.pop(provider_id, None)
 
     async def __aenter__(self) -> "Container":
         self._is_async = True
@@ -97,8 +97,8 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         traceback: types.TracebackType | None,
     ) -> None:
         self._check_entered()
-        for resolver_state in reversed(self._resolver_states.values()):
-            await resolver_state.async_tear_down()
+        for provider_state in reversed(self._provider_states.values()):
+            await provider_state.async_tear_down()
         self._exit()
 
     def __enter__(self) -> "Container":
@@ -112,6 +112,6 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         traceback: types.TracebackType | None,
     ) -> None:
         self._check_entered()
-        for resolver_state in reversed(self._resolver_states.values()):
-            resolver_state.sync_tear_down()
+        for provider_state in reversed(self._provider_states.values()):
+            provider_state.sync_tear_down()
         self._exit()

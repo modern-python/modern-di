@@ -2,15 +2,15 @@ import enum
 import typing
 
 from modern_di import Container
-from modern_di.resolvers import BaseCreatorResolver
+from modern_di.providers import BaseCreatorProvider
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
 
 
-class Factory(BaseCreatorResolver[T_co]):
-    __slots__ = [*BaseCreatorResolver.BASE_SLOTS, "_creator"]
+class Factory(BaseCreatorProvider[T_co]):
+    __slots__ = [*BaseCreatorProvider.BASE_SLOTS, "_creator"]
 
     def __init__(
         self,
@@ -23,14 +23,14 @@ class Factory(BaseCreatorResolver[T_co]):
 
     async def async_resolve(self, container: Container) -> T_co:
         container = container.find_container(self.scope)
-        if (override := container.fetch_override(self.resolver_id)) is not None:
+        if (override := container.fetch_override(self.provider_id)) is not None:
             return typing.cast(T_co, override)
 
         return typing.cast(T_co, await self._async_build_creator(container))
 
     def sync_resolve(self, container: Container) -> T_co:
         container = container.find_container(self.scope)
-        if (override := container.fetch_override(self.resolver_id)) is not None:
+        if (override := container.fetch_override(self.provider_id)) is not None:
             return typing.cast(T_co, override)
 
         return typing.cast(T_co, self._sync_build_creator(container))

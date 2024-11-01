@@ -1,14 +1,14 @@
 import datetime
 
-from modern_di import Container, Scope, resolvers
+from modern_di import Container, Scope, providers
 
 
 def context_adapter_function(*, now: datetime.datetime, **_: object) -> datetime.datetime:
     return now
 
 
-context_adapter = resolvers.ContextAdapter(Scope.APP, context_adapter_function)
-request_context_adapter = resolvers.ContextAdapter(Scope.REQUEST, context_adapter_function)
+context_adapter = providers.ContextAdapter(Scope.APP, context_adapter_function)
+request_context_adapter = providers.ContextAdapter(Scope.REQUEST, context_adapter_function)
 
 
 async def test_context_adapter() -> None:

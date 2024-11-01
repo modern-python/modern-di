@@ -13,7 +13,7 @@ def test_container_wrong_init() -> None:
 def test_container_not_opened() -> None:
     container = Container(scope=Scope.APP)
     with pytest.raises(RuntimeError, match="Enter the context first"):
-        container.fetch_resolver_state("some_id")
+        container.fetch_provider_state("some_id")
 
 
 async def test_container_build_child_async() -> None:

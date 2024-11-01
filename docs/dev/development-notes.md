@@ -9,7 +9,7 @@
   - context stacks for resources
   - overrides
 
-### Resolvers
+### Providers
 - completely stateless
 - if dependency is already saved or overridden in `Container`, returns it
 - otherwise build dependency and save it to `Container`
@@ -17,7 +17,7 @@
 
 ### Graph
 - Cannot be instantiated
-- Contains graph of `Resolvers`
+- Contains graph of `Providers`
 - Can initialize its resources and factories to container
 
 ### Questions

@@ -7,5 +7,5 @@ __all__ = [
     "BaseGraph",
     "Container",
     "Scope",
-    "resolvers",
+    "providers",
 ]

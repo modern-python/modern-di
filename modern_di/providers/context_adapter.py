@@ -2,15 +2,15 @@ import enum
 import typing
 
 from modern_di import Container
-from modern_di.resolvers import AbstractResolver
+from modern_di.providers import AbstractProvider
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
 
 
-class ContextAdapter(AbstractResolver[T_co]):
-    __slots__ = [*AbstractResolver.BASE_SLOTS, "_function"]
+class ContextAdapter(AbstractProvider[T_co]):
+    __slots__ = [*AbstractProvider.BASE_SLOTS, "_function"]
 
     def __init__(
         self,
@@ -25,7 +25,7 @@ class ContextAdapter(AbstractResolver[T_co]):
 
     def sync_resolve(self, container: Container) -> T_co:
         container = container.find_container(self.scope)
-        if (override := container.fetch_override(self.resolver_id)) is not None:
+        if (override := container.fetch_override(self.provider_id)) is not None:
             return typing.cast(T_co, override)
 
         return self._function(**container.context)

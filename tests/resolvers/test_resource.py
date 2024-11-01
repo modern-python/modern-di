@@ -3,12 +3,12 @@ import typing
 
 import pytest
 
-from modern_di import Container, Scope, resolvers
+from modern_di import Container, Scope, providers
 from tests.creators import create_async_resource, create_sync_resource
 
 
-async_resource = resolvers.Resource(Scope.APP, create_async_resource)
-sync_resource = resolvers.Resource(Scope.APP, create_sync_resource)
+async_resource = providers.Resource(Scope.APP, create_async_resource)
+sync_resource = providers.Resource(Scope.APP, create_sync_resource)
 
 
 async def test_async_resource() -> None:
@@ -97,7 +97,7 @@ async def test_async_resource_race_condition() -> None:
         await asyncio.sleep(0)
         yield ""
 
-    resource = resolvers.Resource(Scope.APP, create_resource)
+    resource = providers.Resource(Scope.APP, create_resource)
 
     async def resolve_resource(container: Container) -> str:
         return await resource.async_resolve(container)
@@ -110,7 +110,7 @@ async def test_async_resource_race_condition() -> None:
 
 async def test_resource_unsupported_creator() -> None:
     with pytest.raises(RuntimeError, match="Unsupported resource type"):
-        resolvers.Resource(Scope.APP, None)  # type: ignore[arg-type]
+        providers.Resource(Scope.APP, None)  # type: ignore[arg-type]
 
 
 async def test_async_resource_sync_resolve() -> None:

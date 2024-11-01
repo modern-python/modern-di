@@ -4,7 +4,7 @@ import typing
 
 import pytest
 
-from modern_di import Container, Scope, resolvers
+from modern_di import Container, Scope, providers
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -17,8 +17,8 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-app_singleton = resolvers.Singleton(Scope.APP, SimpleCreator, dep1="original")
-request_singleton = resolvers.Singleton(Scope.REQUEST, DependentCreator, dep1=app_singleton.cast)
+app_singleton = providers.Singleton(Scope.APP, SimpleCreator, dep1="original")
+request_singleton = providers.Singleton(Scope.REQUEST, DependentCreator, dep1=app_singleton.cast)
 
 
 async def test_app_singleton() -> None:
@@ -94,8 +94,8 @@ async def test_singleton_race_condition() -> None:
         await asyncio.sleep(0)
         yield ""
 
-    resource = resolvers.Resource(Scope.APP, create_resource)
-    factory_with_resource = resolvers.Singleton(Scope.APP, SimpleCreator, dep1=resource.cast)
+    resource = providers.Resource(Scope.APP, create_resource)
+    factory_with_resource = providers.Singleton(Scope.APP, SimpleCreator, dep1=resource.cast)
 
     async def resolve_factory(container: Container) -> SimpleCreator:
         return await factory_with_resource.async_resolve(container)
@@ -110,6 +110,6 @@ async def test_singleton_race_condition() -> None:
 async def test_singleton_wrong_dependency_scope() -> None:
     def some_factory(_: SimpleCreator) -> None: ...
 
-    request_singleton_ = resolvers.Singleton(Scope.REQUEST, SimpleCreator, dep1="original")
+    request_singleton_ = providers.Singleton(Scope.REQUEST, SimpleCreator, dep1="original")
     with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
-        resolvers.Singleton(Scope.APP, some_factory, request_singleton_.cast)
+        providers.Singleton(Scope.APP, some_factory, request_singleton_.cast)

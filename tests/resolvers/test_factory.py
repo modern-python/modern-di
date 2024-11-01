@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from modern_di import Container, Scope, resolvers
+from modern_di import Container, Scope, providers
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -15,8 +15,8 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-app_factory = resolvers.Factory(Scope.APP, SimpleCreator, dep1="original")
-request_factory = resolvers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
+app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
+request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
 
 
 async def test_app_factory() -> None:
@@ -82,6 +82,6 @@ async def test_factory_overridden() -> None:
 async def test_factory_wrong_dependency_scope() -> None:
     def some_factory(_: SimpleCreator) -> None: ...
 
-    request_factory_ = resolvers.Factory(Scope.REQUEST, SimpleCreator, dep1="original")
+    request_factory_ = providers.Factory(Scope.REQUEST, SimpleCreator, dep1="original")
     with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
-        resolvers.Singleton(Scope.APP, some_factory, request_factory_.cast)
+        providers.Singleton(Scope.APP, some_factory, request_factory_.cast)

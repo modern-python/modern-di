@@ -12,12 +12,12 @@ R = typing.TypeVar("R")
 P = typing.ParamSpec("P")
 
 
-class AbstractResolver(typing.Generic[T_co], abc.ABC):
-    BASE_SLOTS: typing.ClassVar = ["scope", "resolver_id"]
+class AbstractProvider(typing.Generic[T_co], abc.ABC):
+    BASE_SLOTS: typing.ClassVar = ["scope", "provider_id"]
 
     def __init__(self, scope: enum.IntEnum) -> None:
         self.scope = scope
-        self.resolver_id: typing.Final = str(uuid.uuid4())
+        self.provider_id: typing.Final = str(uuid.uuid4())
 
     @abc.abstractmethod
     async def async_resolve(self, container: Container) -> T_co:
@@ -28,18 +28,18 @@ class AbstractResolver(typing.Generic[T_co], abc.ABC):
         """Resolve dependency synchronously."""
 
     def override(self, override_object: object, container: Container) -> None:
-        container.override(self.resolver_id, override_object)
+        container.override(self.provider_id, override_object)
 
     def reset_override(self, container: Container) -> None:
-        container.reset_override(self.resolver_id)
+        container.reset_override(self.provider_id)
 
     @property
     def cast(self) -> T_co:
         return typing.cast(T_co, self)
 
 
-class BaseCreatorResolver(AbstractResolver[T_co], abc.ABC):
-    BASE_SLOTS: typing.ClassVar = [*AbstractResolver.BASE_SLOTS, "_args", "_kwargs", "_creator"]
+class BaseCreatorProvider(AbstractProvider[T_co], abc.ABC):
+    BASE_SLOTS: typing.ClassVar = [*AbstractProvider.BASE_SLOTS, "_args", "_kwargs", "_creator"]
 
     def __init__(
         self,
@@ -50,7 +50,7 @@ class BaseCreatorResolver(AbstractResolver[T_co], abc.ABC):
     ) -> None:
         super().__init__(scope)
 
-        if any(x.scope > self.scope for x in itertools.chain(args, kwargs.values()) if isinstance(x, AbstractResolver)):
+        if any(x.scope > self.scope for x in itertools.chain(args, kwargs.values()) if isinstance(x, AbstractProvider)):
             msg = "Scope of dependency cannot be more than scope of dependent"
             raise RuntimeError(msg)
 
@@ -61,12 +61,12 @@ class BaseCreatorResolver(AbstractResolver[T_co], abc.ABC):
     def _sync_build_creator(self, container: Container) -> typing.Any:  # noqa: ANN401
         return self._creator(
             *typing.cast(
-                P.args, [x.sync_resolve(container) if isinstance(x, AbstractResolver) else x for x in self._args]
+                P.args, [x.sync_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args]
             ),
             **typing.cast(
                 P.kwargs,
                 {
-                    k: v.sync_resolve(container) if isinstance(v, AbstractResolver) else v
+                    k: v.sync_resolve(container) if isinstance(v, AbstractProvider) else v
                     for k, v in self._kwargs.items()
                 },
             ),
@@ -76,12 +76,12 @@ class BaseCreatorResolver(AbstractResolver[T_co], abc.ABC):
         return self._creator(
             *typing.cast(
                 P.args,
-                [await x.async_resolve(container) if isinstance(x, AbstractResolver) else x for x in self._args],
+                [await x.async_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args],
             ),
             **typing.cast(
                 P.kwargs,
                 {
-                    k: await v.async_resolve(container) if isinstance(v, AbstractResolver) else v
+                    k: await v.async_resolve(container) if isinstance(v, AbstractProvider) else v
                     for k, v in self._kwargs.items()
                 },
             ),
