@@ -6,8 +6,7 @@ on:
       - published
 
 jobs:
-  publish-core:
-    if: startsWith(github.ref_name, 'core')
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,26 +15,12 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
-      - run: just publish
+      - run: just publish modern-di
+        if: startsWith(github.ref_name, 'core')
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
-  publish-fastapi:
-    if: startsWith(github.ref_name, 'fastapi')
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: integrations/fastapi
-    steps:
-      - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v2
-      - uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
-      - run: |
-          export SETUPTOOLS_SCM_PRETEND_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^fastapi-//; s/-.*$//')
-          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$SETUPTOOLS_SCM_PRETEND_VERSION"
-          just publish
+      - run: just publish modern-di-fastapi
+        if: startsWith(github.ref_name, 'fastapi')
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}

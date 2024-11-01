@@ -17,7 +17,7 @@ lint-ci:
 test *args:
     uv run pytest tests {{ args }}
 
-publish:
+publish package:
     rm -rf dist
-    uv build
+    uv build --package {{package}}
     uv publish --token $PYPI_TOKEN

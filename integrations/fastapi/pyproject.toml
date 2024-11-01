@@ -49,6 +49,9 @@ build-backend = "hatchling.build"
 source = "vcs"
 fallback-version = "0"
 
+[tool.hatch.build.targets.wheel]
+packages = ["integrations/fastapi"]
+
 [tool.mypy]
 python_version = "3.10"
 strict = true
