@@ -4,15 +4,15 @@ import inspect
 import typing
 
 from modern_di import Container
-from modern_di.providers import BaseCreatorProvider
+from modern_di.providers.abstract import AbstractCreatorProvider
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
 
 
-class Resource(BaseCreatorProvider[T_co]):
-    __slots__ = [*BaseCreatorProvider.BASE_SLOTS, "_creator", "_args", "_kwargs", "_is_async"]
+class Resource(AbstractCreatorProvider[T_co]):
+    __slots__ = [*AbstractCreatorProvider.BASE_SLOTS, "_creator", "_args", "_kwargs", "_is_async"]
 
     def _is_creator_async(
         self,
