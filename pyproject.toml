@@ -35,6 +35,12 @@ dev = [
     "typing-extensions",
 ]
 
+[tool.uv.workspace]
+members = ["integrations/*"]
+
+[tool.uv.sources]
+modern-di = { workspace = true }
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
