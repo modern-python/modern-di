@@ -38,6 +38,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         self._is_async = None
         self._provider_states = {}
         self._overrides = {}
+        self.context = {}
 
     def _check_entered(self) -> None:
         if self._is_async is None:
