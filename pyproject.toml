@@ -1,6 +1,5 @@
 [project]
 name = "modern-di-workspace"
-description = "Modern-DI workspace"
 requires-python = ">=3.10,<4"
 version = "0"
 
