@@ -1,9 +1,9 @@
-from modern_di_fastapi.depends import FromDI, setup_modern_di
-from modern_di_fastapi.middleware import ContainerMiddleware
+from modern_di_fastapi.main import FromDI, enter_di_request_scope, fetch_di_container, save_di_container
 
 
 __all__ = [
-    "ContainerMiddleware",
     "FromDI",
-    "setup_modern_di",
+    "enter_di_request_scope",
+    "fetch_di_container",
+    "save_di_container",
 ]

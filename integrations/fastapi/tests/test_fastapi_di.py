@@ -11,20 +11,19 @@ from modern_di import Scope, providers
 from starlette import status
 from starlette.requests import Request
 
-import modern_di_fastapi
-from modern_di_fastapi import ContainerMiddleware, FromDI
+from modern_di_fastapi import FromDI, save_di_container
+from modern_di_fastapi.main import enter_di_request_scope
 
 
 @contextlib.asynccontextmanager
 async def lifespan(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]:
     di_container = modern_di.Container(scope=modern_di.Scope.APP)
-    modern_di_fastapi.setup_modern_di(container=di_container, app=app_)
+    save_di_container(app_, di_container)
     async with di_container:
         yield
 
 
-app = fastapi.FastAPI(lifespan=lifespan)
-app.add_middleware(ContainerMiddleware)
+app = fastapi.FastAPI(lifespan=lifespan, dependencies=[fastapi.Depends(enter_di_request_scope)])
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -60,7 +59,7 @@ async def read_root(
 @pytest.fixture(scope="session")
 async def client() -> typing.AsyncIterator[httpx.AsyncClient]:
     async with LifespanManager(app):
-        yield httpx.AsyncClient(app=app, base_url="http://test")
+        yield httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
 async def test_read_main(client: httpx.AsyncClient) -> None:
