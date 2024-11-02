@@ -44,7 +44,7 @@ package = false
 modern-di = { workspace = true }
 
 [tool.uv.workspace]
-members = ["packages/*"]
+members = ["packages/*", "new"]
 
 [tool.mypy]
 python_version = "3.10"

@@ -5,14 +5,13 @@ import typing
 import fastapi
 import httpx
 import modern_di
+import modern_di_fastapi
 import pytest
 from asgi_lifespan import LifespanManager
 from modern_di import Scope, providers
+from modern_di_fastapi import ContainerMiddleware, FromDI
 from starlette import status
 from starlette.requests import Request
-
-import modern_di_fastapi
-from modern_di_fastapi import ContainerMiddleware, FromDI
 
 
 @contextlib.asynccontextmanager
