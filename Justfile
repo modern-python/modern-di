@@ -14,11 +14,17 @@ lint-ci path=".":
     uv run ruff check {{ path }} --no-fix
     uv run mypy {{ path }}
 
-test *args:
-    uv run pytest {{ env_var_or_default("TESTS_PATH", ".") }} {{ args }}
+_test *args:
+    uv run pytest $TEST_PATH --cov=$TEST_PATH --cov-report term-missing {{ args }}
 
-test-all *args:
-    uv run pytest {{ args }}
+test *args:
+    @TEST_PATH=. just _test {{ args }}
+
+test-core *args:
+    @TEST_PATH=packages/modern-di just _test {{ args }}
+
+test-fastapi *args:
+    @TEST_PATH=packages/modern-di-fastapi just _test {{ args }}
 
 publish package:
     rm -rf dist

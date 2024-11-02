@@ -75,7 +75,7 @@ isort.lines-after-imports = 2
 isort.no-lines-before = ["standard-library", "local-folder"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=. --cov-report term-missing"
+# addopts = "--cov=. --cov-report term-missing"
 asyncio_mode = "auto"
 
 [tool.coverage.report]
