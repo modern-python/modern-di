@@ -2,9 +2,9 @@ import asyncio
 import typing
 
 import pytest
-
 from modern_di import Container, Scope, providers
-from tests.creators import create_async_resource, create_sync_resource
+
+from tests.core.creators import create_async_resource, create_sync_resource
 
 
 async_resource = providers.Resource(Scope.APP, create_async_resource)
