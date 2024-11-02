@@ -15,7 +15,7 @@ lint-ci:
     uv run mypy .
 
 _test *args:
-    uv run pytest $TEST_PATH --cov=$TEST_PATH --cov-report term-missing {{ args }}
+    uv run pytest {{ env("TEST_PATH") }} --cov={{ env("TEST_PATH") }} --cov-report term-missing {{ args }}
 
 test *args:
     @TEST_PATH=. just _test {{ args }}
@@ -28,5 +28,5 @@ test-fastapi *args:
 
 publish package:
     rm -rf dist
-    uv build --package {{package}}
+    uv build --package {{ package }}
     uv publish --token $PYPI_TOKEN
