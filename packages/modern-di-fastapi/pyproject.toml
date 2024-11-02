@@ -1,0 +1,19 @@
+[project]
+name = "modern-di-fastapi"
+description = "Modern-DI integration for FastAPI"
+readme = "README.md"
+keywords = ["DI", "dependency injector", "ioc-container", "FastAPI", "python"]
+dependencies = ["fastapi>=0.100", "modern-di"]
+dynamic = ["version"]
+packages = [{ include = "modern_di_fastapi" }]
+
+[dependency-groups]
+dev = ["httpx", "asgi-lifespan"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0"

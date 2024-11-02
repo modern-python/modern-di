@@ -1,0 +1,15 @@
+[project]
+name = "modern-di"
+description = "Dependency Injection framework with IOC-container and scopes"
+readme = "../../README.md"
+keywords = ["DI", "dependency injector", "ioc-container", "mocks", "python"]
+dynamic = ["version"]
+packages = [{ include = "modern_di" }]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0"

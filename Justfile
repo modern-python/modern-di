@@ -2,20 +2,23 @@ default: install lint test
 
 install:
     uv lock --upgrade
-    uv sync --all-extras --frozen
+    uv sync --all-extras --all-packages --frozen
 
-lint:
-    uv run ruff format .
-    uv run ruff check . --fix
-    uv run mypy .
+lint path=".":
+    uv run ruff format {{ path }}
+    uv run ruff check {{ path }} --fix
+    uv run mypy {{ path }}
 
-lint-ci:
-    uv run ruff format . --check
-    uv run ruff check . --no-fix
-    uv run mypy .
+lint-ci path=".":
+    uv run ruff format {{ path }} --check
+    uv run ruff check {{ path }} --no-fix
+    uv run mypy {{ path }}
 
 test *args:
-    uv run pytest tests {{ args }}
+    uv run pytest {{ env_var_or_default("TESTS_PATH", ".") }} {{ args }}
+
+test-all *args:
+    uv run pytest {{ args }}
 
 publish package:
     rm -rf dist
