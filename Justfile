@@ -4,15 +4,15 @@ install:
     uv lock --upgrade
     uv sync --all-extras --all-packages --frozen
 
-lint path=".":
-    uv run ruff format {{ path }}
-    uv run ruff check {{ path }} --fix
-    uv run mypy {{ path }}
+lint:
+    uv run ruff format .
+    uv run ruff check . --fix
+    uv run mypy .
 
-lint-ci path=".":
-    uv run ruff format {{ path }} --check
-    uv run ruff check {{ path }} --no-fix
-    uv run mypy {{ path }}
+lint-ci:
+    uv run ruff format . --check
+    uv run ruff check . --no-fix
+    uv run mypy .
 
 _test *args:
     uv run pytest $TEST_PATH --cov=$TEST_PATH --cov-report term-missing {{ args }}

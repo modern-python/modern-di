@@ -49,4 +49,4 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
-      - run: just install test . --cov=. --cov-report xml
+      - run: just install test
