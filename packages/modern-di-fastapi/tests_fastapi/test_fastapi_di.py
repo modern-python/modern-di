@@ -59,7 +59,7 @@ async def read_root(
 @pytest.fixture(scope="session")
 async def client() -> typing.AsyncIterator[httpx.AsyncClient]:
     async with LifespanManager(app):
-        yield httpx.AsyncClient(app=app, base_url="http://test")
+        yield httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
 async def test_read_main(client: httpx.AsyncClient) -> None:
