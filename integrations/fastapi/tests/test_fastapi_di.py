@@ -4,26 +4,23 @@ import typing
 
 import fastapi
 import httpx
-import modern_di
 import pytest
 from asgi_lifespan import LifespanManager
 from modern_di import Scope, providers
 from starlette import status
 from starlette.requests import Request
 
-from modern_di_fastapi import FromDI, save_di_container
-from modern_di_fastapi.main import enter_di_request_scope
+from modern_di_fastapi import Provide, setup_di
 
 
 @contextlib.asynccontextmanager
 async def lifespan(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]:
-    di_container = modern_di.Container(scope=modern_di.Scope.APP)
-    save_di_container(app_, di_container)
-    async with di_container:
+    container = setup_di(app_)
+    async with container:
         yield
 
 
-app = fastapi.FastAPI(lifespan=lifespan, dependencies=[fastapi.Depends(enter_di_request_scope)])
+app = fastapi.FastAPI(lifespan=lifespan)
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -47,9 +44,9 @@ context_adapter = providers.ContextAdapter(Scope.REQUEST, context_adapter_functi
 
 @app.get("/")
 async def read_root(
-    app_factory_instance: typing.Annotated[SimpleCreator, FromDI(app_factory)],
-    request_factory_instance: typing.Annotated[DependentCreator, FromDI(request_factory)],
-    method: typing.Annotated[str, FromDI(context_adapter)],
+    app_factory_instance: typing.Annotated[SimpleCreator, Provide(app_factory)],
+    request_factory_instance: typing.Annotated[DependentCreator, Provide(request_factory)],
+    method: typing.Annotated[str, Provide(context_adapter)],
 ) -> str:
     assert isinstance(app_factory_instance, SimpleCreator)
     assert isinstance(request_factory_instance, DependentCreator)
