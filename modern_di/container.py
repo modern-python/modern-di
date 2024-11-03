@@ -58,6 +58,10 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         container = self
+        if container.scope < scope:
+            msg = f"Scope {scope.name} is not initialized"
+            raise RuntimeError(msg)
+
         while container.scope > scope and container.parent_container:
             container = typing.cast("typing_extensions.Self", container.parent_container)
         return container
