@@ -6,8 +6,12 @@ from modern_di import Scope, providers
 from starlette import status
 from starlette.testclient import TestClient
 
-from modern_di_fastapi import Provide, build_request_container
-from tests.dependencies import DependentCreator, SimpleCreator, context_adapter_function
+from modern_di_fastapi import Provide, build_di_container
+from tests.dependencies import DependentCreator, SimpleCreator
+
+
+def context_adapter_function(*, request: fastapi.Request, **_: object) -> str:
+    return request.method
 
 
 app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
@@ -46,7 +50,7 @@ def test_context_adapter(client: TestClient, app: fastapi.FastAPI) -> None:
 def test_factories_action_scope(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        request_container: typing.Annotated[modern_di.Container, fastapi.Depends(build_request_container)],
+        request_container: typing.Annotated[modern_di.Container, fastapi.Depends(build_di_container)],
     ) -> None:
         with request_container.build_child_container() as action_container:
             action_factory_instance = action_factory.sync_resolve(action_container)

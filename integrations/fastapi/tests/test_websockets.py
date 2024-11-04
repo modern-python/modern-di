@@ -1,16 +1,22 @@
 import typing
 
 import fastapi
+import modern_di
 from modern_di import Scope, providers
 from starlette.testclient import TestClient
 
-from modern_di_fastapi import Provide
+from modern_di_fastapi import Provide, build_di_container
 from tests.dependencies import DependentCreator, SimpleCreator
+
+
+def context_adapter_function(*, websocket: fastapi.WebSocket, **_: object) -> str:
+    return str(websocket.scope["path"])
 
 
 app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
 session_factory = providers.Factory(Scope.SESSION, DependentCreator, dep1=app_factory.cast)
 request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
+context_adapter = providers.ContextAdapter(Scope.SESSION, context_adapter_function)
 
 
 async def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
@@ -25,9 +31,45 @@ async def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
         assert session_factory_instance.dep1 is not app_factory_instance
 
         await websocket.accept()
-        await websocket.send_json({"msg": "Hello WebSocket"})
+        await websocket.send_text("test")
         await websocket.close()
 
     with client.websocket_connect("/ws") as websocket:
-        data = websocket.receive_json()
-        assert data == {"msg": "Hello WebSocket"}
+        data = websocket.receive_text()
+        assert data == "test"
+
+
+async def test_factories_request_scope(client: TestClient, app: fastapi.FastAPI) -> None:
+    @app.websocket("/ws")
+    async def websocket_endpoint(
+        websocket: fastapi.WebSocket,
+        session_container: typing.Annotated[modern_di.Container, fastapi.Depends(build_di_container)],
+    ) -> None:
+        with session_container.build_child_container() as request_container:
+            request_factory_instance = request_factory.sync_resolve(request_container)
+            assert isinstance(request_factory_instance, DependentCreator)
+
+        await websocket.accept()
+        await websocket.send_text("test")
+        await websocket.close()
+
+    with client.websocket_connect("/ws") as websocket:
+        data = websocket.receive_text()
+        assert data == "test"
+
+
+async def test_context_adapter(client: TestClient, app: fastapi.FastAPI) -> None:
+    @app.websocket("/ws")
+    async def websocket_endpoint(
+        websocket: fastapi.WebSocket,
+        path: typing.Annotated[str, Provide(context_adapter)],
+    ) -> None:
+        assert path == "/ws"
+
+        await websocket.accept()
+        await websocket.send_text("test")
+        await websocket.close()
+
+    with client.websocket_connect("/ws") as websocket:
+        data = websocket.receive_text()
+        assert data == "test"

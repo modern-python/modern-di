@@ -19,7 +19,7 @@ def fetch_di_container(app: fastapi.FastAPI) -> Container:
     return typing.cast(Container, app.state.di_container)
 
 
-async def build_request_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
+async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
     context: dict[str, typing.Any] = {}
     scope: Scope | None = None
     if isinstance(connection, fastapi.Request):
@@ -38,7 +38,7 @@ class Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co]
 
     async def __call__(
-        self, request_container: typing.Annotated[Container, fastapi.Depends(build_request_container)]
+        self, request_container: typing.Annotated[Container, fastapi.Depends(build_di_container)]
     ) -> T_co:
         return await self.dependency.async_resolve(request_container)
 
