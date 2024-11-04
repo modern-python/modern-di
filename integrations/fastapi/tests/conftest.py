@@ -2,9 +2,9 @@ import contextlib
 import typing
 
 import fastapi
-import httpx
 import pytest
 from asgi_lifespan import LifespanManager
+from starlette.testclient import TestClient
 
 from modern_di_fastapi import setup_di
 
@@ -24,5 +24,5 @@ async def app() -> typing.AsyncIterator[fastapi.FastAPI]:
 
 
 @pytest.fixture
-def client(app: fastapi.FastAPI) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+def client(app: fastapi.FastAPI) -> TestClient:
+    return TestClient(app=app)

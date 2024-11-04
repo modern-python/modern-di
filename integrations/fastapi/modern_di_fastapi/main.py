@@ -4,6 +4,7 @@ import typing
 
 import fastapi
 from modern_di import Container, Scope, providers
+from starlette.requests import HTTPConnection
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -18,9 +19,17 @@ def fetch_di_container(app: fastapi.FastAPI) -> Container:
     return typing.cast(Container, app.state.di_container)
 
 
-async def build_request_container(request: fastapi.Request) -> typing.AsyncIterator[Container]:
-    container: Container = fetch_di_container(request.app)
-    async with container.build_child_container(context={"request": request}) as request_container:
+async def build_request_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
+    context: dict[str, typing.Any] = {}
+    scope: Scope | None = None
+    if isinstance(connection, fastapi.Request):
+        scope = Scope.REQUEST
+        context["request"] = connection
+    elif isinstance(connection, fastapi.WebSocket):
+        context["websocket"] = connection
+        scope = Scope.SESSION
+    container: Container = fetch_di_container(connection.app)
+    async with container.build_child_container(context=context, scope=scope) as request_container:
         yield request_container
 
 

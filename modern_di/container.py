@@ -23,10 +23,6 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         parent_container: typing.Optional["Container"] = None,
         context: dict[str, typing.Any] | None = None,
     ) -> None:
-        if scope.value != 1 and parent_container is None:
-            msg = "Only first scope can be used without parent_container"
-            raise RuntimeError(msg)
-
         self.scope = scope
         self.parent_container = parent_container
         self.context: dict[str, typing.Any] = context or {}
@@ -45,16 +41,22 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
             msg = "Enter the context first"
             raise RuntimeError(msg)
 
-    def build_child_container(self, context: dict[str, typing.Any] | None = None) -> "typing_extensions.Self":
+    def build_child_container(
+        self, context: dict[str, typing.Any] | None = None, scope: enum.IntEnum | None = None
+    ) -> "typing_extensions.Self":
         self._check_entered()
+        if scope and scope <= self.scope:
+            msg = "Scope of child container must be more than current scope"
+            raise RuntimeError(msg)
 
-        try:
-            new_scope = self.scope.__class__(self.scope.value + 1)
-        except ValueError as exc:
-            msg = f"Max scope is reached, {self.scope.name}"
-            raise RuntimeError(msg) from exc
+        if not scope:
+            try:
+                scope = self.scope.__class__(self.scope.value + 1)
+            except ValueError as exc:
+                msg = f"Max scope is reached, {self.scope.name}"
+                raise RuntimeError(msg) from exc
 
-        return self.__class__(scope=new_scope, parent_container=self, context=context)
+        return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         container = self
@@ -64,6 +66,11 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
 
         while container.scope > scope and container.parent_container:
             container = typing.cast("typing_extensions.Self", container.parent_container)
+
+        if container.scope != scope:
+            msg = f"Scope {scope.name} is skipped"
+            raise RuntimeError(msg)
+
         return container
 
     def fetch_provider_state(
