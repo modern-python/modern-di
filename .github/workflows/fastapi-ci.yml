@@ -14,7 +14,7 @@ on:
 
 defaults:
   run:
-    working-directory: integrations/fastapi
+    working-directory: packages/modern-di-fastapi
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }} fastapi
