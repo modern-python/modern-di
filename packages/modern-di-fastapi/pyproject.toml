@@ -34,3 +34,10 @@ fallback-version = "0"
 
 [tool.hatch.build]
 include = ["modern_di_fastapi"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=. --cov-report term-missing"
+asyncio_mode = "auto"
+
+[tool.coverage.report]
+exclude_also = ["if typing.TYPE_CHECKING:"]

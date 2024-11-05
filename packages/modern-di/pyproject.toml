@@ -35,3 +35,10 @@ content-type = "text/markdown"
 
 [[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
 path = "../../README.md"
+
+[tool.pytest.ini_options]
+addopts = "--cov=. --cov-report term-missing"
+asyncio_mode = "auto"
+
+[tool.coverage.report]
+exclude_also = ["if typing.TYPE_CHECKING:"]
