@@ -3,8 +3,9 @@ import enum
 import typing
 
 import fastapi
-from modern_di import Container, Scope, providers
 from starlette.requests import HTTPConnection
+
+from modern_di import Container, Scope, providers
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
