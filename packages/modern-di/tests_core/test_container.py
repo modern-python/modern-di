@@ -1,5 +1,4 @@
 import pytest
-
 from modern_di import Container, Scope, providers
 
 
