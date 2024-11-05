@@ -1,12 +1,12 @@
 import typing
 
 import fastapi
+import modern_di
+from modern_di import Scope, providers
 from modern_di_fastapi import Provide, build_di_container
 from starlette import status
 from starlette.testclient import TestClient
 
-import modern_di
-from modern_di import Scope, providers
 from tests_fastapi.dependencies import DependentCreator, SimpleCreator
 
 

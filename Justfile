@@ -5,13 +5,13 @@ install:
     uv sync --all-extras --all-packages --frozen
 
 lint:
-    uv run ruff format . --config pyproject.toml
-    uv run ruff check . --fix --config pyproject.toml
+    uv run ruff format .
+    uv run ruff check . --fix
     uv run mypy .
 
 lint-ci:
-    uv run ruff format . --check --config pyproject.toml
-    uv run ruff check . --no-fix --config pyproject.toml
+    uv run ruff format . --check
+    uv run ruff check . --no-fix
     uv run mypy .
 
 test *args:

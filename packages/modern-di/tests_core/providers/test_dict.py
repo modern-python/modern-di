@@ -1,6 +1,6 @@
 import pytest
-
 from modern_di import Container, Scope, providers
+
 from tests_core.creators import create_async_resource, create_sync_resource
 
 
