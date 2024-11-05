@@ -33,12 +33,12 @@ async def test_app_factory() -> None:
 
 async def test_request_factory() -> None:
     with Container(scope=Scope.APP) as app_container:
-        with app_container.build_child_container() as request_container:
+        with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
             instance1 = request_factory.sync_resolve(request_container)
             instance2 = request_factory.sync_resolve(request_container)
             assert instance1 is not instance2
 
-        async with app_container.build_child_container() as request_container:
+        async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
             instance3 = await request_factory.async_resolve(request_container)
             instance4 = await request_factory.async_resolve(request_container)
             assert instance3 is not instance4
@@ -84,3 +84,9 @@ async def test_factory_wrong_dependency_scope() -> None:
     request_factory_ = providers.Factory(Scope.REQUEST, SimpleCreator, dep1="original")
     with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
         providers.Singleton(Scope.APP, some_factory, request_factory_.cast)
+
+
+async def test_factory_scope_is_not_initialized() -> None:
+    async with Container(scope=Scope.APP) as app_container:
+        with pytest.raises(RuntimeError, match="Scope REQUEST is not initialize"):
+            await request_factory.async_resolve(app_container)

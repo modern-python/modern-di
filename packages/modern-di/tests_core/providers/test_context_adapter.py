@@ -23,7 +23,7 @@ async def test_context_adapter_in_request_scope() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     async with (
         Container(scope=Scope.APP) as app_container,
-        app_container.build_child_container(context={"now": now}) as request_container,
+        app_container.build_child_container(context={"now": now}, scope=Scope.REQUEST) as request_container,
     ):
         instance1 = await request_context_adapter.async_resolve(request_container)
         instance2 = request_context_adapter.sync_resolve(request_container)

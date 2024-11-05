@@ -1,13 +1,14 @@
 # Development Notes
 ## Base parts
 ### Scope
-- any int enum, starting from 1 with step 1
+- any int enum, starting from 1 with step 1;
+- skipping scopes is allowed by explicit passing required scope when initializing `Container`.
 
 ### Container
 - all states live in containers:
-  - resolved dependencies
-  - context stacks for resources
-  - overrides
+  - resolved dependencies;
+  - context stacks for resources;
+  - overrides;
 
 ### Providers
 - completely stateless

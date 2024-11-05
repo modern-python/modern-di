@@ -22,7 +22,7 @@ async def test_selector() -> None:
 async def test_selector_in_request_scope() -> None:
     async with (
         Container(scope=Scope.APP) as app_container,
-        app_container.build_child_container(context={"option": "request"}) as request_container,
+        app_container.build_child_container(context={"option": "request"}, scope=Scope.REQUEST) as request_container,
     ):
         instance1 = await request_selector.async_resolve(request_container)
         instance2 = request_selector.sync_resolve(request_container)

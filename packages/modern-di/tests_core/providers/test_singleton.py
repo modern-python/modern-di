@@ -42,12 +42,12 @@ async def test_app_singleton() -> None:
 
 async def test_request_singleton() -> None:
     with Container(scope=Scope.APP) as app_container:
-        with app_container.build_child_container() as request_container:
+        with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
             instance1 = request_singleton.sync_resolve(request_container)
             instance2 = request_singleton.sync_resolve(request_container)
             assert instance1 is instance2
 
-        async with app_container.build_child_container() as request_container:
+        async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
             instance3 = await request_singleton.async_resolve(request_container)
             instance4 = await request_singleton.async_resolve(request_container)
             assert instance3 is instance4
