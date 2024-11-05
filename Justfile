@@ -2,7 +2,7 @@ default: install lint test
 
 install:
     uv lock --upgrade
-    uv sync --all-extras --frozen
+    uv sync --all-extras --all-packages --frozen
 
 lint:
     uv run ruff format .
@@ -15,9 +15,15 @@ lint-ci:
     uv run mypy .
 
 test *args:
-    uv run pytest tests {{ args }}
+    uv run pytest {{ args }}
+
+test-core *args:
+    uv run --directory=packages/modern-di pytest {{ args }}
+
+test-fastapi *args:
+    uv run --directory=packages/modern-di-fastapi pytest {{ args }}
 
 publish package:
     rm -rf dist
-    uv build --package {{package}}
+    uv build --package {{ package }}
     uv publish --token $PYPI_TOKEN

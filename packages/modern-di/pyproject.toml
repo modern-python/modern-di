@@ -1,0 +1,37 @@
+[project]
+name = "modern-di"
+description = "Dependency Injection framework with IOC-container and scopes"
+authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
+requires-python = ">=3.10,<4"
+license = "MIT"
+keywords = ["DI", "dependency injector", "ioc-container", "mocks", "python"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries",
+]
+dynamic = ["version", "readme"]
+
+[project.urls]
+repository = "https://github.com/modern-python/modern-di"
+docs = "https://modern-di.readthedocs.io"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs", "hatch-fancy-pypi-readme"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0"
+
+[tool.hatch.build]
+include = ["modern_di"]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "../../README.md"

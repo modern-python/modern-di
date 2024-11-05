@@ -3,10 +3,10 @@ import typing
 import fastapi
 import modern_di
 from modern_di import Scope, providers
+from modern_di_fastapi import Provide, build_di_container
 from starlette.testclient import TestClient
 
-from modern_di_fastapi import Provide, build_di_container
-from tests.dependencies import DependentCreator, SimpleCreator
+from tests_fastapi.dependencies import DependentCreator, SimpleCreator
 
 
 def context_adapter_function(*, websocket: fastapi.WebSocket, **_: object) -> str:

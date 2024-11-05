@@ -14,7 +14,7 @@ on:
 
 defaults:
   run:
-    working-directory: integrations/fastapi
+    working-directory: packages/modern-di-fastapi
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }} fastapi
@@ -51,4 +51,4 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
-      - run: just install test . --cov=. --cov-report xml
+      - run: just install test-fastapi

@@ -4,9 +4,8 @@ import typing
 import fastapi
 import pytest
 from asgi_lifespan import LifespanManager
-from starlette.testclient import TestClient
-
 from modern_di_fastapi import setup_di
+from starlette.testclient import TestClient
 
 
 @contextlib.asynccontextmanager

@@ -1,0 +1,36 @@
+[project]
+name = "modern-di-fastapi"
+description = "Modern-DI integration for FastAPI"
+authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
+requires-python = ">=3.10,<4"
+license = "MIT"
+readme = "README.md"
+keywords = ["DI", "dependency injector", "ioc-container", "FastAPI", "python"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = ["fastapi>=0.100", "modern-di"]
+dynamic = ["version"]
+
+[project.urls]
+repository = "https://github.com/modern-python/modern-di"
+docs = "https://modern-di.readthedocs.io"
+
+[dependency-groups]
+dev = ["httpx", "asgi-lifespan"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0"
+
+[tool.hatch.build]
+include = ["modern_di_fastapi"]

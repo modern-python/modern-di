@@ -1,7 +1,7 @@
 import pytest
-
 from modern_di import BaseGraph, Container, Scope, providers
-from tests.creators import create_async_resource, create_sync_resource
+
+from tests_core.creators import create_async_resource, create_sync_resource
 
 
 async_resource = providers.Resource(Scope.APP, create_async_resource)
