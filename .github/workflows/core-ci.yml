@@ -5,13 +5,11 @@ on:
     branches:
       - main
     paths:
-      - 'modern_di/**'
-      - 'tests/**'
+      - 'packages/modern-di/**'
       - '.github/workflows/core-ci.yml'
   pull_request:
     paths:
-      - 'modern_di/**'
-      - 'tests/**'
+      - 'packages/modern-di/**'
       - '.github/workflows/core-ci.yml'
 
 concurrency:

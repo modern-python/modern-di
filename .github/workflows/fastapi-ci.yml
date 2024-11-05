@@ -5,11 +5,11 @@ on:
     branches:
       - main
     paths:
-      - 'integrations/fastapi/**'
+      - 'packages/modern-di-fastapi/**'
       - '.github/workflows/fastapi-ci.yml'
   pull_request:
     paths:
-      - 'integrations/fastapi/**'
+      - 'packages/modern-di-fastapi/**'
       - '.github/workflows/fastapi-ci.yml'
 
 defaults:

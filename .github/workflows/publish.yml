@@ -22,9 +22,6 @@ jobs:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
       - if: startsWith(github.ref_name, 'fastapi')
-        run: |
-          export SETUPTOOLS_SCM_PRETEND_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^fastapi-//; s/-.*$//')
-          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$SETUPTOOLS_SCM_PRETEND_VERSION"
-          just publish modern-di-fastapi
+        run: just publish modern-di-fastapi
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
