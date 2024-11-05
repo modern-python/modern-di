@@ -25,6 +25,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
+raw-options.root = "../.."
 fallback-version = "0"
 
 [tool.hatch.build]
