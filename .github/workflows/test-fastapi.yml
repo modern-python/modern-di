@@ -1,4 +1,4 @@
-name: fastapi ci
+name: test fastapi
 
 on:
   push:
@@ -6,26 +6,17 @@ on:
       - main
     paths:
       - 'packages/modern-di-fastapi/**'
-      - '.github/workflows/fastapi-ci.yml'
+      - '.github/workflows/test-fastapi.yml'
   pull_request:
     paths:
       - 'packages/modern-di-fastapi/**'
-      - '.github/workflows/fastapi-ci.yml'
+      - '.github/workflows/test-fastapi.yml'
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }} fastapi
   cancel-in-progress: false
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v2
-      - uses: astral-sh/setup-uv@v3
-      - run: uv python install 3.10
-      - run: just install lint-ci
-
   pytest:
     runs-on: ubuntu-latest
     strategy:
