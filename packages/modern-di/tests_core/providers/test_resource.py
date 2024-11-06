@@ -4,11 +4,18 @@ import typing
 import pytest
 from modern_di import Container, Scope, providers
 
-from tests_core.creators import create_async_resource, create_sync_resource
+from tests_core.creators import (
+    AsyncContextManagerResource,
+    ContextManagerResource,
+    create_async_resource,
+    create_sync_resource,
+)
 
 
 async_resource = providers.Resource(Scope.APP, create_async_resource)
 sync_resource = providers.Resource(Scope.APP, create_sync_resource)
+async_resource_from_class = providers.Resource(Scope.APP, AsyncContextManagerResource)
+sync_resource_from_class = providers.Resource(Scope.APP, ContextManagerResource)
 
 
 async def test_async_resource() -> None:
@@ -20,6 +27,19 @@ async def test_async_resource() -> None:
     async with Container(scope=Scope.APP) as app_container:
         async_resource3 = await async_resource.async_resolve(app_container)
         async_resource4 = async_resource.sync_resolve(app_container)
+        assert async_resource3 is async_resource4
+        assert async_resource3 is not async_resource1
+
+
+async def test_async_resource_from_class() -> None:
+    async with Container(scope=Scope.APP) as app_container:
+        async_resource1 = await async_resource_from_class.async_resolve(app_container)
+        async_resource2 = await async_resource_from_class.async_resolve(app_container)
+        assert async_resource1 is async_resource2
+
+    async with Container(scope=Scope.APP) as app_container:
+        async_resource3 = await async_resource_from_class.async_resolve(app_container)
+        async_resource4 = async_resource_from_class.sync_resolve(app_container)
         assert async_resource3 is async_resource4
         assert async_resource3 is not async_resource1
 
@@ -48,6 +68,19 @@ async def test_sync_resource() -> None:
     with Container(scope=Scope.APP) as app_container:
         sync_resource3 = sync_resource.sync_resolve(app_container)
         sync_resource4 = sync_resource.sync_resolve(app_container)
+        assert sync_resource3 is sync_resource4
+        assert sync_resource3 is not sync_resource1
+
+
+async def test_sync_resource_from_class() -> None:
+    async with Container(scope=Scope.APP) as app_container:
+        sync_resource1 = await sync_resource_from_class.async_resolve(app_container)
+        sync_resource2 = await sync_resource_from_class.async_resolve(app_container)
+        assert sync_resource1 is sync_resource2
+
+    with Container(scope=Scope.APP) as app_container:
+        sync_resource3 = sync_resource_from_class.sync_resolve(app_container)
+        sync_resource4 = sync_resource_from_class.sync_resolve(app_container)
         assert sync_resource3 is sync_resource4
         assert sync_resource3 is not sync_resource1
 
@@ -109,7 +142,7 @@ async def test_async_resource_race_condition() -> None:
 
 
 async def test_resource_unsupported_creator() -> None:
-    with pytest.raises(RuntimeError, match="Unsupported resource type"):
+    with pytest.raises(TypeError, match="Unsupported resource type"):
         providers.Resource(Scope.APP, None)  # type: ignore[arg-type]
 
 

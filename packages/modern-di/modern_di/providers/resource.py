@@ -23,7 +23,13 @@ class Resource(AbstractCreatorProvider[T_co]):
     def __init__(
         self,
         scope: enum.IntEnum,
-        creator: typing.Callable[P, typing.Iterator[T_co] | typing.AsyncIterator[T_co]],
+        creator: typing.Callable[
+            P,
+            typing.Iterator[T_co]
+            | typing.AsyncIterator[T_co]
+            | typing.ContextManager[T_co]
+            | typing.AsyncContextManager[T_co],
+        ],
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
@@ -34,9 +40,15 @@ class Resource(AbstractCreatorProvider[T_co]):
         elif inspect.isgeneratorfunction(creator):
             self._is_async = False
             new_creator = contextlib.contextmanager(creator)
+        elif isinstance(creator, type) and issubclass(creator, typing.AsyncContextManager):
+            self._is_async = True
+            new_creator = creator
+        elif isinstance(creator, type) and issubclass(creator, typing.ContextManager):
+            self._is_async = False
+            new_creator = creator
         else:
             msg = "Unsupported resource type"
-            raise RuntimeError(msg)
+            raise TypeError(msg)
 
         super().__init__(scope, new_creator, *args, **kwargs)
 
