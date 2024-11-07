@@ -4,6 +4,12 @@
 ```{eval-rst}
 .. toctree::
     :maxdepth: 1
+    :caption: Integrations
+
+    integrations/fastapi
+
+.. toctree::
+    :maxdepth: 1
     :caption: Providers
 
     providers/resources
