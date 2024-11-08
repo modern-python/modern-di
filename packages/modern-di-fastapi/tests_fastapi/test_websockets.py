@@ -3,7 +3,7 @@ import typing
 import fastapi
 import modern_di
 from modern_di import Scope, providers
-from modern_di_fastapi import Provide, build_di_container
+from modern_di_fastapi import FromDI, build_di_container
 from starlette.testclient import TestClient
 
 from tests_fastapi.dependencies import DependentCreator, SimpleCreator
@@ -23,8 +23,8 @@ async def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.websocket("/ws")
     async def websocket_endpoint(
         websocket: fastapi.WebSocket,
-        app_factory_instance: typing.Annotated[SimpleCreator, Provide(app_factory)],
-        session_factory_instance: typing.Annotated[DependentCreator, Provide(session_factory)],
+        app_factory_instance: typing.Annotated[SimpleCreator, FromDI(app_factory)],
+        session_factory_instance: typing.Annotated[DependentCreator, FromDI(session_factory)],
     ) -> None:
         assert isinstance(app_factory_instance, SimpleCreator)
         assert isinstance(session_factory_instance, DependentCreator)
@@ -62,7 +62,7 @@ async def test_context_adapter(client: TestClient, app: fastapi.FastAPI) -> None
     @app.websocket("/ws")
     async def websocket_endpoint(
         websocket: fastapi.WebSocket,
-        path: typing.Annotated[str, Provide(context_adapter)],
+        path: typing.Annotated[str, FromDI(context_adapter)],
     ) -> None:
         assert path == "/ws"
 

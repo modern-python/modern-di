@@ -3,7 +3,7 @@ import typing
 import fastapi
 import modern_di
 from modern_di import Scope, providers
-from modern_di_fastapi import Provide, build_di_container
+from modern_di_fastapi import FromDI, build_di_container
 from starlette import status
 from starlette.testclient import TestClient
 
@@ -23,8 +23,8 @@ context_adapter = providers.ContextAdapter(Scope.REQUEST, context_adapter_functi
 def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        app_factory_instance: typing.Annotated[SimpleCreator, Provide(app_factory)],
-        request_factory_instance: typing.Annotated[DependentCreator, Provide(request_factory)],
+        app_factory_instance: typing.Annotated[SimpleCreator, FromDI(app_factory)],
+        request_factory_instance: typing.Annotated[DependentCreator, FromDI(request_factory)],
     ) -> None:
         assert isinstance(app_factory_instance, SimpleCreator)
         assert isinstance(request_factory_instance, DependentCreator)
@@ -38,7 +38,7 @@ def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
 def test_context_adapter(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        method: typing.Annotated[str, Provide(context_adapter)],
+        method: typing.Annotated[str, FromDI(context_adapter)],
     ) -> None:
         assert method == "GET"
 

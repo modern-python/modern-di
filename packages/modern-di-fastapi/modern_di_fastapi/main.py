@@ -43,5 +43,5 @@ class Dependency(typing.Generic[T_co]):
         return await self.dependency.async_resolve(request_container)
 
 
-def Provide(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True) -> T_co:  # noqa: N802
+def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True) -> T_co:  # noqa: N802
     return typing.cast(T_co, fastapi.Depends(dependency=Dependency(dependency), use_cache=use_cache))

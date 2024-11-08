@@ -35,10 +35,10 @@ async_resource = providers.Resource(Scope.APP, create_async_resource)
 
 @app.get("/")
 async def read_root(
-    instance: typing.Annotated[
-        datetime.datetime,
-        modern_di_fastapi.Provide(async_resource),
-    ],
+        instance: typing.Annotated[
+            datetime.datetime,
+            modern_di_fastapi.FromDI(async_resource),
+        ],
 ) -> datetime.datetime:
     return instance
 
