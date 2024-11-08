@@ -4,6 +4,10 @@ install:
     uv lock --upgrade
     uv sync --all-extras --all-packages --frozen
 
+install-ci package:
+    uv lock --upgrade
+    uv sync --all-extras --package {{ package }} --frozen
+
 lint:
     uv run ruff format .
     uv run ruff check . --fix
@@ -22,6 +26,9 @@ test-core *args:
 
 test-fastapi *args:
     uv run --directory=packages/modern-di-fastapi pytest {{ args }}
+
+test-litestar *args:
+    uv run --directory=packages/modern-di-litestar pytest {{ args }}
 
 publish package:
     rm -rf dist

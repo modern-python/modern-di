@@ -21,3 +21,8 @@ jobs:
         run: just publish modern-di-fastapi
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+
+      - if: startsWith(github.ref_name, 'litestar')
+        run: just publish modern-di-litestar
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
