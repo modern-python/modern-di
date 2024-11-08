@@ -4,6 +4,10 @@ install:
     uv lock --upgrade
     uv sync --all-extras --all-packages --frozen
 
+install-ci package:
+    uv lock --upgrade
+    uv sync --all-extras --package {{ package }} --frozen
+
 lint:
     uv run ruff format .
     uv run ruff check . --fix

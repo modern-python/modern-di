@@ -32,4 +32,6 @@ jobs:
       - uses: extractions/setup-just@v2
       - uses: astral-sh/setup-uv@v3
       - run: uv python install ${{ matrix.python-version }}
-      - run: just install test-fastapi
+      - run: |
+          just install-ci modern-di-fastapi
+          just test-fastapi

@@ -22,7 +22,16 @@ repository = "https://github.com/modern-python/modern-di"
 docs = "https://modern-di.readthedocs.io"
 
 [dependency-groups]
-dev = ["httpx", "asgi-lifespan"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+    "typing-extensions",
+    "httpx",
+    "asgi-lifespan",
+]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

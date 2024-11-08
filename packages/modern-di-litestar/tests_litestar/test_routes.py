@@ -1,15 +1,15 @@
 import typing
 
-import fastapi
 import litestar
 from litestar import status_codes
 from litestar.testing import TestClient
 from modern_di import Scope, providers
 from modern_di_litestar import FromDI
-from tests_fastapi.dependencies import DependentCreator, SimpleCreator
+
+from tests_litestar.dependencies import DependentCreator, SimpleCreator
 
 
-def context_adapter_function(*, request: fastapi.Request, **_: object) -> str:
+def context_adapter_function(*, request: litestar.Request[typing.Any, typing.Any, typing.Any], **_: object) -> str:
     return request.method
 
 
@@ -36,7 +36,7 @@ def test_factories(client: TestClient[litestar.Litestar], app: litestar.Litestar
     assert response.json() is None
 
 
-def test_context_adapter(client: TestClient, app: litestar.Litestar) -> None:
+def test_context_adapter(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
     @litestar.get("/", dependencies={"method": FromDI(context_adapter)})
     async def read_root(method: str) -> None:
         assert method == "GET"
@@ -48,7 +48,7 @@ def test_context_adapter(client: TestClient, app: litestar.Litestar) -> None:
     assert response.json() is None
 
 
-def test_factories_action_scope(client: TestClient, app: litestar.Litestar) -> None:
+def test_factories_action_scope(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
     @litestar.get("/")
     async def read_root(request: litestar.Request[typing.Any, typing.Any, typing.Any]) -> None:
         request_container = request.state.di_container

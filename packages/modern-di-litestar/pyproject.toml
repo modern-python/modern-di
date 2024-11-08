@@ -10,7 +10,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
     "Topic :: Software Development :: Libraries",
 ]
@@ -22,7 +21,16 @@ repository = "https://github.com/modern-python/modern-di"
 docs = "https://modern-di.readthedocs.io"
 
 [dependency-groups]
-dev = ["httpx", "asgi-lifespan"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+    "typing-extensions",
+    "httpx",
+    "asgi-lifespan",
+]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

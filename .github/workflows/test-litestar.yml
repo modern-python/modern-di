@@ -1,16 +1,16 @@
-name: test fastapi
+name: test litestar
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'packages/modern-di-fastapi/**'
-      - '.github/workflows/test-fastapi.yml'
+      - 'packages/modern-di-litestar/**'
+      - '.github/workflows/test-litestar.yml'
   pull_request:
     paths:
-      - 'packages/modern-di-fastapi/**'
-      - '.github/workflows/test-fastapi.yml'
+      - 'packages/modern-di-litestar/**'
+      - '.github/workflows/test-litestar.yml'
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }} fastapi
@@ -26,10 +26,11 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
-          - "3.13"
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
       - uses: astral-sh/setup-uv@v3
       - run: uv python install ${{ matrix.python-version }}
-      - run: just install test-fastapi
+      - run: |
+          just install-ci modern-di-litestar
+          just test-litestar

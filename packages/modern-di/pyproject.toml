@@ -19,6 +19,16 @@ dynamic = ["version", "readme"]
 repository = "https://github.com/modern-python/modern-di"
 docs = "https://modern-di.readthedocs.io"
 
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+    "typing-extensions",
+]
+
 [build-system]
 requires = ["hatchling", "hatch-vcs", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
