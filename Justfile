@@ -23,6 +23,9 @@ test-core *args:
 test-fastapi *args:
     uv run --directory=packages/modern-di-fastapi pytest {{ args }}
 
+test-litestar *args:
+    uv run --directory=packages/modern-di-litestar pytest {{ args }}
+
 publish package:
     rm -rf dist
     uv build --package {{ package }}
