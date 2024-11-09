@@ -7,6 +7,7 @@
     :caption: Integrations
 
     integrations/fastapi
+    integrations/litestar
 
 .. toctree::
     :maxdepth: 1
