@@ -14,8 +14,11 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 def setup_di(app: litestar.Litestar, scope: enum.IntEnum = DIScope.APP) -> Container:
     app.state.di_container = Container(scope=scope)
-    app.dependencies = {"request_di_container": Provide(build_di_container), **app.dependencies}
     return app.state.di_container
+
+
+def prepare_di_dependencies() -> dict[str, Provide]:
+    return {"request_di_container": Provide(build_di_container)}
 
 
 def fetch_di_container(app: litestar.Litestar) -> Container:
