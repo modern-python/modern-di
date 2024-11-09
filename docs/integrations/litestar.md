@@ -39,4 +39,5 @@ app = Litestar(
     dependencies={**modern_di_litestar.prepare_di_dependencies()},
     lifespan=[lifespan_manager],
 )
+modern_di_litestar.setup_di(app)
 ```
