@@ -5,7 +5,7 @@ import litestar
 import pytest
 from asgi_lifespan import LifespanManager
 from litestar.testing import TestClient
-from modern_di_litestar import setup_di
+from modern_di_litestar import di_middleware_factory, setup_di
 
 
 @contextlib.asynccontextmanager
@@ -17,7 +17,7 @@ async def lifespan(app_: litestar.Litestar) -> typing.AsyncIterator[None]:
 
 @pytest.fixture
 async def app() -> typing.AsyncIterator[litestar.Litestar]:
-    app_ = litestar.Litestar(lifespan=[lifespan], debug=True)
+    app_ = litestar.Litestar(lifespan=[lifespan], middleware=[di_middleware_factory])
     async with LifespanManager(app_):  # type: ignore[arg-type]
         yield app_
 

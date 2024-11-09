@@ -15,7 +15,6 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 def setup_di(app: litestar.Litestar, scope: enum.IntEnum = DIScope.APP) -> Container:
     app.state.di_container = Container(scope=scope)
-    app.middleware.append(make_add_request_container_middleware)
     return app.state.di_container
 
 
@@ -23,7 +22,7 @@ def fetch_di_container(app: litestar.Litestar) -> Container:
     return typing.cast(Container, app.state.di_container)
 
 
-def make_add_request_container_middleware(app: ASGIApp) -> ASGIApp:
+def di_middleware_factory(app: ASGIApp) -> ASGIApp:
     async def middleware(scope: Scope, receive: Receive, send: Send) -> None:
         if scope.get("type") != ScopeType.HTTP:
             await app(scope, receive, send)
