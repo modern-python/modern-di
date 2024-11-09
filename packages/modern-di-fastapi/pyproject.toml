@@ -29,6 +29,7 @@ dev = [
     "ruff",
     "mypy",
     "typing-extensions",
+    "httpx",
     "asgi-lifespan",
 ]
 
