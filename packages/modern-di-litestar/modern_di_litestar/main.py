@@ -4,6 +4,7 @@ import typing
 
 import litestar
 from litestar.di import Provide
+from litestar.params import Dependency
 from modern_di import Container, providers
 from modern_di import Scope as DIScope
 
@@ -32,12 +33,12 @@ async def build_di_container(
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
-class Dependency(typing.Generic[T_co]):
+class _Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co]
 
-    async def __call__(self, request_di_container: Container) -> T_co:
+    async def __call__(self, request_di_container: typing.Annotated[Container, Dependency()]) -> T_co:
         return await self.dependency.async_resolve(request_di_container)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True) -> Provide:  # noqa: N802
-    return Provide(dependency=Dependency(dependency), use_cache=use_cache)
+    return Provide(dependency=_Dependency(dependency), use_cache=use_cache)
