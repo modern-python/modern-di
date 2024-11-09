@@ -1,6 +1,7 @@
 import typing
 
 import litestar
+import modern_di
 from litestar import status_codes
 from litestar.testing import TestClient
 from modern_di import Scope, providers
@@ -50,9 +51,8 @@ def test_context_adapter(client: TestClient[litestar.Litestar], app: litestar.Li
 
 def test_factories_action_scope(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
     @litestar.get("/")
-    async def read_root(request: litestar.Request[typing.Any, typing.Any, typing.Any]) -> None:
-        request_container = request.state.di_container
-        with request_container.build_child_container() as action_container:
+    async def read_root(request_di_container: modern_di.Container) -> None:
+        with request_di_container.build_child_container() as action_container:
             action_factory_instance = action_factory.sync_resolve(action_container)
             assert isinstance(action_factory_instance, DependentCreator)
 
