@@ -46,5 +46,5 @@ class _Dependency(typing.Generic[T_co]):
         return await self.dependency.async_resolve(request_di_container)
 
 
-def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True) -> Provide:  # noqa: N802
-    return Provide(dependency=_Dependency(dependency), use_cache=use_cache)
+def FromDI(dependency: providers.AbstractProvider[T_co]) -> Provide:  # noqa: N802
+    return Provide(dependency=_Dependency(dependency), use_cache=False)
