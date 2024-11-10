@@ -3,6 +3,7 @@ import typing
 
 from modern_di import Container
 from modern_di.providers.abstract import AbstractCreatorProvider
+from modern_di.providers.injected_factory import InjectedFactory
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -20,6 +21,10 @@ class Factory(AbstractCreatorProvider[T_co]):
         **kwargs: P.kwargs,
     ) -> None:
         super().__init__(scope, creator, *args, **kwargs)
+
+    @property
+    def factory_provider(self) -> InjectedFactory[T_co]:
+        return InjectedFactory(self)
 
     async def async_resolve(self, container: Container) -> T_co:
         container = container.find_container(self.scope)
