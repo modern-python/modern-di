@@ -2,6 +2,8 @@
 
 *More advanced example of usage with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)*
 
+1. Install `modern-di-fastapi` package from PYPI: `uv add modern-di-fastapi` or `pip install modern-di-fastapi`, etc.
+2. Apply this code example to your application:
 ```python
 import datetime
 import contextlib

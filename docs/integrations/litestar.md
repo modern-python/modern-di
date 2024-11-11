@@ -2,6 +2,8 @@
 
 *More advanced example of usage with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)*
 
+1. Install `modern-di-litestar` package from PYPI: `uv add modern-di-litestar` or `pip install modern-di-litestar`, etc.
+2. Apply this code example to your application:
 ```python
 import contextlib
 import datetime
