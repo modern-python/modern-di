@@ -39,10 +39,10 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
 
 class AbstractOverrideProvider(AbstractProvider[T_co], abc.ABC):
     def override(self, override_object: object, container: Container) -> None:
-        container.override(self.provider_id, override_object)
+        container.find_container(self.scope).override(self.provider_id, override_object)
 
     def reset_override(self, container: Container) -> None:
-        container.reset_override(self.provider_id)
+        container.find_container(self.scope).reset_override(self.provider_id)
 
 
 class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
