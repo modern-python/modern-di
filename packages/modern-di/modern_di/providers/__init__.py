@@ -1,4 +1,5 @@
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.container_provider import ContainerProvider
 from modern_di.providers.context_adapter import ContextAdapter
 from modern_di.providers.dict import Dict
 from modern_di.providers.factory import Factory
@@ -10,6 +11,7 @@ from modern_di.providers.singleton import Singleton
 
 __all__ = [
     "AbstractProvider",
+    "ContainerProvider",
     "ContextAdapter",
     "Factory",
     "Dict",
