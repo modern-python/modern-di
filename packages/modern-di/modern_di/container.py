@@ -81,10 +81,11 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
             msg = "Resolving async resource in sync container is not allowed"
             raise RuntimeError(msg)
 
-        if provider_id not in self._provider_states:
-            self._provider_states[provider_id] = ProviderState(is_lock_required=is_lock_required)
+        if provider_state := self._provider_states.get(provider_id):
+            return provider_state
 
-        return self._provider_states[provider_id]
+        # expected to be thread-safe, because setdefault is atomic
+        return self._provider_states.setdefault(provider_id, ProviderState(is_lock_required=is_lock_required))
 
     def override(self, provider_id: str, override_object: object) -> None:
         self._overrides[provider_id] = override_object
