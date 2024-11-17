@@ -96,7 +96,7 @@ async def test_singleton_wrong_dependency_scope() -> None:
 
 
 @pytest.mark.repeat(10)
-async def test_singleton_async_resolve_race_condition() -> None:
+async def test_singleton_async_resolve_concurrency() -> None:
     calls: int = 0
 
     async def create_resource() -> typing.AsyncIterator[str]:
@@ -119,7 +119,37 @@ async def test_singleton_async_resolve_race_condition() -> None:
 
 
 @pytest.mark.repeat(10)
-def test_resource_sync_resolve_race_condition() -> None:
+def test_singleton_sync_resolve_concurrency() -> None:
+    calls: int = 0
+    lock = threading.Lock()
+
+    def create_singleton() -> str:
+        nonlocal calls
+        with lock:
+            calls += 1
+        time.sleep(0.01)
+        return ""
+
+    singleton = providers.Singleton(Scope.APP, create_singleton)
+
+    def resolve_singleton(container: Container) -> str:
+        return singleton.sync_resolve(container)
+
+    with Container(scope=Scope.APP) as app_container, ThreadPoolExecutor(max_workers=4) as pool:
+        tasks = [
+            pool.submit(resolve_singleton, app_container),
+            pool.submit(resolve_singleton, app_container),
+            pool.submit(resolve_singleton, app_container),
+            pool.submit(resolve_singleton, app_container),
+        ]
+        results = [x.result() for x in as_completed(tasks)]
+
+    assert all(x == "" for x in results)
+    assert calls == 1
+
+
+@pytest.mark.repeat(10)
+def test_singleton_wth_resource_sync_resolve_concurrency() -> None:
     calls: int = 0
     lock = threading.Lock()
 
