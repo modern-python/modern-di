@@ -1,5 +1,8 @@
 import asyncio
+import threading
+import time
 import typing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 from modern_di import Container, Scope, providers
@@ -121,7 +124,19 @@ async def test_sync_resource_overridden() -> None:
         assert sync_resource4 is sync_resource1
 
 
-async def test_async_resource_race_condition() -> None:
+async def test_resource_unsupported_creator() -> None:
+    with pytest.raises(TypeError, match="Unsupported resource type"):
+        providers.Resource(Scope.APP, None)  # type: ignore[arg-type]
+
+
+async def test_async_resource_sync_resolve() -> None:
+    async with Container(scope=Scope.APP) as app_container:
+        with pytest.raises(RuntimeError, match="Async resource cannot be resolved synchronously"):
+            async_resource.sync_resolve(app_container)
+
+
+@pytest.mark.repeat(10)
+async def test_resource_async_resolve_race_condition() -> None:
     calls: int = 0
 
     async def create_resource() -> typing.AsyncIterator[str]:
@@ -141,12 +156,31 @@ async def test_async_resource_race_condition() -> None:
     assert calls == 1
 
 
-async def test_resource_unsupported_creator() -> None:
-    with pytest.raises(TypeError, match="Unsupported resource type"):
-        providers.Resource(Scope.APP, None)  # type: ignore[arg-type]
+@pytest.mark.repeat(10)
+def test_resource_sync_resolve_race_condition() -> None:
+    calls: int = 0
+    lock = threading.Lock()
 
+    def create_resource() -> typing.Iterator[str]:
+        nonlocal calls
+        with lock:
+            calls += 1
+        time.sleep(0.01)
+        yield ""
 
-async def test_async_resource_sync_resolve() -> None:
-    async with Container(scope=Scope.APP) as app_container:
-        with pytest.raises(RuntimeError, match="Async resource cannot be resolved synchronously"):
-            async_resource.sync_resolve(app_container)
+    resource = providers.Resource(Scope.APP, create_resource)
+
+    def resolve_resource(container: Container) -> str:
+        return resource.sync_resolve(container)
+
+    with Container(scope=Scope.APP) as app_container, ThreadPoolExecutor(max_workers=4) as pool:
+        tasks = [
+            pool.submit(resolve_resource, app_container),
+            pool.submit(resolve_resource, app_container),
+            pool.submit(resolve_resource, app_container),
+            pool.submit(resolve_resource, app_container),
+        ]
+        results = [x.result() for x in as_completed(tasks)]
+
+    assert results == ["", "", "", ""]
+    assert calls == 1
