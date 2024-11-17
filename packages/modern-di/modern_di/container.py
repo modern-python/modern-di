@@ -14,7 +14,15 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 
 class Container(contextlib.AbstractAsyncContextManager["Container"]):
-    __slots__ = "scope", "parent_container", "context", "_is_async", "_provider_states", "_overrides"
+    __slots__ = (
+        "scope",
+        "parent_container",
+        "context",
+        "_is_async",
+        "_provider_states",
+        "_overrides",
+        "_use_threading_lock",
+    )
 
     def __init__(
         self,
@@ -22,6 +30,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         scope: enum.IntEnum,
         parent_container: typing.Optional["Container"] = None,
         context: dict[str, typing.Any] | None = None,
+        use_threading_lock: bool = True,
     ) -> None:
         self.scope = scope
         self.parent_container = parent_container
@@ -29,6 +38,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         self._is_async: bool | None = None
         self._provider_states: dict[str, ProviderState[typing.Any]] = {}
         self._overrides: dict[str, typing.Any] = {}
+        self._use_threading_lock = use_threading_lock
 
     def _exit(self) -> None:
         self._is_async = None
@@ -74,17 +84,28 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         return container
 
     def fetch_provider_state(
-        self, provider_id: str, is_async_resource: bool = False, is_lock_required: bool = False
+        self,
+        provider_id: str,
+        is_async_resource: bool = False,
+        use_asyncio_lock: bool = False,
+        use_threading_lock: bool = False,
     ) -> ProviderState[typing.Any]:
         self._check_entered()
         if is_async_resource and self._is_async is False:
             msg = "Resolving async resource in sync container is not allowed"
             raise RuntimeError(msg)
 
-        if provider_id not in self._provider_states:
-            self._provider_states[provider_id] = ProviderState(is_lock_required=is_lock_required)
+        if provider_state := self._provider_states.get(provider_id):
+            return provider_state
 
-        return self._provider_states[provider_id]
+        # expected to be thread-safe, because setdefault is atomic
+        return self._provider_states.setdefault(
+            provider_id,
+            ProviderState(
+                use_asyncio_lock=use_asyncio_lock,
+                use_threading_lock=self._use_threading_lock and use_threading_lock,
+            ),
+        )
 
     def override(self, provider_id: str, override_object: object) -> None:
         self._overrides[provider_id] = override_object

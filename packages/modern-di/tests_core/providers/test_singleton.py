@@ -1,6 +1,9 @@
 import asyncio
 import dataclasses
+import threading
+import time
 import typing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 from modern_di import Container, Scope, providers
@@ -84,7 +87,16 @@ async def test_singleton_overridden() -> None:
         assert singleton4 is singleton1
 
 
-async def test_singleton_race_condition() -> None:
+async def test_singleton_wrong_dependency_scope() -> None:
+    def some_factory(_: SimpleCreator) -> None: ...
+
+    request_singleton_ = providers.Singleton(Scope.REQUEST, SimpleCreator, dep1="original")
+    with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
+        providers.Singleton(Scope.APP, some_factory, request_singleton_.cast)
+
+
+@pytest.mark.repeat(10)
+async def test_singleton_async_resolve_race_condition() -> None:
     calls: int = 0
 
     async def create_resource() -> typing.AsyncIterator[str]:
@@ -106,9 +118,32 @@ async def test_singleton_race_condition() -> None:
     assert calls == 1
 
 
-async def test_singleton_wrong_dependency_scope() -> None:
-    def some_factory(_: SimpleCreator) -> None: ...
+@pytest.mark.repeat(10)
+def test_resource_sync_resolve_race_condition() -> None:
+    calls: int = 0
+    lock = threading.Lock()
 
-    request_singleton_ = providers.Singleton(Scope.REQUEST, SimpleCreator, dep1="original")
-    with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
-        providers.Singleton(Scope.APP, some_factory, request_singleton_.cast)
+    def create_resource() -> typing.Iterator[str]:
+        nonlocal calls
+        with lock:
+            calls += 1
+        time.sleep(0.01)
+        yield ""
+
+    resource = providers.Resource(Scope.APP, create_resource)
+    factory_with_resource = providers.Singleton(Scope.APP, SimpleCreator, dep1=resource.cast)
+
+    def resolve_factory(container: Container) -> SimpleCreator:
+        return factory_with_resource.sync_resolve(container)
+
+    with Container(scope=Scope.APP) as app_container, ThreadPoolExecutor(max_workers=4) as pool:
+        tasks = [
+            pool.submit(resolve_factory, app_container),
+            pool.submit(resolve_factory, app_container),
+            pool.submit(resolve_factory, app_container),
+            pool.submit(resolve_factory, app_container),
+        ]
+        results = [x.result() for x in as_completed(tasks)]
+
+    assert all(isinstance(x, SimpleCreator) for x in results)
+    assert calls == 1

@@ -7,7 +7,7 @@ on:
   pull_request: {}
 
 concurrency:
-  group: ${{ github.head_ref || github.run_id }} core
+  group: ${{ github.head_ref || github.run_id }} core lint
   cancel-in-progress: true
 
 jobs:

@@ -13,7 +13,7 @@ on:
       - '.github/workflows/test-core.yml'
 
 concurrency:
-  group: ${{ github.head_ref || github.run_id }} core
+  group: ${{ github.head_ref || github.run_id }} core test
   cancel-in-progress: true
 
 jobs:

@@ -70,5 +70,5 @@ async def test_injected_async_factory_in_sync_mode() -> None:
         with pytest.raises(RuntimeError, match="Resolving async resource in sync container is not allowed"):
             await request_async_factory.factory_provider.async_resolve(request_container)
 
-        with pytest.raises(RuntimeError, match="Async resource cannot be resolved synchronously"):
+        with pytest.raises(RuntimeError, match="Resolving async resource in sync container is not allowed"):
             request_async_factory.factory_provider.sync_resolve(request_container)
