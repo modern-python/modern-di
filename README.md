@@ -18,6 +18,7 @@ It is in development state yet and gives you the following:
 - Overriding dependencies for tests.
 - Package with zero dependencies.
 - Integration with FastAPI and LiteStar
+- Thread-safe and asyncio concurrency safe providers
 
 📚 [Documentation](https://modern-di.readthedocs.io)
 
