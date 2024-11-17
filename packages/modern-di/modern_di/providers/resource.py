@@ -58,13 +58,13 @@ class Resource(AbstractCreatorProvider[T_co]):
             return typing.cast(T_co, override)
 
         provider_state = container.fetch_provider_state(
-            self.provider_id, is_async_resource=self._is_async, is_lock_required=True
+            self.provider_id, is_async_resource=self._is_async, use_asyncio_lock=True
         )
         if provider_state.instance is not None:
             return typing.cast(T_co, provider_state.instance)
 
-        assert provider_state.provider_lock
-        await provider_state.provider_lock.acquire()
+        if provider_state.asyncio_lock:
+            await provider_state.asyncio_lock.acquire()
 
         try:
             if provider_state.instance is not None:
@@ -79,7 +79,8 @@ class Resource(AbstractCreatorProvider[T_co]):
                 provider_state.context_stack = contextlib.ExitStack()
                 provider_state.instance = provider_state.context_stack.enter_context(_intermediate_)
         finally:
-            provider_state.provider_lock.release()
+            if provider_state.asyncio_lock:
+                provider_state.asyncio_lock.release()
 
         return typing.cast(T_co, provider_state.instance)
 
@@ -88,7 +89,9 @@ class Resource(AbstractCreatorProvider[T_co]):
         if (override := container.fetch_override(self.provider_id)) is not None:
             return typing.cast(T_co, override)
 
-        provider_state = container.fetch_provider_state(self.provider_id)
+        provider_state = container.fetch_provider_state(
+            self.provider_id, is_async_resource=self._is_async, use_threading_lock=True
+        )
         if provider_state.instance is not None:
             return typing.cast(T_co, provider_state.instance)
 
@@ -96,11 +99,21 @@ class Resource(AbstractCreatorProvider[T_co]):
             msg = "Async resource cannot be resolved synchronously"
             raise RuntimeError(msg)
 
-        _intermediate_ = self._sync_build_creator(container)
+        if provider_state.threading_lock:
+            provider_state.threading_lock.acquire()
 
-        provider_state.context_stack = contextlib.ExitStack()
-        provider_state.instance = provider_state.context_stack.enter_context(
-            typing.cast(contextlib.AbstractContextManager[typing.Any], _intermediate_)
-        )
+        try:
+            if provider_state.instance is not None:
+                return typing.cast(T_co, provider_state.instance)
+
+            _intermediate_ = self._sync_build_creator(container)
+
+            provider_state.context_stack = contextlib.ExitStack()
+            provider_state.instance = provider_state.context_stack.enter_context(
+                typing.cast(contextlib.AbstractContextManager[typing.Any], _intermediate_)
+            )
+        finally:
+            if provider_state.threading_lock:
+                provider_state.threading_lock.release()
 
         return typing.cast(T_co, provider_state.instance)

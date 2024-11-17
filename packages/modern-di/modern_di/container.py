@@ -74,7 +74,11 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         return container
 
     def fetch_provider_state(
-        self, provider_id: str, is_async_resource: bool = False, is_lock_required: bool = False
+        self,
+        provider_id: str,
+        is_async_resource: bool = False,
+        use_asyncio_lock: bool = False,
+        use_threading_lock: bool = False,
     ) -> ProviderState[typing.Any]:
         self._check_entered()
         if is_async_resource and self._is_async is False:
@@ -85,7 +89,9 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
             return provider_state
 
         # expected to be thread-safe, because setdefault is atomic
-        return self._provider_states.setdefault(provider_id, ProviderState(is_lock_required=is_lock_required))
+        return self._provider_states.setdefault(
+            provider_id, ProviderState(use_asyncio_lock=use_asyncio_lock, use_threading_lock=use_threading_lock)
+        )
 
     def override(self, provider_id: str, override_object: object) -> None:
         self._overrides[provider_id] = override_object
