@@ -2,6 +2,7 @@ import typing
 
 import litestar
 import modern_di
+import modern_di_litestar
 from litestar import status_codes
 from litestar.testing import TestClient
 from modern_di import Scope, providers
@@ -63,4 +64,28 @@ def test_factories_action_scope(client: TestClient[litestar.Litestar], app: lite
 
     response = client.get("/")
     assert response.status_code == status_codes.HTTP_200_OK
+    assert response.json() is None
+
+
+def test_factory_override(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
+    di_container = modern_di_litestar.fetch_di_container(app)
+    mock = SimpleCreator(dep1="mock")
+    app_factory.override(mock, di_container)
+
+    @litestar.get(
+        "/",
+        dependencies={"app_factory_instance": FromDI(app_factory), "request_factory_instance": FromDI(request_factory)},
+    )
+    async def read_root(
+        app_factory_instance: SimpleCreator,
+        request_factory_instance: DependentCreator,
+    ) -> None:
+        assert isinstance(app_factory_instance, SimpleCreator)
+        assert isinstance(request_factory_instance, DependentCreator)
+        assert app_factory_instance.dep1 == "mock"
+
+    app.register(read_root)
+
+    response = client.get("/")
+    assert response.status_code == status_codes.HTTP_200_OK, response.text
     assert response.json() is None
