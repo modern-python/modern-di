@@ -136,7 +136,7 @@ async def test_async_resource_sync_resolve() -> None:
 
 
 @pytest.mark.repeat(10)
-async def test_resource_async_resolve_race_condition() -> None:
+async def test_resource_asyncio_concurrency() -> None:
     calls: int = 0
 
     async def create_resource() -> typing.AsyncIterator[str]:
@@ -157,7 +157,7 @@ async def test_resource_async_resolve_race_condition() -> None:
 
 
 @pytest.mark.repeat(10)
-def test_resource_sync_resolve_race_condition() -> None:
+def test_resource_threading_concurrency() -> None:
     calls: int = 0
     lock = threading.Lock()
 

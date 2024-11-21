@@ -96,7 +96,7 @@ async def test_singleton_wrong_dependency_scope() -> None:
 
 
 @pytest.mark.repeat(10)
-async def test_singleton_async_resolve_concurrency() -> None:
+async def test_singleton_asyncio_concurrency() -> None:
     calls: int = 0
 
     async def create_resource() -> typing.AsyncIterator[str]:
@@ -119,7 +119,7 @@ async def test_singleton_async_resolve_concurrency() -> None:
 
 
 @pytest.mark.repeat(10)
-def test_singleton_sync_resolve_concurrency() -> None:
+def test_singleton_threading_concurrency() -> None:
     calls: int = 0
     lock = threading.Lock()
 
@@ -149,7 +149,7 @@ def test_singleton_sync_resolve_concurrency() -> None:
 
 
 @pytest.mark.repeat(10)
-def test_singleton_wth_resource_sync_resolve_concurrency() -> None:
+def test_singleton_wth_resource_threading_concurrency() -> None:
     calls: int = 0
     lock = threading.Lock()
 
