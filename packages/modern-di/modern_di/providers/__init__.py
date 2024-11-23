@@ -13,10 +13,10 @@ __all__ = [
     "AbstractProvider",
     "ContainerProvider",
     "ContextAdapter",
-    "Factory",
     "Dict",
+    "Factory",
     "List",
+    "Resource",
     "Selector",
     "Singleton",
-    "Resource",
 ]

@@ -15,13 +15,13 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 class Container(contextlib.AbstractAsyncContextManager["Container"]):
     __slots__ = (
-        "scope",
-        "parent_container",
-        "context",
         "_is_async",
-        "_provider_states",
         "_overrides",
+        "_provider_states",
         "_use_threading_lock",
+        "context",
+        "parent_container",
+        "scope",
     )
 
     def __init__(
@@ -37,7 +37,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"]):
         self.context: dict[str, typing.Any] = context or {}
         self._is_async: bool | None = None
         self._provider_states: dict[str, ProviderState[typing.Any]] = {}
-        self._overrides: dict[str, typing.Any] = {}
+        self._overrides: dict[str, typing.Any] = parent_container._overrides if parent_container else {}  # noqa: SLF001
         self._use_threading_lock = use_threading_lock
 
     def _exit(self) -> None:

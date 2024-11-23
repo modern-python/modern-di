@@ -8,7 +8,7 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 
 class ProviderState(typing.Generic[T_co]):
-    __slots__ = "context_stack", "instance", "asyncio_lock", "threading_lock"
+    __slots__ = "asyncio_lock", "context_stack", "instance", "threading_lock"
 
     def __init__(self, use_asyncio_lock: bool, use_threading_lock: bool) -> None:
         self.context_stack: contextlib.AsyncExitStack | contextlib.ExitStack | None = None
