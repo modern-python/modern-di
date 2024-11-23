@@ -57,26 +57,42 @@ async def test_app_factory_in_request_scope() -> None:
         assert instance1 is not instance2
 
 
-async def test_factory_overridden() -> None:
+async def test_factory_overridden_app_scope() -> None:
     async with Container(scope=Scope.APP) as app_container:
-        with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
-            instance1 = app_factory.sync_resolve(app_container)
+        instance1 = app_factory.sync_resolve(app_container)
 
-            app_factory.override(SimpleCreator(dep1="override"), container=request_container)
+        app_factory.override(SimpleCreator(dep1="override"), container=app_container)
 
-            instance2 = app_factory.sync_resolve(app_container)
-            instance3 = await app_factory.async_resolve(app_container)
-            assert instance1 is not instance2
-            assert instance2 is instance3
-            assert instance2.dep1 != instance1.dep1
+        instance2 = app_factory.sync_resolve(app_container)
+        instance3 = await app_factory.async_resolve(app_container)
+        assert instance1 is not instance2
+        assert instance2 is instance3
+        assert instance2.dep1 != instance1.dep1
 
-            app_factory.reset_override(app_container)
+        app_factory.reset_override(app_container)
 
-            instance4 = app_factory.sync_resolve(app_container)
+        instance4 = app_factory.sync_resolve(app_container)
 
-            assert instance4.dep1 == instance1.dep1
+        assert instance4.dep1 == instance1.dep1
 
         assert instance3 is not instance4
+
+
+async def test_factory_overridden_request_scope() -> None:
+    async with Container(scope=Scope.APP) as app_container:
+        request_factory.override(DependentCreator(dep1=SimpleCreator(dep1="override")), app_container)
+
+        with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
+            instance1 = request_factory.sync_resolve(request_container)
+            instance2 = request_factory.sync_resolve(request_container)
+            assert instance1 is instance2
+            assert instance2.dep1.dep1 == instance1.dep1.dep1 == "override"
+
+            request_factory.reset_override(request_container)
+
+            instance3 = request_factory.sync_resolve(request_container)
+
+            assert instance3 is not instance1
 
 
 async def test_factory_wrong_dependency_scope() -> None:
