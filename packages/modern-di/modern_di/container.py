@@ -13,7 +13,7 @@ if typing.TYPE_CHECKING:
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-class Container(contextlib.AbstractAsyncContextManager["Container"]):
+class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.AbstractContextManager["Container"]):
     __slots__ = (
         "_is_async",
         "_overrides",
