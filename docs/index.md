@@ -11,6 +11,12 @@
 
 .. toctree::
     :maxdepth: 1
+    :caption: Tutorials
+
+    tutorials/inject-factories
+
+.. toctree::
+    :maxdepth: 1
     :caption: Providers
 
     providers/resources

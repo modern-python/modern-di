@@ -61,31 +61,29 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
         self._args: typing.Final = args
         self._kwargs: typing.Final = kwargs
 
+    def _sync_resolve_args(self, container: Container) -> list[typing.Any]:
+        return [x.sync_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args]
+
+    def _sync_resolve_kwargs(self, container: Container) -> dict[str, typing.Any]:
+        return {k: v.sync_resolve(container) if isinstance(v, AbstractProvider) else v for k, v in self._kwargs.items()}
+
     def _sync_build_creator(self, container: Container) -> typing.Any:  # noqa: ANN401
         return self._creator(
-            *typing.cast(
-                P.args, [x.sync_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args]
-            ),
-            **typing.cast(
-                P.kwargs,
-                {
-                    k: v.sync_resolve(container) if isinstance(v, AbstractProvider) else v
-                    for k, v in self._kwargs.items()
-                },
-            ),
+            *typing.cast(P.args, self._sync_resolve_args(container)),
+            **typing.cast(P.kwargs, self._sync_resolve_kwargs(container)),
         )
+
+    async def _async_resolve_args(self, container: Container) -> list[typing.Any]:
+        return [await x.async_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args]
+
+    async def _async_resolve_kwargs(self, container: Container) -> dict[str, typing.Any]:
+        return {
+            k: await v.async_resolve(container) if isinstance(v, AbstractProvider) else v
+            for k, v in self._kwargs.items()
+        }
 
     async def _async_build_creator(self, container: Container) -> typing.Any:  # noqa: ANN401
         return self._creator(
-            *typing.cast(
-                P.args,
-                [await x.async_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args],
-            ),
-            **typing.cast(
-                P.kwargs,
-                {
-                    k: await v.async_resolve(container) if isinstance(v, AbstractProvider) else v
-                    for k, v in self._kwargs.items()
-                },
-            ),
+            *typing.cast(P.args, await self._async_resolve_args(container)),
+            **typing.cast(P.kwargs, await self._async_resolve_kwargs(container)),
         )
