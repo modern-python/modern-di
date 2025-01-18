@@ -11,9 +11,10 @@
 
 .. toctree::
     :maxdepth: 1
-    :caption: Tutorials
+    :caption: Usage
 
-    tutorials/inject-factories
+    usage/scopes
+    usage/inject-factories
 
 .. toctree::
     :maxdepth: 1
