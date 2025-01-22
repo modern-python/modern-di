@@ -6,7 +6,7 @@
     :maxdepth: 1
     :caption: Usage
 
-    usage/scopes
+    usage/key-concepts
     usage/inject-factories
 
 .. toctree::

@@ -66,7 +66,7 @@ class DependentFactory:
     async_resource: str
 ```
 
-## 3. Describe dependencies graph (IoC-container)
+## 3. Describe dependencies graph
 ```python
 from modern_di import BaseGraph, Scope, providers
 
