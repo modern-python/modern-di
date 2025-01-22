@@ -53,7 +53,7 @@ All states live in containers:
 - context stacks for resources to finalize them at the end of lifecycle;
 - overrides for tests;
 
-### Graph
+## Graph
 
 Graph is a collection of providers.
 
