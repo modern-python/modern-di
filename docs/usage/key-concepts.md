@@ -42,16 +42,6 @@ More about providers:
   - `APP`-scoped provider can have only `APP`-scoped dependencies;
   - `SESSION`-scoped provider can have `APP` and `SESSION`-scoped dependencies, etc.;
 
-More about providers:
-.. toctree::
-:maxdepth: 1
-:caption: Providers
-
-    providers/resources
-    providers/factories
-    providers/collections
-    providers/context-providers
-
 ## Container
 
 Each container is assigned to a certain scope.
