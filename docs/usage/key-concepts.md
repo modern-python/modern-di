@@ -7,7 +7,7 @@
 - in frameworks' integrations some scopes are entered automatically;
 - dependencies of `Resource` and `Singleton` provider cached for the lifespan of its scope;
 
-**Default scopes**:
+Default scopes:
 1. `APP`:
    - tied to the entire application lifetime;
    - can be used for singletons of `Resource` and `Singleton` providers;
