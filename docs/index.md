@@ -4,17 +4,17 @@
 ```{eval-rst}
 .. toctree::
     :maxdepth: 1
-    :caption: Integrations
-
-    integrations/fastapi
-    integrations/litestar
-
-.. toctree::
-    :maxdepth: 1
     :caption: Usage
 
     usage/scopes
     usage/inject-factories
+
+.. toctree::
+    :maxdepth: 1
+    :caption: Integrations
+
+    integrations/fastapi
+    integrations/litestar
 
 .. toctree::
     :maxdepth: 1

@@ -22,7 +22,17 @@ It is in development state yet and gives you the following:
 
 📚 [Documentation](https://modern-di.readthedocs.io)
 
-## Describe resources and classes:
+# Quickstart
+
+## 1. Install `modern-di` using your favorite tool:
+
+```shell
+pip install modern-di
+uv add modern-di
+poetry add modern-di
+```
+
+## 2. Describe resources and classes:
 ```python
 import dataclasses
 import logging
@@ -56,7 +66,7 @@ class DependentFactory:
     async_resource: str
 ```
 
-## Describe dependencies graph (IoC-container)
+## 3. Describe dependencies graph (IoC-container)
 ```python
 from modern_di import BaseGraph, Scope, providers
 
@@ -73,7 +83,15 @@ class Dependencies(BaseGraph):
     )
 ```
 
-## Create container and resolve dependencies in your code
+## 4.1. Integrate with your framework
+
+For now there are integration for the following frameworks:
+1. [FastAPI](https://modern-di.readthedocs.io/en/latest/integrations/fastapi.html)
+2. [LiteStar](https://modern-di.readthedocs.io/en/latest/integrations/litestar.html)
+
+## 4.2. Or use `modern-di` without integrations
+
+Create container and resolve dependencies in your code
 ```python
 from modern_di import Container, Scope
 
