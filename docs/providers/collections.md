@@ -1,7 +1,9 @@
 # Collections
+
 There are several collection providers: `List` and `Dict`
 
 ## List
+
 - List provider contains other providers.
 - Resolves into list of dependencies.
 
@@ -21,6 +23,7 @@ with Container(scope=Scope.APP) as container:
 ```
 
 ## Dict
+
 - Dict provider is a collection of named providers.
 - Resolves into dict of dependencies.
 

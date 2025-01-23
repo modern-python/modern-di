@@ -21,6 +21,7 @@
     :caption: Providers
 
     providers/resources
+    providers/singletons
     providers/factories
     providers/collections
     providers/context-providers

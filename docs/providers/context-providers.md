@@ -1,16 +1,18 @@
 # Context Providers
+
 There are several providers with access to container's context.
 
 ## Selector
+
 - Receives context unpacked to callable object.
 - Selector provider chooses between a provider based on a key.
 - Resolves into a single dependency.
 
 ```python
-import os
 import typing
 
 from modern_di import BaseGraph, Container, Scope, providers
+
 
 class StorageService(typing.Protocol):
     ...
@@ -38,6 +40,7 @@ with Container(scope=Scope.APP, context={"storage_backend": "remote"}) as contai
 ```
 
 ## ContextAdapter
+
 - Receives context unpacked to callable object.
 - Can be used in another providers to access data from context.
 
