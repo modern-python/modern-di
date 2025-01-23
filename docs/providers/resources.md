@@ -1,4 +1,5 @@
 # Resource
+
 - Resources are initialized only once per scope and have teardown logic.
 - Generator or async generator is required.
 ```python
@@ -34,4 +35,17 @@ with Container(scope=Scope.APP) as container:
     async with container.build_child_container(scope=Scope.REQUEST) as request_container:
         # async resource of request scope
         async_resource_instance = await Dependencies.async_resource.async_resolve(request_container)
+```
+
+## Concurrency safety
+
+`Resource` is safe to use in threading and asyncio concurrency:
+
+```python
+with Container(scope=Scope.APP) as container:
+    # calling async_resolve concurrently in different coroutines will create only one instance
+    await Dependencies.sync_resource.async_resolve(container)
+
+    # calling sync_resolve concurrently in different threads will create only one instance
+    Dependencies.sync_resource.sync_resolve(container)
 ```

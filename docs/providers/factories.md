@@ -1,6 +1,10 @@
 # Factory
-- Initialized on every call.
-- Class or simple function is allowed.
+
+- initialized on every call;
+- class or simple function is allowed.
+
+## How it works
+
 ```python
 import dataclasses
 
