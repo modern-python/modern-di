@@ -25,6 +25,7 @@
     providers/factories
     providers/collections
     providers/context-providers
+    providers/object
 
 .. toctree::
     :maxdepth: 1
