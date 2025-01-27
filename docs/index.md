@@ -6,6 +6,7 @@
     :maxdepth: 1
     :caption: Usage
 
+    usage/quickstart
     usage/key-concepts
     usage/inject-factories
 
