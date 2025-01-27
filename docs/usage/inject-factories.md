@@ -35,7 +35,7 @@ class DIContainer(BaseGraph):
         Scope.APP,
         FactoryWithFactories,
         sync_factory=dependent_factory.sync_provider.cast,
-        async_factory=dependent_factory.provider.cast,
+        async_factory=dependent_factory.async_provider.cast,
     )
 ```
 
