@@ -7,6 +7,7 @@
     :caption: Usage
 
     usage/quickstart
+    usage/testing
     usage/key-concepts
     usage/inject-factories
 
