@@ -37,6 +37,12 @@ async def create_async_resource() -> typing.AsyncIterator[str]:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
+class SimpleFactory:
+    dep1: str
+    dep2: int
+        
+
+@dataclasses.dataclass(kw_only=True, slots=True)
 class DependentFactory:
     sync_resource: str
     async_resource: str
