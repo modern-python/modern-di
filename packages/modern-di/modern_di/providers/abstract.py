@@ -58,8 +58,8 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
         super().__init__(scope)
         self._check_providers_scope(itertools.chain(args, kwargs.values()))
         self._creator: typing.Final = creator
-        self._args: typing.Final = args
-        self._kwargs: typing.Final = kwargs
+        self._args: typing.Final[P.args] = args
+        self._kwargs: typing.Final[P.kwargs] = kwargs
 
     def _sync_resolve_args(self, container: Container) -> list[typing.Any]:
         return [x.sync_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args]
