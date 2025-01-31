@@ -18,7 +18,7 @@ def setup_di(app: litestar.Litestar, scope: enum.IntEnum = DIScope.APP) -> Conta
 
 
 def prepare_di_dependencies() -> dict[str, Provide]:
-    return {"request_di_container": Provide(build_di_container)}
+    return {"di_container": Provide(build_di_container)}
 
 
 def fetch_di_container(app: litestar.Litestar) -> Container:
@@ -28,8 +28,14 @@ def fetch_di_container(app: litestar.Litestar) -> Container:
 async def build_di_container(
     request: litestar.Request[typing.Any, typing.Any, typing.Any],
 ) -> typing.AsyncIterator[Container]:
-    scope = DIScope.REQUEST
-    context = {"request": request}
+    context: dict[str, typing.Any] = {}
+    scope: DIScope | None
+    if isinstance(request, litestar.WebSocket):
+        context["websocket"] = request
+        scope = DIScope.SESSION
+    else:
+        context["request"] = request
+        scope = DIScope.REQUEST
     container: Container = fetch_di_container(request.app)
     async with container.build_child_container(context=context, scope=scope) as request_container:
         yield request_container
@@ -39,11 +45,9 @@ async def build_di_container(
 class _Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co]
 
-    async def __call__(
-        self, request_di_container: typing.Annotated[Container | None, Dependency()] = None
-    ) -> T_co | None:
-        assert request_di_container
-        return await self.dependency.async_resolve(request_di_container)
+    async def __call__(self, di_container: typing.Annotated[Container | None, Dependency()] = None) -> T_co | None:
+        assert di_container
+        return await self.dependency.async_resolve(di_container)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co]) -> Provide:  # noqa: N802

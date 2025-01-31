@@ -55,8 +55,8 @@ def test_context_adapter(client: TestClient[litestar.Litestar], app: litestar.Li
 
 def test_factories_action_scope(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
     @litestar.get("/")
-    async def read_root(request_di_container: modern_di.Container) -> None:
-        with request_di_container.build_child_container() as action_container:
+    async def read_root(di_container: modern_di.Container) -> None:
+        with di_container.build_child_container() as action_container:
             action_factory_instance = action_factory.sync_resolve(action_container)
             assert isinstance(action_factory_instance, DependentCreator)
 
