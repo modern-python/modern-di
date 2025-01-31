@@ -10,6 +10,7 @@
     usage/testing
     usage/key-concepts
     usage/inject-factories
+    usage/context-data
 
 .. toctree::
     :maxdepth: 1
