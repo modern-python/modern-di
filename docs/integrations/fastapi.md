@@ -2,6 +2,8 @@
 
 *More advanced example of usage with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)*
 
+## How to use
+
 1. Install `modern-di-fastapi` package from PYPI: `uv add modern-di-fastapi` or `pip install modern-di-fastapi`, etc.
 2. Apply this code example to your application:
 ```python
@@ -44,4 +46,42 @@ async def read_root(
 ) -> datetime.datetime:
     return instance
 
+```
+
+## Websockets
+
+Usually our application uses only two scopes: `APP` and `REQUEST`.
+
+But when websockets are used, `SESSION` scope is used as well:
+- for the lifetime of websocket-connection we have `SESSION` scope
+- for each message we have `REQUEST` scope
+
+`APP` → `SESSION` → `REQUEST`
+
+`SESSION` scope is entered automatically.
+`REQUEST` scope must be entered manually:
+
+```python
+import typing
+
+import fastapi
+import modern_di
+import modern_di_fastapi
+
+
+app = fastapi.FastAPI()
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(
+    websocket: fastapi.WebSocket,
+    session_container: typing.Annotated[modern_di.Container, fastapi.Depends(modern_di_fastapi.build_di_container)],
+) -> None:
+    with session_container.build_child_container() as request_container:
+        # REQUEST scope is entered here
+        pass
+
+    await websocket.accept()
+    await websocket.send_text("test")
+    await websocket.close()
 ```
