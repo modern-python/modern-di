@@ -2,6 +2,8 @@
 
 *More advanced example of usage with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)*
 
+## How to use
+
 1. Install `modern-di-litestar` package from PYPI: `uv add modern-di-litestar` or `pip install modern-di-litestar`, etc.
 2. Apply this code example to your application:
 ```python
@@ -42,4 +44,34 @@ app = Litestar(
     lifespan=[lifespan_manager],
 )
 modern_di_litestar.setup_di(app)
+```
+
+## Websockets
+
+Usually our application uses only two scopes: `APP` and `REQUEST`.
+
+But when websockets are used, `SESSION` scope is used as well:
+- for the lifetime of websocket-connection we have `SESSION` scope
+- for each message we have `REQUEST` scope
+
+`APP` → `SESSION` → `REQUEST`
+
+`SESSION` scope is entered automatically.
+`REQUEST` scope must be entered manually:
+
+```python
+import litestar
+import modern_di
+
+
+app = litestar.Litestar()
+
+
+@litestar.websocket_listener("/ws")
+async def websocket_handler(data: str, di_container: modern_di.Container) -> None:
+    with di_container.build_child_container() as request_container:
+        # REQUEST scope is entered here
+        pass
+
+app.register(websocket_handler)
 ```
