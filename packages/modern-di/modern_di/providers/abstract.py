@@ -58,8 +58,8 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
         super().__init__(scope)
         self._check_providers_scope(itertools.chain(args, kwargs.values()))
         self._creator: typing.Final = creator
-        self._args: typing.Final[P.args] = args
-        self._kwargs: typing.Final[P.kwargs] = kwargs
+        self._args: typing.Final = args
+        self._kwargs: typing.Final = kwargs
 
     def _sync_resolve_args(self, container: Container) -> list[typing.Any]:
         return [x.sync_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args]
@@ -69,8 +69,8 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
 
     def _sync_build_creator(self, container: Container) -> typing.Any:  # noqa: ANN401
         return self._creator(
-            *typing.cast(P.args, self._sync_resolve_args(container)),
-            **typing.cast(P.kwargs, self._sync_resolve_kwargs(container)),
+            *self._sync_resolve_args(container),
+            **self._sync_resolve_kwargs(container),
         )
 
     async def _async_resolve_args(self, container: Container) -> list[typing.Any]:
@@ -84,6 +84,6 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
 
     async def _async_build_creator(self, container: Container) -> typing.Any:  # noqa: ANN401
         return self._creator(
-            *typing.cast(P.args, await self._async_resolve_args(container)),
-            **typing.cast(P.kwargs, await self._async_resolve_kwargs(container)),
+            *await self._async_resolve_args(container),
+            **await self._async_resolve_kwargs(container),
         )
