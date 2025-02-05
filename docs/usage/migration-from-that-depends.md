@@ -97,33 +97,10 @@ app = Litestar(
 modern_di_litestar.setup_di(app)
 ```
 
-## Migrate routes
+## 4. Migrate routes
 
-### For `fastapi`
-Replace `fastapi.Depends` with `modern_di_fastapi.FromDI`
+For `fastapi` replace `fastapi.Depends` with `modern_di_fastapi.FromDI`:
 
-`that-depends`:
-```python
-import typing
-
-import fastapi
-
-from app import ioc, schemas
-from app.repositories import DecksService
-
-
-ROUTER: typing.Final = fastapi.APIRouter()
-
-
-@ROUTER.get("/decks/")
-async def list_decks(
-    decks_service: DecksService = fastapi.Depends(ioc.Dependencies.decks_service),
-) -> schemas.Decks:
-    objects = await decks_service.list()
-    return typing.cast(schemas.Decks, {"items": objects})
-```
-
-`modern-di`:
 ```python
 import typing
 
@@ -145,10 +122,8 @@ async def list_decks(
    return typing.cast(schemas.Decks, {"items": objects})
 ```
 
-### For `litestar`
-Replace `litestar.di.Provide` with `modern_di_litestar.FromDI`
+For `litestar` replace `litestar.di.Provide` with `modern_di_litestar.FromDI`
 
-`modern-di`:
 ```python
 import litestar
 import modern_di_litestar
@@ -163,13 +138,4 @@ from app.repositories import DecksService
 async def list_decks(decks_service: DecksService) -> schemas.Decks:
    objects = await decks_service.list()
    return schemas.Decks(items=objects)
-```
-
-Read more about integrations:
-```{eval-rst}
-.. toctree::
-    :maxdepth: 1
-
-    ../integrations/fastapi
-    ../integrations/litestar
 ```
