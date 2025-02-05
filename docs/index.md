@@ -11,6 +11,7 @@
     usage/key-concepts
     usage/inject-factories
     usage/context-data
+    usage/migration-from-that-depends
 
 .. toctree::
     :maxdepth: 1
