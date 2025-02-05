@@ -1,11 +1,22 @@
 # Migration from `that-depends`
 
-## 1. Adapt dependencies graph
+## 1. Install `modern-di` using your favorite tool:
+
+If you need only `modern-di` without integrations:
+
+```shell
+pip install modern-di
+uv add modern-di
+poetry add modern-di
+```
+
+If you need to integrate with `fastapi` or `litestar`, then install `modern-di-fastapi` or `modern-di-litestar` accordingly.
+
+## 2. Migrate dependencies graph
 1. Use `modern-di.BaseGraph` instead of `that-depends.BaseContainer`.
 2. Add scopes to all providers.
    - Most of the providers will be `APP` scope.
    - ContextResource usually becomes `Resource` of `REQUEST`-scope.
-
 
 `that-depends`:
 ```python
@@ -15,7 +26,7 @@ from app import repositories
 from app.resources.db import create_sa_engine, create_session
 
 
-class IOCContainer(BaseContainer):
+class Dependencies(BaseContainer):
     database_engine = providers.Resource(create_sa_engine, settings=settings.cast)
     session = providers.ContextResource(create_session, engine=database_engine.cast)
     decks_service = providers.Factory(repositories.DecksService, session=session)
@@ -38,9 +49,9 @@ class Dependencies(BaseGraph):
     cards_service = providers.Factory(Scope.REQUEST, repositories.CardsService, session=session.cast)
 ```
 
-## 2. Adapt integration with framework
+## 3. Migrate integration with framework
 
-For fastapi it will be something like this:
+For `fastapi`:
 
 ```python
 import contextlib
@@ -53,12 +64,112 @@ from app.ioc import Dependencies
 
 
 @contextlib.asynccontextmanager
-async def lifespan_manager(app: fastapi.FastAPI) -> typing.AsyncIterator[dict[str, typing.Any]]:
-   async with modern_di_fastapi.fetch_di_container(app) as di_container:
+async def lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[dict[str, typing.Any]]:
+   async with modern_di_fastapi.fetch_di_container(app_) as di_container:
       await Dependencies.async_resolve_creators(di_container)
       yield {}
 
 
 app = fastapi.FastAPI(lifespan=lifespan_manager)
 modern_di_fastapi.setup_di(app)
+```
+
+For `litestar`:
+```python
+import contextlib
+import typing
+
+from litestar import Litestar
+import modern_di_litestar
+
+
+@contextlib.asynccontextmanager
+async def lifespan_manager(app_: Litestar) -> typing.AsyncIterator[None]:
+    async with modern_di_litestar.fetch_di_container(app_):
+        yield
+
+
+app = Litestar(
+    route_handlers=[...],
+    dependencies={**modern_di_litestar.prepare_di_dependencies()},
+    lifespan=[lifespan_manager],
+)
+modern_di_litestar.setup_di(app)
+```
+
+## Migrate routes
+
+### For `fastapi`
+Replace `fastapi.Depends` with `modern_di_fastapi.FromDI`
+
+`that-depends`:
+```python
+import typing
+
+import fastapi
+
+from app import ioc, schemas
+from app.repositories import DecksService
+
+
+ROUTER: typing.Final = fastapi.APIRouter()
+
+
+@ROUTER.get("/decks/")
+async def list_decks(
+    decks_service: DecksService = fastapi.Depends(ioc.Dependencies.decks_service),
+) -> schemas.Decks:
+    objects = await decks_service.list()
+    return typing.cast(schemas.Decks, {"items": objects})
+```
+
+`modern-di`:
+```python
+import typing
+
+import fastapi
+from modern_di_fastapi import FromDI
+
+from app import ioc, schemas
+from app.repositories import DecksService
+
+
+ROUTER: typing.Final = fastapi.APIRouter()
+
+
+@ROUTER.get("/decks/")
+async def list_decks(
+     decks_service: DecksService = FromDI(ioc.Dependencies.decks_service),
+) -> schemas.Decks:
+   objects = await decks_service.list()
+   return typing.cast(schemas.Decks, {"items": objects})
+```
+
+### For `litestar`
+Replace `litestar.di.Provide` with `modern_di_litestar.FromDI`
+
+`modern-di`:
+```python
+import litestar
+import modern_di_litestar
+
+from app import ioc, schemas
+from app.repositories import DecksService
+
+
+@litestar.get("/decks/", dependencies={
+   "decks_service": modern_di_litestar.FromDI(ioc.Dependencies.decks_service),
+})
+async def list_decks(decks_service: DecksService) -> schemas.Decks:
+   objects = await decks_service.list()
+   return schemas.Decks(items=objects)
+```
+
+Read more about integrations:
+```{eval-rst}
+.. toctree::
+    :maxdepth: 1
+
+    ../integrations/fastapi
+    ../integrations/litestar
 ```
