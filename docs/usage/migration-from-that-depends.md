@@ -17,6 +17,7 @@ If you need to integrate with `fastapi` or `litestar`, then install `modern-di-f
 2. Add scopes to all providers.
    - Most of the providers will be `APP` scope.
    - ContextResource usually becomes `Resource` of `REQUEST`-scope.
+   - Dependents of ContextResource usually has `REQUEST`-scope as well.
 
 `that-depends`:
 ```python
