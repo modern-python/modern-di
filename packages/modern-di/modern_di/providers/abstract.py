@@ -4,7 +4,10 @@ import itertools
 import typing
 import uuid
 
+from typing_extensions import override
+
 from modern_di import Container
+from modern_di.helpers.attr_getter_helpers import get_value_from_object_by_dotted_path
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -35,6 +38,22 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
         if any(x.scope > self.scope for x in providers if isinstance(x, AbstractProvider)):
             msg = "Scope of dependency cannot be more than scope of dependent"
             raise RuntimeError(msg)
+
+    def __getattr__(self, attr_name: str) -> typing.Any:  # noqa: ANN401
+        """Get an attribute from the resolve object.
+
+        Args:
+            attr_name: name of attribute to get.
+
+        Returns:
+            An `AttrGetter` provider that will get the attribute after resolving the current provider.
+
+        """
+        if attr_name.startswith("_"):
+            msg = f"'{type(self)}' object has no attribute '{attr_name}'"
+            raise AttributeError(msg)
+
+        return AttrGetter(provider=self, attr_name=attr_name)
 
 
 class AbstractOverrideProvider(AbstractProvider[T_co], abc.ABC):
@@ -87,3 +106,40 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
             *await self._async_resolve_args(container),
             **await self._async_resolve_kwargs(container),
         )
+
+
+class AttrGetter(AbstractProvider[T_co]):
+    """Provides an attribute after resolving the wrapped provider."""
+
+    __slots__ = [*AbstractProvider.BASE_SLOTS, "_attrs", "_provider"]
+
+    def __init__(self, provider: AbstractProvider[T_co], attr_name: str) -> None:
+        """Create a new AttrGetter instance.
+
+        Args:
+            provider: provider to wrap.
+            attr_name: attribute name to resolve when the provider is resolved.
+
+        """
+        super().__init__(scope=provider.scope)
+        self._provider = provider
+        self._attrs = [attr_name]
+
+    def __getattr__(self, attr: str) -> "AttrGetter[T_co]":
+        if attr.startswith("_"):
+            msg = f"'{type(self)}' object has no attribute '{attr}'"
+            raise AttributeError(msg)
+        self._attrs.append(attr)
+        return self
+
+    @override
+    async def async_resolve(self, container: Container) -> typing.Any:
+        resolved_provider_object = await self._provider.async_resolve(container)
+        attribute_path = ".".join(self._attrs)
+        return get_value_from_object_by_dotted_path(resolved_provider_object, attribute_path)
+
+    @override
+    def sync_resolve(self, container: Container) -> typing.Any:
+        resolved_provider_object = self._provider.sync_resolve(container)
+        attribute_path = ".".join(self._attrs)
+        return get_value_from_object_by_dotted_path(resolved_provider_object, attribute_path)
