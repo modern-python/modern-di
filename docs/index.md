@@ -88,13 +88,9 @@ class Dependencies(BaseGraph):
 ## 4.1. Integrate with your framework
 
 For now there are integration for the following frameworks:
-```{eval-rst}
-.. toctree::
-    :maxdepth: 1
 
-    ../integrations/fastapi
-    ../integrations/litestar
-```
+1. [FastAPI](integrations/fastapi)
+2. [LiteStar](integrations/litestar)
 
 ## 4.2. Or use `modern-di` without integrations
 
