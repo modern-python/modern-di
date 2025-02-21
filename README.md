@@ -18,7 +18,7 @@ supports the following:
 - Compatibility with popular frameworks like `FastAPI` and `LiteStar`
 - Thread-safe and asyncio concurrency safe providers
 
-📚 [Documentation](https://modern-di.readthedocs.io)
+## 📚 [Documentation](https://modern-di.readthedocs.io)
 
 ## 📦 [PyPi](https://pypi.org/project/modern-di)
 
