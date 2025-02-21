@@ -1,5 +1,4 @@
-# Development Notes
-## Main decisions
+# Decisions
 1. Dependency resolving is async and sync:
   - if resolving requires event loop in sync mode `RuntimeError` is raised;
   - framework was developed mostly for usage with async python applications;
