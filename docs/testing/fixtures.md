@@ -1,4 +1,4 @@
-# Testing
+# Fixtures for testing
 
 ## 1. Add required fixtures:
 

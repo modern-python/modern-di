@@ -1,0 +1,88 @@
+site_name: modern-di
+repo_url: https://github.com/modern-python/modern-di
+docs_dir: docs
+edit_uri: edit/main/docs/
+nav:
+  - Quick-Start: index.md
+  - Introduction:
+      - Key Concepts: introduction/key-concepts.md
+      - Context Data: introduction/context-data.md
+      - Inject Factories: introduction/inject-factories.md
+      - Application Settings: introduction/application-settings.md
+  - Providers:
+      - Resources: providers/resources.md
+      - Singleton: providers/singletons.md
+      - Factories: providers/factories.md
+      - Collections: providers/collections.md
+      - Context Providers: providers/context-providers.md
+      - Object: providers/object.md
+  - Integrations:
+      - FastAPI: integrations/fastapi.md
+      - Litestar: integrations/litestar.md
+  - Testing:
+      - Fixtures: testing/fixtures.md
+  - Migration:
+      - From 'that-depends': migration/from-that-depends.md
+  - Development:
+      - Contributing: dev/contributing.md
+      - Decisions: dev/decisions.md
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - content.action.view
+    - navigation.footer
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.instant
+    - header.autohide
+    - announce.dismiss
+  icon:
+    edit: material/pencil
+    view: material/eye
+    repo: fontawesome/brands/git-alt
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: pink
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: pink
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - def_list
+  - codehilite:
+      use_pygments: true
+  - attr_list
+  - md_in_html
+
+extra_css:
+  - css/code.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/modern-python/modern-di
+      name: GitHub
