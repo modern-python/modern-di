@@ -29,7 +29,6 @@ nav:
 
 theme:
   name: material
-  custom_dir: docs/overrides
   features:
     - content.code.copy
     - content.code.annotate
