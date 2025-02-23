@@ -1,6 +1,7 @@
 # Injecting factories
 
 When you need to inject the factory itself, but not the result of its call, use:
+
 1. `.async_provider` attribute for async resolver
 2. `.sync_provider` attribute for sync resolver
 
