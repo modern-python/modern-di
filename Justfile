@@ -30,6 +30,9 @@ test-fastapi *args:
 test-litestar *args:
     uv run --directory=packages/modern-di-litestar pytest {{ args }}
 
+test-faststream *args:
+    uv run --directory=packages/modern-di-faststream pytest {{ args }}
+
 publish package:
     rm -rf dist
     uv build --package {{ package }}
