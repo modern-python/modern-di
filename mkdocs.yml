@@ -18,6 +18,7 @@ nav:
       - Object: providers/object.md
   - Integrations:
       - FastAPI: integrations/fastapi.md
+      - FastAPI: integrations/faststream.md
       - Litestar: integrations/litestar.md
   - Testing:
       - Fixtures: testing/fixtures.md
