@@ -123,16 +123,19 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         self._is_async = True
         return self
 
+    async def async_close(self) -> None:
+        self._check_entered()
+        for provider_state in reversed(self._provider_states.values()):
+            await provider_state.async_tear_down()
+        self._exit()
+
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         traceback: types.TracebackType | None,
     ) -> None:
-        self._check_entered()
-        for provider_state in reversed(self._provider_states.values()):
-            await provider_state.async_tear_down()
-        self._exit()
+        await self.async_close()
 
     def __enter__(self) -> "Container":
         self._is_async = False
