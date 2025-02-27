@@ -9,8 +9,7 @@ supports the following:
 - Scopes and granular context management
 - Python 3.10+ support
 - Fully typed and tested
-- Compatibility with popular frameworks like `FastAPI` and `LiteStar`
-- Thread-safe and asyncio concurrency safe providers
+- Integrations with `FastAPI`, `FastStream` and `LiteStar`
 
 ---
 
