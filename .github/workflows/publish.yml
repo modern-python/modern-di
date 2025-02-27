@@ -26,3 +26,8 @@ jobs:
         run: just publish modern-di-litestar
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+
+      - if: startsWith(github.ref_name, 'faststream')
+        run: just publish modern-di-faststream
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}

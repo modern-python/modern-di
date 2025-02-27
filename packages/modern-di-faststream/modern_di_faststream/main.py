@@ -42,6 +42,8 @@ def setup_di(app: faststream.FastStream, scope: enum.IntEnum = Scope.APP) -> Con
     assert app.broker, "broker must be defined to setup DI"
 
     container = Container(scope=scope)
+    app.on_startup(container.__aenter__)
+    app.after_shutdown(container.async_close)
     app.broker.add_middleware(DIMiddleware(container))
     return container
 
