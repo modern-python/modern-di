@@ -1,6 +1,8 @@
 import typing
 
 import faststream
+import modern_di_faststream
+import pytest
 from faststream import TestApp
 from faststream.broker.message import StreamMessage
 from faststream.nats import NatsBroker, TestNatsBroker
@@ -54,3 +56,8 @@ async def test_context_adapter(app: faststream.FastStream) -> None:
         result = await br.request(None, TEST_SUBJECT)
         result_str = await result.decode()
         assert result_str == b""
+
+
+async def test_app_without_broker() -> None:
+    with pytest.raises(RuntimeError, match="Broker must be defined to setup DI"):
+        modern_di_faststream.setup_di(faststream.FastStream())
