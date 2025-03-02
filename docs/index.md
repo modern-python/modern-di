@@ -89,7 +89,8 @@ class Dependencies(BaseGraph):
 For now there are integration for the following frameworks:
 
 1. [FastAPI](integrations/fastapi)
-2. [LiteStar](integrations/litestar)
+2. [FastStream](integrations/faststream)
+3. [LiteStar](integrations/litestar)
 
 ## 4.2. Or use `modern-di` without integrations
 
