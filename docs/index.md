@@ -19,11 +19,24 @@ supports the following:
 
 If you need only `modern-di` without integrations:
 
-```shell
-pip install modern-di
-uv add modern-di
-poetry add modern-di
-```
+
+=== "uv"
+
+    ```bash
+    uv add modern-di
+    ```
+
+=== "pip"
+
+    ```bash
+    pip install modern-di
+    ```
+
+=== "poetry"
+
+    ```bash
+    poetry add modern-di
+    ```
 
 If you need to integrate with `fastapi` or `litestar`, then install `modern-di-fastapi` or `modern-di-litestar` accordingly.
 
