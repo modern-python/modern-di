@@ -4,7 +4,26 @@
 
 ## How to use
 
-1. Install `modern-di-fastapi` package from PYPI: `uv add modern-di-fastapi` or `pip install modern-di-fastapi`, etc.
+1. Install `modern-di-fastapi`:
+
+=== "uv"
+ 
+      ```bash
+      uv add modern-di-fastapi
+      ```
+ 
+=== "pip"
+
+      ```bash
+      pip install modern-di-fastapi
+      ```
+
+=== "poetry"
+
+      ```bash
+      poetry add modern-di-fastapi
+      ```
+
 2. Apply this code example to your application:
 ```python
 import datetime

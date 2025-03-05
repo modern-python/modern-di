@@ -2,7 +2,26 @@
 
 ## How to use
 
-1. Install `modern-di-faststream` package from PYPI: `uv add modern-di-faststream` or `pip install modern-di-faststream`, etc.
+1. Install `modern-di-faststream`:
+
+=== "uv"
+
+      ```bash
+      uv add modern-di-faststream
+      ```
+
+=== "pip"
+
+      ```bash
+      pip install modern-di-faststream
+      ```
+
+=== "poetry"
+
+      ```bash
+      poetry add modern-di-faststream
+      ```
+
 2. Apply this code example to your application:
 
 ```python
