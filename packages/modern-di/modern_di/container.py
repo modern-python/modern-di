@@ -119,8 +119,12 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         else:
             self._overrides.pop(provider_id, None)
 
-    async def __aenter__(self) -> "Container":
+    def async_enter(self) -> "Container":
         self._is_async = True
+        return self
+
+    def sync_enter(self) -> "Container":
+        self._is_async = False
         return self
 
     async def async_close(self) -> None:
@@ -128,6 +132,15 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         for provider_state in reversed(self._provider_states.values()):
             await provider_state.async_tear_down()
         self._exit()
+
+    def sync_close(self) -> None:
+        self._check_entered()
+        for provider_state in reversed(self._provider_states.values()):
+            provider_state.sync_tear_down()
+        self._exit()
+
+    async def __aenter__(self) -> "Container":
+        return self.async_enter()
 
     async def __aexit__(
         self,
@@ -138,8 +151,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         await self.async_close()
 
     def __enter__(self) -> "Container":
-        self._is_async = False
-        return self
+        return self.sync_enter()
 
     def __exit__(
         self,
@@ -147,7 +159,4 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
     ) -> None:
-        self._check_entered()
-        for provider_state in reversed(self._provider_states.values()):
-            provider_state.sync_tear_down()
-        self._exit()
+        self.sync_close()
