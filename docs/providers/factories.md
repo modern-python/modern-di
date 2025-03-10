@@ -1,9 +1,8 @@
-# Factory
+# Factories
+Factories are initialized on every call.
 
-- initialized on every call;
-- class or simple function is allowed.
-
-## How it works
+## Factory
+- Class or simple function is allowed.
 
 ```python
 import dataclasses
@@ -24,4 +23,26 @@ class Dependencies(BaseGraph):
 with Container(scope=Scope.APP) as container:
     instance = Dependencies.independent_factory.sync_resolve(container)
     assert isinstance(instance, IndependentFactory)
+```
+
+## AsyncFactory
+- Async function is required.
+
+```python
+import datetime
+
+from modern_di import BaseGraph, Container, Scope, providers
+
+
+async def async_factory() -> datetime.datetime:
+    return datetime.datetime.now(tz=datetime.timezone.utc)
+
+
+class Dependencies(BaseGraph):
+    async_factory = providers.AsyncFactory(Scope.APP, async_factory)
+
+
+async with Container(scope=Scope.APP) as container:
+    instance = await Dependencies.async_factory.async_resolve(container)
+    assert isinstance(instance, datetime.datetime)
 ```
