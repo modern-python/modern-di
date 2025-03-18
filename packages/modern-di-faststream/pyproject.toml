@@ -44,7 +44,7 @@ raw-options.root = "../.."
 fallback-version = "0"
 
 [tool.hatch.build]
-include = ["modern_di_fastapi"]
+include = ["modern_di_faststream"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=. --cov-report term-missing"
