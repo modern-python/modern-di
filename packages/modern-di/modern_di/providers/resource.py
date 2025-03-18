@@ -1,4 +1,4 @@
-import contextlib  # noqa: A005
+import contextlib
 import enum
 import inspect
 import typing
