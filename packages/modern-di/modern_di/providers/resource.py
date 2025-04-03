@@ -12,7 +12,7 @@ P = typing.ParamSpec("P")
 
 
 class Resource(AbstractCreatorProvider[T_co]):
-    __slots__ = [*AbstractCreatorProvider.BASE_SLOTS, "_creator", "_args", "_kwargs", "_is_async"]
+    __slots__ = [*AbstractCreatorProvider.BASE_SLOTS, "_is_async"]
 
     def _is_creator_async(
         self,

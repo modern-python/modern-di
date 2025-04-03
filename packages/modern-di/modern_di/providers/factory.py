@@ -11,7 +11,7 @@ P = typing.ParamSpec("P")
 
 
 class Factory(AbstractCreatorProvider[T_co]):
-    __slots__ = [*AbstractCreatorProvider.BASE_SLOTS, "_creator"]
+    __slots__ = AbstractCreatorProvider.BASE_SLOTS
 
     def __init__(
         self,
