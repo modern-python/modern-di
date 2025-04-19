@@ -26,7 +26,6 @@
 
 2. Apply this code example to your application:
 ```python
-import contextlib
 import datetime
 import typing
 
@@ -51,18 +50,10 @@ async def index(injected: datetime.datetime) -> str:
     return injected.isoformat()
 
 
-@contextlib.asynccontextmanager
-async def lifespan_manager(app_: Litestar) -> typing.AsyncIterator[None]:
-    async with modern_di_litestar.fetch_di_container(app_):
-        yield
-
-
 app = Litestar(
     route_handlers=[index],
-    dependencies={**modern_di_litestar.prepare_di_dependencies()},
-    lifespan=[lifespan_manager],
+    plugins=[modern_di_litestar.ModernDIPlugin()],
 )
-modern_di_litestar.setup_di(app)
 ```
 
 ## Websockets
@@ -81,9 +72,10 @@ But when websockets are used, `SESSION` scope is used as well:
 ```python
 import litestar
 import modern_di
+import modern_di_litestar
 
 
-app = litestar.Litestar()
+app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin()])
 
 
 @litestar.websocket_listener("/ws")

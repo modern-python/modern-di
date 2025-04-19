@@ -29,7 +29,6 @@ dev = [
     "ruff",
     "mypy",
     "typing-extensions",
-    "asgi-lifespan",
 ]
 
 [build-system]
