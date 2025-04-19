@@ -1,27 +1,19 @@
-import contextlib
 import typing
 
 import fastapi
+import modern_di_fastapi
 import pytest
-from asgi_lifespan import LifespanManager
-from modern_di_fastapi import setup_di
 from starlette.testclient import TestClient
 
 
-@contextlib.asynccontextmanager
-async def lifespan(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]:
-    container = setup_di(app_)
-    async with container:
-        yield
+@pytest.fixture
+async def app() -> fastapi.FastAPI:
+    app_ = fastapi.FastAPI()
+    modern_di_fastapi.setup_di(app_)
+    return app_
 
 
 @pytest.fixture
-async def app() -> typing.AsyncIterator[fastapi.FastAPI]:
-    app_ = fastapi.FastAPI(lifespan=lifespan)
-    async with LifespanManager(app_):
-        yield app_
-
-
-@pytest.fixture
-def client(app: fastapi.FastAPI) -> TestClient:
-    return TestClient(app=app)
+def client(app: fastapi.FastAPI) -> typing.Iterator[TestClient]:
+    with TestClient(app=app) as test_client:
+        yield test_client

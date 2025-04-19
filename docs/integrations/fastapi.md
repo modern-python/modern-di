@@ -35,13 +35,7 @@ import modern_di_fastapi
 from modern_di import Scope, providers
 
 
-@contextlib.asynccontextmanager
-async def lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]:
-    async with modern_di_fastapi.fetch_di_container(app_):
-        yield
-
-
-app = fastapi.FastAPI(lifespan=lifespan_manager)
+app = fastapi.FastAPI()
 modern_di_fastapi.setup_di(app)
 
 

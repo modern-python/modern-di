@@ -1,8 +1,10 @@
+import contextlib
 import dataclasses
 import enum
 import typing
 
 import fastapi
+from fastapi.routing import _merge_lifespan_context
 from modern_di import Container, Scope, providers
 from starlette.requests import HTTPConnection
 
@@ -10,13 +12,24 @@ from starlette.requests import HTTPConnection
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
+def fetch_di_container(app_: fastapi.FastAPI) -> Container:
+    return typing.cast(Container, app_.state.di_container)
+
+
+@contextlib.asynccontextmanager
+async def _lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]:
+    async with fetch_di_container(app_):
+        yield
+
+
 def setup_di(app: fastapi.FastAPI, scope: enum.IntEnum = Scope.APP) -> Container:
     app.state.di_container = Container(scope=scope)
+    old_lifespan_manager = app.router.lifespan_context
+    app.router.lifespan_context = _merge_lifespan_context(
+        old_lifespan_manager,
+        _lifespan_manager,
+    )
     return app.state.di_container
-
-
-def fetch_di_container(app: fastapi.FastAPI) -> Container:
-    return typing.cast(Container, app.state.di_container)
 
 
 async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:

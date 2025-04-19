@@ -66,7 +66,7 @@ def setup_di(app: faststream.FastStream, scope: enum.IntEnum = Scope.APP) -> Con
         raise RuntimeError(msg)
 
     container = Container(scope=scope)
-    app.on_startup(container.__aenter__)
+    app.on_startup(container.async_enter)
     app.after_shutdown(container.async_close)
     app.broker.add_middleware(_DIMiddlewareFactory(container))
     return container
