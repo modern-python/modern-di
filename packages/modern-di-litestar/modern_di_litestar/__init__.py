@@ -1,9 +1,8 @@
-from modern_di_litestar.main import FromDI, fetch_di_container, prepare_di_dependencies, setup_di
+from modern_di_litestar.main import FromDI, ModernDIPlugin, fetch_di_container
 
 
 __all__ = [
     "FromDI",
+    "ModernDIPlugin",
     "fetch_di_container",
-    "prepare_di_dependencies",
-    "setup_di",
 ]

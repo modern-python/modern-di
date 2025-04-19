@@ -1,10 +1,13 @@
+import contextlib
 import dataclasses
 import enum
 import typing
 
 import litestar
+from litestar.config.app import AppConfig
 from litestar.di import Provide
 from litestar.params import Dependency
+from litestar.plugins import InitPlugin
 from modern_di import Container, providers
 from modern_di import Scope as DIScope
 
@@ -12,17 +15,28 @@ from modern_di import Scope as DIScope
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-def setup_di(app: litestar.Litestar, scope: enum.IntEnum = DIScope.APP) -> Container:
-    app.state.di_container = Container(scope=scope)
-    return app.state.di_container
+def fetch_di_container(app_: litestar.Litestar) -> Container:
+    return typing.cast(Container, app_.state.di_container)
 
 
-def prepare_di_dependencies() -> dict[str, Provide]:
-    return {"di_container": Provide(build_di_container)}
+@contextlib.asynccontextmanager
+async def _lifespan_manager(app_: litestar.Litestar) -> typing.AsyncIterator[None]:
+    container = fetch_di_container(app_)
+    async with container:
+        yield
 
 
-def fetch_di_container(app: litestar.Litestar) -> Container:
-    return typing.cast(Container, app.state.di_container)
+class ModernDIPlugin(InitPlugin):
+    __slots__ = ("scope",)
+
+    def __init__(self, scope: enum.IntEnum = DIScope.APP) -> None:
+        self.scope = scope
+
+    def on_app_init(self, app_config: AppConfig) -> AppConfig:
+        app_config.state.di_container = Container(scope=self.scope)
+        app_config.dependencies["di_container"] = Provide(build_di_container)
+        app_config.lifespan.append(_lifespan_manager)
+        return app_config
 
 
 async def build_di_container(

@@ -2,7 +2,6 @@ import typing
 
 import litestar
 import modern_di
-import modern_di_litestar
 from litestar import status_codes
 from litestar.testing import TestClient
 from modern_di import Scope, providers
@@ -67,8 +66,9 @@ def test_factories_action_scope(client: TestClient[litestar.Litestar], app: lite
     assert response.json() is None
 
 
-def test_factory_override(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
-    di_container = modern_di_litestar.fetch_di_container(app)
+def test_factory_override(
+    client: TestClient[litestar.Litestar], app: litestar.Litestar, di_container: modern_di.Container
+) -> None:
     mock = SimpleCreator(dep1="mock")
     app_factory.override(mock, di_container)
 
