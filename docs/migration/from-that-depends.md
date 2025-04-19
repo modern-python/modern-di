@@ -76,14 +76,7 @@ If you need to integrate with some framework, then install `modern-di-*`.
       import modern_di_fastapi
       
       from app.ioc import Dependencies
-      
-      
-      @contextlib.asynccontextmanager
-      async def lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[dict[str, typing.Any]]:
-         async with modern_di_fastapi.fetch_di_container(app_) as di_container:
-            await Dependencies.async_resolve_creators(di_container)
-            yield {}
-      
+
       
       app = fastapi.FastAPI(lifespan=lifespan_manager)
       modern_di_fastapi.setup_di(app)
@@ -97,20 +90,12 @@ If you need to integrate with some framework, then install `modern-di-*`.
       
       from litestar import Litestar
       import modern_di_litestar
-      
-      
-      @contextlib.asynccontextmanager
-      async def lifespan_manager(app_: Litestar) -> typing.AsyncIterator[None]:
-          async with modern_di_litestar.fetch_di_container(app_):
-              yield
-      
+
       
       app = Litestar(
           route_handlers=[...],
-          dependencies={**modern_di_litestar.prepare_di_dependencies()},
-          lifespan=[lifespan_manager],
+          plugins=[modern_di_litestar.ModernDIPlugin()],
       )
-      modern_di_litestar.setup_di(app)
       ```
 
 ## 4. Migrate routes

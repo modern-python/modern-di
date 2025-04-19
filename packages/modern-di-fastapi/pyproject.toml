@@ -30,7 +30,6 @@ dev = [
     "mypy",
     "typing-extensions",
     "httpx",
-    "asgi-lifespan",
 ]
 
 [build-system]
