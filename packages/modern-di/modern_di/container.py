@@ -162,5 +162,9 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         self.sync_close()
 
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
-        """Hack for FastStream to prevent cloning object."""
+        """Hack to prevent cloning object."""
+        return self
+
+    def __copy__(self, *_: object, **__: object) -> "typing_extensions.Self":
+        """Hack to prevent cloning object."""
         return self

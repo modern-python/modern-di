@@ -12,8 +12,9 @@ def test_container_not_opened() -> None:
 
 def test_container_prevent_copy() -> None:
     container = Container(scope=Scope.APP)
-    container_copy = copy.deepcopy(container)
-    assert container_copy is container
+    container_deepcopy = copy.deepcopy(container)
+    container_copy = copy.copy(container)
+    assert container_deepcopy is container_copy is container
 
 
 def test_container_scope_skipped() -> None:
