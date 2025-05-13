@@ -1,6 +1,7 @@
 import typing
 
 import faststream
+import modern_di
 import modern_di_faststream
 import pytest
 from faststream import TestApp
@@ -61,3 +62,8 @@ async def test_context_adapter(app: faststream.FastStream) -> None:
 async def test_app_without_broker() -> None:
     with pytest.raises(RuntimeError, match="Broker must be defined to setup DI"):
         modern_di_faststream.setup_di(faststream.FastStream())
+
+
+def test_fetch_di_container(app: faststream.FastStream) -> None:
+    di_container = modern_di_faststream.fetch_di_container(app)
+    assert isinstance(di_container, modern_di.Container)
