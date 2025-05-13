@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 from modern_di import Container, Scope, providers
 
@@ -6,6 +8,12 @@ def test_container_not_opened() -> None:
     container = Container(scope=Scope.APP)
     with pytest.raises(RuntimeError, match="Enter the context first"):
         container.fetch_provider_state("some_id")
+
+
+def test_container_prevent_copy() -> None:
+    container = Container(scope=Scope.APP)
+    container_copy = copy.deepcopy(container)
+    assert container_copy is container
 
 
 def test_container_scope_skipped() -> None:
