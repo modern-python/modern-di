@@ -6,6 +6,7 @@ from importlib.metadata import version
 
 import faststream
 import modern_di
+from faststream.asgi import AsgiFastStream
 from faststream.broker.message import StreamMessage
 from faststream.types import DecodedMessage
 from modern_di import Container, Scope, providers
@@ -60,11 +61,11 @@ class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
             return self.context  # type: ignore[attr-defined,no-any-return]
 
 
-def fetch_di_container(app_: faststream.FastStream) -> Container:
+def fetch_di_container(app_: faststream.FastStream | AsgiFastStream) -> Container:
     return typing.cast(Container, app_.context.get("di_container"))
 
 
-def setup_di(app: faststream.FastStream, scope: enum.IntEnum = Scope.APP) -> Container:
+def setup_di(app: faststream.FastStream | AsgiFastStream, scope: enum.IntEnum = Scope.APP) -> Container:
     if not app.broker:
         msg = "Broker must be defined to setup DI"
         raise RuntimeError(msg)
