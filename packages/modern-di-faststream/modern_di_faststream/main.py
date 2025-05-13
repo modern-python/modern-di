@@ -60,12 +60,17 @@ class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
             return self.context  # type: ignore[attr-defined,no-any-return]
 
 
+def fetch_di_container(app_: faststream.FastStream) -> Container:
+    return typing.cast(Container, app_.context.get("di_container"))
+
+
 def setup_di(app: faststream.FastStream, scope: enum.IntEnum = Scope.APP) -> Container:
     if not app.broker:
         msg = "Broker must be defined to setup DI"
         raise RuntimeError(msg)
 
     container = Container(scope=scope)
+    app.context.set_global("di_container", container)
     app.on_startup(container.async_enter)
     app.after_shutdown(container.async_close)
     app.broker.add_middleware(_DIMiddlewareFactory(container))
