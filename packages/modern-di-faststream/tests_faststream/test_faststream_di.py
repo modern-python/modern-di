@@ -31,17 +31,17 @@ async def test_factories(app: faststream.FastStream) -> None:
 
     @broker.subscriber(TEST_SUBJECT)
     async def index_subscriber(
+        message: str,
         app_factory_instance: typing.Annotated[SimpleCreator, FromDI(app_factory)],
         request_factory_instance: typing.Annotated[DependentCreator, FromDI(request_factory)],
     ) -> None:
+        assert message == "test"
         assert isinstance(app_factory_instance, SimpleCreator)
         assert isinstance(request_factory_instance, DependentCreator)
         assert request_factory_instance.dep1 is not app_factory_instance
 
     async with TestNatsBroker(broker) as br, TestApp(app):
-        result = await br.request(None, TEST_SUBJECT)
-        result_str = await result.decode()
-        assert result_str == b""
+        await br.publish("test", TEST_SUBJECT)
 
 
 async def test_context_adapter(app: faststream.FastStream) -> None:

@@ -59,7 +59,9 @@ async def build_di_container(
 class _Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co]
 
-    async def __call__(self, di_container: typing.Annotated[Container | None, Dependency()] = None) -> T_co | None:
+    async def __call__(
+        self, di_container: typing.Annotated[Container | None, Dependency(skip_validation=True)] = None
+    ) -> T_co | None:
         assert di_container
         return await self.dependency.async_resolve(di_container)
 
