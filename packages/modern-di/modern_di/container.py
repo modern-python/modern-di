@@ -4,6 +4,7 @@ import types
 import typing
 
 from modern_di.provider_state import ProviderState
+from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
@@ -27,7 +28,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
     def __init__(
         self,
         *,
-        scope: enum.IntEnum,
+        scope: enum.IntEnum = Scope.APP,
         parent_container: typing.Optional["Container"] = None,
         context: dict[str, typing.Any] | None = None,
         use_threading_lock: bool = True,

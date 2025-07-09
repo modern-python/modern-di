@@ -22,14 +22,16 @@ async def _lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]
         yield
 
 
-def setup_di(app: fastapi.FastAPI, scope: enum.IntEnum = Scope.APP) -> Container:
-    app.state.di_container = Container(scope=scope)
+def setup_di(app: fastapi.FastAPI, scope: enum.IntEnum = Scope.APP, container: Container | None = None) -> Container:
+    if not container:
+        container = Container(scope=scope)
+    app.state.di_container = container
     old_lifespan_manager = app.router.lifespan_context
     app.router.lifespan_context = _merge_lifespan_context(
         old_lifespan_manager,
         _lifespan_manager,
     )
-    return app.state.di_container
+    return container
 
 
 async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
