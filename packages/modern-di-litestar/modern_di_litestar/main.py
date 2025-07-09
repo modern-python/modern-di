@@ -27,13 +27,14 @@ async def _lifespan_manager(app_: litestar.Litestar) -> typing.AsyncIterator[Non
 
 
 class ModernDIPlugin(InitPlugin):
-    __slots__ = ("scope",)
+    __slots__ = ("container", "scope")
 
-    def __init__(self, scope: enum.IntEnum = DIScope.APP) -> None:
+    def __init__(self, scope: enum.IntEnum = DIScope.APP, container: Container | None = None) -> None:
         self.scope = scope
+        self.container = container or Container(scope=self.scope)
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
-        app_config.state.di_container = Container(scope=self.scope)
+        app_config.state.di_container = self.container
         app_config.dependencies["di_container"] = Provide(build_di_container)
         app_config.lifespan.append(_lifespan_manager)
         return app_config

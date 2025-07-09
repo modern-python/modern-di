@@ -65,12 +65,15 @@ def fetch_di_container(app_: faststream.FastStream | AsgiFastStream) -> Containe
     return typing.cast(Container, app_.context.get("di_container"))
 
 
-def setup_di(app: faststream.FastStream | AsgiFastStream, scope: enum.IntEnum = Scope.APP) -> Container:
+def setup_di(
+    app: faststream.FastStream | AsgiFastStream, scope: enum.IntEnum = Scope.APP, container: Container | None = None
+) -> Container:
     if not app.broker:
         msg = "Broker must be defined to setup DI"
         raise RuntimeError(msg)
 
-    container = Container(scope=scope)
+    if not container:
+        container = Container(scope=scope)
     app.context.set_global("di_container", container)
     app.on_startup(container.async_enter)
     app.after_shutdown(container.async_close)
