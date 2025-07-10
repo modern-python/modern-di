@@ -42,7 +42,7 @@ with Container(scope=Scope.APP) as container:
 `Resource` is safe to use in threading and asyncio concurrency:
 
 ```python
-with Container(scope=Scope.APP) as container:
+async with Container(scope=Scope.APP) as container:
     # calling async_resolve concurrently in different coroutines will create only one instance
     await Dependencies.sync_resource.async_resolve(container)
 

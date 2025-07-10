@@ -13,13 +13,13 @@
 
    - tied to the entire application lifetime;
    - can be used for singletons of **Resource** and **Singleton** providers;
-   - must be managed manually in lifecycle methods of the application: see **integrations** section;
+   - in integrations managed automatically in lifecycle methods: see **integrations** section for more details;
 
 **SESSION**:
 
    - for websocket session lifetime;
    - dependencies of this scope cannot be used for http-requests;
-   - managed automatically;
+   - managed automatically in integrations;
 
 **REQUEST**:
 
@@ -66,7 +66,7 @@ All states live in containers:
 
 ## Graph
 
-Graph is a collection of providers. They annot be instantiated.
+Graph is a collection of providers. They cannot be instantiated.
 
 Graph can initialize its resources and singletons to container:
 
