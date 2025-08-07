@@ -20,5 +20,5 @@ async def test_dict() -> None:
 
 async def test_dict_wrong_scope() -> None:
     request_factory_ = providers.Factory(Scope.REQUEST, lambda: "")
-    with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
+    with pytest.raises(RuntimeError, match="Scope of dep1 is REQUEST and current scope is APP"):
         providers.Dict(Scope.APP, dep1=request_factory_)

@@ -13,7 +13,7 @@ class List(AbstractProvider[list[T_co]]):
 
     def __init__(self, scope: enum.IntEnum, *providers: AbstractProvider[T_co]) -> None:
         super().__init__(scope)
-        self._check_providers_scope(providers)
+        self._check_providers_scope(args=providers)
         self._providers: typing.Final = providers
 
     async def async_resolve(self, container: Container) -> list[T_co]:

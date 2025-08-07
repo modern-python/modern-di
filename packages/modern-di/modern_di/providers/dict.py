@@ -13,7 +13,7 @@ class Dict(AbstractProvider[dict[str, T_co]]):
 
     def __init__(self, scope: enum.IntEnum, **providers: AbstractProvider[T_co]) -> None:
         super().__init__(scope)
-        self._check_providers_scope(providers.values())
+        self._check_providers_scope(kwargs=providers)
         self._providers: typing.Final = providers
 
     async def async_resolve(self, container: Container) -> dict[str, T_co]:

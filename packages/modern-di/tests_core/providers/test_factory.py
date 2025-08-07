@@ -99,7 +99,7 @@ async def test_factory_wrong_dependency_scope() -> None:
     def some_factory(_: SimpleCreator) -> None: ...
 
     request_factory_ = providers.Factory(Scope.REQUEST, SimpleCreator, dep1="original")
-    with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
+    with pytest.raises(RuntimeError, match="Scope of dependency is REQUEST and current scope is APP"):
         providers.Singleton(Scope.APP, some_factory, request_factory_.cast)
 
 
