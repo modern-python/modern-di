@@ -1,6 +1,5 @@
 import abc
 import enum
-import itertools
 import typing
 import uuid
 
@@ -34,10 +33,20 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
     def cast(self) -> T_co:
         return typing.cast(T_co, self)
 
-    def _check_providers_scope(self, providers: typing.Iterable[typing.Any]) -> None:
-        if any(x.scope > self.scope for x in providers if isinstance(x, AbstractProvider)):
-            msg = "Scope of dependency cannot be more than scope of dependent"
-            raise RuntimeError(msg)
+    def _check_providers_scope(
+        self, *, args: typing.Iterable[typing.Any] | None = None, kwargs: typing.Mapping[str, typing.Any] | None = None
+    ) -> None:
+        if args:
+            for provider in args:
+                if isinstance(provider, AbstractProvider) and provider.scope > self.scope:
+                    msg = f"Scope of dependency is {provider.scope.name} and current scope is {self.scope.name}"
+                    raise RuntimeError(msg)
+
+        if kwargs:
+            for name, provider in kwargs.items():
+                if isinstance(provider, AbstractProvider) and provider.scope > self.scope:
+                    msg = f"Scope of {name} is {provider.scope.name} and current scope is {self.scope.name}"
+                    raise RuntimeError(msg)
 
     def __getattr__(self, attr_name: str) -> typing.Any:  # noqa: ANN401
         """Get an attribute from the resolve object.
@@ -75,7 +84,7 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
         **kwargs: P.kwargs,
     ) -> None:
         super().__init__(scope)
-        self._check_providers_scope(itertools.chain(args, kwargs.values()))
+        self._check_providers_scope(args=args, kwargs=kwargs)
         self._creator: typing.Final = creator
         self._args: typing.Final = args
         self._kwargs: typing.Final = kwargs

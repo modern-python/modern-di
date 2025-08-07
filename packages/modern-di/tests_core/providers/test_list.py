@@ -20,5 +20,5 @@ async def test_list() -> None:
 
 async def test_list_wrong_scope() -> None:
     request_factory_ = providers.Factory(Scope.REQUEST, lambda: "")
-    with pytest.raises(RuntimeError, match="Scope of dependency cannot be more than scope of dependent"):
+    with pytest.raises(RuntimeError, match="Scope of dependency is REQUEST and current scope is APP"):
         providers.List(Scope.APP, request_factory_)

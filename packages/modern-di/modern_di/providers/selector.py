@@ -16,7 +16,7 @@ class Selector(AbstractProvider[T_co]):
         self, scope: enum.IntEnum, function: typing.Callable[..., str], **providers: AbstractProvider[T_co]
     ) -> None:
         super().__init__(scope)
-        self._check_providers_scope(providers.values())
+        self._check_providers_scope(kwargs=providers)
         self._function: typing.Final = function
         self._providers: typing.Final = providers
 
