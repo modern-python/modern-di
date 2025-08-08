@@ -14,28 +14,28 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - if: startsWith(github.ref_name, 'core')
         run: |
-          uv version ${GITHUB_REF_NAME#core-}
+          (cd packages/modern-di && uv version ${GITHUB_REF_NAME#core-})
           just publish modern-di
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
       - if: startsWith(github.ref_name, 'fastapi')
         run: |
-          uv version ${GITHUB_REF_NAME#fastapi-}
+          (cd packages/modern-di-fastapi && uv version ${GITHUB_REF_NAME#fastapi-})
           just publish modern-di-fastapi
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
       - if: startsWith(github.ref_name, 'litestar')
         run: |
-          uv version ${GITHUB_REF_NAME#litestar-}
+          (cd packages/modern-di-litestar && uv version ${GITHUB_REF_NAME#litestar-})
           just publish modern-di-litestar
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
       - if: startsWith(github.ref_name, 'faststream')
         run: |
-          uv version ${GITHUB_REF_NAME#faststream-}
+          (cd packages/modern-di-faststream && uv version ${GITHUB_REF_NAME#faststream-})
           just publish modern-di-faststream
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
