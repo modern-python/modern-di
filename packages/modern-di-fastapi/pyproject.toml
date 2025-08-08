@@ -15,7 +15,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = ["fastapi>=0.100", "modern-di"]
-dynamic = ["version"]
+version = "0"
 
 [project.urls]
 repository = "https://github.com/modern-python/modern-di"
@@ -33,13 +33,8 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.version]
-source = "vcs"
-raw-options.root = "../.."
-fallback-version = "0"
 
 [tool.hatch.build]
 include = ["modern_di_fastapi"]
