@@ -6,7 +6,7 @@ from modern_di import Container, Scope, providers
 
 def test_container_not_opened() -> None:
     container = Container(scope=Scope.APP)
-    with pytest.raises(RuntimeError, match="Enter the context first"):
+    with pytest.raises(RuntimeError, match="Enter the context of APP scope"):
         container.fetch_provider_state("some_id")
 
 

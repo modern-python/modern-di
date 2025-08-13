@@ -49,7 +49,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
 
     def _check_entered(self) -> None:
         if self._is_async is None:
-            msg = "Enter the context first"
+            msg = f"Enter the context of {self.scope.name} scope"
             raise RuntimeError(msg)
 
     def build_child_container(
