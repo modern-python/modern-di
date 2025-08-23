@@ -6,12 +6,13 @@ import typing
 from modern_di.provider_state import ProviderState
 from modern_di.providers import ContainerProvider
 from modern_di.providers.abstract import AbstractProvider
-from modern_di.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
     import typing_extensions
+
+    from modern_di.providers_registry import ProvidersRegistry
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -36,7 +37,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         parent_container: typing.Optional["Container"] = None,
         context: dict[str, typing.Any] | None = None,
         use_threading_lock: bool = True,
-        providers_registry: ProvidersRegistry | None = None,
+        providers_registry: typing.Optional["ProvidersRegistry"] = None,
     ) -> None:
         self.scope = scope
         self.parent_container = parent_container
