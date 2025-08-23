@@ -3,10 +3,12 @@ import enum
 import typing
 import uuid
 
+import typing_extensions
 from typing_extensions import override
 
 from modern_di import Container
 from modern_di.helpers.attr_getter_helpers import get_value_from_object_by_dotted_path
+from modern_di.helpers.type_helpers import define_bounded_type
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -15,11 +17,12 @@ P = typing.ParamSpec("P")
 
 
 class AbstractProvider(typing.Generic[T_co], abc.ABC):
-    BASE_SLOTS: typing.ClassVar = ["scope", "provider_id"]
+    BASE_SLOTS: typing.ClassVar = ["scope", "provider_id", "bounded_type"]
 
-    def __init__(self, scope: enum.IntEnum) -> None:
+    def __init__(self, scope: enum.IntEnum, bounded_type: type | None = None) -> None:
         self.scope = scope
         self.provider_id: typing.Final = str(uuid.uuid4())
+        self.bounded_type = bounded_type
 
     @abc.abstractmethod
     async def async_resolve(self, container: Container) -> T_co:
@@ -83,11 +86,15 @@ class AbstractCreatorProvider(AbstractOverrideProvider[T_co], abc.ABC):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
-        super().__init__(scope)
+        super().__init__(scope, bounded_type=define_bounded_type(creator))
         self._check_providers_scope(args=args, kwargs=kwargs)
         self._creator: typing.Final = creator
         self._args: typing.Final = args
         self._kwargs: typing.Final = kwargs
+
+    def bind_type(self, new_type: type) -> typing_extensions.Self:
+        self.bounded_type = new_type
+        return self
 
     def _sync_resolve_args(self, container: Container) -> list[typing.Any]:
         return [x.sync_resolve(container) if isinstance(x, AbstractProvider) else x for x in self._args]
