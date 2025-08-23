@@ -3,10 +3,12 @@ import enum
 import typing
 import uuid
 
+import typing_extensions
 from typing_extensions import override
 
 from modern_di.helpers.attr_getter_helpers import get_value_from_object_by_dotted_path
 from modern_di.registries.state_registry.state import AsyncState, SyncState
+from modern_di.helpers.type_helpers import define_bounded_type
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -15,7 +17,7 @@ P = typing.ParamSpec("P")
 
 
 class AbstractProvider(typing.Generic[T_co], abc.ABC):
-    BASE_SLOTS: typing.ClassVar = ["scope", "provider_id", "args", "kwargs", "is_async"]
+    BASE_SLOTS: typing.ClassVar = ["scope", "provider_id", "args", "kwargs", "is_async", "bound_type"]
     HAS_STATE: bool = False
 
     def __init__(
@@ -23,13 +25,19 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
         scope: enum.IntEnum,
         args: list[typing.Any] | None = None,
         kwargs: dict[str, typing.Any] | None = None,
+        bounded_type: type | None = None,
     ) -> None:
         self.scope = scope
         self.provider_id: typing.Final = str(uuid.uuid4())
         self._args = args
         self._kwargs = kwargs
         self.is_async = False
+        self.bound_type = bounded_type
         self._check_providers_scope()
+
+    def bind_type(self, new_type: type) -> typing_extensions.Self:
+        self.bound_type = new_type
+        return self
 
     def fetch_args(self, _: dict[str, typing.Any]) -> list[typing.Any]:
         return self._args or []
@@ -103,7 +111,7 @@ class AbstractCreatorProvider(AbstractProvider[T_co], abc.ABC):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
-        super().__init__(scope, args=list(args), kwargs=kwargs)
+        super().__init__(scope, args=list(args), kwargs=kwargs, bound_type=define_bounded_type(creator))
         self._creator: typing.Final = creator
 
 
