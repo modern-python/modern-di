@@ -10,7 +10,7 @@ GENERIC_TYPES = {
 }
 
 
-def define_bounded_type(creator: type | object) -> type | None:  # noqa: PLR0911
+def define_bounded_type(creator: type | object) -> type | None:
     if isinstance(creator, type):
         return creator
 
@@ -29,7 +29,4 @@ def define_bounded_type(creator: type | object) -> type | None:  # noqa: PLR0911
     if not args:
         return None
 
-    if isinstance(args[0], type):
-        return args[0]
-
-    return None
+    return typing.cast(type, args[0])

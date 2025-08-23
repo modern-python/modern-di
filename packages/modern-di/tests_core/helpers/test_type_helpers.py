@@ -27,10 +27,6 @@ def generator_without_args() -> typing.Iterator:  # type: ignore[type-arg]  # pr
     yield 1
 
 
-def generator_with_any() -> typing.Iterator[1]:  # type: ignore[valid-type]  # pragma: no cover
-    yield 1
-
-
 def test_define_bounded_type() -> None:
     assert define_bounded_type(int) is int
     assert define_bounded_type(sync_function) is int
@@ -39,4 +35,3 @@ def test_define_bounded_type() -> None:
     assert define_bounded_type(async_generator) is int
     assert define_bounded_type(collection_function) is None
     assert define_bounded_type(generator_without_args) is None
-    assert define_bounded_type(generator_with_any) is None
