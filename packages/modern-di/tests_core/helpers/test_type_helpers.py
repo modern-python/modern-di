@@ -15,10 +15,6 @@ def generator() -> typing.Iterator[int]:  # pragma: no cover
     yield 1
 
 
-def second_generator() -> typing.Generator[int]:  # pragma: no cover
-    yield 2
-
-
 async def async_generator() -> typing.AsyncIterator[int]:  # pragma: no cover
     yield 1
 
@@ -40,7 +36,6 @@ def test_define_bounded_type() -> None:
     assert define_bounded_type(sync_function) is int
     assert define_bounded_type(async_function) is int
     assert define_bounded_type(generator) is int
-    assert define_bounded_type(second_generator) is int
     assert define_bounded_type(async_generator) is int
     assert define_bounded_type(collection_function) is None
     assert define_bounded_type(generator_without_args) is None

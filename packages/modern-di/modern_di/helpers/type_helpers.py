@@ -5,12 +5,8 @@ import typing
 GENERIC_TYPES = {
     typing.Iterator,
     typing.AsyncIterator,
-    typing.Generic,
-    typing.AsyncGenerator,
     collections.abc.Iterator,
     collections.abc.AsyncIterator,
-    collections.abc.Generator,
-    collections.abc.AsyncGenerator,
 }
 
 
