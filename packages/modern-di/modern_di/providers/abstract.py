@@ -25,7 +25,7 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
         scope: enum.IntEnum,
         args: list[typing.Any] | None = None,
         kwargs: dict[str, typing.Any] | None = None,
-        bounded_type: type | None = None,
+            bounded_type: type | None = None,
     ) -> None:
         self.scope = scope
         self.provider_id: typing.Final = str(uuid.uuid4())

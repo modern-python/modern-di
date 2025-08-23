@@ -6,6 +6,7 @@ import typing
 from modern_di.provider_state import ProviderState
 from modern_di.providers import ContainerProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
 
@@ -24,6 +25,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         "_use_threading_lock",
         "context",
         "parent_container",
+        "providers_registry",
         "scope",
     )
 
@@ -34,10 +36,12 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         parent_container: typing.Optional["Container"] = None,
         context: dict[str, typing.Any] | None = None,
         use_threading_lock: bool = True,
+        providers_registry: ProvidersRegistry | None = None,
     ) -> None:
         self.scope = scope
         self.parent_container = parent_container
         self.context: dict[str, typing.Any] = context or {}
+        self.providers_registry = providers_registry
         self._is_async: bool | None = None
         self._provider_states: dict[str, ProviderState[typing.Any]] = {}
         self._overrides: dict[str, typing.Any] = parent_container._overrides if parent_container else {}  # noqa: SLF001
@@ -69,7 +73,9 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
                 msg = f"Max scope is reached, {self.scope.name}"
                 raise RuntimeError(msg) from exc
 
-        return self.__class__(scope=scope, parent_container=self, context=context)
+        return self.__class__(
+            scope=scope, parent_container=self, context=context, providers_registry=self.providers_registry
+        )
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         container = self
