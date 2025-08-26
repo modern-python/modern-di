@@ -30,10 +30,10 @@ class BaseGraph:
     async def async_resolve_creators(cls, container: Container) -> None:
         for provider in cls.get_providers().values():
             if isinstance(provider, AbstractCreatorProvider) and provider.scope == container.scope:
-                await provider.async_resolve(container)
+                await container.async_resolve_provider(provider)
 
     @classmethod
     def sync_resolve_creators(cls, container: Container) -> None:
         for provider in cls.get_providers().values():
             if isinstance(provider, AbstractCreatorProvider) and provider.scope == container.scope:
-                provider.sync_resolve(container)
+                container.sync_resolve_provider(provider)

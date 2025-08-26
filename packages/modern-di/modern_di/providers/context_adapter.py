@@ -1,7 +1,6 @@
 import enum
 import typing
 
-from modern_di import Container
 from modern_di.providers import AbstractProvider
 
 
@@ -20,8 +19,18 @@ class ContextAdapter(AbstractProvider[T_co]):
         super().__init__(scope)
         self._function = function
 
-    async def async_resolve(self, container: Container) -> T_co:
-        return self._function(**container.find_container(self.scope).context)
+    async def async_resolve(
+        self,
+        *,
+        context: dict[str, typing.Any],
+        **__: object,
+    ) -> T_co:
+        return self._function(**context)
 
-    def sync_resolve(self, container: Container) -> T_co:
-        return self._function(**container.find_container(self.scope).context)
+    def sync_resolve(
+        self,
+        *,
+        context: dict[str, typing.Any],
+        **__: object,
+    ) -> T_co:
+        return self._function(**context)

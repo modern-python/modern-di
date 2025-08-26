@@ -1,7 +1,6 @@
 import enum
 import typing
 
-from modern_di import Container
 from modern_di.providers.abstract import AbstractCreatorProvider
 
 
@@ -20,15 +19,14 @@ class AsyncFactory(AbstractCreatorProvider[T_co]):
         **kwargs: P.kwargs,
     ) -> None:
         super().__init__(scope, creator, *args, **kwargs)
+        self.is_async = True
 
-    async def async_resolve(self, container: Container) -> T_co:
-        container = container.find_container(self.scope)
-        if (override := container.fetch_override(self.provider_id)) is not None:
-            return typing.cast(T_co, override)
-
-        coroutine: typing.Awaitable[T_co] = await self._async_build_creator(container)
+    async def async_resolve(
+        self,
+        *,
+        args: list[typing.Any],
+        kwargs: dict[str, typing.Any],
+        **__: object,
+    ) -> T_co:
+        coroutine: typing.Awaitable[T_co] = self._creator(*args, **kwargs)
         return await coroutine
-
-    def sync_resolve(self, _: Container) -> typing.NoReturn:
-        msg = "AsyncFactory cannot be resolved synchronously"
-        raise RuntimeError(msg)

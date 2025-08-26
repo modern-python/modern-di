@@ -56,7 +56,7 @@ def test_factories_action_scope(client: TestClient[litestar.Litestar], app: lite
     @litestar.get("/")
     async def read_root(di_container: modern_di.Container) -> None:
         with di_container.build_child_container() as action_container:
-            action_factory_instance = action_factory.sync_resolve(action_container)
+            action_factory_instance = action_container.sync_resolve_provider(action_factory)
             assert isinstance(action_factory_instance, DependentCreator)
 
     app.register(read_root)
@@ -70,7 +70,7 @@ def test_factory_override(
     client: TestClient[litestar.Litestar], app: litestar.Litestar, di_container: modern_di.Container
 ) -> None:
     mock = SimpleCreator(dep1="mock")
-    app_factory.override(mock, di_container)
+    di_container.override(app_factory, mock)
 
     @litestar.get(
         "/",

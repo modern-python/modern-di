@@ -87,7 +87,7 @@ class Dependency(typing.Generic[T_co]):
 
     async def __call__(self, context: faststream.ContextRepo) -> T_co:
         request_container: modern_di.Container = context.get("request_container")
-        return await self.dependency.async_resolve(request_container)
+        return await request_container.async_resolve_provider(self.dependency)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True, cast: bool = False) -> T_co:  # noqa: N802

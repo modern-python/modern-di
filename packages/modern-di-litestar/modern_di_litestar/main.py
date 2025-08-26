@@ -64,7 +64,7 @@ class _Dependency(typing.Generic[T_co]):
         self, di_container: typing.Annotated[Container | None, Dependency(skip_validation=True)] = None
     ) -> T_co | None:
         assert di_container
-        return await self.dependency.async_resolve(di_container)
+        return await di_container.async_resolve_provider(self.dependency)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co]) -> Provide:  # noqa: N802
