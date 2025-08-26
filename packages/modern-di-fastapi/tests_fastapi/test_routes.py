@@ -53,7 +53,7 @@ def test_factories_action_scope(client: TestClient, app: fastapi.FastAPI) -> Non
         request_container: typing.Annotated[modern_di.Container, fastapi.Depends(build_di_container)],
     ) -> None:
         with request_container.build_child_container() as action_container:
-            action_factory_instance = action_factory.sync_resolve(action_container)
+            action_factory_instance = action_container.sync_resolve_provider(action_factory)
             assert isinstance(action_factory_instance, DependentCreator)
 
     response = client.get("/")

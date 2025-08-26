@@ -16,32 +16,32 @@ async_singleton = providers.AsyncSingleton(Scope.APP, async_creator)
 
 async def test_app_async_singleton() -> None:
     async with Container(scope=Scope.APP) as app_container:
-        instance1 = await async_singleton.async_resolve(app_container)
-        instance2 = await async_singleton.async_resolve(app_container)
+        instance1 = await app_container.async_resolve_provider(async_singleton)
+        instance2 = await app_container.async_resolve_provider(async_singleton)
         assert instance1 is instance2
 
 
 async def test_app_async_singleton_forbidden_in_sync() -> None:
     async with Container(scope=Scope.APP) as app_container:
         with pytest.raises(RuntimeError, match="AsyncSingleton cannot be resolved synchronously"):
-            async_singleton.sync_resolve(app_container)
+            app_container.sync_resolve_provider(async_singleton)
 
 
 async def test_async_singleton_overridden_app_scope() -> None:
     async with Container(scope=Scope.APP) as app_container:
-        instance1 = await async_singleton.async_resolve(app_container)
+        instance1 = await app_container.async_resolve_provider(async_singleton)
 
         mock = await async_creator()
-        async_singleton.override(mock, container=app_container)
+        app_container.override(async_singleton, mock)
 
-        instance2 = await async_singleton.async_resolve(app_container)
-        instance3 = await async_singleton.async_resolve(app_container)
+        instance2 = await app_container.async_resolve_provider(async_singleton)
+        instance3 = await app_container.async_resolve_provider(async_singleton)
         assert instance1 is not instance2
         assert instance2 is instance3
 
-        async_singleton.reset_override(app_container)
+        app_container.reset_override(async_singleton)
 
-        instance4 = await async_singleton.async_resolve(app_container)
+        instance4 = await app_container.async_resolve_provider(async_singleton)
 
         assert instance4 is not instance3
         assert instance4 is instance1
@@ -60,7 +60,7 @@ async def test_async_singleton_asyncio_concurrency() -> None:
     async_singleton_ = providers.AsyncSingleton(Scope.APP, create_singleton)
 
     async def resolve_factory(container: Container) -> str:
-        return await async_singleton_.async_resolve(container)
+        return await container.async_resolve_provider(async_singleton_)
 
     async with Container(scope=Scope.APP) as app_container:
         instance1, instance2 = await asyncio.gather(resolve_factory(app_container), resolve_factory(app_container))

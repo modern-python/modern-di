@@ -45,7 +45,7 @@ async def test_factories_request_scope(client: TestClient[litestar.Litestar], ap
     async def websocket_handler(data: str, di_container: Container) -> None:
         assert data == "test"
         with di_container.build_child_container() as request_container:
-            request_factory_instance = request_factory.sync_resolve(request_container)
+            request_factory_instance = request_container.sync_resolve_provider(request_factory)
             assert isinstance(request_factory_instance, DependentCreator)
 
     app.register(websocket_handler)

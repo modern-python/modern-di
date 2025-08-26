@@ -1,7 +1,6 @@
 import enum
 import typing
 
-from modern_di import Container
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -10,30 +9,34 @@ P = typing.ParamSpec("P")
 
 
 class Selector(AbstractProvider[T_co]):
-    __slots__ = [*AbstractProvider.BASE_SLOTS, "_function", "_providers"]
+    __slots__ = [*AbstractProvider.BASE_SLOTS, "_function"]
 
     def __init__(
         self, scope: enum.IntEnum, function: typing.Callable[..., str], **providers: AbstractProvider[T_co]
     ) -> None:
-        super().__init__(scope)
-        self._check_providers_scope(kwargs=providers)
+        super().__init__(scope, kwargs=providers)
         self._function: typing.Final = function
-        self._providers: typing.Final = providers
 
-    async def async_resolve(self, container: Container) -> T_co:
-        container = container.find_container(self.scope)
-        selected_key = self._function(**container.context)
-        if selected_key not in self._providers:
-            msg = f"No provider matches {selected_key}"
-            raise RuntimeError(msg)
+    def fetch_kwargs(self, context: dict[str, typing.Any]) -> dict[str, typing.Any]:
+        selected_key = self._function(**context)
+        if self._kwargs and (provider := self._kwargs.get(selected_key)):
+            return {selected_key: provider}
 
-        return await self._providers[selected_key].async_resolve(container)
+        msg = f"No provider matches {selected_key}"
+        raise RuntimeError(msg)
 
-    def sync_resolve(self, container: Container) -> T_co:
-        container = container.find_container(self.scope)
-        selected_key = self._function(**container.context)
-        if selected_key not in self._providers:
-            msg = f"No provider matches {selected_key}"
-            raise RuntimeError(msg)
+    async def async_resolve(
+        self,
+        *,
+        kwargs: dict[str, typing.Any],
+        **_: object,
+    ) -> T_co:
+        return typing.cast(T_co, next(iter(kwargs.values())))
 
-        return self._providers[selected_key].sync_resolve(container)
+    def sync_resolve(
+        self,
+        *,
+        kwargs: dict[str, typing.Any],
+        **_: object,
+    ) -> T_co:
+        return typing.cast(T_co, next(iter(kwargs.values())))

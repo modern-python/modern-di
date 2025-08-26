@@ -55,7 +55,7 @@ class Dependency(typing.Generic[T_co]):
     async def __call__(
         self, request_container: typing.Annotated[Container, fastapi.Depends(build_di_container)]
     ) -> T_co:
-        return await self.dependency.async_resolve(request_container)
+        return await request_container.async_resolve_provider(self.dependency)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True) -> T_co:  # noqa: N802

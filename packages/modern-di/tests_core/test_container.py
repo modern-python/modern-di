@@ -7,7 +7,7 @@ from modern_di import Container, Scope, providers
 def test_container_not_opened() -> None:
     container = Container(scope=Scope.APP)
     with pytest.raises(RuntimeError, match="Enter the context of APP scope"):
-        container.fetch_provider_state("some_id")
+        container.sync_resolve_provider(providers.ContainerProvider(Scope.APP))
 
 
 def test_container_prevent_copy() -> None:
@@ -20,7 +20,7 @@ def test_container_prevent_copy() -> None:
 def test_container_scope_skipped() -> None:
     app_factory = providers.Factory(Scope.APP, lambda: "test")
     with Container(scope=Scope.REQUEST) as container, pytest.raises(RuntimeError, match="Scope APP is skipped"):
-        app_factory.sync_resolve(container)
+        container.sync_resolve_provider(app_factory)
 
 
 async def test_container_build_child_async() -> None:

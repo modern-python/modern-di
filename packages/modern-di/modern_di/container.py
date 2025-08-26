@@ -4,6 +4,8 @@ import types
 import typing
 
 from modern_di.provider_state import ProviderState
+from modern_di.providers import ContainerProvider
+from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
 
 
@@ -84,41 +86,113 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
 
         return container
 
-    def fetch_provider_state(
-        self,
-        provider_id: str,
-        is_async_resource: bool = False,
-        use_asyncio_lock: bool = False,
-        use_threading_lock: bool = False,
-    ) -> ProviderState[typing.Any]:
-        self._check_entered()
-        if is_async_resource and self._is_async is False:
-            msg = "Resolving async resource in sync container is not allowed"
-            raise RuntimeError(msg)
+    def fetch_provider_state(self, provider: AbstractProvider[T_co]) -> ProviderState[T_co] | None:
+        if not provider.HAS_STATE:
+            return None
 
-        if provider_state := self._provider_states.get(provider_id):
+        if provider_state := self._provider_states.get(provider.provider_id):
             return provider_state
 
         # expected to be thread-safe, because setdefault is atomic
         return self._provider_states.setdefault(
-            provider_id,
+            provider.provider_id,
             ProviderState(
-                use_asyncio_lock=use_asyncio_lock,
-                use_threading_lock=self._use_threading_lock and use_threading_lock,
+                use_asyncio_lock=self._is_async or False,
+                use_threading_lock=self._use_threading_lock,
             ),
         )
 
-    def override(self, provider_id: str, override_object: object) -> None:
-        self._overrides[provider_id] = override_object
+    def override(self, provider: AbstractProvider[T_co], override_object: object) -> None:
+        self._overrides[provider.provider_id] = override_object
+
+    def reset_override(self, provider: AbstractProvider[T_co] | None = None) -> None:
+        if provider is None:
+            self._overrides = {}
+        else:
+            self._overrides.pop(provider.provider_id, None)
 
     def fetch_override(self, provider_id: str) -> object | None:
         return self._overrides.get(provider_id)
 
-    def reset_override(self, provider_id: str | None = None) -> None:
-        if provider_id is None:
-            self._overrides = {}
-        else:
-            self._overrides.pop(provider_id, None)
+    def _sync_resolve_args(self, args: list[typing.Any]) -> list[typing.Any]:
+        return [self.sync_resolve_provider(x) if isinstance(x, AbstractProvider) else x for x in args]
+
+    def _sync_resolve_kwargs(self, kwargs: dict[str, typing.Any]) -> dict[str, typing.Any]:
+        return {k: self.sync_resolve_provider(v) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()}
+
+    async def _async_resolve_args(self, args: list[typing.Any]) -> list[typing.Any]:
+        return [await self.async_resolve_provider(x) if isinstance(x, AbstractProvider) else x for x in args]
+
+    async def _async_resolve_kwargs(self, kwargs: dict[str, typing.Any]) -> dict[str, typing.Any]:
+        return {
+            k: await self.async_resolve_provider(v) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()
+        }
+
+    def sync_resolve_provider(self, provider: AbstractProvider[T_co]) -> T_co:
+        self._check_entered()
+        if provider.is_async:
+            msg = f"{type(provider).__name__} cannot be resolved synchronously"
+            raise RuntimeError(msg)
+
+        container = self.find_container(provider.scope)
+        if isinstance(provider, ContainerProvider):
+            return typing.cast(T_co, container)
+
+        if (override := container.fetch_override(provider.provider_id)) is not None:
+            return typing.cast(T_co, override)
+
+        provider_state = container.fetch_provider_state(provider)
+        if provider_state and provider_state.instance is not None:
+            return provider_state.instance
+
+        if provider_state and provider_state.threading_lock:
+            provider_state.threading_lock.acquire()
+        try:
+            if provider_state and provider_state.instance is not None:
+                return provider_state.instance
+
+            return provider.sync_resolve(
+                args=self._sync_resolve_args(provider.fetch_args(self.context)),
+                kwargs=self._sync_resolve_kwargs(provider.fetch_kwargs(self.context)),
+                context=self.context,
+                provider_state=provider_state,
+            )
+        finally:
+            if provider_state and provider_state.threading_lock:
+                provider_state.threading_lock.release()
+
+    async def async_resolve_provider(self, provider: AbstractProvider[T_co]) -> T_co:
+        self._check_entered()
+        if provider.is_async and not self._is_async:
+            msg = "Async resolving is forbidden in sync container"
+            raise RuntimeError(msg)
+
+        container = self.find_container(provider.scope)
+        if isinstance(provider, ContainerProvider):
+            return typing.cast(T_co, container)
+
+        if (override := container.fetch_override(provider.provider_id)) is not None:
+            return typing.cast(T_co, override)
+
+        provider_state = container.fetch_provider_state(provider)
+        if provider_state and provider_state.instance is not None:
+            return provider_state.instance
+
+        if provider_state and provider_state.asyncio_lock:
+            await provider_state.asyncio_lock.acquire()
+        try:
+            if provider_state and provider_state.instance is not None:
+                return provider_state.instance
+
+            return await provider.async_resolve(
+                args=await self._async_resolve_args(provider.fetch_args(self.context)),
+                kwargs=await self._async_resolve_kwargs(provider.fetch_kwargs(self.context)),
+                context=self.context,
+                provider_state=provider_state,
+            )
+        finally:
+            if provider_state and provider_state.asyncio_lock:
+                provider_state.asyncio_lock.release()
 
     def async_enter(self) -> "Container":
         self._is_async = True
