@@ -10,7 +10,7 @@ GENERIC_TYPES = {
 }
 
 
-def define_bounded_type(creator: type | object) -> type | None:
+def define_bound_type(creator: type | object) -> type | None:
     if isinstance(creator, type):
         return creator
 

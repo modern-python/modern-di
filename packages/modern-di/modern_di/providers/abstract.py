@@ -8,7 +8,7 @@ from typing_extensions import override
 
 from modern_di.helpers.attr_getter_helpers import get_value_from_object_by_dotted_path
 from modern_di.registries.state_registry.state import AsyncState, SyncState
-from modern_di.helpers.type_helpers import define_bounded_type
+from modern_di.helpers.type_helpers import define_bound_type
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -25,14 +25,14 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
         scope: enum.IntEnum,
         args: list[typing.Any] | None = None,
         kwargs: dict[str, typing.Any] | None = None,
-            bounded_type: type | None = None,
+        bound_type: type | None = None,
     ) -> None:
         self.scope = scope
         self.provider_id: typing.Final = str(uuid.uuid4())
         self._args = args
         self._kwargs = kwargs
         self.is_async = False
-        self.bound_type = bounded_type
+        self.bound_type = bound_type
         self._check_providers_scope()
 
     def bind_type(self, new_type: type) -> typing_extensions.Self:
@@ -111,7 +111,7 @@ class AbstractCreatorProvider(AbstractProvider[T_co], abc.ABC):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
-        super().__init__(scope, args=list(args), kwargs=kwargs, bound_type=define_bounded_type(creator))
+        super().__init__(scope, args=list(args), kwargs=kwargs, bound_type=define_bound_type(creator))
         self._creator: typing.Final = creator
 
 

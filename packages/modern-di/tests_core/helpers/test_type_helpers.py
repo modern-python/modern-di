@@ -1,6 +1,6 @@
 import typing
 
-from modern_di.helpers.type_helpers import define_bounded_type
+from modern_di.helpers.type_helpers import define_bound_type
 
 
 def sync_function() -> int:  # pragma: no cover
@@ -28,10 +28,10 @@ def generator_without_args() -> typing.Iterator:  # type: ignore[type-arg]  # pr
 
 
 def test_define_bounded_type() -> None:
-    assert define_bounded_type(int) is int
-    assert define_bounded_type(sync_function) is int
-    assert define_bounded_type(async_function) is int
-    assert define_bounded_type(generator) is int
-    assert define_bounded_type(async_generator) is int
-    assert define_bounded_type(collection_function) is None
-    assert define_bounded_type(generator_without_args) is None
+    assert define_bound_type(int) is int
+    assert define_bound_type(sync_function) is int
+    assert define_bound_type(async_function) is int
+    assert define_bound_type(generator) is int
+    assert define_bound_type(async_generator) is int
+    assert define_bound_type(collection_function) is None
+    assert define_bound_type(generator_without_args) is None
