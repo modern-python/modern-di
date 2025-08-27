@@ -37,7 +37,7 @@ class Container(contextlib.AbstractAsyncContextManager["Container"], contextlib.
         parent_container: typing.Optional["Container"] = None,
         context: dict[str, typing.Any] | None = None,
         use_threading_lock: bool = True,
-        providers_registry: typing.Optional["ProvidersRegistry"] = None,
+        providers_registry: ProvidersRegistry | None = None,
     ) -> None:
         self.scope = scope
         self.parent_container = parent_container
