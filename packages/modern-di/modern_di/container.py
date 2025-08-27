@@ -6,13 +6,12 @@ import typing
 from modern_di.provider_state import ProviderState
 from modern_di.providers import ContainerProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
     import typing_extensions
-
-    from modern_di.providers_registry import ProvidersRegistry
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
