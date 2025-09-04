@@ -13,10 +13,10 @@ class Settings(pydantic_settings.BaseSettings):
 You can register settings as `Singleton` in DI container
 
 ```python
-from modern_di import BaseGraph, Scope, providers
+from modern_di import Group, Scope, providers
 
 
-class DIContainer(BaseGraph):
+class DIContainer(Group):
     settings = providers.Singleton(Scope.APP, Settings)
     some_factory = providers.Factory(Scope.APP, SomeFactory, service_name=settings.cast.service_name)
 ```

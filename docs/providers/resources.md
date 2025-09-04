@@ -2,10 +2,11 @@
 
 - Resources are initialized only once per scope and have teardown logic.
 - Generator or async generator is required.
+
 ```python
 import typing
 
-from modern_di import BaseGraph, Container, Scope, providers
+from modern_di import Group, Container, Scope, providers
 
 
 def create_sync_resource() -> typing.Iterator[str]:
@@ -24,7 +25,7 @@ async def create_async_resource() -> typing.AsyncIterator[str]:
         pass  # resource teardown
 
 
-class Dependencies(BaseGraph):
+class Dependencies(Group):
     sync_resource = providers.Resource(Scope.APP, create_sync_resource)
     async_resource = providers.Resource(Scope.REQUEST, create_async_resource)
 

@@ -1,11 +1,11 @@
 from modern_di.container import Container
-from modern_di.graph import BaseGraph
+from modern_di.group import Group
 from modern_di.scope import Scope
 
 
 __all__ = [
-    "BaseGraph",
     "Container",
+    "Group",
     "Scope",
     "providers",
 ]

@@ -3,10 +3,10 @@
 Object provider returns an object “as is”.
 
 ```python
-from modern_di import BaseGraph, Container, Scope, providers
+from modern_di import Group, Container, Scope, providers
 
 
-class Dependencies(BaseGraph):
+class Dependencies(Group):
     object_provider = providers.Object(Scope.APP, 1)
 
 

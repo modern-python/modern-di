@@ -25,7 +25,7 @@ If you need only `modern-di` without integrations:
 If you need to integrate with some framework, then install `modern-di-*`.
 
 ## 2. Migrate dependencies graph
-1. Use `modern-di.BaseGraph` instead of `that-depends.BaseContainer`.
+1. Use `modern-di.Group` instead of `that-depends.BaseContainer`.
 2. Add scopes to all providers.
    - Most of the providers will be `APP` scope.
    - ContextResource usually becomes `Resource` of `REQUEST`-scope.
@@ -50,13 +50,13 @@ If you need to integrate with some framework, then install `modern-di-*`.
 === "modern-di"
 
       ```python
-      from modern_di import BaseGraph, Scope, providers
+      from modern_di import Group, Scope, providers
       
       from app import repositories
       from app.resources.db import create_sa_engine, create_session
       
       
-      class Dependencies(BaseGraph):
+      class Dependencies(Group):
           database_engine = providers.Resource(Scope.APP, create_sa_engine)
           session = providers.Resource(Scope.REQUEST, create_session, engine=database_engine.cast)
       
