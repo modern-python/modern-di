@@ -11,18 +11,19 @@ import datetime
 import pytest
 import random
 
-from modern_di import BaseGraph, Container, Scope, providers
+from modern_di import Group, Container, Scope, providers
 
 
 def generate_random_number() -> float:
     return random.random()
+
 
 async def async_creator() -> datetime.datetime:
     await asyncio.sleep(0)
     return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
-class Dependencies(BaseGraph):
+class Dependencies(Group):
     singleton = providers.Singleton(Scope.APP, generate_random_number)
     async_singleton = providers.AsyncSingleton(Scope.APP, async_creator)
 

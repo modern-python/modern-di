@@ -80,12 +80,13 @@ class DependentFactory:
     async_resource: str
 ```
 
-## 3. Describe dependencies graph
+## 3. Describe dependencies groups or single group
+
 ```python
-from modern_di import BaseGraph, Scope, providers
+from modern_di import Group, Scope, providers
 
 
-class Dependencies(BaseGraph):
+class Dependencies(Group):
     sync_resource = providers.Resource(Scope.APP, create_sync_resource)
     async_resource = providers.Resource(Scope.APP, create_async_resource)
 

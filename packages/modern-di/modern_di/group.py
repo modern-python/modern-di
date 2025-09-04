@@ -12,7 +12,7 @@ T = typing.TypeVar("T")
 P = typing.ParamSpec("P")
 
 
-class BaseGraph:
+class Group:
     providers: dict[str, AbstractProvider[typing.Any]]
 
     def __new__(cls, *_: typing.Any, **__: typing.Any) -> "typing_extensions.Self":  # noqa: ANN401

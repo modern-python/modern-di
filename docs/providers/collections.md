@@ -9,10 +9,10 @@ There are several collection providers: `List` and `Dict`
 
 ```python
 import random
-from modern_di import BaseGraph, Container, Scope, providers
+from modern_di import Group, Container, Scope, providers
 
 
-class Dependencies(BaseGraph):
+class Dependencies(Group):
     random_number = providers.Factory(Scope.APP, random.random)
     numbers_sequence = providers.List(Scope.APP, random_number, random_number)
 
@@ -29,10 +29,10 @@ with Container(scope=Scope.APP) as container:
 
 ```python
 import random
-from modern_di import BaseGraph, Container, Scope, providers
+from modern_di import Group, Container, Scope, providers
 
 
-class Dependencies(BaseGraph):
+class Dependencies(Group):
     random_number = providers.Factory(Scope.APP, random.random)
     numbers_map = providers.Dict(Scope.APP, key1=random_number, key2=random_number)
 

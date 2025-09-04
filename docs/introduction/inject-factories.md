@@ -6,12 +6,13 @@ When you need to inject the factory itself, but not the result of its call, use:
 2. `.sync_provider` attribute for sync resolver
 
 Let's first define providers with container:
+
 ```python
 import dataclasses
 import datetime
 import typing
 
-from modern_di import BaseGraph, Container, Scope, providers
+from modern_di import Group, Container, Scope, providers
 
 
 async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
@@ -29,7 +30,7 @@ class FactoryWithFactories:
     async_factory: typing.Callable[..., typing.Coroutine[typing.Any, typing.Any, SomeFactory]]
 
 
-class DIContainer(BaseGraph):
+class DIContainer(Group):
     async_resource = providers.Resource(Scope.APP, create_async_resource)
     dependent_factory = providers.Factory(Scope.APP, SomeFactory, start_at=async_resource.cast)
     factory_with_factories = providers.Factory(
