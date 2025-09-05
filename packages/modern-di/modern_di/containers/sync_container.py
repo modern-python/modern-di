@@ -35,7 +35,7 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
         if isinstance(provider, ContainerProvider):
             return typing.cast(T_co, container)
 
-        if (override := container.fetch_override(provider.provider_id)) is not None:
+        if (override := container.overrides_registry.fetch_override(provider.provider_id)) is not None:
             return typing.cast(T_co, override)
 
         provider_state = container.fetch_provider_state(provider)
