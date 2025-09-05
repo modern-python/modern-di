@@ -9,7 +9,7 @@ from modern_di.providers.abstract import AbstractProvider
 
 
 if typing.TYPE_CHECKING:
-    import typing_extensions
+    pass
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -65,7 +65,7 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
             await provider_state.async_tear_down()
         self._clear_state()
 
-    async def __aenter__(self) -> "typing_extensions.Self":
+    async def __aenter__(self) -> "AsyncContainer":
         return self.enter()
 
     async def __aexit__(

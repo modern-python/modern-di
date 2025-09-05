@@ -9,7 +9,7 @@ from modern_di.providers.abstract import AbstractProvider
 
 
 if typing.TYPE_CHECKING:
-    import typing_extensions
+    pass
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -68,7 +68,7 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
             provider_state.sync_tear_down()
         self._clear_state()
 
-    def __enter__(self) -> "typing_extensions.Self":
+    def __enter__(self) -> "SyncContainer":
         return self.enter()
 
     def __exit__(
