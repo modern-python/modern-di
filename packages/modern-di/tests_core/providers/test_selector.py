@@ -1,5 +1,5 @@
 import pytest
-from modern_di import Container, Scope, providers
+from modern_di import AsyncContainer, Scope, SyncContainer, providers
 
 
 def selector_function(*, option: str, **_: object) -> "str":
@@ -13,32 +13,31 @@ request_selector = providers.Selector(Scope.REQUEST, selector_function, app=app_
 
 
 async def test_selector() -> None:
-    async with Container(scope=Scope.APP, context={"option": "app"}) as app_container:
-        instance1 = await app_container.async_resolve_provider(app_selector)
-        instance2 = app_container.sync_resolve_provider(app_selector)
+    async with AsyncContainer(context={"option": "app"}) as app_container:
+        instance1 = await app_container.resolve_provider(app_selector)
+        instance2 = await app_container.resolve_provider(app_selector)
         assert instance1 == instance2 == "app"
 
 
 async def test_selector_in_request_scope() -> None:
     async with (
-        Container(scope=Scope.APP) as app_container,
+        AsyncContainer() as app_container,
         app_container.build_child_container(context={"option": "request"}, scope=Scope.REQUEST) as request_container,
     ):
-        instance1 = await request_container.async_resolve_provider(request_selector)
-        instance2 = request_container.sync_resolve_provider(request_selector)
+        instance1 = await request_container.resolve_provider(request_selector)
+        instance2 = await request_container.resolve_provider(request_selector)
         assert instance1 == instance2 == "request"
 
 
-async def test_selector_no_match() -> None:
-    async with Container(scope=Scope.APP, context={"option": "wrong"}) as app_container:
-        with pytest.raises(RuntimeError, match="No provider matches wrong"):
-            await app_container.async_resolve_provider(app_selector)
+def test_selector_no_match() -> None:
+    with (
+        SyncContainer(context={"option": "wrong"}) as app_container,
+        pytest.raises(RuntimeError, match="No provider matches wrong"),
+    ):
+        app_container.resolve_provider(app_selector)
 
-        with pytest.raises(RuntimeError, match="No provider matches wrong"):
-            app_container.sync_resolve_provider(app_selector)
 
-
-async def test_selector_wrong_scope() -> None:
+def test_selector_wrong_scope() -> None:
     request_factory_ = providers.Factory(Scope.REQUEST, lambda: "")
     with pytest.raises(RuntimeError, match="Scope of request is REQUEST and current scope is APP"):
         providers.Selector(Scope.APP, lambda: "", request=request_factory_)

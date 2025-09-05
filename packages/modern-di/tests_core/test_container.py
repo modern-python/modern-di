@@ -1,17 +1,17 @@
 import copy
 
 import pytest
-from modern_di import Container, Scope, providers
+from modern_di import AsyncContainer, Scope, SyncContainer, providers
 
 
 def test_container_not_opened() -> None:
-    container = Container(scope=Scope.APP)
+    container = SyncContainer()
     with pytest.raises(RuntimeError, match="Enter the context of APP scope"):
-        container.sync_resolve_provider(providers.ContainerProvider(Scope.APP))
+        container.resolve_provider(providers.ContainerProvider(Scope.APP))
 
 
 def test_container_prevent_copy() -> None:
-    container = Container(scope=Scope.APP)
+    container = SyncContainer()
     container_deepcopy = copy.deepcopy(container)
     container_copy = copy.copy(container)
     assert container_deepcopy is container_copy is container
@@ -19,13 +19,13 @@ def test_container_prevent_copy() -> None:
 
 def test_container_scope_skipped() -> None:
     app_factory = providers.Factory(Scope.APP, lambda: "test")
-    with Container(scope=Scope.REQUEST) as container, pytest.raises(RuntimeError, match="Scope APP is skipped"):
-        container.sync_resolve_provider(app_factory)
+    with SyncContainer(scope=Scope.REQUEST) as container, pytest.raises(RuntimeError, match="Scope APP is skipped"):
+        container.resolve_provider(app_factory)
 
 
 async def test_container_build_child_async() -> None:
     async with (
-        Container(scope=Scope.APP) as app_container,
+        AsyncContainer() as app_container,
         app_container.build_child_container(scope=Scope.REQUEST) as request_container,
     ):
         assert request_container.scope == Scope.REQUEST
@@ -34,7 +34,7 @@ async def test_container_build_child_async() -> None:
 
 def test_container_build_child_sync() -> None:
     with (
-        Container(scope=Scope.APP) as app_container,
+        SyncContainer() as app_container,
         app_container.build_child_container(scope=Scope.REQUEST) as request_container,
     ):
         assert request_container.scope == Scope.REQUEST
@@ -42,13 +42,16 @@ def test_container_build_child_sync() -> None:
 
 
 def test_container_scope_limit_reached() -> None:
-    with Container(scope=Scope.STEP) as app_container, pytest.raises(RuntimeError, match="Max scope is reached, STEP"):
+    with (
+        SyncContainer(scope=Scope.STEP) as app_container,
+        pytest.raises(RuntimeError, match="Max scope is reached, STEP"),
+    ):
         app_container.build_child_container()
 
 
 async def test_container_build_child_wrong_scope() -> None:
     with (
-        Container(scope=Scope.APP) as app_container,
+        SyncContainer(scope=Scope.APP) as app_container,
         pytest.raises(RuntimeError, match="Scope of child container must be more than current scope"),
     ):
         app_container.build_child_container(scope=Scope.APP)

@@ -1,8 +1,7 @@
 import typing
 
 import fastapi
-import modern_di
-from modern_di import Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 from modern_di_fastapi import FromDI, build_di_container
 from starlette.testclient import TestClient
 
@@ -43,10 +42,10 @@ async def test_factories_request_scope(client: TestClient, app: fastapi.FastAPI)
     @app.websocket("/ws")
     async def websocket_endpoint(
         websocket: fastapi.WebSocket,
-        session_container: typing.Annotated[modern_di.Container, fastapi.Depends(build_di_container)],
+        session_container: typing.Annotated[AsyncContainer, fastapi.Depends(build_di_container)],
     ) -> None:
-        with session_container.build_child_container() as request_container:
-            request_factory_instance = request_container.sync_resolve_provider(request_factory)
+        async with session_container.build_child_container() as request_container:
+            request_factory_instance = await request_container.resolve_provider(request_factory)
             assert isinstance(request_factory_instance, DependentCreator)
 
         await websocket.accept()

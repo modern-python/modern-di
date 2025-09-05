@@ -2,7 +2,7 @@ import typing
 from dataclasses import dataclass, field
 
 import pytest
-from modern_di import Container, Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 
 
 @dataclass
@@ -57,38 +57,38 @@ def some_async_settings_provider(request: pytest.FixtureRequest) -> providers.Ab
 
 
 @pytest.fixture
-async def di_container() -> typing.AsyncIterator[Container]:
-    di_container_: typing.Final = Container(scope=Scope.APP)
+async def di_container() -> typing.AsyncIterator[AsyncContainer]:
+    di_container_: typing.Final = AsyncContainer()
     async with di_container_:
         yield di_container_
 
 
-def test_attr_getter_with_zero_attribute_depth_sync(
-    some_sync_settings_provider: providers.AbstractProvider[Settings], di_container: Container
+async def test_attr_getter_with_zero_attribute_depth_sync(
+    some_sync_settings_provider: providers.AbstractProvider[Settings], di_container: AsyncContainer
 ) -> None:
     attr_getter = some_sync_settings_provider.some_str_value
-    assert di_container.sync_resolve_provider(attr_getter) == Settings().some_str_value
+    assert await di_container.resolve_provider(attr_getter) == Settings().some_str_value
 
 
 async def test_attr_getter_with_zero_attribute_depth_async(
-    some_async_settings_provider: providers.AbstractProvider[Settings], di_container: Container
+    some_async_settings_provider: providers.AbstractProvider[Settings], di_container: AsyncContainer
 ) -> None:
     attr_getter = some_async_settings_provider.some_str_value
-    assert await di_container.async_resolve_provider(attr_getter) == Settings().some_str_value
+    assert await di_container.resolve_provider(attr_getter) == Settings().some_str_value
 
 
-def test_attr_getter_with_more_than_zero_attribute_depth_sync(
-    some_sync_settings_provider: providers.AbstractProvider[Settings], di_container: Container
+async def test_attr_getter_with_more_than_zero_attribute_depth_sync(
+    some_sync_settings_provider: providers.AbstractProvider[Settings], di_container: AsyncContainer
 ) -> None:
     attr_getter = some_sync_settings_provider.nested1_attr.nested2_attr.some_const
-    assert di_container.sync_resolve_provider(attr_getter) == Nested2().some_const
+    assert await di_container.resolve_provider(attr_getter) == Nested2().some_const
 
 
 async def test_attr_getter_with_more_than_zero_attribute_depth_async(
-    some_async_settings_provider: providers.AbstractProvider[Settings], di_container: Container
+    some_async_settings_provider: providers.AbstractProvider[Settings], di_container: AsyncContainer
 ) -> None:
     attr_getter = some_async_settings_provider.nested1_attr.nested2_attr.some_const
-    assert await di_container.async_resolve_provider(attr_getter) == Nested2().some_const
+    assert await di_container.resolve_provider(attr_getter) == Nested2().some_const
 
 
 def test_attr_getter_with_invalid_attribute_sync(

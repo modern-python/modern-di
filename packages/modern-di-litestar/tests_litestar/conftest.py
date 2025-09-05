@@ -13,7 +13,7 @@ async def app() -> litestar.Litestar:
 
 
 @pytest.fixture
-def di_container(app: litestar.Litestar) -> modern_di.Container:
+def di_container(app: litestar.Litestar) -> modern_di.AsyncContainer:
     return modern_di_litestar.fetch_di_container(app)
 
 

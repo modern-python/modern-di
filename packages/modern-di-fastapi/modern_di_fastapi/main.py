@@ -5,15 +5,15 @@ import typing
 
 import fastapi
 from fastapi.routing import _merge_lifespan_context
-from modern_di import Container, Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 from starlette.requests import HTTPConnection
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-def fetch_di_container(app_: fastapi.FastAPI) -> Container:
-    return typing.cast(Container, app_.state.di_container)
+def fetch_di_container(app_: fastapi.FastAPI) -> AsyncContainer:
+    return typing.cast(AsyncContainer, app_.state.di_container)
 
 
 @contextlib.asynccontextmanager
@@ -22,9 +22,11 @@ async def _lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]
         yield
 
 
-def setup_di(app: fastapi.FastAPI, scope: enum.IntEnum = Scope.APP, container: Container | None = None) -> Container:
+def setup_di(
+    app: fastapi.FastAPI, scope: enum.IntEnum = Scope.APP, container: AsyncContainer | None = None
+) -> AsyncContainer:
     if not container:
-        container = Container(scope=scope)
+        container = AsyncContainer(scope=scope)
     app.state.di_container = container
     old_lifespan_manager = app.router.lifespan_context
     app.router.lifespan_context = _merge_lifespan_context(
@@ -34,7 +36,7 @@ def setup_di(app: fastapi.FastAPI, scope: enum.IntEnum = Scope.APP, container: C
     return container
 
 
-async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
+async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[AsyncContainer]:
     context: dict[str, typing.Any] = {}
     scope: Scope | None = None
     if isinstance(connection, fastapi.Request):
@@ -43,7 +45,7 @@ async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator
     elif isinstance(connection, fastapi.WebSocket):
         context["websocket"] = connection
         scope = Scope.SESSION
-    container: Container = fetch_di_container(connection.app)
+    container: AsyncContainer = fetch_di_container(connection.app)
     async with container.build_child_container(context=context, scope=scope) as request_container:
         yield request_container
 
@@ -53,9 +55,9 @@ class Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co]
 
     async def __call__(
-        self, request_container: typing.Annotated[Container, fastapi.Depends(build_di_container)]
+        self, request_container: typing.Annotated[AsyncContainer, fastapi.Depends(build_di_container)]
     ) -> T_co:
-        return await request_container.async_resolve_provider(self.dependency)
+        return await request_container.resolve_provider(self.dependency)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True) -> T_co:  # noqa: N802

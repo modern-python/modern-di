@@ -1,5 +1,5 @@
 import pytest
-from modern_di import Container, Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 
 from tests_core.creators import create_async_resource, create_sync_resource
 
@@ -11,14 +11,14 @@ sync_mapping = providers.Dict(Scope.APP, dep2=sync_resource)
 
 
 async def test_dict() -> None:
-    async with Container(scope=Scope.APP, context={"option": "app"}) as app_container:
-        mapping1 = await app_container.async_resolve_provider(mapping)
-        mapping2 = await app_container.async_resolve_provider(mapping)
-        resource1 = await app_container.async_resolve_provider(async_resource)
-        resource2 = app_container.sync_resolve_provider(sync_resource)
+    async with AsyncContainer(context={"option": "app"}) as app_container:
+        mapping1 = await app_container.resolve_provider(mapping)
+        mapping2 = await app_container.resolve_provider(mapping)
+        resource1 = await app_container.resolve_provider(async_resource)
+        resource2 = await app_container.resolve_provider(sync_resource)
         assert mapping1 == mapping2 == {"dep1": resource1, "dep2": resource2}
 
-        assert app_container.sync_resolve_provider(sync_mapping) == {"dep2": resource2}
+        assert await app_container.resolve_provider(sync_mapping) == {"dep2": resource2}
 
 
 async def test_dict_wrong_scope() -> None:

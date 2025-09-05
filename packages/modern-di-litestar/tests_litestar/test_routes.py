@@ -1,10 +1,9 @@
 import typing
 
 import litestar
-import modern_di
 from litestar import status_codes
 from litestar.testing import TestClient
-from modern_di import Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 from modern_di_litestar import FromDI
 
 from tests_litestar.dependencies import DependentCreator, SimpleCreator
@@ -54,9 +53,9 @@ def test_context_adapter(client: TestClient[litestar.Litestar], app: litestar.Li
 
 def test_factories_action_scope(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
     @litestar.get("/")
-    async def read_root(di_container: modern_di.Container) -> None:
-        with di_container.build_child_container() as action_container:
-            action_factory_instance = action_container.sync_resolve_provider(action_factory)
+    async def read_root(di_container: AsyncContainer) -> None:
+        async with di_container.build_child_container() as action_container:
+            action_factory_instance = await action_container.resolve_provider(action_factory)
             assert isinstance(action_factory_instance, DependentCreator)
 
     app.register(read_root)
@@ -67,7 +66,7 @@ def test_factories_action_scope(client: TestClient[litestar.Litestar], app: lite
 
 
 def test_factory_override(
-    client: TestClient[litestar.Litestar], app: litestar.Litestar, di_container: modern_di.Container
+    client: TestClient[litestar.Litestar], app: litestar.Litestar, di_container: AsyncContainer
 ) -> None:
     mock = SimpleCreator(dep1="mock")
     di_container.override(app_factory, mock)

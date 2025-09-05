@@ -9,7 +9,7 @@ import modern_di
 from faststream.asgi import AsgiFastStream
 from faststream.broker.message import StreamMessage
 from faststream.types import DecodedMessage
-from modern_di import Container, Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -22,7 +22,7 @@ _OLD_MIDDLEWARES = int(_major) == 0 and int(_minor) < 6  # noqa: PLR2004
 class _DIMiddlewareFactory:
     __slots__ = ("di_container",)
 
-    def __init__(self, di_container: Container) -> None:
+    def __init__(self, di_container: AsyncContainer) -> None:
         self.di_container = di_container
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> "_DiMiddleware[P]":
@@ -30,7 +30,7 @@ class _DIMiddlewareFactory:
 
 
 class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
-    def __init__(self, di_container: Container, *args: P.args, **kwargs: P.kwargs) -> None:
+    def __init__(self, di_container: AsyncContainer, *args: P.args, **kwargs: P.kwargs) -> None:
         self.di_container = di_container
         super().__init__(*args, **kwargs)
 
@@ -61,22 +61,24 @@ class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
             return self.context  # type: ignore[attr-defined,no-any-return]
 
 
-def fetch_di_container(app_: faststream.FastStream | AsgiFastStream) -> Container:
-    return typing.cast(Container, app_.context.get("di_container"))
+def fetch_di_container(app_: faststream.FastStream | AsgiFastStream) -> AsyncContainer:
+    return typing.cast(AsyncContainer, app_.context.get("di_container"))
 
 
 def setup_di(
-    app: faststream.FastStream | AsgiFastStream, scope: enum.IntEnum = Scope.APP, container: Container | None = None
-) -> Container:
+    app: faststream.FastStream | AsgiFastStream,
+    scope: enum.IntEnum = Scope.APP,
+    container: AsyncContainer | None = None,
+) -> AsyncContainer:
     if not app.broker:
         msg = "Broker must be defined to setup DI"
         raise RuntimeError(msg)
 
     if not container:
-        container = Container(scope=scope)
+        container = AsyncContainer(scope=scope)
     app.context.set_global("di_container", container)
-    app.on_startup(container.async_enter)
-    app.after_shutdown(container.async_close)
+    app.on_startup(container.enter)
+    app.after_shutdown(container.close)
     app.broker.add_middleware(_DIMiddlewareFactory(container))
     return container
 
@@ -86,8 +88,8 @@ class Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co]
 
     async def __call__(self, context: faststream.ContextRepo) -> T_co:
-        request_container: modern_di.Container = context.get("request_container")
-        return await request_container.async_resolve_provider(self.dependency)
+        request_container: modern_di.AsyncContainer = context.get("request_container")
+        return await request_container.resolve_provider(self.dependency)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True, cast: bool = False) -> T_co:  # noqa: N802
