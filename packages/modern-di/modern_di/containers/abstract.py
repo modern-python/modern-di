@@ -4,6 +4,7 @@ import typing
 
 from modern_di.provider_state import ProviderState
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.scope import Scope
 
 
@@ -17,12 +18,11 @@ T_co = typing.TypeVar("T_co", covariant=True)
 class AbstractContainer(abc.ABC):
     BASE_SLOTS: typing.ClassVar = (
         "_is_entered",
-        "_overrides",
         "_provider_states",
-        "_lock_factory",
         "context",
         "parent_container",
         "scope",
+        "overrides_registry",
     )
     LOCK_FACTORY: type[typing.Any]
 
@@ -36,14 +36,18 @@ class AbstractContainer(abc.ABC):
         self.scope = scope
         self.parent_container = parent_container
         self.context: dict[str, typing.Any] = context or {}
-        self._is_entered: bool = False
+        self._is_entered = False
         self._provider_states: dict[str, ProviderState[typing.Any]] = {}
-        self._overrides: dict[str, typing.Any] = parent_container._overrides if parent_container else {}  # noqa: SLF001
+        self.overrides_registry: OverridesRegistry
+        if parent_container:
+            self.overrides_registry = parent_container.overrides_registry
+        else:
+            self.overrides_registry = OverridesRegistry()
 
     def _clear_state(self) -> None:
         self._is_entered = False
         self._provider_states = {}
-        self._overrides = {}
+        self.overrides_registry.reset_override()
         self.context = {}
 
     def _check_entered(self) -> None:
@@ -94,16 +98,10 @@ class AbstractContainer(abc.ABC):
         return self._provider_states.setdefault(provider.provider_id, ProviderState(lock_factory=self.LOCK_FACTORY))
 
     def override(self, provider: AbstractProvider[T_co], override_object: object) -> None:
-        self._overrides[provider.provider_id] = override_object
+        self.overrides_registry.override(provider.provider_id, override_object)
 
     def reset_override(self, provider: AbstractProvider[T_co] | None = None) -> None:
-        if provider is None:
-            self._overrides = {}
-        else:
-            self._overrides.pop(provider.provider_id, None)
-
-    def fetch_override(self, provider_id: str) -> object | None:
-        return self._overrides.get(provider_id)
+        self.overrides_registry.reset_override(provider.provider_id if provider else None)
 
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Hack to prevent cloning object."""
