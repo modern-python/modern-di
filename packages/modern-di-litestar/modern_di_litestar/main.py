@@ -8,15 +8,15 @@ from litestar.config.app import AppConfig
 from litestar.di import Provide
 from litestar.params import Dependency
 from litestar.plugins import InitPlugin
-from modern_di import Container, providers
+from modern_di import AsyncContainer, providers
 from modern_di import Scope as DIScope
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-def fetch_di_container(app_: litestar.Litestar) -> Container:
-    return typing.cast(Container, app_.state.di_container)
+def fetch_di_container(app_: litestar.Litestar) -> AsyncContainer:
+    return typing.cast(AsyncContainer, app_.state.di_container)
 
 
 @contextlib.asynccontextmanager
@@ -29,9 +29,9 @@ async def _lifespan_manager(app_: litestar.Litestar) -> typing.AsyncIterator[Non
 class ModernDIPlugin(InitPlugin):
     __slots__ = ("container", "scope")
 
-    def __init__(self, scope: enum.IntEnum = DIScope.APP, container: Container | None = None) -> None:
+    def __init__(self, scope: enum.IntEnum = DIScope.APP, container: AsyncContainer | None = None) -> None:
         self.scope = scope
-        self.container = container or Container(scope=self.scope)
+        self.container = container or AsyncContainer(scope=self.scope)
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
         app_config.state.di_container = self.container
@@ -42,7 +42,7 @@ class ModernDIPlugin(InitPlugin):
 
 async def build_di_container(
     request: litestar.Request[typing.Any, typing.Any, typing.Any],
-) -> typing.AsyncIterator[Container]:
+) -> typing.AsyncIterator[AsyncContainer]:
     context: dict[str, typing.Any] = {}
     scope: DIScope | None
     if isinstance(request, litestar.WebSocket):
@@ -51,7 +51,7 @@ async def build_di_container(
     else:
         context["request"] = request
         scope = DIScope.REQUEST
-    container: Container = fetch_di_container(request.app)
+    container: AsyncContainer = fetch_di_container(request.app)
     async with container.build_child_container(context=context, scope=scope) as request_container:
         yield request_container
 
@@ -61,10 +61,10 @@ class _Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co]
 
     async def __call__(
-        self, di_container: typing.Annotated[Container | None, Dependency(skip_validation=True)] = None
+        self, di_container: typing.Annotated[AsyncContainer | None, Dependency(skip_validation=True)] = None
     ) -> T_co | None:
         assert di_container
-        return await di_container.async_resolve_provider(self.dependency)
+        return await di_container.resolve_provider(self.dependency)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co]) -> Provide:  # noqa: N802

@@ -1,7 +1,6 @@
 import typing
 
-from modern_di import Container
-from modern_di.providers.abstract import AbstractCreatorProvider, AbstractProvider
+from modern_di.providers.abstract import AbstractProvider
 
 
 if typing.TYPE_CHECKING:
@@ -25,15 +24,3 @@ class Group:
             cls.providers = {k: v for k, v in cls.__dict__.items() if isinstance(v, AbstractProvider)}
 
         return cls.providers
-
-    @classmethod
-    async def async_resolve_creators(cls, container: Container) -> None:
-        for provider in cls.get_providers().values():
-            if isinstance(provider, AbstractCreatorProvider) and provider.scope == container.scope:
-                await container.async_resolve_provider(provider)
-
-    @classmethod
-    def sync_resolve_creators(cls, container: Container) -> None:
-        for provider in cls.get_providers().values():
-            if isinstance(provider, AbstractCreatorProvider) and provider.scope == container.scope:
-                container.sync_resolve_provider(provider)

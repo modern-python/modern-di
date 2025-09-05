@@ -66,4 +66,4 @@ async def test_app_without_broker() -> None:
 
 def test_fetch_di_container(app: faststream.FastStream) -> None:
     di_container = modern_di_faststream.fetch_di_container(app)
-    assert isinstance(di_container, modern_di.Container)
+    assert isinstance(di_container, modern_di.AsyncContainer)

@@ -2,7 +2,7 @@ import typing
 
 import litestar
 from litestar.testing import TestClient
-from modern_di import Container, Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 from modern_di_litestar import FromDI
 
 from tests_litestar.dependencies import DependentCreator, SimpleCreator
@@ -42,10 +42,10 @@ async def test_factories(client: TestClient[litestar.Litestar], app: litestar.Li
 
 async def test_factories_request_scope(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
     @litestar.websocket_listener("/ws")
-    async def websocket_handler(data: str, di_container: Container) -> None:
+    async def websocket_handler(data: str, di_container: AsyncContainer) -> None:
         assert data == "test"
-        with di_container.build_child_container() as request_container:
-            request_factory_instance = request_container.sync_resolve_provider(request_factory)
+        async with di_container.build_child_container() as request_container:
+            request_factory_instance = await request_container.resolve_provider(request_factory)
             assert isinstance(request_factory_instance, DependentCreator)
 
     app.register(websocket_handler)

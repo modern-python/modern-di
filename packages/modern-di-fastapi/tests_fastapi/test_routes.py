@@ -1,8 +1,7 @@
 import typing
 
 import fastapi
-import modern_di
-from modern_di import Scope, providers
+from modern_di import AsyncContainer, Scope, providers
 from modern_di_fastapi import FromDI, build_di_container
 from starlette import status
 from starlette.testclient import TestClient
@@ -50,10 +49,10 @@ def test_context_adapter(client: TestClient, app: fastapi.FastAPI) -> None:
 def test_factories_action_scope(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        request_container: typing.Annotated[modern_di.Container, fastapi.Depends(build_di_container)],
+        request_container: typing.Annotated[AsyncContainer, fastapi.Depends(build_di_container)],
     ) -> None:
-        with request_container.build_child_container() as action_container:
-            action_factory_instance = action_container.sync_resolve_provider(action_factory)
+        async with request_container.build_child_container() as action_container:
+            action_factory_instance = await action_container.resolve_provider(action_factory)
             assert isinstance(action_factory_instance, DependentCreator)
 
     response = client.get("/")
