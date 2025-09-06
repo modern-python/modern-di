@@ -3,8 +3,8 @@ import enum
 import inspect
 import typing
 
-from modern_di.provider_state import ProviderState
 from modern_di.providers.abstract import AbstractCreatorProvider
+from modern_di.registries.state_registry.state import AsyncState, SyncState
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -59,7 +59,7 @@ class Resource(AbstractCreatorProvider[T_co]):
         *,
         args: list[typing.Any],
         kwargs: dict[str, typing.Any],
-        provider_state: ProviderState[T_co] | None,
+        provider_state: AsyncState[T_co] | None,
         **_: object,
     ) -> T_co:
         assert provider_state
@@ -78,7 +78,7 @@ class Resource(AbstractCreatorProvider[T_co]):
         *,
         args: list[typing.Any],
         kwargs: dict[str, typing.Any],
-        provider_state: ProviderState[T_co] | None,
+        provider_state: SyncState[T_co] | None,
         **_: object,
     ) -> T_co:
         assert provider_state

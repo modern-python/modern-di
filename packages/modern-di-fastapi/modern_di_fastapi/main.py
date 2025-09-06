@@ -1,6 +1,5 @@
 import contextlib
 import dataclasses
-import enum
 import typing
 
 import fastapi
@@ -22,9 +21,7 @@ async def _lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]
         yield
 
 
-def setup_di(
-    app: fastapi.FastAPI, scope: enum.IntEnum = Scope.APP, container: AsyncContainer | None = None
-) -> AsyncContainer:
+def setup_di(app: fastapi.FastAPI, scope: Scope = Scope.APP, container: AsyncContainer | None = None) -> AsyncContainer:
     if not container:
         container = AsyncContainer(scope=scope)
     app.state.di_container = container
