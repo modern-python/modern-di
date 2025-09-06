@@ -27,7 +27,7 @@ def generator_without_args() -> typing.Iterator:  # type: ignore[type-arg]  # pr
     yield 1
 
 
-def test_define_bounded_type() -> None:
+def test_define_bound_type() -> None:
     assert define_bound_type(int) is int
     assert define_bound_type(sync_function) is int
     assert define_bound_type(async_function) is int

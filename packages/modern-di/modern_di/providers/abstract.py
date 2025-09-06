@@ -7,8 +7,8 @@ import typing_extensions
 from typing_extensions import override
 
 from modern_di.helpers.attr_getter_helpers import get_value_from_object_by_dotted_path
-from modern_di.registries.state_registry.state import AsyncState, SyncState
 from modern_di.helpers.type_helpers import define_bound_type
+from modern_di.registries.state_registry.state import AsyncState, SyncState
 
 
 T_co = typing.TypeVar("T_co", covariant=True)

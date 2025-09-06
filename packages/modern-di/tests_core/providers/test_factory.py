@@ -2,6 +2,7 @@ import dataclasses
 
 import pytest
 from modern_di import AsyncContainer, Scope, SyncContainer, providers
+from modern_di.registries.providers_registry import ProvidersRegistry
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -29,6 +30,28 @@ async def test_app_factory() -> None:
         instance4 = app_container.resolve_provider(app_factory)
         assert instance3 is not instance4
         assert instance1 is not instance3
+
+
+async def test_app_factory_with_registry_async_container() -> None:
+    providers_registry = ProvidersRegistry()
+    providers_registry.add_providers(app_factory=app_factory)
+    async with AsyncContainer(providers_registry=providers_registry) as app_container:
+        instance1 = await app_container.resolve(dependency_type=SimpleCreator)
+        instance2 = await app_container.resolve(dependency_name="app_factory")  # type: ignore[func-returns-value]
+        assert isinstance(instance1, SimpleCreator)
+        assert isinstance(instance2, SimpleCreator)
+        assert instance1 is not instance2
+
+
+def test_app_factory_with_registry_sync_container() -> None:
+    providers_registry = ProvidersRegistry()
+    providers_registry.add_providers(app_factory=app_factory)
+    with SyncContainer(providers_registry=providers_registry) as app_container:
+        instance1 = app_container.resolve(dependency_type=SimpleCreator)
+        instance2 = app_container.resolve(dependency_name="app_factory")
+        assert isinstance(instance1, SimpleCreator)
+        assert isinstance(instance2, SimpleCreator)
+        assert instance1 is not instance2
 
 
 def test_request_factory() -> None:
