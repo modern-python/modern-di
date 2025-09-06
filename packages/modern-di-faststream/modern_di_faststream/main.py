@@ -1,5 +1,4 @@
 import dataclasses
-import enum
 import typing
 from collections.abc import Awaitable, Callable
 from importlib.metadata import version
@@ -67,7 +66,7 @@ def fetch_di_container(app_: faststream.FastStream | AsgiFastStream) -> AsyncCon
 
 def setup_di(
     app: faststream.FastStream | AsgiFastStream,
-    scope: enum.IntEnum = Scope.APP,
+    scope: Scope = Scope.APP,
     container: AsyncContainer | None = None,
 ) -> AsyncContainer:
     if not app.broker:

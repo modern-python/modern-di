@@ -1,8 +1,6 @@
-import abc
 import enum
 import typing
 
-from modern_di.provider_state import ProviderState
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.scope import Scope
@@ -15,40 +13,32 @@ if typing.TYPE_CHECKING:
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-class AbstractContainer(abc.ABC):
+class AbstractContainer:
     BASE_SLOTS: typing.ClassVar = (
         "_is_entered",
-        "_provider_states",
+        "state_registry",
         "context",
         "parent_container",
         "scope",
         "overrides_registry",
     )
-    LOCK_FACTORY: type[typing.Any]
 
     def __init__(
         self,
         *,
-        scope: enum.IntEnum = Scope.APP,
+        scope: Scope = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
         context: dict[str, typing.Any] | None = None,
     ) -> None:
+        self._is_entered = False
         self.scope = scope
         self.parent_container = parent_container
         self.context: dict[str, typing.Any] = context or {}
-        self._is_entered = False
-        self._provider_states: dict[str, ProviderState[typing.Any]] = {}
         self.overrides_registry: OverridesRegistry
         if parent_container:
             self.overrides_registry = parent_container.overrides_registry
         else:
             self.overrides_registry = OverridesRegistry()
-
-    def _clear_state(self) -> None:
-        self._is_entered = False
-        self._provider_states = {}
-        self.overrides_registry.reset_override()
-        self.context = {}
 
     def _check_entered(self) -> None:
         if not self._is_entered:
@@ -56,7 +46,7 @@ class AbstractContainer(abc.ABC):
             raise RuntimeError(msg)
 
     def build_child_container(
-        self, context: dict[str, typing.Any] | None = None, scope: enum.IntEnum | None = None
+        self, context: dict[str, typing.Any] | None = None, scope: Scope | None = None
     ) -> "typing_extensions.Self":
         self._check_entered()
         if scope and scope <= self.scope:
@@ -86,16 +76,6 @@ class AbstractContainer(abc.ABC):
             raise RuntimeError(msg)
 
         return container
-
-    def fetch_provider_state(self, provider: AbstractProvider[T_co]) -> ProviderState[T_co] | None:
-        if not provider.HAS_STATE:
-            return None
-
-        if provider_state := self._provider_states.get(provider.provider_id):
-            return provider_state
-
-        # expected to be thread-safe, because setdefault is atomic
-        return self._provider_states.setdefault(provider.provider_id, ProviderState(lock_factory=self.LOCK_FACTORY))
 
     def override(self, provider: AbstractProvider[T_co], override_object: object) -> None:
         self.overrides_registry.override(provider.provider_id, override_object)

@@ -6,7 +6,7 @@ import uuid
 from typing_extensions import override
 
 from modern_di.helpers.attr_getter_helpers import get_value_from_object_by_dotted_path
-from modern_di.provider_state import ProviderState
+from modern_di.registries.state_registry.state import AsyncState, SyncState
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -43,7 +43,7 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
         args: list[typing.Any],
         kwargs: dict[str, typing.Any],
         context: dict[str, typing.Any],
-        provider_state: ProviderState[T_co] | None,
+        provider_state: AsyncState[T_co] | None,
     ) -> T_co:  # pragma: no cover
         """Resolve dependency asynchronously."""
         raise NotImplementedError
@@ -54,7 +54,7 @@ class AbstractProvider(typing.Generic[T_co], abc.ABC):
         args: list[typing.Any],
         kwargs: dict[str, typing.Any],
         context: dict[str, typing.Any],
-        provider_state: ProviderState[T_co] | None,
+        provider_state: SyncState[T_co] | None,
     ) -> T_co:  # pragma: no cover
         """Resolve dependency synchronously."""
         raise NotImplementedError

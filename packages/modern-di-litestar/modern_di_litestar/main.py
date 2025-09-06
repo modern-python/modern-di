@@ -1,6 +1,5 @@
 import contextlib
 import dataclasses
-import enum
 import typing
 
 import litestar
@@ -29,7 +28,7 @@ async def _lifespan_manager(app_: litestar.Litestar) -> typing.AsyncIterator[Non
 class ModernDIPlugin(InitPlugin):
     __slots__ = ("container", "scope")
 
-    def __init__(self, scope: enum.IntEnum = DIScope.APP, container: AsyncContainer | None = None) -> None:
+    def __init__(self, scope: DIScope = DIScope.APP, container: AsyncContainer | None = None) -> None:
         self.scope = scope
         self.container = container or AsyncContainer(scope=self.scope)
 

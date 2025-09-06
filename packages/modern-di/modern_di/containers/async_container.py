@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 import types
 import typing
@@ -6,10 +5,12 @@ import typing
 from modern_di.containers.abstract import AbstractContainer
 from modern_di.providers import ContainerProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.registries.state_registry.state_registry import AsyncStateRegistry
+from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
-    pass
+    import typing_extensions
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -17,7 +18,17 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], AbstractContainer):
     __slots__ = AbstractContainer.BASE_SLOTS
-    LOCK_FACTORY = asyncio.Lock
+
+    def __init__(
+        self,
+        *,
+        scope: Scope = Scope.APP,
+        parent_container: typing.Optional["typing_extensions.Self"] = None,
+        context: dict[str, typing.Any] | None = None,
+        use_lock: bool = True,
+    ) -> None:
+        super().__init__(scope=scope, parent_container=parent_container, context=context)
+        self.state_registry = AsyncStateRegistry(use_lock=use_lock)
 
     async def _resolve_args(self, args: list[typing.Any]) -> list[typing.Any]:
         return [await self.resolve_provider(x) if isinstance(x, AbstractProvider) else x for x in args]
@@ -35,7 +46,7 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
         if (override := container.overrides_registry.fetch_override(provider.provider_id)) is not None:
             return typing.cast(T_co, override)
 
-        provider_state = container.fetch_provider_state(provider)
+        provider_state = container.state_registry.fetch_provider_state(provider)
         if provider_state and provider_state.instance is not None:
             return provider_state.instance
 
@@ -61,9 +72,10 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
 
     async def close(self) -> None:
         self._check_entered()
-        for provider_state in reversed(self._provider_states.values()):
-            await provider_state.async_tear_down()
-        self._clear_state()
+        self._is_entered = False
+        await self.state_registry.clear_state()
+        self.overrides_registry.reset_override()
+        self.context = {}
 
     async def __aenter__(self) -> "AsyncContainer":
         return self.enter()

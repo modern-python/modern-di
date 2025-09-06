@@ -1,15 +1,16 @@
 import contextlib
-import threading
 import types
 import typing
 
 from modern_di.containers.abstract import AbstractContainer
 from modern_di.providers import ContainerProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.registries.state_registry.state_registry import SyncStateRegistry
+from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
-    pass
+    import typing_extensions
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -17,7 +18,17 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], AbstractContainer):
     __slots__ = AbstractContainer.BASE_SLOTS
-    LOCK_FACTORY = threading.Lock
+
+    def __init__(
+        self,
+        *,
+        scope: Scope = Scope.APP,
+        parent_container: typing.Optional["typing_extensions.Self"] = None,
+        context: dict[str, typing.Any] | None = None,
+        use_lock: bool = True,
+    ) -> None:
+        super().__init__(scope=scope, parent_container=parent_container, context=context)
+        self.state_registry = SyncStateRegistry(use_lock=use_lock)
 
     def _resolve_args(self, args: list[typing.Any]) -> list[typing.Any]:
         return [self.resolve_provider(x) if isinstance(x, AbstractProvider) else x for x in args]
@@ -38,7 +49,7 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
         if (override := container.overrides_registry.fetch_override(provider.provider_id)) is not None:
             return typing.cast(T_co, override)
 
-        provider_state = container.fetch_provider_state(provider)
+        provider_state = container.state_registry.fetch_provider_state(provider)
         if provider_state and provider_state.instance is not None:
             return provider_state.instance
 
@@ -64,9 +75,10 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
 
     def close(self) -> None:
         self._check_entered()
-        for provider_state in reversed(self._provider_states.values()):
-            provider_state.sync_tear_down()
-        self._clear_state()
+        self._is_entered = False
+        self.state_registry.clear_state()
+        self.overrides_registry.reset_override()
+        self.context = {}
 
     def __enter__(self) -> "SyncContainer":
         return self.enter()
