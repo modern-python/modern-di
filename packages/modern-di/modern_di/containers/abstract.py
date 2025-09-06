@@ -3,6 +3,7 @@ import typing
 
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.overrides_registry import OverridesRegistry
+from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
 
@@ -29,11 +30,13 @@ class AbstractContainer:
         scope: Scope = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
         context: dict[str, typing.Any] | None = None,
+        providers_registry: ProvidersRegistry | None = None,
     ) -> None:
         self._is_entered = False
         self.scope = scope
         self.parent_container = parent_container
         self.context: dict[str, typing.Any] = context or {}
+        self.providers_registry = providers_registry
         self.overrides_registry: OverridesRegistry
         if parent_container:
             self.overrides_registry = parent_container.overrides_registry
