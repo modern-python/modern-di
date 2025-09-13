@@ -11,7 +11,7 @@ sync_sequence = providers.List(Scope.APP, sync_resource)
 
 
 async def test_list() -> None:
-    async with AsyncContainer(context={"option": "app"}) as app_container:
+    async with AsyncContainer() as app_container:
         sequence1 = await app_container.resolve_provider(sequence)
         sequence2 = await app_container.resolve_provider(sequence)
         resource1 = await app_container.resolve_provider(async_resource)

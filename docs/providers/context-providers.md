@@ -58,7 +58,7 @@ def context_adapter_function(*, storage_backend: str | None = None, **_: object)
 
 
 class Dependencies(Group):
-    context_adapter = providers.ContextAdapter(Scope.APP, context_adapter_function)
+    context_adapter = providers.ContextProvider(Scope.APP, context_adapter_function)
 
 
 with Container(scope=Scope.APP, context={"storage_backend": "remote"}) as container:

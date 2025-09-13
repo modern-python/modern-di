@@ -3,8 +3,9 @@ import types
 import typing
 
 from modern_di.containers.abstract import AbstractContainer
-from modern_di.providers import ContainerProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.container_provider import ContainerProvider
+from modern_di.providers.context_provider import ContextProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.registries.state_registry.state_registry import AsyncStateRegistry
 from modern_di.scope import Scope
@@ -25,7 +26,7 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
         *,
         scope: Scope = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
-        context: dict[str, typing.Any] | None = None,
+        context: dict[type[typing.Any], typing.Any] | None = None,
         providers_registry: ProvidersRegistry | None = None,
         use_lock: bool = True,
     ) -> None:
@@ -61,6 +62,9 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
         if isinstance(provider, ContainerProvider):
             return typing.cast(T_co, container)
 
+        if isinstance(provider, ContextProvider):
+            return typing.cast(T_co, self.resolve_context_provider(provider))
+
         if (override := container.overrides_registry.fetch_override(provider.provider_id)) is not None:
             return typing.cast(T_co, override)
 
@@ -75,9 +79,8 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
                 return provider_state.instance
 
             return await provider.async_resolve(
-                args=await self._resolve_args(provider.fetch_args(self.context)),
-                kwargs=await self._resolve_kwargs(provider.fetch_kwargs(self.context)),
-                context=self.context,
+                args=await self._resolve_args(provider.args or []),
+                kwargs=await self._resolve_kwargs(provider.kwargs or {}),
                 provider_state=provider_state,
             )
         finally:
@@ -93,7 +96,6 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
         self._is_entered = False
         await self.state_registry.clear_state()
         self.overrides_registry.reset_override()
-        self.context = {}
 
     async def __aenter__(self) -> "AsyncContainer":
         return self.enter()

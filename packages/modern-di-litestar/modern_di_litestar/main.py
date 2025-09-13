@@ -42,13 +42,13 @@ class ModernDIPlugin(InitPlugin):
 async def build_di_container(
     request: litestar.Request[typing.Any, typing.Any, typing.Any],
 ) -> typing.AsyncIterator[AsyncContainer]:
-    context: dict[str, typing.Any] = {}
+    context: dict[type[typing.Any], typing.Any] = {}
     scope: DIScope | None
     if isinstance(request, litestar.WebSocket):
-        context["websocket"] = request
+        context[litestar.WebSocket] = request
         scope = DIScope.SESSION
     else:
-        context["request"] = request
+        context[litestar.Request] = request
         scope = DIScope.REQUEST
     container: AsyncContainer = fetch_di_container(request.app)
     async with container.build_child_container(context=context, scope=scope) as request_container:

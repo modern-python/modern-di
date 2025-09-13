@@ -16,14 +16,17 @@ from tests_faststream.dependencies import DependentCreator, SimpleCreator
 TEST_SUBJECT = "test"
 
 
-def context_adapter_function(*, message: StreamMessage[typing.Any], **_: object) -> bool:
+def fetch_message_is_processed_from_request(message: StreamMessage[typing.Any]) -> bool:
     return message.processed
 
 
 app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
 request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
 action_factory = providers.Factory(Scope.ACTION, DependentCreator, dep1=app_factory.cast)
-context_adapter = providers.ContextAdapter(Scope.REQUEST, context_adapter_function)
+message_provider = providers.ContextProvider(Scope.REQUEST, StreamMessage)
+message_is_processed = providers.Factory(
+    Scope.REQUEST, fetch_message_is_processed_from_request, message=message_provider.cast
+)
 
 
 async def test_factories(app: faststream.FastStream) -> None:
@@ -49,9 +52,9 @@ async def test_context_adapter(app: faststream.FastStream) -> None:
 
     @broker.subscriber(TEST_SUBJECT)
     async def index_subscriber(
-        processed: typing.Annotated[bool, FromDI(context_adapter)],
+        message_is_processed: typing.Annotated[bool, FromDI(message_is_processed)],
     ) -> None:
-        assert processed is False
+        assert message_is_processed is False
 
     async with TestNatsBroker(broker) as br, TestApp(app):
         result = await br.request(None, TEST_SUBJECT)

@@ -39,7 +39,7 @@ class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
         msg: StreamMessage[typing.Any],
     ) -> typing.AsyncIterator[DecodedMessage]:
         async with self.di_container.build_child_container(
-            scope=modern_di.Scope.REQUEST, context={"message": StreamMessage[typing.Any]}
+            scope=modern_di.Scope.REQUEST, context={StreamMessage: StreamMessage[typing.Any]}
         ) as request_container:
             with self.faststream_context.scope("request_container", request_container):
                 return typing.cast(
