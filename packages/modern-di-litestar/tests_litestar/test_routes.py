@@ -9,14 +9,16 @@ from modern_di_litestar import FromDI
 from tests_litestar.dependencies import DependentCreator, SimpleCreator
 
 
-def context_adapter_function(*, request: litestar.Request[typing.Any, typing.Any, typing.Any], **_: object) -> str:
+def fetch_method_from_request(request: litestar.Request[typing.Any, typing.Any, typing.Any]) -> str:
+    assert isinstance(request, litestar.Request)
     return request.method
 
 
 app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
 request_factory = providers.Singleton(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
 action_factory = providers.Factory(Scope.ACTION, DependentCreator, dep1=app_factory.cast)
-context_adapter = providers.ContextAdapter(Scope.REQUEST, context_adapter_function)
+litestar_request_provider = providers.ContextProvider(Scope.REQUEST, litestar.Request)
+request_method = providers.Factory(Scope.REQUEST, fetch_method_from_request, request=litestar_request_provider.cast)
 
 
 def test_factories(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
@@ -39,15 +41,15 @@ def test_factories(client: TestClient[litestar.Litestar], app: litestar.Litestar
     assert response.json() is None
 
 
-def test_context_adapter(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
-    @litestar.get("/", dependencies={"method": FromDI(context_adapter)})
+def test_context_provider(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
+    @litestar.get("/", dependencies={"method": FromDI(request_method)})
     async def read_root(method: str) -> None:
         assert method == "GET"
 
     app.register(read_root)
 
     response = client.get("/")
-    assert response.status_code == status_codes.HTTP_200_OK
+    assert response.status_code == status_codes.HTTP_200_OK, response.text
     assert response.json() is None
 
 

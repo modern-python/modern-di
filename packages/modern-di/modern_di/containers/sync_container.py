@@ -5,6 +5,8 @@ import typing
 from modern_di.containers.abstract import AbstractContainer
 from modern_di.providers import ContainerProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.context_provider import ContextProvider
+from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.registries.state_registry.state_registry import SyncStateRegistry
 from modern_di.scope import Scope
 
@@ -24,10 +26,13 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
         *,
         scope: Scope = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
-        context: dict[str, typing.Any] | None = None,
+        context: dict[type[typing.Any], typing.Any] | None = None,
+        providers_registry: ProvidersRegistry | None = None,
         use_lock: bool = True,
     ) -> None:
-        super().__init__(scope=scope, parent_container=parent_container, context=context)
+        super().__init__(
+            scope=scope, parent_container=parent_container, context=context, providers_registry=providers_registry
+        )
         self.state_registry = SyncStateRegistry(use_lock=use_lock)
 
     def _resolve_args(self, args: list[typing.Any]) -> list[typing.Any]:
@@ -35,6 +40,18 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
 
     def _resolve_kwargs(self, kwargs: dict[str, typing.Any]) -> dict[str, typing.Any]:
         return {k: self.resolve_provider(v) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()}
+
+    def resolve(self, *, dependency_type: type[T_co] | None = None, dependency_name: str | None = None) -> T_co | None:
+        if not self.providers_registry:
+            return None
+
+        provider = self.providers_registry.find_provider(
+            dependency_type=dependency_type, dependency_name=dependency_name
+        )
+        if not provider:
+            return None
+
+        return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: AbstractProvider[T_co]) -> T_co:
         self._check_entered()
@@ -45,6 +62,9 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
         container = self.find_container(provider.scope)
         if isinstance(provider, ContainerProvider):
             return typing.cast(T_co, container)
+
+        if isinstance(provider, ContextProvider):
+            return typing.cast(T_co, self.resolve_context_provider(provider))
 
         if (override := container.overrides_registry.fetch_override(provider.provider_id)) is not None:
             return typing.cast(T_co, override)
@@ -60,9 +80,8 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
                 return provider_state.instance
 
             return provider.sync_resolve(
-                args=self._resolve_args(provider.fetch_args(self.context)),
-                kwargs=self._resolve_kwargs(provider.fetch_kwargs(self.context)),
-                context=self.context,
+                args=self._resolve_args(provider.args or []),
+                kwargs=self._resolve_kwargs(provider.kwargs or {}),
                 provider_state=provider_state,
             )
         finally:
@@ -78,7 +97,6 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
         self._is_entered = False
         self.state_registry.clear_state()
         self.overrides_registry.reset_override()
-        self.context = {}
 
     def __enter__(self) -> "SyncContainer":
         return self.enter()

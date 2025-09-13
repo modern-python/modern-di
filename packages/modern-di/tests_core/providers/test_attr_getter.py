@@ -40,7 +40,6 @@ class NestingTestDTO: ...
         providers.Singleton(Scope.APP, Settings),
         providers.Object(Scope.APP, Settings()),
         providers.Factory(Scope.APP, Settings),
-        providers.Selector(Scope.APP, lambda: "sync", sync=providers.Factory(Scope.APP, Settings)),
     ]
 )
 def some_sync_settings_provider(request: pytest.FixtureRequest) -> providers.AbstractProvider[Settings]:

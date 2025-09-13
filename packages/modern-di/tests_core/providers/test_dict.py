@@ -11,7 +11,7 @@ sync_mapping = providers.Dict(Scope.APP, dep2=sync_resource)
 
 
 async def test_dict() -> None:
-    async with AsyncContainer(context={"option": "app"}) as app_container:
+    async with AsyncContainer() as app_container:
         mapping1 = await app_container.resolve_provider(mapping)
         mapping2 = await app_container.resolve_provider(mapping)
         resource1 = await app_container.resolve_provider(async_resource)

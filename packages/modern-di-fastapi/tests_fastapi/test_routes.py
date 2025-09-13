@@ -9,14 +9,16 @@ from starlette.testclient import TestClient
 from tests_fastapi.dependencies import DependentCreator, SimpleCreator
 
 
-def context_adapter_function(*, request: fastapi.Request, **_: object) -> str:
+def fetch_method_from_request(request: fastapi.Request) -> str:
+    assert isinstance(request, fastapi.Request)
     return request.method
 
 
 app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
 request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
 action_factory = providers.Factory(Scope.ACTION, DependentCreator, dep1=app_factory.cast)
-context_adapter = providers.ContextAdapter(Scope.REQUEST, context_adapter_function)
+fastapi_request_provider = providers.ContextProvider(Scope.REQUEST, fastapi.Request)
+request_method = providers.Factory(Scope.REQUEST, fetch_method_from_request, request=fastapi_request_provider.cast)
 
 
 def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
@@ -34,10 +36,10 @@ def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
     assert response.json() is None
 
 
-def test_context_adapter(client: TestClient, app: fastapi.FastAPI) -> None:
+def test_context_provider(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        method: typing.Annotated[str, FromDI(context_adapter)],
+        method: typing.Annotated[str, FromDI(request_method)],
     ) -> None:
         assert method == "GET"
 

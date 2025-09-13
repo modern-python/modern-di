@@ -8,14 +8,16 @@ from starlette.testclient import TestClient
 from tests_fastapi.dependencies import DependentCreator, SimpleCreator
 
 
-def context_adapter_function(*, websocket: fastapi.WebSocket, **_: object) -> str:
-    return str(websocket.scope["path"])
+def fetch_url_from_websocket(websocket: fastapi.WebSocket) -> str:
+    assert isinstance(websocket, fastapi.WebSocket)
+    return websocket.url.path
 
 
 app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
 session_factory = providers.Factory(Scope.SESSION, DependentCreator, dep1=app_factory.cast)
 request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
-context_adapter = providers.ContextAdapter(Scope.SESSION, context_adapter_function)
+fastapi_websocket_provider = providers.ContextProvider(Scope.SESSION, fastapi.WebSocket)
+websocket_path = providers.Factory(Scope.SESSION, fetch_url_from_websocket, websocket=fastapi_websocket_provider.cast)
 
 
 async def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
@@ -57,11 +59,11 @@ async def test_factories_request_scope(client: TestClient, app: fastapi.FastAPI)
         assert data == "test"
 
 
-async def test_context_adapter(client: TestClient, app: fastapi.FastAPI) -> None:
+async def test_context_provider(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.websocket("/ws")
     async def websocket_endpoint(
         websocket: fastapi.WebSocket,
-        path: typing.Annotated[str, FromDI(context_adapter)],
+        path: typing.Annotated[str, FromDI(websocket_path)],
     ) -> None:
         assert path == "/ws"
 

@@ -8,7 +8,7 @@ from modern_di_litestar import FromDI
 from tests_litestar.dependencies import DependentCreator, SimpleCreator
 
 
-def context_adapter_function(*, websocket: litestar.Request[typing.Any, typing.Any, typing.Any], **_: object) -> str:
+def fetch_url_from_websocket(websocket: litestar.WebSocket[typing.Any, typing.Any, typing.Any]) -> str:
     assert isinstance(websocket, litestar.WebSocket)
     return websocket.url.path
 
@@ -16,7 +16,8 @@ def context_adapter_function(*, websocket: litestar.Request[typing.Any, typing.A
 app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
 session_factory = providers.Factory(Scope.SESSION, DependentCreator, dep1=app_factory.cast)
 request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
-context_adapter = providers.ContextAdapter(Scope.SESSION, context_adapter_function)
+litestar_websocket_provider = providers.ContextProvider(Scope.SESSION, litestar.WebSocket)
+websocket_path = providers.Factory(Scope.SESSION, fetch_url_from_websocket, websocket=litestar_websocket_provider.cast)
 
 
 async def test_factories(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
@@ -55,7 +56,7 @@ async def test_factories_request_scope(client: TestClient[litestar.Litestar], ap
 
 
 async def test_context_adapter(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
-    @litestar.websocket_listener("/ws", dependencies={"path": FromDI(context_adapter)})
+    @litestar.websocket_listener("/ws", dependencies={"path": FromDI(websocket_path)})
     async def websocket_handler(data: str, path: str) -> None:
         assert data == "test"
         assert path == "/ws"
