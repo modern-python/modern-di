@@ -6,6 +6,6 @@ from modern_di_faststream import setup_di
 
 @pytest.fixture
 async def app() -> faststream.FastStream:
-    app_ = faststream.FastStream(broker=NatsBroker())
+    app_ = faststream.FastStream(NatsBroker())
     setup_di(app_)
     return app_

@@ -4,8 +4,7 @@ import faststream
 import modern_di
 import modern_di_faststream
 import pytest
-from faststream import TestApp
-from faststream.broker.message import StreamMessage
+from faststream import StreamMessage, TestApp
 from faststream.nats import NatsBroker, TestNatsBroker
 from modern_di import Scope, providers
 from modern_di_faststream import FromDI

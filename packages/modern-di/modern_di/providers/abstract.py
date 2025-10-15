@@ -14,7 +14,7 @@ R = typing.TypeVar("R")
 P = typing.ParamSpec("P")
 
 
-class AbstractProvider(typing.Generic[T_co], abc.ABC):
+class AbstractProvider(abc.ABC, typing.Generic[T_co]):
     BASE_SLOTS: typing.ClassVar = ["scope", "provider_id"]
 
     def __init__(self, scope: enum.IntEnum) -> None:
