@@ -18,14 +18,27 @@ _major, _minor, *_ = version("faststream").split(".")
 _OLD_MIDDLEWARES = int(_major) == 0 and int(_minor) < 6  # noqa: PLR2004
 
 
+class _DIMiddlewareFactory:
+    __slots__ = ("di_container",)
+
+    def __init__(self, di_container: Container) -> None:
+        self.di_container = di_container
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> "_DiMiddleware[P]":
+        return _DiMiddleware(self.di_container, *args, **kwargs)
+
+
 class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
+    def __init__(self, di_container: Container, *args: P.args, **kwargs: P.kwargs) -> None:
+        self.di_container = di_container
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+
     async def consume_scope(
         self,
         call_next: Callable[[typing.Any], Awaitable[typing.Any]],
         msg: faststream.StreamMessage[typing.Any],
     ) -> typing.AsyncIterator[DecodedMessage]:
-        di_container: Container = self.faststream_context.get("di_container")
-        async with di_container.build_child_container(
+        async with self.di_container.build_child_container(
             scope=modern_di.Scope.REQUEST, context={"message": msg}
         ) as request_container:
             with self.faststream_context.scope("request_container", request_container):
@@ -63,7 +76,7 @@ def setup_di(
     app.context.set_global("di_container", container)
     app.on_startup(container.async_enter)
     app.after_shutdown(container.async_close)
-    app.broker.add_middleware(_DiMiddleware)
+    app.broker.add_middleware(_DIMiddlewareFactory(container))
     return container
 
 
