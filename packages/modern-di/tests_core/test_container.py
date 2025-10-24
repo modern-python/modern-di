@@ -49,9 +49,19 @@ def test_container_scope_limit_reached() -> None:
         app_container.build_child_container()
 
 
-async def test_container_build_child_wrong_scope() -> None:
+def test_container_build_child_wrong_scope() -> None:
     with (
-        SyncContainer(scope=Scope.APP) as app_container,
+        SyncContainer() as app_container,
         pytest.raises(RuntimeError, match="Scope of child container must be more than current scope"),
     ):
         app_container.build_child_container(scope=Scope.APP)
+
+
+async def test_async_container_resolve_missing_provider() -> None:
+    async with AsyncContainer() as app_container:
+        assert await app_container.resolve(str) is None
+
+
+def test_sync_container_resolve_missing_provider() -> None:
+    with SyncContainer() as app_container:
+        assert app_container.resolve(str) is None

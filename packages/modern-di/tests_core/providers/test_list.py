@@ -1,5 +1,5 @@
 import pytest
-from modern_di import AsyncContainer, Scope, providers
+from modern_di import AsyncContainer, Scope, SyncContainer, providers
 
 from tests_core.creators import create_async_resource, create_sync_resource
 
@@ -10,7 +10,7 @@ sequence = providers.List(Scope.APP, async_resource, sync_resource)
 sync_sequence = providers.List(Scope.APP, sync_resource)
 
 
-async def test_list() -> None:
+async def test_list_async() -> None:
     async with AsyncContainer() as app_container:
         sequence1 = await app_container.resolve_provider(sequence)
         sequence2 = await app_container.resolve_provider(sequence)
@@ -19,6 +19,13 @@ async def test_list() -> None:
         assert sequence1 == sequence2 == [resource1, resource2]
 
         assert await app_container.resolve_provider(sync_sequence) == [resource2]
+
+
+def test_list_sync() -> None:
+    with SyncContainer() as app_container:
+        sequence1 = app_container.resolve_provider(sync_sequence)
+        sequence2 = app_container.resolve_provider(sync_sequence)
+        assert sequence1 is not sequence2
 
 
 async def test_list_wrong_scope() -> None:

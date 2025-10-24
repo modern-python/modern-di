@@ -1,5 +1,6 @@
 import dataclasses
 import typing
+import warnings
 
 from modern_di.providers.abstract import AbstractProvider
 
@@ -24,5 +25,14 @@ class ProvidersRegistry:
         return None
 
     def add_providers(self, **kwargs: AbstractProvider[typing.Any]) -> None:
+        if duplicates_by_name := set(self.providers_by_name.keys()) & set(kwargs.keys()):
+            warnings.warn(f"Duplicated by name providers {duplicates_by_name}", RuntimeWarning, stacklevel=2)
+
         self.providers_by_name.update(kwargs)
+
+        if duplicates_by_type := set(self.providers_by_type.keys()) & {
+            x.bound_type for x in kwargs.values() if x.bound_type
+        }:
+            warnings.warn(f"Duplicated by type providers {duplicates_by_type}", RuntimeWarning, stacklevel=2)
+
         self.providers_by_type.update({x.bound_type: x for x in kwargs.values() if x.bound_type})

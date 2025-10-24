@@ -19,7 +19,7 @@ def define_bound_type(creator: type | object) -> type | None:
     if not return_annotation:
         return None
 
-    if isinstance(return_annotation, type):
+    if isinstance(return_annotation, type) and not isinstance(return_annotation, (list, dict)):
         return return_annotation
 
     if typing.get_origin(return_annotation) not in GENERIC_TYPES:
