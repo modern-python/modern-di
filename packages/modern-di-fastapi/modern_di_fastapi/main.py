@@ -34,13 +34,13 @@ def setup_di(app: fastapi.FastAPI, scope: Scope = Scope.APP, container: AsyncCon
 
 
 async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[AsyncContainer]:
-    context: dict[str, typing.Any] = {}
+    context: dict[type[typing.Any], typing.Any] = {}
     scope: Scope | None = None
     if isinstance(connection, fastapi.Request):
         scope = Scope.REQUEST
-        context["request"] = connection
+        context[fastapi.Request] = connection
     elif isinstance(connection, fastapi.WebSocket):
-        context["websocket"] = connection
+        context[fastapi.WebSocket] = connection
         scope = Scope.SESSION
     container: AsyncContainer = fetch_di_container(connection.app)
     async with container.build_child_container(context=context, scope=scope) as request_container:

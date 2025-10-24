@@ -6,7 +6,6 @@ from importlib.metadata import version
 import faststream
 import modern_di
 from faststream.asgi import AsgiFastStream
-from faststream.broker.message import StreamMessage
 from faststream.types import DecodedMessage
 from modern_di import AsyncContainer, Scope, providers
 
@@ -31,15 +30,15 @@ class _DIMiddlewareFactory:
 class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
     def __init__(self, di_container: AsyncContainer, *args: P.args, **kwargs: P.kwargs) -> None:
         self.di_container = di_container
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
     async def consume_scope(
         self,
         call_next: Callable[[typing.Any], Awaitable[typing.Any]],
-        msg: StreamMessage[typing.Any],
+        msg: faststream.StreamMessage[typing.Any],
     ) -> typing.AsyncIterator[DecodedMessage]:
         async with self.di_container.build_child_container(
-            scope=modern_di.Scope.REQUEST, context={"message": StreamMessage[typing.Any]}
+            scope=modern_di.Scope.REQUEST, context={faststream.StreamMessage: msg}
         ) as request_container:
             with self.faststream_context.scope("request_container", request_container):
                 return typing.cast(
@@ -51,13 +50,13 @@ class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
 
         @property
         def faststream_context(self) -> faststream.ContextRepo:
-            return faststream.context
+            return typing.cast(faststream.ContextRepo, faststream.context)  # type: ignore[attr-defined]
 
-    else:  # pragma: no cover
+    else:
 
         @property
         def faststream_context(self) -> faststream.ContextRepo:
-            return self.context  # type: ignore[attr-defined,no-any-return]
+            return self.context
 
 
 def fetch_di_container(app_: faststream.FastStream | AsgiFastStream) -> AsyncContainer:

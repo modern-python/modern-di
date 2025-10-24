@@ -37,6 +37,15 @@
    - for lifetime less than **ACTION**;
    - must be managed manually.
 
+### How to choose scope
+
+Provider's scope must be max value between scopes of all its dependencies.
+
+Examples:
+- A provider has dependencies of `APP` and `REQUEST` scopes. Final scope should be `REQUEST`.
+- A provider has no dependencies. Final scope should be `APP`.
+- A provider has dependencies only of `APP` scope. Final scope should be `APP`.
+
 ## Provider
 
 Providers needed to assemble the objects.

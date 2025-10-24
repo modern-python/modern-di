@@ -2,7 +2,7 @@ import typing
 from dataclasses import dataclass, field
 
 import pytest
-from modern_di import AsyncContainer, Scope, providers
+from modern_di import AsyncContainer, Scope, SyncContainer, providers
 
 
 @dataclass
@@ -40,7 +40,6 @@ class NestingTestDTO: ...
         providers.Singleton(Scope.APP, Settings),
         providers.Object(Scope.APP, Settings()),
         providers.Factory(Scope.APP, Settings),
-        providers.Selector(Scope.APP, lambda: "sync", sync=providers.Factory(Scope.APP, Settings)),
     ]
 )
 def some_sync_settings_provider(request: pytest.FixtureRequest) -> providers.AbstractProvider[Settings]:
@@ -61,6 +60,20 @@ async def di_container() -> typing.AsyncIterator[AsyncContainer]:
     di_container_: typing.Final = AsyncContainer()
     async with di_container_:
         yield di_container_
+
+
+@pytest.fixture
+def sync_di_container() -> typing.Iterator[SyncContainer]:
+    di_container_: typing.Final = SyncContainer()
+    with di_container_:
+        yield di_container_
+
+
+async def test_attr_getter_with_sync_container(
+    some_sync_settings_provider: providers.AbstractProvider[Settings], sync_di_container: SyncContainer
+) -> None:
+    attr_getter = some_sync_settings_provider.some_str_value
+    assert sync_di_container.resolve_provider(attr_getter) == Settings().some_str_value
 
 
 async def test_attr_getter_with_zero_attribute_depth_sync(

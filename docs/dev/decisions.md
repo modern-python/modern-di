@@ -6,8 +6,9 @@
 2. Resources and singletons are safe for concurrent resolving:
   - in async resolving `asyncio.Lock` is used;
   - in sync resolving `threading.Lock` is used;
-3. No global state -> all state lives in containers:
+3. No global state -> all state lives in containers and registries:
   - it's needed for scopes to work;
 4. Focus on maximum compatibility with mypy:
   - no need for `# type: ignore`
   - no need for `typing.cast`
+5. No adding new features while tasks can be solved by default implementation.

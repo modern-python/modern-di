@@ -1,8 +1,12 @@
 import enum
 import typing
 
+from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.context_provider import ContextProvider
+from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverridesRegistry
+from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
 
@@ -14,27 +18,33 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 
 class AbstractContainer:
-    BASE_SLOTS: typing.ClassVar = (
+    BASE_SLOTS: typing.ClassVar[list[str]] = [
         "_is_entered",
         "state_registry",
         "context",
         "parent_container",
         "scope",
         "overrides_registry",
-    )
+        "providers_registry",
+    ]
 
     def __init__(
         self,
         *,
         scope: Scope = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
-        context: dict[str, typing.Any] | None = None,
+        context: dict[type[typing.Any], typing.Any] | None = None,
+        groups: list[type[Group]] | None = None,
     ) -> None:
         self._is_entered = False
         self.scope = scope
         self.parent_container = parent_container
-        self.context: dict[str, typing.Any] = context or {}
+        self.providers_registry = ProvidersRegistry()
+        if groups:
+            for one_group in groups:
+                self.providers_registry.add_providers(**one_group.get_providers())
         self.overrides_registry: OverridesRegistry
+        self.context_registry = ContextRegistry(context or {})
         if parent_container:
             self.overrides_registry = parent_container.overrides_registry
         else:
@@ -45,8 +55,16 @@ class AbstractContainer:
             msg = f"Enter the context of {self.scope.name} scope"
             raise RuntimeError(msg)
 
+    def _resolve_context_provider(self, provider: ContextProvider[T_co]) -> T_co:
+        context = self.context_registry.find_context(provider.context_type)
+        if not context:
+            msg = f"Context of type {provider.context_type} is missing"
+            raise RuntimeError(msg)
+
+        return context
+
     def build_child_container(
-        self, context: dict[str, typing.Any] | None = None, scope: Scope | None = None
+        self, context: dict[type[typing.Any], typing.Any] | None = None, scope: Scope | None = None
     ) -> "typing_extensions.Self":
         self._check_entered()
         if scope and scope <= self.scope:

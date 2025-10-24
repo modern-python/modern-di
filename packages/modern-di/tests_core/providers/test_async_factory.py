@@ -2,7 +2,7 @@ import asyncio
 import datetime
 
 import pytest
-from modern_di import AsyncContainer, Scope, SyncContainer, providers
+from modern_di import AsyncContainer, Group, Scope, SyncContainer, providers
 
 
 async def async_creator() -> datetime.datetime:
@@ -10,14 +10,17 @@ async def async_creator() -> datetime.datetime:
     return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
-app_factory = providers.AsyncFactory(Scope.APP, async_creator)
+class MyGroup(Group):
+    app_factory = providers.AsyncFactory(Scope.APP, async_creator)
 
 
 async def test_app_async_factory() -> None:
-    async with AsyncContainer() as app_container:
-        instance1 = await app_container.resolve_provider(app_factory)
-        instance2 = await app_container.resolve_provider(app_factory)
-        assert instance1 is not instance2
+    async with AsyncContainer(groups=[MyGroup]) as app_container:
+        instance1 = await app_container.resolve_provider(MyGroup.app_factory)
+        instance2 = await app_container.resolve_provider(MyGroup.app_factory)
+        instance3 = await app_container.resolve(dependency_type=datetime.datetime)
+        assert instance1 is not instance2 is not instance3
+        assert isinstance(instance3, datetime.datetime)
 
 
 def test_app_async_factory_forbidden_in_sync() -> None:
@@ -25,23 +28,23 @@ def test_app_async_factory_forbidden_in_sync() -> None:
         SyncContainer() as app_container,
         pytest.raises(RuntimeError, match="AsyncFactory cannot be resolved synchronously"),
     ):
-        app_container.resolve_provider(app_factory)
+        app_container.resolve_provider(MyGroup.app_factory)
 
 
 async def test_async_factory_overridden_app_scope() -> None:
     async with AsyncContainer() as app_container:
-        instance1 = await app_container.resolve_provider(app_factory)
+        instance1 = await app_container.resolve_provider(MyGroup.app_factory)
 
         mock = await async_creator()
-        app_container.override(app_factory, mock)
+        app_container.override(MyGroup.app_factory, mock)
 
-        instance2 = await app_container.resolve_provider(app_factory)
-        instance3 = await app_container.resolve_provider(app_factory)
+        instance2 = await app_container.resolve_provider(MyGroup.app_factory)
+        instance3 = await app_container.resolve_provider(MyGroup.app_factory)
         assert instance1 is not instance2
         assert instance2 is instance3
 
-        app_container.reset_override(app_factory)
+        app_container.reset_override(MyGroup.app_factory)
 
-        instance4 = await app_container.resolve_provider(app_factory)
+        instance4 = await app_container.resolve_provider(MyGroup.app_factory)
 
         assert instance4 is not instance3
