@@ -59,7 +59,8 @@ def test_container_build_child_wrong_scope() -> None:
 
 async def test_async_container_resolve_missing_provider() -> None:
     async with AsyncContainer() as app_container:
-        assert await app_container.resolve(str) is None
+        with pytest.raises(RuntimeError, match="Provider is not found"):
+            assert await app_container.resolve(str) is None
 
 
 def test_sync_container_resolve_missing_provider() -> None:

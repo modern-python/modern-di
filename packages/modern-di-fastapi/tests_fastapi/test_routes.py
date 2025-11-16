@@ -1,31 +1,19 @@
 import typing
 
 import fastapi
-from modern_di import AsyncContainer, Scope, providers
+from modern_di import AsyncContainer
 from modern_di_fastapi import FromDI, build_di_container
 from starlette import status
 from starlette.testclient import TestClient
 
-from tests_fastapi.dependencies import DependentCreator, SimpleCreator
-
-
-def fetch_method_from_request(request: fastapi.Request) -> str:
-    assert isinstance(request, fastapi.Request)
-    return request.method
-
-
-app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
-request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
-action_factory = providers.Factory(Scope.ACTION, DependentCreator, dep1=app_factory.cast)
-fastapi_request_provider = providers.ContextProvider(Scope.REQUEST, fastapi.Request)
-request_method = providers.Factory(Scope.REQUEST, fetch_method_from_request, request=fastapi_request_provider.cast)
+from tests_fastapi.dependencies import Dependencies, DependentCreator, SimpleCreator
 
 
 def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        app_factory_instance: typing.Annotated[SimpleCreator, FromDI(app_factory)],
-        request_factory_instance: typing.Annotated[DependentCreator, FromDI(request_factory)],
+        app_factory_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+        request_factory_instance: typing.Annotated[DependentCreator, FromDI(Dependencies.request_factory)],
     ) -> None:
         assert isinstance(app_factory_instance, SimpleCreator)
         assert isinstance(request_factory_instance, DependentCreator)
@@ -39,7 +27,7 @@ def test_factories(client: TestClient, app: fastapi.FastAPI) -> None:
 def test_context_provider(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        method: typing.Annotated[str, FromDI(request_method)],
+        method: typing.Annotated[str, FromDI(Dependencies.request_method)],
     ) -> None:
         assert method == "GET"
 
@@ -54,7 +42,7 @@ def test_factories_action_scope(client: TestClient, app: fastapi.FastAPI) -> Non
         request_container: typing.Annotated[AsyncContainer, fastapi.Depends(build_di_container)],
     ) -> None:
         async with request_container.build_child_container() as action_container:
-            action_factory_instance = await action_container.resolve_provider(action_factory)
+            action_factory_instance = await action_container.resolve_provider(Dependencies.action_factory)
             assert isinstance(action_factory_instance, DependentCreator)
 
     response = client.get("/")
