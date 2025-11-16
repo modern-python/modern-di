@@ -21,14 +21,10 @@ class StateRegistry:
 
         return self.states.setdefault(provider.provider_id, ProviderState())
 
-    async def async_clear_state(self) -> None:
+    async def async_tear_down(self) -> None:
         for provider_state in reversed(self.states.values()):
             await provider_state.async_tear_down()
 
-        self.states.clear()
-
-    def sync_clear_state(self) -> None:
+    def sync_tear_down(self) -> None:
         for provider_state in reversed(self.states.values()):
             provider_state.sync_tear_down()
-
-        self.states.clear()
