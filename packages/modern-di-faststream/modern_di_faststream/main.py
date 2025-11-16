@@ -7,7 +7,7 @@ import faststream
 import modern_di
 from faststream.asgi import AsgiFastStream
 from faststream.types import DecodedMessage
-from modern_di import AsyncContainer, Scope, providers
+from modern_di import AsyncContainer, providers
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -65,15 +65,12 @@ def fetch_di_container(app_: faststream.FastStream | AsgiFastStream) -> AsyncCon
 
 def setup_di(
     app: faststream.FastStream | AsgiFastStream,
-    scope: Scope = Scope.APP,
-    container: AsyncContainer | None = None,
+    container: AsyncContainer,
 ) -> AsyncContainer:
     if not app.broker:
         msg = "Broker must be defined to setup DI"
         raise RuntimeError(msg)
 
-    if not container:
-        container = AsyncContainer(scope=scope)
     app.context.set_global("di_container", container)
     app.on_startup(container.enter)
     app.after_shutdown(container.close)
@@ -83,12 +80,16 @@ def setup_di(
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class Dependency(typing.Generic[T_co]):
-    dependency: providers.AbstractProvider[T_co]
+    dependency: providers.AbstractProvider[T_co] | type[T_co]
 
     async def __call__(self, context: faststream.ContextRepo) -> T_co:
         request_container: modern_di.AsyncContainer = context.get("request_container")
-        return await request_container.resolve_provider(self.dependency)
+        if isinstance(self.dependency, providers.AbstractProvider):
+            return await request_container.resolve_provider(self.dependency)
+        return await request_container.resolve(dependency_type=self.dependency)
 
 
-def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True, cast: bool = False) -> T_co:  # noqa: N802
+def FromDI(  # noqa: N802
+    dependency: providers.AbstractProvider[T_co] | type[T_co], *, use_cache: bool = True, cast: bool = False
+) -> T_co:
     return typing.cast(T_co, faststream.Depends(dependency=Dependency(dependency), use_cache=use_cache, cast=cast))
