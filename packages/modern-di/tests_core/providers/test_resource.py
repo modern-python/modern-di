@@ -58,7 +58,7 @@ async def test_async_resource_in_sync_container() -> None:
 async def test_sync_resource() -> None:
     async with AsyncContainer() as app_container:
         sync_resource1 = await app_container.resolve_provider(sync_resource)
-        sync_resource2 = await app_container.resolve_provider(sync_resource)
+        sync_resource2 = app_container.sync_resolve_provider(sync_resource)
         assert sync_resource1 is sync_resource2
 
     with SyncContainer() as app_container:

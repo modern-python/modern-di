@@ -3,16 +3,13 @@ import types
 import typing
 
 from modern_di.containers.abstract import AbstractContainer
-from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import ContainerProvider
 from modern_di.providers.context_provider import ContextProvider
-from modern_di.registries.state_registry.state_registry import AsyncStateRegistry
-from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
-    import typing_extensions
+    pass
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -20,18 +17,6 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], AbstractContainer):
     __slots__ = AbstractContainer.BASE_SLOTS
-
-    def __init__(
-        self,
-        *,
-        scope: Scope = Scope.APP,
-        parent_container: typing.Optional["typing_extensions.Self"] = None,
-        context: dict[type[typing.Any], typing.Any] | None = None,
-        groups: list[type[Group]] | None = None,
-        use_lock: bool = True,
-    ) -> None:
-        super().__init__(scope=scope, parent_container=parent_container, context=context, groups=groups)
-        self.state_registry = AsyncStateRegistry(use_lock=use_lock)
 
     async def _resolve_args(self, args: list[typing.Any]) -> list[typing.Any]:
         return [await self.resolve_provider(x) if isinstance(x, AbstractProvider) else x for x in args]
@@ -67,20 +52,31 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
         if provider_state and provider_state.instance is not None:
             return provider_state.instance
 
-        if provider_state and provider_state.lock:
-            await provider_state.lock.acquire()
+        args = await self._resolve_args(provider.args or [])
+        kwargs = await self._resolve_kwargs(provider.kwargs or {})
+
+        if provider_state and self._async_lock:
+            await self._async_lock.acquire()
         try:
             if provider_state and provider_state.instance is not None:
                 return provider_state.instance
 
             return await provider.async_resolve(
-                args=await self._resolve_args(provider.args or []),
-                kwargs=await self._resolve_kwargs(provider.kwargs or {}),
+                args=args,
+                kwargs=kwargs,
                 provider_state=provider_state,
             )
         finally:
-            if provider_state and provider_state.lock:
-                provider_state.lock.release()
+            if provider_state and self._async_lock:
+                self._async_lock.release()
+
+    def sync_resolve(
+        self, dependency_type: type[T_co] | None = None, *, dependency_name: str | None = None
+    ) -> T_co | None:
+        return self._sync_resolve(dependency_type=dependency_type, dependency_name=dependency_name)
+
+    def sync_resolve_provider(self, provider: AbstractProvider[T_co]) -> T_co:
+        return self._sync_resolve_provider(provider)
 
     def enter(self) -> "AsyncContainer":
         self._is_entered = True
@@ -89,7 +85,7 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
     async def close(self) -> None:
         self._check_entered()
         self._is_entered = False
-        await self.state_registry.clear_state()
+        await self.state_registry.async_clear_state()
         self.overrides_registry.reset_override()
 
     async def __aenter__(self) -> "AsyncContainer":
