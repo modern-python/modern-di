@@ -6,10 +6,14 @@ import modern_di_litestar
 import pytest
 from litestar.testing import TestClient
 
+from tests_litestar.dependencies import Dependencies
+
 
 @pytest.fixture
 async def app() -> litestar.Litestar:
-    return litestar.Litestar(debug=True, plugins=[modern_di_litestar.ModernDIPlugin()])
+    return litestar.Litestar(
+        debug=True, plugins=[modern_di_litestar.ModernDIPlugin(modern_di.AsyncContainer(groups=[Dependencies]))]
+    )
 
 
 @pytest.fixture

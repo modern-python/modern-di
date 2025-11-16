@@ -26,11 +26,10 @@ async def _lifespan_manager(app_: litestar.Litestar) -> typing.AsyncIterator[Non
 
 
 class ModernDIPlugin(InitPlugin):
-    __slots__ = ("container", "scope")
+    __slots__ = ("container",)
 
-    def __init__(self, scope: DIScope = DIScope.APP, container: AsyncContainer | None = None) -> None:
-        self.scope = scope
-        self.container = container or AsyncContainer(scope=self.scope)
+    def __init__(self, container: AsyncContainer) -> None:
+        self.container = container
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
         app_config.state.di_container = self.container
@@ -57,14 +56,16 @@ async def build_di_container(
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class _Dependency(typing.Generic[T_co]):
-    dependency: providers.AbstractProvider[T_co]
+    dependency: providers.AbstractProvider[T_co] | type[T_co]
 
     async def __call__(
         self, di_container: typing.Annotated[AsyncContainer | None, Dependency(skip_validation=True)] = None
     ) -> T_co | None:
         assert di_container
-        return await di_container.resolve_provider(self.dependency)
+        if isinstance(self.dependency, providers.AbstractProvider):
+            return await di_container.resolve_provider(self.dependency)
+        return await di_container.resolve(dependency_type=self.dependency)
 
 
-def FromDI(dependency: providers.AbstractProvider[T_co]) -> Provide:  # noqa: N802
+def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> Provide:  # noqa: N802
     return Provide(dependency=_Dependency(dependency), use_cache=False)

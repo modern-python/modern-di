@@ -1,30 +1,19 @@
-import typing
-
 import litestar
 from litestar import status_codes
 from litestar.testing import TestClient
-from modern_di import AsyncContainer, Scope, providers
+from modern_di import AsyncContainer
 from modern_di_litestar import FromDI
 
-from tests_litestar.dependencies import DependentCreator, SimpleCreator
-
-
-def fetch_method_from_request(request: litestar.Request[typing.Any, typing.Any, typing.Any]) -> str:
-    assert isinstance(request, litestar.Request)
-    return request.method
-
-
-app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
-request_factory = providers.Singleton(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
-action_factory = providers.Factory(Scope.ACTION, DependentCreator, dep1=app_factory.cast)
-litestar_request_provider = providers.ContextProvider(Scope.REQUEST, litestar.Request)
-request_method = providers.Factory(Scope.REQUEST, fetch_method_from_request, request=litestar_request_provider.cast)
+from tests_litestar.dependencies import Dependencies, DependentCreator, SimpleCreator
 
 
 def test_factories(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
     @litestar.get(
         "/",
-        dependencies={"app_factory_instance": FromDI(app_factory), "request_factory_instance": FromDI(request_factory)},
+        dependencies={
+            "app_factory_instance": FromDI(SimpleCreator),
+            "request_factory_instance": FromDI(Dependencies.request_factory),
+        },
     )
     async def read_root(
         app_factory_instance: SimpleCreator,
@@ -42,7 +31,7 @@ def test_factories(client: TestClient[litestar.Litestar], app: litestar.Litestar
 
 
 def test_context_provider(client: TestClient[litestar.Litestar], app: litestar.Litestar) -> None:
-    @litestar.get("/", dependencies={"method": FromDI(request_method)})
+    @litestar.get("/", dependencies={"method": FromDI(Dependencies.request_method)})
     async def read_root(method: str) -> None:
         assert method == "GET"
 
@@ -57,7 +46,7 @@ def test_factories_action_scope(client: TestClient[litestar.Litestar], app: lite
     @litestar.get("/")
     async def read_root(di_container: AsyncContainer) -> None:
         async with di_container.build_child_container() as action_container:
-            action_factory_instance = await action_container.resolve_provider(action_factory)
+            action_factory_instance = await action_container.resolve_provider(Dependencies.action_factory)
             assert isinstance(action_factory_instance, DependentCreator)
 
     app.register(read_root)
@@ -71,11 +60,14 @@ def test_factory_override(
     client: TestClient[litestar.Litestar], app: litestar.Litestar, di_container: AsyncContainer
 ) -> None:
     mock = SimpleCreator(dep1="mock")
-    di_container.override(app_factory, mock)
+    di_container.override(Dependencies.app_factory, mock)
 
     @litestar.get(
         "/",
-        dependencies={"app_factory_instance": FromDI(app_factory), "request_factory_instance": FromDI(request_factory)},
+        dependencies={
+            "app_factory_instance": FromDI(Dependencies.app_factory),
+            "request_factory_instance": FromDI(Dependencies.request_factory),
+        },
     )
     async def read_root(
         app_factory_instance: SimpleCreator,
