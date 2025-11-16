@@ -85,7 +85,7 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
     async def close(self) -> None:
         self._check_entered()
         self._is_entered = False
-        await self.state_registry.async_clear_state()
+        await self.state_registry.async_tear_down()
         self.overrides_registry.reset_override()
 
     async def __aenter__(self) -> "AsyncContainer":

@@ -25,7 +25,7 @@ class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], Abstract
     def close(self) -> None:
         self._check_entered()
         self._is_entered = False
-        self.state_registry.sync_clear_state()
+        self.state_registry.sync_tear_down()
         self.overrides_registry.reset_override()
 
     def __enter__(self) -> "SyncContainer":
