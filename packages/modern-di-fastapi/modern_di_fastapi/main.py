@@ -21,9 +21,7 @@ async def _lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]
         yield
 
 
-def setup_di(app: fastapi.FastAPI, scope: Scope = Scope.APP, container: AsyncContainer | None = None) -> AsyncContainer:
-    if not container:
-        container = AsyncContainer(scope=scope)
+def setup_di(app: fastapi.FastAPI, container: AsyncContainer) -> AsyncContainer:
     app.state.di_container = container
     old_lifespan_manager = app.router.lifespan_context
     app.router.lifespan_context = _merge_lifespan_context(
@@ -49,13 +47,15 @@ async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class Dependency(typing.Generic[T_co]):
-    dependency: providers.AbstractProvider[T_co]
+    dependency: providers.AbstractProvider[T_co] | type[T_co]
 
     async def __call__(
         self, request_container: typing.Annotated[AsyncContainer, fastapi.Depends(build_di_container)]
     ) -> T_co:
-        return await request_container.resolve_provider(self.dependency)
+        if isinstance(self.dependency, providers.AbstractProvider):
+            return await request_container.resolve_provider(self.dependency)
+        return await request_container.resolve(dependency_type=self.dependency)
 
 
-def FromDI(dependency: providers.AbstractProvider[T_co], *, use_cache: bool = True) -> T_co:  # noqa: N802
+def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co], *, use_cache: bool = True) -> T_co:  # noqa: N802
     return typing.cast(T_co, fastapi.Depends(dependency=Dependency(dependency), use_cache=use_cache))

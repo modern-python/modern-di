@@ -24,14 +24,13 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
     async def _resolve_kwargs(self, kwargs: dict[str, typing.Any]) -> dict[str, typing.Any]:
         return {k: await self.resolve_provider(v) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()}
 
-    async def resolve(
-        self, dependency_type: type[T_co] | None = None, *, dependency_name: str | None = None
-    ) -> T_co | None:
+    async def resolve(self, dependency_type: type[T_co] | None = None, *, dependency_name: str | None = None) -> T_co:
         provider = self.providers_registry.find_provider(
             dependency_type=dependency_type, dependency_name=dependency_name
         )
         if not provider:
-            return None
+            msg = f"Provider is not found, {dependency_type=}, {dependency_name=}"
+            raise RuntimeError(msg)
 
         return await self.resolve_provider(provider)
 

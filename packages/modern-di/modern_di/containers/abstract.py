@@ -51,15 +51,17 @@ class AbstractContainer:
         self.parent_container = parent_container
         self.state_registry = StateRegistry()
         self.context_registry = ContextRegistry(context or {})
-        self.providers_registry = ProvidersRegistry()
+        self.providers_registry: ProvidersRegistry
+        self.overrides_registry: OverridesRegistry
+        if parent_container:
+            self.providers_registry = parent_container.providers_registry
+            self.overrides_registry = parent_container.overrides_registry
+        else:
+            self.providers_registry = ProvidersRegistry()
+            self.overrides_registry = OverridesRegistry()
         if groups:
             for one_group in groups:
                 self.providers_registry.add_providers(**one_group.get_providers())
-        self.overrides_registry: OverridesRegistry
-        if parent_container:
-            self.overrides_registry = parent_container.overrides_registry
-        else:
-            self.overrides_registry = OverridesRegistry()
 
     def _check_entered(self) -> None:
         if not self._is_entered:
