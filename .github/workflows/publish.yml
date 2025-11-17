@@ -13,9 +13,9 @@ jobs:
       - uses: extractions/setup-just@v2
       - uses: astral-sh/setup-uv@v5
       - run: |
-          just publish modern-di
-          just publish modern-di-fastapi
-          just publish modern-di-litestar
-          just publish modern-di-faststream
+          (cd packages/modern-di && uv version $GITHUB_REF_NAME && just publish modern-di)
+          (cd packages/modern-di-fastapi && uv version $GITHUB_REF_NAME && just publish modern-di-fastapi)
+          (cd packages/modern-di-litestar && uv version $GITHUB_REF_NAME && just publish modern-di-litestar)
+          (cd packages/modern-di-faststream && uv version $GITHUB_REF_NAME && just publish modern-di-faststream)
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
