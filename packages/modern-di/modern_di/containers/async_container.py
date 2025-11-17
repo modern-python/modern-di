@@ -69,9 +69,7 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
             if provider_state and self._async_lock:
                 self._async_lock.release()
 
-    def sync_resolve(
-        self, dependency_type: type[T_co] | None = None, *, dependency_name: str | None = None
-    ) -> T_co | None:
+    def sync_resolve(self, dependency_type: type[T_co] | None = None, *, dependency_name: str | None = None) -> T_co:
         return self._sync_resolve(dependency_type=dependency_type, dependency_name=dependency_name)
 
     def sync_resolve_provider(self, provider: AbstractProvider[T_co]) -> T_co:

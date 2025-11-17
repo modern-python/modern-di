@@ -35,7 +35,7 @@ async def test_app_factory() -> None:
 async def test_app_factory_with_registry_async_container() -> None:
     async with AsyncContainer(groups=[MyGroup]) as app_container:
         instance1 = await app_container.resolve(dependency_type=SimpleCreator)
-        instance2 = app_container.sync_resolve(dependency_name="app_factory")
+        instance2: SimpleCreator = app_container.sync_resolve(dependency_name="app_factory")
         assert isinstance(instance1, SimpleCreator)
         assert isinstance(instance2, SimpleCreator)
         assert instance1 is not instance2
@@ -44,7 +44,7 @@ async def test_app_factory_with_registry_async_container() -> None:
 def test_app_factory_with_registry_sync_container() -> None:
     with SyncContainer(groups=[MyGroup]) as app_container:
         instance1 = app_container.resolve(dependency_type=SimpleCreator)
-        instance2 = app_container.resolve(dependency_name="app_factory")
+        instance2: SimpleCreator = app_container.resolve(dependency_name="app_factory")
         assert isinstance(instance1, SimpleCreator)
         assert isinstance(instance2, SimpleCreator)
         assert instance1 is not instance2
