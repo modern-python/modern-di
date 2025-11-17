@@ -12,7 +12,7 @@ T_co = typing.TypeVar("T_co", covariant=True)
 class SyncContainer(contextlib.AbstractContextManager["SyncContainer"], AbstractContainer):
     __slots__ = AbstractContainer.BASE_SLOTS
 
-    def resolve(self, dependency_type: type[T_co] | None = None, *, dependency_name: str | None = None) -> T_co | None:
+    def resolve(self, dependency_type: type[T_co] | None = None, *, dependency_name: str | None = None) -> T_co:
         return self._sync_resolve(dependency_type=dependency_type, dependency_name=dependency_name)
 
     def resolve_provider(self, provider: AbstractProvider[T_co]) -> T_co:

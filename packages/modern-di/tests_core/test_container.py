@@ -64,5 +64,5 @@ async def test_async_container_resolve_missing_provider() -> None:
 
 
 def test_sync_container_resolve_missing_provider() -> None:
-    with SyncContainer() as app_container:
+    with SyncContainer() as app_container, pytest.raises(RuntimeError, match="Provider is not found"):
         assert app_container.resolve(str) is None
