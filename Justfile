@@ -35,5 +35,6 @@ test-faststream *args:
 
 publish package:
     rm -rf dist
+    uv version $GITHUB_REF_NAME
     uv build --package {{ package }}
     uv publish --token $PYPI_TOKEN
