@@ -68,13 +68,8 @@ class AbstractContainer:
             msg = f"Enter the context of {self.scope.name} scope"
             raise RuntimeError(msg)
 
-    def _resolve_context_provider(self, provider: ContextProvider[T_co]) -> T_co:
-        context = self.context_registry.find_context(provider.context_type)
-        if not context:
-            msg = f"Context of type {provider.context_type} is missing"
-            raise RuntimeError(msg)
-
-        return context
+    def _resolve_context_provider(self, provider: ContextProvider[T_co]) -> T_co | None:
+        return self.context_registry.find_context(provider.context_type)
 
     def build_child_container(
         self, context: dict[type[typing.Any], typing.Any] | None = None, scope: Scope | None = None

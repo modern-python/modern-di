@@ -1,6 +1,5 @@
 import datetime
 
-import pytest
 from modern_di import AsyncContainer, Scope, SyncContainer, providers
 
 
@@ -17,11 +16,8 @@ async def test_context_provider() -> None:
 
 
 def test_context_provider_not_found() -> None:
-    with (
-        SyncContainer() as app_container,
-        pytest.raises(RuntimeError, match=r"Context of type <class 'datetime.datetime'> is missing"),
-    ):
-        app_container.resolve_provider(context_provider)
+    with SyncContainer() as app_container:
+        assert app_container.resolve_provider(context_provider) is None
 
 
 async def test_context_provider_in_request_scope() -> None:
