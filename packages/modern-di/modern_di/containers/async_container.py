@@ -83,7 +83,8 @@ class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], A
         self._check_entered()
         self._is_entered = False
         await self.state_registry.async_tear_down()
-        self.overrides_registry.reset_override()
+        if not self.parent_container:
+            self.overrides_registry.reset_override()
 
     async def __aenter__(self) -> "AsyncContainer":
         return self.enter()

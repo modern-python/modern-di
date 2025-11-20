@@ -114,6 +114,19 @@ async def test_factory_overridden_request_scope() -> None:
             assert instance3 is not instance1
 
 
+async def test_factory_overridden_after_request_scope_closed() -> None:
+    async with AsyncContainer() as app_container:
+        app_container.override(MyGroup.request_factory, DependentCreator(dep1=SimpleCreator(dep1="override")))
+
+        async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
+            instance1 = await request_container.resolve_provider(MyGroup.request_factory)
+
+        async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
+            instance2 = await request_container.resolve_provider(MyGroup.request_factory)
+
+        assert instance1 is instance2
+        assert instance2.dep1.dep1 == instance1.dep1.dep1 == "override"
+
 async def test_factory_wrong_dependency_scope() -> None:
     def some_factory(_: SimpleCreator) -> None: ...
 
