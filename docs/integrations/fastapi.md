@@ -1,4 +1,4 @@
-# Usage with `Fastapi`
+# Usage with `FastAPI`
 
 *More advanced example of usage with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)*
 
@@ -32,11 +32,10 @@ import typing
 
 import fastapi
 import modern_di_fastapi
-from modern_di import Scope, providers
+from modern_di import Group, Scope, providers
 
 
 app = fastapi.FastAPI()
-modern_di_fastapi.setup_di(app)
 
 
 async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
@@ -47,14 +46,22 @@ async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
         pass  # async resource destructed
 
 
-async_resource = providers.Resource(Scope.APP, create_async_resource)
+class AppGroup(Group):
+    async_resource = providers.Resource(Scope.APP, create_async_resource)
+
+
+# Register your groups
+ALL_GROUPS = [AppGroup]
+
+# Setup DI with your groups
+modern_di_fastapi.setup_di(app, groups=ALL_GROUPS)
 
 
 @app.get("/")
 async def read_root(
         instance: typing.Annotated[
             datetime.datetime,
-            modern_di_fastapi.FromDI(async_resource),
+            modern_di_fastapi.FromDI(datetime.datetime),  # Resolve by type instead of provider
         ],
 ) -> datetime.datetime:
     return instance
@@ -88,10 +95,11 @@ app = fastapi.FastAPI()
 @app.websocket("/ws")
 async def websocket_endpoint(
     websocket: fastapi.WebSocket,
-    session_container: typing.Annotated[modern_di.Container, fastapi.Depends(modern_di_fastapi.build_di_container)],
+    session_container: typing.Annotated[modern_di.AsyncContainer, fastapi.Depends(modern_di_fastapi.build_di_container)],
 ) -> None:
-    with session_container.build_child_container() as request_container:
+    async with session_container.build_child_container(scope=modern_di.Scope.REQUEST) as request_container:
         # REQUEST scope is entered here
+        # You can resolve dependencies here
         pass
 
     await websocket.accept()

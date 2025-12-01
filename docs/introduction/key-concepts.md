@@ -2,40 +2,40 @@
 
 ## Scope
 
-- is a lifespan of a dependency;
-- is required almost for each provider;
-- in frameworks' integrations some scopes are entered automatically;
-- dependencies of **Resource** and **Singleton** provider cached for the lifespan of its scope;
+- Is a lifespan of a dependency;
+- Is required for almost each provider;
+- In frameworks' integrations some scopes are entered automatically;
+- Dependencies of **Resource** and **Singleton** providers are cached for the lifespan of their scope;
 
 ### Default scopes
 
 **APP**:
 
-   - tied to the entire application lifetime;
-   - can be used for singletons of **Resource** and **Singleton** providers;
-   - in integrations managed automatically in lifecycle methods: see **integrations** section for more details;
+   - Tied to the entire application lifetime;
+   - Can be used for singletons of **Resource** and **Singleton** providers;
+   - In integrations managed automatically in lifecycle methods: see **integrations** section for more details;
 
 **SESSION**:
 
-   - for websocket session lifetime;
-   - dependencies of this scope cannot be used for http-requests;
-   - managed automatically in integrations;
+   - For websocket session lifetime;
+   - Dependencies of this scope cannot be used for http-requests;
+   - Managed automatically in integrations;
 
 **REQUEST**:
 
-   - for dependencies which are created for each user request, for example database session;
-   - managed automatically for http-request;
-   - must be managed manually for websockets;
+   - For dependencies which are created for each user request, for example database session;
+   - Managed automatically for http-request;
+   - Must be managed manually for websockets;
 
 **ACTION**:
 
-   - for lifetime less than request;
-   - must be managed manually;
+   - For lifetime less than request;
+   - Must be managed manually;
 
 **STEP**:
 
-   - for lifetime less than **ACTION**;
-   - must be managed manually.
+   - For lifetime less than **ACTION**;
+   - Must be managed manually.
 
 ### How to choose scope
 
@@ -48,36 +48,31 @@ Examples:
 
 ## Provider
 
-Providers needed to assemble the objects.
+Providers are needed to assemble objects.
 They retrieve the underlying dependencies and inject them into the created object.
-It causes the cascade effect that helps to assemble object graphs.
+This causes a cascade effect that helps to assemble object graphs.
 
 More about providers:
 
-- do not contain assembled objects:
-    - **Singleton** and **Resource** objects are stored in container;
+- Do not contain assembled objects:
+    - **Singleton** and **Resource** objects are stored in the container;
     - **Factory** objects are built on each call.
-- can have dependencies only of the same or more long-lived scopes:
-    - **APP**-scoped provider can have only **APP**-scoped dependencies;
-    - **SESSION**-scoped provider can have APP and **SESSION**-scoped dependencies, etc.;
+- Can have dependencies only of the same or more long-lived scopes:
+    - **APP**-scoped providers can have only **APP**-scoped dependencies;
+    - **SESSION**-scoped providers can have APP and **SESSION**-scoped dependencies, etc.;
 
 ## Container
 
 Each container is assigned to a certain scope.
 To enter a nested scope, a context manager should be used.
-Nested scope contains link to parent container.
+A nested scope contains a link to its parent container.
 
 All states live in containers:
 
-- assembled objects;
-- context stacks for resources to finalize them at the end of lifecycle;
-- overrides for tests;
+- Assembled objects;
+- Context stacks for resources to finalize them at the end of their lifecycle;
+- Overrides for tests;
 
 ## Graph
 
-Graph is a collection of providers. They cannot be instantiated.
-
-Graph can initialize its resources and singletons to container:
-
-- coroutine **async_resolve_creators** should be used to resolve asynchronously;
-- function **sync_resolve_creators** should be used to resolve synchronously.
+A Graph is a collection of providers. They cannot be instantiated.
