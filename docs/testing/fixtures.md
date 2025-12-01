@@ -13,7 +13,7 @@ import pytest
 from app import ioc
 
 
-# application object can be imported from somewhere
+# The application object can be imported from somewhere
 application = fastapi.FastAPI()
 modern_di_fastapi.setup_di(application, groups=ioc.ALL_GROUPS)
 
@@ -54,15 +54,15 @@ from app.ioc import Dependencies
 
 async def test_with_app_scope(di_container: AsyncContainer) -> None:
     sync_resource_instance = await di_container.resolve_provider(Dependencies.sync_resource)
-    # do sth with dependency
+    # Do something with the dependency
 
 
 async def test_with_request_scope(request_di_container: AsyncContainer) -> None:
     simple_factory_instance = await request_di_container.resolve_provider(Dependencies.simple_factory)
-    # do sth with dependency
+    # Do something with the dependency
 
 @pytest.mark.usefixtures("mock_dependencies")
 async def test_with_request_scope_mocked(request_di_container: AsyncContainer) -> None:
     simple_factory_instance = await request_di_container.resolve_provider(Dependencies.simple_factory)
-    # dependency is mocked here
+    # The dependency is mocked here
 ```

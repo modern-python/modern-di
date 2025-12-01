@@ -7,14 +7,13 @@ nav:
   - Introduction:
       - Key Concepts: introduction/key-concepts.md
       - Context Data: introduction/context-data.md
-      - Inject Factories: introduction/inject-factories.md
-      - Application Settings: introduction/application-settings.md
   - Providers:
       - Resources: providers/resources.md
       - Singleton: providers/singletons.md
       - Factories: providers/factories.md
       - Collections: providers/collections.md
       - Context Providers: providers/context-providers.md
+      - Cast Attribute: providers/cast-attribute.md
       - Object: providers/object.md
   - Integrations:
       - FastAPI: integrations/fastapi.md
@@ -22,7 +21,9 @@ nav:
       - Litestar: integrations/litestar.md
   - Testing:
       - Fixtures: testing/fixtures.md
+      - Overriding Dependencies: testing/overriding-dependencies.md
   - Migration:
+      - To 1.x: migration/to-1.x.md
       - From 'that-depends': migration/from-that-depends.md
   - Development:
       - Contributing: dev/contributing.md

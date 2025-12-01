@@ -1,4 +1,4 @@
-# Usage with `Fastapi`
+# Usage with `FastAPI`
 
 *More advanced example of usage with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)*
 

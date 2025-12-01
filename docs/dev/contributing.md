@@ -1,5 +1,5 @@
 # Contributing
-This is an opensource project, and we are opened to new contributors.
+This is an open source project, and we are open to new contributors.
 
 ## Getting started
 1. Make sure that you have [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/) installed.
@@ -8,7 +8,7 @@ This is an opensource project, and we are opened to new contributors.
 git@github.com:modern-python/modern-di.git
 cd modern-di
 ```
-3. Install dependencies running `just install`
+3. Install dependencies by running `just install`
 
 ## Running linters
 `Ruff` and `mypy` are used for static analysis.

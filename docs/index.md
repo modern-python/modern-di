@@ -2,7 +2,7 @@
 
 Welcome to the `modern-di` documentation!
 
-`modern-di` is a python dependency injection framework which, among other things,
+`modern-di` is a Python dependency injection framework which, among other things,
 supports the following:
 
 - Async and sync dependency resolution
@@ -18,7 +18,6 @@ supports the following:
 ## 1. Install `modern-di` using your favorite tool:
 
 If you need only `modern-di` without integrations:
-
 
 === "uv"
 
@@ -101,7 +100,7 @@ class Dependencies(Group):
 
 ## 4.1. Integrate with your framework
 
-For now there are integration for the following frameworks:
+For now there are integrations for the following frameworks:
 
 1. [FastAPI](integrations/fastapi)
 2. [FastStream](integrations/faststream)
@@ -109,7 +108,7 @@ For now there are integration for the following frameworks:
 
 ## 4.2. Or use `modern-di` without integrations
 
-Create container and resolve dependencies in your code
+Create a container and resolve dependencies in your code
 ```python
 from modern_di import AsyncContainer, SyncContainer, Scope
 
@@ -117,24 +116,24 @@ from modern_di import AsyncContainer, SyncContainer, Scope
 # For applications that need both sync and async resolution, use AsyncContainer
 ALL_GROUPS = [Dependencies]
 
-# init container of app scope in sync mode
+# Initialize container of app scope in sync mode
 container = SyncContainer(groups=ALL_GROUPS)
 container.enter()
 
-# resolve sync resource
+# Resolve sync resource
 Dependencies.sync_resource.sync_resolve(container)
 
-# close container when done
+# Close container when done
 container.close()
 
-# init container of app scope in async mode
+# Initialize container of app scope in async mode
 container = AsyncContainer(groups=ALL_GROUPS)
 container.enter()
 
-# resolve async resource
+# Resolve async resource
 await Dependencies.async_resource.resolve(container)
 
-# resolve sync resource
+# Resolve sync resource
 instance1 = container.sync_resolve_provider(Dependencies.sync_resource)
 instance2 = container.sync_resolve_provider(Dependencies.sync_resource)
 assert instance1 is instance2
@@ -142,14 +141,14 @@ assert instance1 is instance2
 # You can also resolve by type if you've registered groups
 instance3 = container.sync_resolve(str)  # resolves the sync_resource
 
-# create container of request scope
+# Create container of request scope
 async with container.build_child_container(scope=Scope.REQUEST) as request_container:
-    # resolve factories of request scope
+    # Resolve factories of request scope
     container.sync_resolve_provider(Dependencies.simple_factory)
     await container.resolve_provider(Dependencies.dependent_factory)
 
-    # resources of app-scope also can be resolved here
+    # Resources of app-scope also can be resolved here
 
-# close container when done
+# Close container when done
 container.close()
 ```

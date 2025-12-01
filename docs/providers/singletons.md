@@ -1,7 +1,7 @@
 # Singleton and AsyncSingleton
 
-- resolve the dependency only once and cache the resolved instance for future injections;
-- class or simple function is allowed.
+- They resolve the dependency only once and cache the resolved instance for future injections;
+- A class or simple function is allowed.
 
 ## How it works
 
@@ -11,7 +11,7 @@ import datetime
 import pytest
 import random
 
-from modern_di import Group, Container, Scope, providers
+from modern_di import Group, AsyncContainer, Scope, providers
 
 
 def generate_random_number() -> float:
@@ -28,17 +28,17 @@ class Dependencies(Group):
     async_singleton = providers.AsyncSingleton(Scope.APP, async_creator)
 
 
-with Container(scope=Scope.APP) as container:
-    # sync resolving
-    singleton_instance1 = Dependencies.singleton.sync_resolve(container)
+with AsyncContainer() as container:
+    # Sync resolving
+    singleton_instance1 = container.sync_resolve_provider(Dependencies.singleton)
     with pytest.raises(RuntimeError, match="AsyncSingleton cannot be resolved synchronously"):
-        Dependencies.async_singleton.sync_resolve(container)
+        container.sync_resolve_provider(Dependencies.async_singleton)
 
-    # async resolving
-    singleton_instance2 = await Dependencies.singleton.async_resolve(container)
-    async_singleton_instance = await Dependencies.async_singleton.async_resolve(container)
+    # Async resolving
+    singleton_instance2 = await container.resolve_provider(Dependencies.singleton)
+    async_singleton_instance = await container.resolve_provider(Dependencies.async_singleton)
 
-    # if resolved in the same container, the instance will be the same
+    # If resolved in the same container, the instance will be the same
     assert singleton_instance1 is singleton_instance2
 ```
 
@@ -47,10 +47,10 @@ with Container(scope=Scope.APP) as container:
 `Singleton` is safe to use in threading and asyncio concurrency:
 
 ```python
-async with Container(scope=Scope.APP) as container:
-    # calling async_resolve concurrently in different coroutines will create only one instance
-    await Dependencies.singleton.async_resolve(container)
-    
-    # calling sync_resolve concurrently in different threads will create only one instance
-    Dependencies.singleton.sync_resolve(container)
+async with AsyncContainer() as container:
+    # Calling resolve_provider concurrently in different coroutines will create only one instance
+    await container.resolve_provider(Dependencies.singleton)
+
+    # Calling sync_resolve_provider concurrently in different threads will create only one instance
+    container.sync_resolve_provider(Dependencies.singleton)
 ```
