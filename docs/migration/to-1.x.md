@@ -39,6 +39,12 @@ Several provider types were added, removed, or changed:
 
 - **Selector**: The `Selector` provider has been removed. Its functionality can be replicated using `Factory` providers combined with `ContextProvider`.
 - **ContextAdapter**: The `ContextAdapter` provider has been removed and replaced with `ContextProvider`. Its functionality can also be replicated using `Factory` providers combined with `ContextProvider`.
+- **AttrGetter**: The `AttrGetter` provider has been removed. If you were using it to access attributes of other providers, you should refactor your code to use direct provider references or factory functions instead.
+
+#### Removed Functionality
+
+- **Factory Provider Attributes**: The ability to inject factory functions themselves (using `.async_provider` and `.sync_provider` attributes) has been removed.
+  - If you were injecting factory functions, you should refactor your code to inject DI-container itself and resolve dependencies manually in-place.
 
 #### Using ContextProvider with Factory as a Replacement
 
@@ -190,11 +196,13 @@ This feature simplifies dependency access and makes the API more intuitive, as y
 
 ## Migration Steps
 
-1**Update Import Statements**: Replace old import paths with new ones (`BaseGraph` → `Group`, `Container` → `AsyncContainer`/`SyncContainer`)
-2**Update Provider Definitions**: Replace `Selector` and `ContextAdapter` providers with `Factory` and `ContextProvider` combinations where needed
-3**Update Container Initialization**: Use `AsyncContainer(groups=ALL_GROUPS)` or `SyncContainer(groups=ALL_GROUPS)` instead of `Container()` (note that `AsyncContainer` supports both synchronous and asynchronous provider resolution)
-4**Update Container Methods**: Replace `async_enter()` with `enter()` and `sync_resolve()` with `sync_resolve_provider()`
-5**Update Provider Resolution**: Replace `provider.resolve(container)` with `container.resolve_provider(provider)` or `container.resolve(Type)` (resolution is now called on the container, not the provider)
+1. **Update Dependencies**: Ensure all modern-di packages are updated to 1.x versions
+2. **Update Import Statements**: Replace old import paths with new ones (`BaseGraph` → `Group`, `Container` → `AsyncContainer`/`SyncContainer`)
+3. **Update Provider Definitions**: Replace `Selector` and `ContextAdapter` providers with `Factory` and `ContextProvider` combinations where needed
+4. **Remove AttrGetter and Factory Attribute Usage**: Replace any `AttrGetter` providers and remove usage of `.async_provider` and `.sync_provider` attributes
+5. **Update Container Initialization**: Use `AsyncContainer(groups=ALL_GROUPS)` or `SyncContainer(groups=ALL_GROUPS)` instead of `Container()` (note that `AsyncContainer` supports both synchronous and asynchronous provider resolution)
+6. **Update Container Methods**: Replace `async_enter()` with `enter()` and `sync_resolve()` with `sync_resolve_provider()`
+7. **Update Provider Resolution**: Replace `provider.resolve(container)` with `container.resolve_provider(provider)` or `container.resolve(Type)` (resolution is now called on the container, not the provider)
 
 ## Breaking Changes
 
@@ -205,7 +213,9 @@ This feature simplifies dependency access and makes the API more intuitive, as y
 5. `async_resolve()` method on providers replaced with `resolve_provider()` on containers
 6. `Selector` provider type removed (use `Factory` with `ContextProvider` instead)
 7. `ContextAdapter` provider type removed (use `ContextProvider` instead)
-8. Manual provider overrides are handled differently
-9. The way dependencies are declared in web framework applications has changed
-10. Container initialization now requires passing groups explicitly
-11. Dependency resolution is now called on containers instead of providers
+8. `AttrGetter` provider type removed
+9. Factory provider attributes (`.async_provider` and `.sync_provider`) removed
+10. Manual provider overrides are handled differently
+11. The way dependencies are declared in web framework applications has changed
+12. Container initialization now requires passing groups explicitly to enable type-based resolution
+13. Dependency resolution is now called on containers instead of providers

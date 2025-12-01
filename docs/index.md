@@ -72,7 +72,7 @@ async def create_async_resource() -> typing.AsyncIterator[str]:
 class SimpleFactory:
     dep1: str
     dep2: int
-        
+
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class DependentFactory:
@@ -80,7 +80,7 @@ class DependentFactory:
     async_resource: str
 ```
 
-## 3. Describe dependencies groups or single group
+## 3. Describe dependencies groups
 
 ```python
 from modern_di import Group, Scope, providers
@@ -93,8 +93,9 @@ class Dependencies(Group):
     simple_factory = providers.Factory(Scope.REQUEST, SimpleFactory, dep1="text", dep2=123)
     dependent_factory = providers.Factory(
         Scope.REQUEST,
-        sync_resource=sync_resource,
-        async_resource=async_resource,
+        DependentFactory,
+        sync_resource=sync_resource.cast,
+        async_resource=async_resource.cast,
     )
 ```
 
@@ -110,31 +111,45 @@ For now there are integration for the following frameworks:
 
 Create container and resolve dependencies in your code
 ```python
-from modern_di import Container, Scope
+from modern_di import AsyncContainer, SyncContainer, Scope
 
+
+# For applications that need both sync and async resolution, use AsyncContainer
+ALL_GROUPS = [Dependencies]
 
 # init container of app scope in sync mode
-with Container(scope=Scope.APP) as app_container:
-    # resolve sync resource
-    Dependencies.sync_resource.sync_resolve(app_container)
+container = SyncContainer(groups=ALL_GROUPS)
+container.enter()
 
+# resolve sync resource
+Dependencies.sync_resource.sync_resolve(container)
+
+# close container when done
+container.close()
 
 # init container of app scope in async mode
-async with Container(scope=Scope.APP) as app_container:
-    # resolve async resource
-    await Dependencies.async_resource.async_resolve(app_container)
+container = AsyncContainer(groups=ALL_GROUPS)
+container.enter()
 
-    # resolve sync resource
-    instance1 = await Dependencies.sync_resource.async_resolve(app_container)
-    instance2 = Dependencies.sync_resource.sync_resolve(app_container)
-    assert instance1 is instance2
+# resolve async resource
+await Dependencies.async_resource.resolve(container)
 
-    # create container of request scope
-    async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
-        # resolve factories of request scope
-        Dependencies.simple_factory.sync_resolve(request_container)
-        await Dependencies.dependent_factory.async_resolve(request_container)
-        
-        # resources of app-scope also can be resolved here
+# resolve sync resource
+instance1 = container.sync_resolve_provider(Dependencies.sync_resource)
+instance2 = container.sync_resolve_provider(Dependencies.sync_resource)
+assert instance1 is instance2
 
+# You can also resolve by type if you've registered groups
+instance3 = container.sync_resolve(str)  # resolves the sync_resource
+
+# create container of request scope
+async with container.build_child_container(scope=Scope.REQUEST) as request_container:
+    # resolve factories of request scope
+    container.sync_resolve_provider(Dependencies.simple_factory)
+    await container.resolve_provider(Dependencies.dependent_factory)
+
+    # resources of app-scope also can be resolved here
+
+# close container when done
+container.close()
 ```

@@ -31,7 +31,7 @@ import typing
 
 from litestar import Litestar, get
 import modern_di_litestar
-from modern_di import Scope, providers
+from modern_di import Group, Scope, providers
 
 
 async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
@@ -42,17 +42,22 @@ async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
         pass  # async resource destructed
 
 
-async_resource = providers.Resource(Scope.APP, create_async_resource)
+class AppGroup(Group):
+    async_resource = providers.Resource(Scope.APP, create_async_resource)
 
 
-@get("/", dependencies={"injected": modern_di_litestar.FromDI(async_resource)})
+# Register your groups
+ALL_GROUPS = [AppGroup]
+
+
+@get("/", dependencies={"injected": modern_di_litestar.FromDI(datetime.datetime)})  # Resolve by type
 async def index(injected: datetime.datetime) -> str:
     return injected.isoformat()
 
 
 app = Litestar(
     route_handlers=[index],
-    plugins=[modern_di_litestar.ModernDIPlugin()],
+    plugins=[modern_di_litestar.ModernDIPlugin(ALL_GROUPS)],
 )
 ```
 
@@ -75,13 +80,17 @@ import modern_di
 import modern_di_litestar
 
 
-app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin()])
+app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(ALL_GROUPS)])
 
 
 @litestar.websocket_listener("/ws")
-async def websocket_handler(data: str, di_container: modern_di.Container) -> None:
-    with di_container.build_child_container() as request_container:
+async def websocket_handler(
+    data: str,
+    di_container: modern_di.AsyncContainer
+) -> None:
+    async with di_container.build_child_container(scope=modern_di.Scope.REQUEST) as request_container:
         # REQUEST scope is entered here
+        # You can resolve dependencies here
         pass
 
 app.register(websocket_handler)

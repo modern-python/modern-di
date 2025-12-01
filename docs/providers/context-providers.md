@@ -1,67 +1,81 @@
 # Context Providers
 
-There are several providers with access to container's context.
+## ContextProvider
 
-## Selector
+ContextProvider is a provider type that allows injecting context values into dependencies. This is particularly useful for injecting framework-specific objects like requests, websockets, etc.
 
-- Receives context unpacked to callable object.
-- Selector provider chooses between a provider based on a key.
-- Resolves into a single dependency.
+ContextProvider makes context data available to other providers in your dependency graph by extracting values from the container's context.
+
+### Basic Usage
 
 ```python
-import typing
-
-from modern_di import Group, Container, Scope, providers
-
-
-class StorageService(typing.Protocol):
-    ...
-
-
-class StorageServiceLocal(StorageService):
-    ...
-
-
-class StorageServiceRemote(StorageService):
-    ...
-
-
-def selector_function(*, storage_backend: str | None = None, **_: object) -> str:
-    return storage_backend or "local"
+from modern_di import Group, AsyncContainer, Scope, providers
+import fastapi
 
 
 class Dependencies(Group):
-    storage_service: providers.Selector[StorageService] = providers.Selector(
-        Scope.APP,
-        selector_function,
-        local=providers.Factory(Scope.APP, StorageServiceLocal),
-        remote=providers.Factory(Scope.APP, StorageServiceRemote),
+    # ContextProvider takes a scope and a type annotation
+    request = providers.ContextProvider(Scope.REQUEST, fastapi.Request)
+
+
+# Create container with context
+ALL_GROUPS = [Dependencies]
+container = AsyncContainer(groups=ALL_GROUPS)
+container.enter()
+
+# Close container when done
+container.close()
+```
+
+### Using ContextProvider with Factory
+
+ContextProvider can be used with any provider type that accepts dependencies, with Factory being one of the simplest examples:
+
+```python
+from modern_di import Group, AsyncContainer, Scope, providers
+import fastapi
+
+
+def create_request_info(request: fastapi.Request) -> dict[str, str]:
+    return {
+        "method": request.method,
+        "url": str(request.url),
+        "timestamp": "2023-01-01T00:00:00Z"
+    }
+
+
+class Dependencies(Group):
+    # ContextProvider extracts the request from context
+    request = providers.ContextProvider(Scope.REQUEST, fastapi.Request)
+
+    # Factory uses the request from context
+    request_info = providers.Factory(
+        Scope.REQUEST,
+        create_request_info,
+        request=request.cast,
     )
 
 
-with Container(scope=Scope.APP, context={"storage_backend": "remote"}) as container:
-    print(type(Dependencies.storage_service.sync_resolve(container)))
-    # StorageServiceRemote
+# Create container with context
+ALL_GROUPS = [Dependencies]
+container = AsyncContainer(groups=ALL_GROUPS)
+container.enter()
+
+# To resolve with actual context, you would pass context when building child containers
+# Close container when done
+container.close()
 ```
 
-## ContextAdapter
+### Framework Integration
 
-- Receives context unpacked to callable object.
-- Can be used in another providers to access data from context.
+In web framework integrations, ContextProvider is typically used to inject framework-specific objects like requests:
 
 ```python
-from modern_di import Group, Container, Scope, providers
+from modern_di import Group, Scope, providers
+import fastapi
 
 
-def context_adapter_function(*, storage_backend: str | None = None, **_: object) -> str:
-    return storage_backend or "local"
-
-
-class Dependencies(Group):
-    context_adapter = providers.ContextProvider(Scope.APP, context_adapter_function)
-
-
-with Container(scope=Scope.APP, context={"storage_backend": "remote"}) as container:
-    print(Dependencies.context_adapter.sync_resolve(container))
-    # "remote"
+class WebDependencies(Group):
+    request = providers.ContextProvider(Scope.REQUEST, fastapi.Request)
+    # Other providers can now use the request object through request.cast
 ```
