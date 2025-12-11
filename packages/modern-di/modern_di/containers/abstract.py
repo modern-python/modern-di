@@ -127,9 +127,6 @@ class AbstractContainer:
 
     def _sync_resolve_provider(self, provider: AbstractProvider[T_co]) -> T_co:
         self._check_entered()
-        if provider.is_async:
-            msg = f"{type(provider).__name__} cannot be resolved synchronously"
-            raise RuntimeError(msg)
 
         container = self.find_container(provider.scope)
         if isinstance(provider, ContainerProvider):
@@ -144,6 +141,10 @@ class AbstractContainer:
         provider_state = container.state_registry.fetch_provider_state(provider)
         if provider_state and provider_state.instance is not None:
             return provider_state.instance
+
+        if provider.is_async:
+            msg = f"{type(provider).__name__} cannot be resolved synchronously"
+            raise RuntimeError(msg)
 
         args = self._sync_resolve_args(provider.args or [])
         kwargs = self._sync_resolve_kwargs(provider.kwargs or {})
