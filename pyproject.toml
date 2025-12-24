@@ -10,7 +10,7 @@ dev = [
     "pytest-asyncio",
     "ruff",
     "mypy",
-    "end-of-file-fixer",
+    "eof-fixer",
     "typing-extensions",
 ]
 
