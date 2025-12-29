@@ -8,7 +8,7 @@ from modern_di.providers.abstract import AbstractProvider
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class ProvidersRegistry:
     providers_by_name: dict[str, AbstractProvider[typing.Any]] = dataclasses.field(init=False, default_factory=dict)
     providers_by_type: dict[type, AbstractProvider[typing.Any]] = dataclasses.field(init=False, default_factory=dict)

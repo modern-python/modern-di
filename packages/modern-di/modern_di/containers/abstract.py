@@ -1,7 +1,8 @@
-import asyncio
 import enum
 import threading
 import typing
+
+from typing_extensions import TypedDict
 
 from modern_di.group import Group
 from modern_di.providers import ContainerProvider
@@ -21,10 +22,17 @@ if typing.TYPE_CHECKING:
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
+class AbstractContainerInitKwargs(TypedDict, total=False):
+    scope: Scope
+    parent_container: typing.Optional["AbstractContainer"]
+    context: dict[type[typing.Any], typing.Any] | None
+    groups: list[type[Group]] | None
+    use_sync_lock: bool
+
+
 class AbstractContainer:
     BASE_SLOTS: typing.ClassVar[list[str]] = [
         "_is_entered",
-        "_async_lock",
         "_sync_lock",
         "scope",
         "parent_container",
@@ -34,23 +42,19 @@ class AbstractContainer:
         "overrides_registry",
     ]
 
-    def __init__(  # noqa: PLR0913
-        self,
-        *,
-        scope: Scope = Scope.APP,
-        parent_container: typing.Optional["typing_extensions.Self"] = None,
-        context: dict[type[typing.Any], typing.Any] | None = None,
-        groups: list[type[Group]] | None = None,
-        use_async_lock: bool = True,
-        use_sync_lock: bool = True,
-    ) -> None:
+    def __init__(self, **kwargs: "typing_extensions.Unpack[AbstractContainerInitKwargs]") -> None:
+        scope = kwargs.get("scope", Scope.APP)
+        parent_container = kwargs.get("parent_container")
+        context = kwargs.get("context")
+        groups = kwargs.get("groups")
+        use_sync_lock = kwargs.get("use_sync_lock", True)
+
         self._is_entered = False
-        self._async_lock = asyncio.Lock() if use_async_lock else None
         self._sync_lock = threading.Lock() if use_sync_lock else None
         self.scope = scope
         self.parent_container = parent_container
         self.state_registry = StateRegistry()
-        self.context_registry = ContextRegistry(context or {})
+        self.context_registry = ContextRegistry(context=context or {})
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
         if parent_container:
@@ -95,7 +99,7 @@ class AbstractContainer:
             raise RuntimeError(msg)
 
         while container.scope > scope and container.parent_container:
-            container = container.parent_container
+            container = typing.cast("typing_extensions.Self", container.parent_container)
 
         if container.scope != scope:
             msg = f"Scope {scope.name} is skipped"

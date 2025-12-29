@@ -1,22 +1,29 @@
+import asyncio
 import contextlib
 import types
 import typing
 
-from modern_di.containers.abstract import AbstractContainer
+from modern_di.containers.abstract import AbstractContainer, AbstractContainerInitKwargs
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import ContainerProvider
 from modern_di.providers.context_provider import ContextProvider
 
 
 if typing.TYPE_CHECKING:
-    pass
+    import typing_extensions
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
 class AsyncContainer(contextlib.AbstractAsyncContextManager["AsyncContainer"], AbstractContainer):
-    __slots__ = AbstractContainer.BASE_SLOTS
+    __slots__ = [*AbstractContainer.BASE_SLOTS, "_async_lock"]
+
+    def __init__(
+        self, *, use_async_lock: bool = True, **kwargs: "typing_extensions.Unpack[AbstractContainerInitKwargs]"
+    ) -> None:
+        super().__init__(**kwargs)
+        self._async_lock = asyncio.Lock() if use_async_lock else None
 
     async def _resolve_args(self, args: list[typing.Any]) -> list[typing.Any]:
         return [await self.resolve_provider(x) if isinstance(x, AbstractProvider) else x for x in args]
