@@ -5,7 +5,7 @@ import typing
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class ContextRegistry:
     context: dict[type[typing.Any], typing.Any]
 
