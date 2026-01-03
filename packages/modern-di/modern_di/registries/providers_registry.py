@@ -25,14 +25,29 @@ class ProvidersRegistry:
         return None
 
     def add_providers(self, **kwargs: AbstractProvider[typing.Any]) -> None:
-        if duplicates_by_name := set(self.providers_by_name.keys()) & set(kwargs.keys()):
-            warnings.warn(f"Duplicated by name providers {duplicates_by_name}", RuntimeWarning, stacklevel=2)
+        for provider_name, provider in kwargs.items():
+            if provider_name in self.providers_by_name:
+                warnings.warn(
+                    f"Provider is duplicated by name {provider_name}. Choose unique name if you want resolving by name",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                del self.providers_by_name[provider_name]
+            else:
+                self.providers_by_name[provider_name] = provider
 
-        self.providers_by_name.update(kwargs)
+            provider_type = provider.bound_type
+            if not provider_type:
+                continue
 
-        if duplicates_by_type := set(self.providers_by_type.keys()) & {
-            x.bound_type for x in kwargs.values() if x.bound_type
-        }:
-            warnings.warn(f"Duplicated by type providers {duplicates_by_type}", RuntimeWarning, stacklevel=2)
+            if provider_type in self.providers_by_type:
+                warnings.warn(
+                    f"Provider is duplicated by type {provider_type}. "
+                    f"Bind provider to unique type if you want resolving by type",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                del self.providers_by_type[provider_type]
+                continue
 
-        self.providers_by_type.update({x.bound_type: x for x in kwargs.values() if x.bound_type})
+            self.providers_by_type[provider_type] = provider

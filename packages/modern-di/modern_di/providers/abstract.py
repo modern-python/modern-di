@@ -33,7 +33,7 @@ class AbstractProvider(abc.ABC, typing.Generic[T_co]):
         self.bound_type = bound_type
         self._check_providers_scope()
 
-    def bind_type(self, new_type: type) -> typing_extensions.Self:
+    def bind_type(self, new_type: type | None) -> typing_extensions.Self:
         self.bound_type = new_type
         return self
 
