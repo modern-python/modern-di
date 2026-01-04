@@ -31,19 +31,15 @@ import typing
 
 from litestar import Litestar, get
 import modern_di_litestar
-from modern_di import Group, Scope, providers
+from modern_di import Container, Group, Scope, providers
 
 
-async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
-    # async resource initiated
-    try:
-        yield datetime.datetime.now(tz=datetime.timezone.utc)
-    finally:
-        pass  # async resource destructed
+def create_singleton() -> datetime.datetime:
+    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class AppGroup(Group):
-    async_resource = providers.Resource(Scope.APP, create_async_resource)
+    singleton = providers.Singleton(Scope.APP, create_singleton)
 
 
 # Register your groups
@@ -57,7 +53,7 @@ async def index(injected: datetime.datetime) -> str:
 
 app = Litestar(
     route_handlers=[index],
-    plugins=[modern_di_litestar.ModernDIPlugin(ALL_GROUPS)],
+    plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS))],
 )
 ```
 
@@ -76,22 +72,22 @@ But when websockets are used, `SESSION` scope is used as well:
 
 ```python
 import litestar
-import modern_di
+from modern_di import Container, Scope
 import modern_di_litestar
 
 
-app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(ALL_GROUPS)])
+app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS))])
 
 
 @litestar.websocket_listener("/ws")
 async def websocket_handler(
     data: str,
-    di_container: modern_di.AsyncContainer
+    di_container: Container
 ) -> None:
-    async with di_container.build_child_container(scope=modern_di.Scope.REQUEST) as request_container:
-        # REQUEST scope is entered here
-        # You can resolve dependencies here
-        pass
+    request_container = di_container.build_child_container(scope=Scope.REQUEST)
+    # REQUEST scope is entered here
+    # You can resolve dependencies here
+    pass
 
 app.register(websocket_handler)
 ```

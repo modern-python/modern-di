@@ -1,23 +1,21 @@
 import typing
 
 import litestar
-import modern_di
 import modern_di_litestar
 import pytest
 from litestar.testing import TestClient
+from modern_di import Container
 
 from tests_litestar.dependencies import Dependencies
 
 
 @pytest.fixture
 async def app() -> litestar.Litestar:
-    return litestar.Litestar(
-        debug=True, plugins=[modern_di_litestar.ModernDIPlugin(modern_di.AsyncContainer(groups=[Dependencies]))]
-    )
+    return litestar.Litestar(debug=True, plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=[Dependencies]))])
 
 
 @pytest.fixture
-def di_container(app: litestar.Litestar) -> modern_di.AsyncContainer:
+def di_container(app: litestar.Litestar) -> Container:
     return modern_di_litestar.fetch_di_container(app)
 
 

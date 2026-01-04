@@ -15,14 +15,13 @@ from app import ioc
 
 # The application object can be imported from somewhere
 application = fastapi.FastAPI()
-modern_di_fastapi.setup_di(application, groups=ioc.ALL_GROUPS)
+modern_di_fastapi.setup_di(application, modern_di.Container(groups=ioc.ALL_GROUPS))
 
 
 @pytest.fixture
-async def di_container() -> typing.AsyncIterator[modern_di.AsyncContainer]:
+async def di_container() -> typing.AsyncIterator[modern_di.Container]:
     """Fixture with APP-scope container."""
     di_container_: typing.Final = modern_di_fastapi.fetch_di_container(application)
-    di_container_.enter()
     try:
         yield di_container_
     finally:
@@ -30,15 +29,12 @@ async def di_container() -> typing.AsyncIterator[modern_di.AsyncContainer]:
 
 
 @pytest.fixture
-async def request_di_container(di_container: modern_di.AsyncContainer) -> typing.AsyncIterator[modern_di.AsyncContainer]:
-    """Fixture with REQUEST-scope container."""
-    async with di_container.build_child_container(scope=modern_di.Scope.REQUEST) as request_container:
-        yield request_container
+def request_di_container(di_container: modern_di.Container) -> modern_di.Container:
+    return di_container.build_child_container(scope=modern_di.Scope.REQUEST)
 
 
 @pytest.fixture
-def mock_dependencies(di_container: modern_di.AsyncContainer) -> None:
-    """Mock dependencies for tests."""
+def mock_dependencies(di_container: modern_di.Container) -> None:
     # Override dependencies using the new API
     di_container.override(ioc.Dependencies.simple_factory, ioc.SimpleFactory(dep1="mock", dep2=777))
 ```
@@ -47,22 +43,22 @@ def mock_dependencies(di_container: modern_di.AsyncContainer) -> None:
 
 ```python
 import pytest
-from modern_di import AsyncContainer
+from modern_di import Container
 
 from app.ioc import Dependencies
 
 
-async def test_with_app_scope(di_container: AsyncContainer) -> None:
+async def test_with_app_scope(di_container: Container) -> None:
     sync_resource_instance = await di_container.resolve_provider(Dependencies.sync_resource)
     # Do something with the dependency
 
 
-async def test_with_request_scope(request_di_container: AsyncContainer) -> None:
-    simple_factory_instance = await request_di_container.resolve_provider(Dependencies.simple_factory)
+def test_with_request_scope(request_di_container: Container) -> None:
+    simple_factory_instance = request_di_container.resolve_provider(Dependencies.simple_factory)
     # Do something with the dependency
 
 @pytest.mark.usefixtures("mock_dependencies")
-async def test_with_request_scope_mocked(request_di_container: AsyncContainer) -> None:
-    simple_factory_instance = await request_di_container.resolve_provider(Dependencies.simple_factory)
+def test_with_request_scope_mocked(request_di_container: Container) -> None:
+    simple_factory_instance = request_di_container.resolve_provider(Dependencies.simple_factory)
     # The dependency is mocked here
 ```

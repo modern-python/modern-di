@@ -1,7 +1,7 @@
 import typing
 
 import fastapi
-from modern_di import AsyncContainer
+from modern_di import Container
 from modern_di_fastapi import FromDI, build_di_container
 from starlette import status
 from starlette.testclient import TestClient
@@ -39,11 +39,11 @@ def test_context_provider(client: TestClient, app: fastapi.FastAPI) -> None:
 def test_factories_action_scope(client: TestClient, app: fastapi.FastAPI) -> None:
     @app.get("/")
     async def read_root(
-        request_container: typing.Annotated[AsyncContainer, fastapi.Depends(build_di_container)],
+        request_container: typing.Annotated[Container, fastapi.Depends(build_di_container)],
     ) -> None:
-        async with request_container.build_child_container() as action_container:
-            action_factory_instance = await action_container.resolve_provider(Dependencies.action_factory)
-            assert isinstance(action_factory_instance, DependentCreator)
+        action_container = request_container.build_child_container()
+        action_factory_instance = action_container.resolve_provider(Dependencies.action_factory)
+        assert isinstance(action_factory_instance, DependentCreator)
 
     response = client.get("/")
     assert response.status_code == status.HTTP_200_OK

@@ -32,37 +32,33 @@ import typing
 
 import fastapi
 import modern_di_fastapi
-from modern_di import Group, Scope, providers
+from modern_di import Container, Group, Scope, providers
 
 
 app = fastapi.FastAPI()
 
 
-async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
-    # async resource initiated
-    try:
-        yield datetime.datetime.now(tz=datetime.timezone.utc)
-    finally:
-        pass  # async resource destructed
+def create_singleton() -> datetime.datetime:
+    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class AppGroup(Group):
-    async_resource = providers.Resource(Scope.APP, create_async_resource)
+    singleton = providers.Singleton(Scope.APP, create_singleton)
 
 
 # Register your groups
 ALL_GROUPS = [AppGroup]
 
 # Setup DI with your groups
-modern_di_fastapi.setup_di(app, groups=ALL_GROUPS)
+modern_di_fastapi.setup_di(app, Container(groups=ALL_GROUPS))
 
 
 @app.get("/")
 async def read_root(
-        instance: typing.Annotated[
-            datetime.datetime,
-            modern_di_fastapi.FromDI(datetime.datetime),  # Resolve by type instead of provider
-        ],
+    instance: typing.Annotated[
+        datetime.datetime,
+        modern_di_fastapi.FromDI(datetime.datetime),  # Resolve by type instead of provider
+    ],
 ) -> datetime.datetime:
     return instance
 
@@ -95,12 +91,12 @@ app = fastapi.FastAPI()
 @app.websocket("/ws")
 async def websocket_endpoint(
     websocket: fastapi.WebSocket,
-    session_container: typing.Annotated[modern_di.AsyncContainer, fastapi.Depends(modern_di_fastapi.build_di_container)],
+    session_container: typing.Annotated[modern_di.Container, fastapi.Depends(modern_di_fastapi.build_di_container)],
 ) -> None:
-    async with session_container.build_child_container(scope=modern_di.Scope.REQUEST) as request_container:
-        # REQUEST scope is entered here
-        # You can resolve dependencies here
-        pass
+    request_container = session_container.build_child_container(scope=modern_di.Scope.REQUEST)
+    # REQUEST scope is entered here
+    # You can resolve dependencies here
+    pass
 
     await websocket.accept()
     await websocket.send_text("test")

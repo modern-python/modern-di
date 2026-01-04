@@ -12,7 +12,7 @@ from tests_fastapi.dependencies import Dependencies
 @pytest.fixture
 async def app() -> fastapi.FastAPI:
     app_ = fastapi.FastAPI()
-    container = modern_di.AsyncContainer(groups=[Dependencies])
+    container = modern_di.Container(groups=[Dependencies])
     modern_di_fastapi.setup_di(app_, container=container)
     return app_
 
