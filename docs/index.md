@@ -5,7 +5,6 @@ Welcome to the `modern-di` documentation!
 `modern-di` is a Python dependency injection framework which, among other things,
 supports the following:
 
-- Async and sync dependency resolution
 - Scopes and granular context management
 - Python 3.10+ support
 - Fully typed and tested
@@ -49,22 +48,8 @@ import typing
 logger = logging.getLogger(__name__)
 
 
-# singleton provider with finalization
-def create_sync_resource() -> typing.Iterator[str]:
-    logger.debug("Resource initiated")
-    try:
-        yield "sync resource"
-    finally:
-        logger.debug("Resource destructed")
-
-
-# same, but async
-async def create_async_resource() -> typing.AsyncIterator[str]:
-    logger.debug("Async resource initiated")
-    try:
-        yield "async resource"
-    finally:
-        logger.debug("Async resource destructed")
+def create_singleton() -> str:
+    return "some string"
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -75,8 +60,7 @@ class SimpleFactory:
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class DependentFactory:
-    sync_resource: str
-    async_resource: str
+    singleton: str
 ```
 
 ## 3. Describe dependencies groups
@@ -86,15 +70,13 @@ from modern_di import Group, Scope, providers
 
 
 class Dependencies(Group):
-    sync_resource = providers.Resource(Scope.APP, create_sync_resource)
-    async_resource = providers.Resource(Scope.APP, create_async_resource)
+    singleton = providers.Singleton(Scope.APP, create_singleton)
 
     simple_factory = providers.Factory(Scope.REQUEST, SimpleFactory, dep1="text", dep2=123)
     dependent_factory = providers.Factory(
         Scope.REQUEST,
         DependentFactory,
-        sync_resource=sync_resource.cast,
-        async_resource=async_resource.cast,
+        singleton=singleton.cast,
     )
 ```
 
@@ -110,44 +92,26 @@ For now there are integrations for the following frameworks:
 
 Create a container and resolve dependencies in your code
 ```python
-from modern_di import AsyncContainer, SyncContainer, Scope
+from modern_di import Container, Scope
 
 
 # For applications that need both sync and async resolution, use AsyncContainer
 ALL_GROUPS = [Dependencies]
 
-# Initialize container of app scope in sync mode
-container = SyncContainer(groups=ALL_GROUPS)
-container.enter()
+# Initialize container of app scope
+container = Container(groups=ALL_GROUPS)
 
-# Resolve sync resource
-Dependencies.sync_resource.sync_resolve(container)
-
-# Close container when done
-container.close()
-
-# Initialize container of app scope in async mode
-container = AsyncContainer(groups=ALL_GROUPS)
-container.enter()
-
-# Resolve async resource
-await Dependencies.async_resource.resolve(container)
-
-# Resolve sync resource
-instance1 = container.sync_resolve_provider(Dependencies.sync_resource)
-instance2 = container.sync_resolve_provider(Dependencies.sync_resource)
-assert instance1 is instance2
+# Resolve provider
+container.resolve_provider(Dependencies.singleton)
 
 # You can also resolve by type if you've registered groups
-instance3 = container.sync_resolve(str)  # resolves the sync_resource
+instance3 = container.sync_resolve(str)  # resolves the singleton
 
 # Create container of request scope
-async with container.build_child_container(scope=Scope.REQUEST) as request_container:
-    # Resolve factories of request scope
-    container.sync_resolve_provider(Dependencies.simple_factory)
-    await container.resolve_provider(Dependencies.dependent_factory)
-
-    # Resources of app-scope also can be resolved here
+request_container = container.build_child_container(scope=Scope.REQUEST)
+# Resolve factories of request scope
+container.resolve_provider(Dependencies.simple_factory)
+container.resolve_provider(Dependencies.dependent_factory)
 
 # Close container when done
 container.close()

@@ -5,15 +5,14 @@
 - Is a lifespan of a dependency;
 - Is required for almost each provider;
 - In frameworks' integrations some scopes are entered automatically;
-- Dependencies of **Resource** and **Singleton** providers are cached for the lifespan of their scope;
+- Dependencies of **Singleton** providers are cached for the lifespan of their scope;
 
 ### Default scopes
 
 **APP**:
 
    - Tied to the entire application lifetime;
-   - Can be used for singletons of **Resource** and **Singleton** providers;
-   - In integrations managed automatically in lifecycle methods: see **integrations** section for more details;
+   - Can be used for **Singleton** providers;
 
 **SESSION**:
 
@@ -48,14 +47,14 @@ Examples:
 
 ## Provider
 
-Providers are needed to assemble objects.
+Providers are needed to describe, how to assemble objects.
 They retrieve the underlying dependencies and inject them into the created object.
 This causes a cascade effect that helps to assemble object graphs.
 
 More about providers:
 
 - Do not contain assembled objects:
-    - **Singleton** and **Resource** objects are stored in the container;
+    - **Singleton** objects are stored in the container;
     - **Factory** objects are built on each call.
 - Can have dependencies only of the same or more long-lived scopes:
     - **APP**-scoped providers can have only **APP**-scoped dependencies;
@@ -64,15 +63,13 @@ More about providers:
 ## Container
 
 Each container is assigned to a certain scope.
-To enter a nested scope, a context manager should be used.
 A nested scope contains a link to its parent container.
 
 All states live in containers:
 
 - Assembled objects;
-- Context stacks for resources to finalize them at the end of their lifecycle;
 - Overrides for tests;
 
-## Graph
+## Group
 
-A Graph is a collection of providers. They cannot be instantiated.
+A Group is a collection of providers. They cannot be instantiated.

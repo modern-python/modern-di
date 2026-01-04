@@ -1,7 +1,7 @@
-import enum
 import typing
 
 from modern_di.providers.abstract import AbstractCreatorProvider
+from modern_di.scope import Scope
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
@@ -13,27 +13,9 @@ class Factory(AbstractCreatorProvider[T_co]):
 
     def __init__(
         self,
-        scope: enum.IntEnum,
+        scope: Scope,
         creator: typing.Callable[P, T_co],
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
         super().__init__(scope, creator, *args, **kwargs)
-
-    async def async_resolve(
-        self,
-        *,
-        args: list[typing.Any],
-        kwargs: dict[str, typing.Any],
-        **__: object,
-    ) -> T_co:
-        return typing.cast(T_co, self._creator(*args, **kwargs))
-
-    def sync_resolve(
-        self,
-        *,
-        args: list[typing.Any],
-        kwargs: dict[str, typing.Any],
-        **__: object,
-    ) -> T_co:
-        return typing.cast(T_co, self._creator(*args, **kwargs))

@@ -1,6 +1,7 @@
 import pytest
-from modern_di import Scope, providers
+from modern_di import providers
 from modern_di.registries.providers_registry import ProvidersRegistry
+from modern_di.scope import Scope
 
 
 def test_providers_registry_find_provider_not_found() -> None:

@@ -31,30 +31,26 @@ import typing
 import faststream
 from faststream.nats import NatsBroker
 import modern_di_faststream
-from modern_di import Group, Scope, providers
+from modern_di import Container, Group, Scope, providers
 
 
 broker = NatsBroker()
 app = faststream.FastStream(broker=broker)
 
 
-async def create_async_resource() -> typing.AsyncIterator[datetime.datetime]:
-    # async resource initiated
-    try:
-        yield datetime.datetime.now(tz=datetime.timezone.utc)
-    finally:
-        pass  # async resource destructed
+def create_singleton() -> datetime.datetime:
+    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class AppGroup(Group):
-    async_resource = providers.Resource(Scope.APP, create_async_resource)
+    singleton = providers.Singleton(Scope.APP, create_singleton)
 
 
 # Register your groups
 ALL_GROUPS = [AppGroup]
 
 # Setup DI with your groups
-modern_di_faststream.setup_di(app, groups=ALL_GROUPS)
+modern_di_faststream.setup_di(app, Container(groups=ALL_GROUPS))
 
 
 @broker.subscriber("in")

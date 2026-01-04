@@ -11,7 +11,7 @@ import datetime
 import pytest
 import random
 
-from modern_di import Group, AsyncContainer, Scope, providers
+from modern_di import Group, Container, Scope, providers
 
 
 def generate_random_number() -> float:
@@ -25,21 +25,14 @@ async def async_creator() -> datetime.datetime:
 
 class Dependencies(Group):
     singleton = providers.Singleton(Scope.APP, generate_random_number)
-    async_singleton = providers.AsyncSingleton(Scope.APP, async_creator)
 
 
-with AsyncContainer() as container:
-    # Sync resolving
-    singleton_instance1 = container.sync_resolve_provider(Dependencies.singleton)
-    with pytest.raises(RuntimeError, match="AsyncSingleton cannot be resolved synchronously"):
-        container.sync_resolve_provider(Dependencies.async_singleton)
+container = Container()
+singleton_instance1 = container.resolve_provider(Dependencies.singleton)
+singleton_instance2 = container.resolve_provider(Dependencies.singleton)
 
-    # Async resolving
-    singleton_instance2 = await container.resolve_provider(Dependencies.singleton)
-    async_singleton_instance = await container.resolve_provider(Dependencies.async_singleton)
-
-    # If resolved in the same container, the instance will be the same
-    assert singleton_instance1 is singleton_instance2
+# If resolved in the same container, the instance will be the same
+assert singleton_instance1 is singleton_instance2
 ```
 
 ## Concurrency safety
@@ -47,10 +40,8 @@ with AsyncContainer() as container:
 `Singleton` is safe to use in threading and asyncio concurrency:
 
 ```python
-async with AsyncContainer() as container:
-    # Calling resolve_provider concurrently in different coroutines will create only one instance
-    await container.resolve_provider(Dependencies.singleton)
+container = Container()
 
-    # Calling sync_resolve_provider concurrently in different threads will create only one instance
-    container.sync_resolve_provider(Dependencies.singleton)
+# Calling resolve_provider concurrently in different threads will create only one instance
+container.resolve_provider(Dependencies.singleton)
 ```
