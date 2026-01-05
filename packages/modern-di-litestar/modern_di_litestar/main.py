@@ -1,4 +1,3 @@
-import contextlib
 import dataclasses
 import typing
 
@@ -18,15 +17,6 @@ def fetch_di_container(app_: litestar.Litestar) -> Container:
     return typing.cast(Container, app_.state.di_container)
 
 
-@contextlib.asynccontextmanager
-async def _lifespan_manager(app_: litestar.Litestar) -> typing.AsyncIterator[None]:
-    container = fetch_di_container(app_)
-    try:
-        yield
-    finally:
-        container.close()
-
-
 class ModernDIPlugin(InitPlugin):
     __slots__ = ("container",)
 
@@ -36,7 +26,6 @@ class ModernDIPlugin(InitPlugin):
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
         app_config.state.di_container = self.container
         app_config.dependencies["di_container"] = Provide(build_di_container, sync_to_thread=False)
-        app_config.lifespan.append(_lifespan_manager)
         return app_config
 
 

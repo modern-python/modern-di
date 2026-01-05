@@ -94,14 +94,17 @@ def test_factory_overridden_after_request_scope_closed() -> None:
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance1 = request_container.resolve_provider(MyGroup.request_factory)
-    request_container.close()
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance2 = request_container.resolve_provider(MyGroup.request_factory)
-    request_container.close()
 
     assert instance1 is instance2
     assert instance2.dep1.dep1 == instance1.dep1.dep1 == "override"
+
+    app_container.reset_override()
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    instance3 = request_container.resolve_provider(MyGroup.request_factory)
+    assert instance3.dep1.dep1 != instance1.dep1.dep1
 
 
 def test_factory_wrong_dependency_scope() -> None:

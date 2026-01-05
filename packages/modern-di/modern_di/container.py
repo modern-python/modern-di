@@ -105,10 +105,6 @@ class Container:
         resolver = RESOLVERS[type(provider)]
         return typing.cast(T_co, resolver(self.find_container(provider.scope), provider))
 
-    def close(self) -> None:
-        if not self.parent_container:
-            self.overrides_registry.reset_override()
-
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""
         return self

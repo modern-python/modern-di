@@ -72,7 +72,6 @@ def setup_di(
         raise RuntimeError(msg)
 
     app.context.set_global("di_container", container)
-    app.after_shutdown(container.close)
     app.broker.add_middleware(_DIMiddlewareFactory(container))
     return container
 
