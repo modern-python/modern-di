@@ -15,8 +15,8 @@ class DependentCreator:
 
 
 class MyGroup(Group):
-    app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
-    request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast)
+    app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
+    request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator)
 
 
 def test_app_factory() -> None:
@@ -36,7 +36,7 @@ def test_app_factory_with_registry() -> None:
 
 
 def test_request_factory() -> None:
-    app_container = Container()
+    app_container = Container(groups=[MyGroup])
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance1 = request_container.resolve_provider(MyGroup.request_factory)
     instance2 = request_container.resolve_provider(MyGroup.request_factory)
@@ -72,7 +72,7 @@ def test_factory_overridden_app_scope() -> None:
 
 
 def test_factory_overridden_request_scope() -> None:
-    app_container = Container()
+    app_container = Container(groups=[MyGroup])
     app_container.override(MyGroup.request_factory, DependentCreator(dep1=SimpleCreator(dep1="override")))
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
@@ -89,7 +89,7 @@ def test_factory_overridden_request_scope() -> None:
 
 
 def test_factory_overridden_after_request_scope_closed() -> None:
-    app_container = Container()
+    app_container = Container(groups=[MyGroup])
     app_container.override(MyGroup.request_factory, DependentCreator(dep1=SimpleCreator(dep1="override")))
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
@@ -107,15 +107,7 @@ def test_factory_overridden_after_request_scope_closed() -> None:
     assert instance3.dep1.dep1 != instance1.dep1.dep1
 
 
-def test_factory_wrong_dependency_scope() -> None:
-    def some_factory(_: SimpleCreator) -> None: ...
-
-    request_factory_ = providers.Factory(Scope.REQUEST, SimpleCreator, dep1="original")
-    with pytest.raises(RuntimeError, match="Scope of dependency is REQUEST and current scope is APP"):
-        providers.Singleton(Scope.APP, some_factory, request_factory_.cast)
-
-
 def test_factory_scope_is_not_initialized() -> None:
-    app_container = Container()
+    app_container = Container(groups=[MyGroup])
     with pytest.raises(RuntimeError, match="Scope REQUEST is not initialize"):
         app_container.resolve_provider(MyGroup.request_factory)

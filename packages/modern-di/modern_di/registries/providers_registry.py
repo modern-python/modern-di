@@ -28,13 +28,11 @@ class ProvidersRegistry:
         for provider_name, provider in kwargs.items():
             if provider_name in self.providers_by_name:
                 warnings.warn(
-                    f"Provider is duplicated by name {provider_name}. Choose unique name if you want resolving by name",
+                    f"Provider is duplicated by name {provider_name}",
                     RuntimeWarning,
                     stacklevel=2,
                 )
-                del self.providers_by_name[provider_name]
-            else:
-                self.providers_by_name[provider_name] = provider
+            self.providers_by_name[provider_name] = provider
 
             provider_type = provider.bound_type
             if not provider_type:
@@ -42,12 +40,9 @@ class ProvidersRegistry:
 
             if provider_type in self.providers_by_type:
                 warnings.warn(
-                    f"Provider is duplicated by type {provider_type}. "
-                    f"Bind provider to unique type if you want resolving by type",
+                    f"Provider is duplicated by type {provider_type}",
                     RuntimeWarning,
                     stacklevel=2,
                 )
-                del self.providers_by_type[provider_type]
-                continue
 
             self.providers_by_type[provider_type] = provider

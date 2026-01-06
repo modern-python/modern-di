@@ -9,12 +9,17 @@ from starlette.requests import HTTPConnection
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
+fastapi_request = providers.ContextProvider(scope=Scope.REQUEST, context_type=fastapi.Request)
+fastapi_websocket = providers.ContextProvider(scope=Scope.REQUEST, context_type=fastapi.WebSocket)
+
+
 def fetch_di_container(app_: fastapi.FastAPI) -> Container:
     return typing.cast(Container, app_.state.di_container)
 
 
 def setup_di(app: fastapi.FastAPI, container: Container) -> Container:
     app.state.di_container = container
+    container.providers_registry.add_providers(fastapi_request=fastapi_request, fastapi_websocket=fastapi_websocket)
     return container
 
 

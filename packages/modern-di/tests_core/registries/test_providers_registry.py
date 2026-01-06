@@ -1,7 +1,6 @@
 import pytest
 from modern_di import providers
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.scope import Scope
 
 
 def test_providers_registry_find_provider_not_found() -> None:
@@ -10,7 +9,7 @@ def test_providers_registry_find_provider_not_found() -> None:
 
 
 def test_providers_registry_add_provider_duplicates() -> None:
-    str_factory = providers.Factory(Scope.APP, lambda: "string").bind_type(str)
+    str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
 
     providers_registry = ProvidersRegistry()
     providers_registry.add_providers(str_factory=str_factory)

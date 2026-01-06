@@ -3,8 +3,8 @@ import datetime
 from modern_di import Container, Scope, providers
 
 
-context_provider = providers.ContextProvider(Scope.APP, datetime.datetime)
-request_context_provider = providers.ContextProvider(Scope.REQUEST, datetime.datetime)
+context_provider = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
 
 
 def test_context_provider() -> None:

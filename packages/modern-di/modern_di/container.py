@@ -8,7 +8,6 @@ from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.registries.state_registry import StateRegistry
-from modern_di.resolvers import RESOLVERS
 from modern_di.scope import Scope
 
 
@@ -99,11 +98,10 @@ class Container:
             msg = f"Provider is not found, {dependency_type=}, {dependency_name=}"
             raise RuntimeError(msg)
 
-        return self.resolve_provider(provider)
+        return typing.cast(T_co, provider.resolve(self))
 
     def resolve_provider(self, provider: "AbstractProvider[T_co]") -> T_co:
-        resolver = RESOLVERS[type(provider)]
-        return typing.cast(T_co, resolver(self.find_container(provider.scope), provider))
+        return typing.cast(T_co, provider.resolve(self))
 
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""
