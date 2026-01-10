@@ -15,11 +15,6 @@ async def app() -> litestar.Litestar:
 
 
 @pytest.fixture
-def di_container(app: litestar.Litestar) -> Container:
-    return modern_di_litestar.fetch_di_container(app)
-
-
-@pytest.fixture
 def client(app: litestar.Litestar) -> typing.Iterator[TestClient[litestar.Litestar]]:
     with TestClient(app=app, raise_server_exceptions=True) as client:
         yield client

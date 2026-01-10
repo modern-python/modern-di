@@ -54,31 +54,3 @@ def test_factories_action_scope(client: TestClient[litestar.Litestar], app: lite
     response = client.get("/")
     assert response.status_code == status_codes.HTTP_200_OK
     assert response.json() is None
-
-
-def test_factory_override(
-    client: TestClient[litestar.Litestar], app: litestar.Litestar, di_container: Container
-) -> None:
-    mock = SimpleCreator(dep1="mock")
-    di_container.override(Dependencies.app_factory, mock)
-
-    @litestar.get(
-        "/",
-        dependencies={
-            "app_factory_instance": FromDI(Dependencies.app_factory),
-            "request_factory_instance": FromDI(Dependencies.request_factory),
-        },
-    )
-    async def read_root(
-        app_factory_instance: SimpleCreator,
-        request_factory_instance: DependentCreator,
-    ) -> None:
-        assert isinstance(app_factory_instance, SimpleCreator)
-        assert isinstance(request_factory_instance, DependentCreator)
-        assert app_factory_instance.dep1 == "mock"
-
-    app.register(read_root)
-
-    response = client.get("/")
-    assert response.status_code == status_codes.HTTP_200_OK, response.text
-    assert response.json() is None

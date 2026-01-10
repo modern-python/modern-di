@@ -1,5 +1,4 @@
 import dataclasses
-import typing
 
 import litestar
 from modern_di import Group, Scope, providers
@@ -15,26 +14,22 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-def fetch_method_from_request(request: litestar.Request[typing.Any, typing.Any, typing.Any]) -> str:
+def fetch_method_from_request(request: litestar.Request) -> str:  # type: ignore[type-arg]
     assert isinstance(request, litestar.Request)
     return request.method
 
 
-def fetch_url_from_websocket(websocket: litestar.WebSocket[typing.Any, typing.Any, typing.Any]) -> str:
+def fetch_url_from_websocket(websocket: litestar.WebSocket) -> str:  # type: ignore[type-arg]
     assert isinstance(websocket, litestar.WebSocket)
     return websocket.url.path
 
 
 class Dependencies(Group):
-    app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
-    session_factory = providers.Factory(Scope.SESSION, DependentCreator, dep1=app_factory.cast).bind_type(None)
-    request_factory = providers.Singleton(Scope.REQUEST, DependentCreator, dep1=app_factory.cast).bind_type(None)
-    action_factory = providers.Factory(Scope.ACTION, DependentCreator, dep1=app_factory.cast).bind_type(None)
-    litestar_request_provider = providers.ContextProvider(Scope.REQUEST, litestar.Request)
-    request_method = providers.Factory(
-        Scope.REQUEST, fetch_method_from_request, request=litestar_request_provider.cast
-    ).bind_type(None)
-    litestar_websocket_provider = providers.ContextProvider(Scope.SESSION, litestar.WebSocket)
-    websocket_path = providers.Factory(
-        Scope.SESSION, fetch_url_from_websocket, websocket=litestar_websocket_provider.cast
-    ).bind_type(None)
+    app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
+    session_factory = providers.Factory(scope=Scope.SESSION, creator=DependentCreator, bound_type=None)
+    request_factory = providers.Factory(
+        scope=Scope.REQUEST, creator=DependentCreator, cache_settings=providers.CacheSettings(), bound_type=None
+    )
+    action_factory = providers.Factory(scope=Scope.ACTION, creator=DependentCreator, bound_type=None)
+    request_method = providers.Factory(scope=Scope.REQUEST, creator=fetch_method_from_request, bound_type=None)
+    websocket_path = providers.Factory(scope=Scope.SESSION, creator=fetch_url_from_websocket, bound_type=None)

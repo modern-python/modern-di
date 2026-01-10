@@ -25,15 +25,9 @@ def fetch_url_from_websocket(websocket: fastapi.WebSocket) -> str:
 
 
 class Dependencies(Group):
-    app_factory = providers.Factory(Scope.APP, SimpleCreator, dep1="original")
-    session_factory = providers.Factory(Scope.SESSION, DependentCreator, dep1=app_factory.cast).bind_type(None)
-    request_factory = providers.Factory(Scope.REQUEST, DependentCreator, dep1=app_factory.cast).bind_type(None)
-    action_factory = providers.Factory(Scope.ACTION, DependentCreator, dep1=app_factory.cast).bind_type(None)
-    fastapi_request_provider = providers.ContextProvider(Scope.REQUEST, fastapi.Request)
-    request_method = providers.Factory(
-        Scope.REQUEST, fetch_method_from_request, request=fastapi_request_provider.cast
-    ).bind_type(None)
-    fastapi_websocket_provider = providers.ContextProvider(Scope.SESSION, fastapi.WebSocket)
-    websocket_path = providers.Factory(
-        Scope.SESSION, fetch_url_from_websocket, websocket=fastapi_websocket_provider.cast
-    ).bind_type(None)
+    app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
+    session_factory = providers.Factory(scope=Scope.SESSION, creator=DependentCreator, bound_type=None)
+    request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator, bound_type=None)
+    action_factory = providers.Factory(scope=Scope.ACTION, creator=DependentCreator, bound_type=None)
+    request_method = providers.Factory(scope=Scope.REQUEST, creator=fetch_method_from_request, bound_type=None)
+    websocket_path = providers.Factory(scope=Scope.SESSION, creator=fetch_url_from_websocket, bound_type=None)

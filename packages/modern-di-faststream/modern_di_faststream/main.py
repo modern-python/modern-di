@@ -7,11 +7,15 @@ import faststream
 import modern_di
 from faststream.asgi import AsgiFastStream
 from faststream.types import DecodedMessage
-from modern_di import Container, providers
+from modern_di import Container, Scope, providers
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
+
+
+faststream_message = providers.ContextProvider(scope=Scope.REQUEST, context_type=faststream.StreamMessage)
+
 
 _major, _minor, *_ = version("faststream").split(".")
 _OLD_MIDDLEWARES = int(_major) == 0 and int(_minor) < 6  # noqa: PLR2004
@@ -71,6 +75,7 @@ def setup_di(
         msg = "Broker must be defined to setup DI"
         raise RuntimeError(msg)
 
+    container.providers_registry.add_providers(faststream_message=faststream_message)
     app.context.set_global("di_container", container)
     app.broker.add_middleware(_DIMiddlewareFactory(container))
     return container

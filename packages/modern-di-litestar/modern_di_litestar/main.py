@@ -7,10 +7,15 @@ from litestar.di import Provide
 from litestar.params import Dependency
 from litestar.plugins import InitPlugin
 from modern_di import Container, providers
+from modern_di.scope import Scope
 from modern_di.scope import Scope as DIScope
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
+
+
+litestar_request = providers.ContextProvider(scope=Scope.REQUEST, context_type=litestar.Request)
+litestar_websocket = providers.ContextProvider(scope=Scope.REQUEST, context_type=litestar.WebSocket)
 
 
 def fetch_di_container(app_: litestar.Litestar) -> Container:
@@ -24,6 +29,9 @@ class ModernDIPlugin(InitPlugin):
         self.container = container
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
+        self.container.providers_registry.add_providers(
+            litestar_request=litestar_request, litestar_websocket=litestar_websocket
+        )
         app_config.state.di_container = self.container
         app_config.dependencies["di_container"] = Provide(build_di_container, sync_to_thread=False)
         return app_config

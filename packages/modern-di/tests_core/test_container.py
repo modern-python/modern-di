@@ -12,7 +12,7 @@ def test_container_prevent_copy() -> None:
 
 
 def test_container_scope_skipped() -> None:
-    app_factory = providers.Factory(Scope.APP, lambda: "test")
+    app_factory = providers.Factory(creator=lambda: "test")
     container = Container(scope=Scope.REQUEST)
     with pytest.raises(RuntimeError, match="Scope APP is skipped"):
         container.resolve_provider(app_factory)
