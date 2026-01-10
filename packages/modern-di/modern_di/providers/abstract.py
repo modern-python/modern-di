@@ -2,6 +2,7 @@ import abc
 import typing
 import uuid
 
+from modern_di import types
 from modern_di.scope import Scope
 
 
@@ -9,10 +10,7 @@ if typing.TYPE_CHECKING:
     from modern_di import Container
 
 
-T_co = typing.TypeVar("T_co", covariant=True)
-
-
-class AbstractProvider(abc.ABC, typing.Generic[T_co]):
+class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
     BASE_SLOTS: typing.ClassVar[list[str]] = ["scope", "bound_type", "provider_id"]
 
     def __init__(

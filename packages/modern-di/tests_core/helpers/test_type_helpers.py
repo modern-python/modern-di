@@ -23,17 +23,20 @@ class SomeClass:
     arg2: int
 
 
-async def test_parse_signature() -> None:
-    signature = parse_signature(int)
-    assert signature.dependency_type is int
-    assert signature.kwargs == {}
+def test_parse_signature() -> None:
+    dependency_type, kwargs = parse_signature(int)
+    assert dependency_type is int
+    assert kwargs == {}
 
+    dependency_type, kwargs = parse_signature(some_function)
+    assert dependency_type is int
+    assert kwargs == {"arg1": bool, "arg2": str}
+
+    assert parse_signature(async_function)[0] is int
+    assert parse_signature(collection_function)[0] is None
+
+
+async def test_run_methods() -> None:
     assert some_function(arg1=True, arg2="")
-    signature = parse_signature(some_function)
-    assert signature.dependency_type is int
-    assert signature.kwargs == {"arg1": bool, "arg2": str}
-
-    await async_function()
-    assert parse_signature(async_function).dependency_type is int
-    collection_function()
-    assert parse_signature(collection_function).dependency_type is None
+    assert await async_function()
+    assert collection_function()

@@ -4,10 +4,9 @@ import typing
 import typing_extensions
 
 from modern_di.group import Group
+from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
-from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.registries.state_registry import StateRegistry
 from modern_di.scope import Scope
 
 
@@ -19,13 +18,12 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 class Container:
     __slots__ = (
+        "cache_registry",
         "context_registry",
         "lock",
-        "overrides_registry",
         "parent_container",
         "providers_registry",
         "scope",
-        "state_registry",
     )
 
     def __init__(
@@ -39,16 +37,13 @@ class Container:
         self.lock = threading.Lock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
-        self.state_registry = StateRegistry()
+        self.cache_registry = CacheRegistry()
         self.context_registry = ContextRegistry(context=context or {})
         self.providers_registry: ProvidersRegistry
-        self.overrides_registry: OverridesRegistry
         if parent_container:
             self.providers_registry = parent_container.providers_registry
-            self.overrides_registry = parent_container.overrides_registry
         else:
             self.providers_registry = ProvidersRegistry()
-            self.overrides_registry = OverridesRegistry()
         if groups:
             for one_group in groups:
                 self.providers_registry.add_providers(**one_group.get_providers())
@@ -68,12 +63,6 @@ class Container:
                 raise RuntimeError(msg) from exc
 
         return self.__class__(scope=scope, parent_container=self, context=context)
-
-    def override(self, provider: "AbstractProvider[T_co]", override_object: object) -> None:
-        self.overrides_registry.override(provider.provider_id, override_object)
-
-    def reset_override(self, provider: typing.Optional["AbstractProvider[T_co]"] = None) -> None:
-        self.overrides_registry.reset_override(provider.provider_id if provider else None)
 
     def find_container(self, scope: Scope) -> "typing_extensions.Self":
         container = self
@@ -101,7 +90,7 @@ class Container:
         return typing.cast(T_co, provider.resolve(self))
 
     def resolve_provider(self, provider: "AbstractProvider[T_co]") -> T_co:
-        return typing.cast(T_co, provider.resolve(self))
+        return typing.cast(T_co, provider.resolve(self.find_container(provider.scope)))
 
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""

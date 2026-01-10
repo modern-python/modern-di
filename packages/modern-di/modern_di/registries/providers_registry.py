@@ -2,10 +2,8 @@ import dataclasses
 import typing
 import warnings
 
+from modern_di import types
 from modern_di.providers.abstract import AbstractProvider
-
-
-T_co = typing.TypeVar("T_co", covariant=True)
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -14,8 +12,8 @@ class ProvidersRegistry:
     providers_by_type: dict[type, AbstractProvider[typing.Any]] = dataclasses.field(init=False, default_factory=dict)
 
     def find_provider(
-        self, dependency_name: str | None = None, dependency_type: type[T_co] | None = None
-    ) -> AbstractProvider[T_co] | None:
+        self, dependency_name: str | None = None, dependency_type: type[types.T_co] | None = None
+    ) -> AbstractProvider[types.T_co] | None:
         if dependency_name and (provider := self.providers_by_name.get(dependency_name)):
             return provider
 

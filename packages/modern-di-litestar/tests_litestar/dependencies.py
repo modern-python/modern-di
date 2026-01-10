@@ -1,5 +1,4 @@
 import dataclasses
-import typing
 
 import litestar
 from modern_di import Group, Scope, providers
@@ -15,12 +14,12 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-def fetch_method_from_request(request: litestar.Request[typing.Any, typing.Any, typing.Any]) -> str:
+def fetch_method_from_request(request: litestar.Request) -> str:  # type: ignore[type-arg]
     assert isinstance(request, litestar.Request)
     return request.method
 
 
-def fetch_url_from_websocket(websocket: litestar.WebSocket[typing.Any, typing.Any, typing.Any]) -> str:
+def fetch_url_from_websocket(websocket: litestar.WebSocket) -> str:  # type: ignore[type-arg]
     assert isinstance(websocket, litestar.WebSocket)
     return websocket.url.path
 
@@ -28,7 +27,9 @@ def fetch_url_from_websocket(websocket: litestar.WebSocket[typing.Any, typing.An
 class Dependencies(Group):
     app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
     session_factory = providers.Factory(scope=Scope.SESSION, creator=DependentCreator, bound_type=None)
-    request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator, singleton=True, bound_type=None)
+    request_factory = providers.Factory(
+        scope=Scope.REQUEST, creator=DependentCreator, cache_settings=providers.CacheSettings(), bound_type=None
+    )
     action_factory = providers.Factory(scope=Scope.ACTION, creator=DependentCreator, bound_type=None)
     request_method = providers.Factory(scope=Scope.REQUEST, creator=fetch_method_from_request, bound_type=None)
     websocket_path = providers.Factory(scope=Scope.SESSION, creator=fetch_url_from_websocket, bound_type=None)

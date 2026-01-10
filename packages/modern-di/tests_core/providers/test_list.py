@@ -1,8 +1,8 @@
 from modern_di import Container, providers
 
 
-provider1 = providers.Factory(creator=lambda: "str1", singleton=True, bound_type=str)
-provider2 = providers.Factory(creator=lambda: "str2", singleton=True, bound_type=str)
+provider1 = providers.Factory(creator=lambda: "str1", cache_settings=providers.CacheSettings(), bound_type=str)
+provider2 = providers.Factory(creator=lambda: "str2", cache_settings=providers.CacheSettings(), bound_type=str)
 sequence = providers.List(provider1, provider2)
 
 

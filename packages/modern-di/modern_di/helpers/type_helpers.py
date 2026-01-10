@@ -1,15 +1,8 @@
-import dataclasses
 import types
 import typing
 
 
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class DependencySignature:
-    dependency_type: type | None
-    kwargs: dict[str, type]
-
-
-def parse_signature(creator: type | object) -> DependencySignature:
+def parse_signature(creator: type | object) -> tuple[type | None, dict[str, type]]:
     type_hints = typing.get_type_hints(creator)
     return_annotation = type_hints.pop("return", None)
 
@@ -21,7 +14,4 @@ def parse_signature(creator: type | object) -> DependencySignature:
     else:
         dependency_type = None
 
-    return DependencySignature(
-        dependency_type=dependency_type,
-        kwargs=type_hints,
-    )
+    return dependency_type, type_hints

@@ -18,8 +18,12 @@ class DependentCreator:
 
 
 class MyGroup(Group):
-    app_singleton = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"}, singleton=True)
-    request_singleton = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator, singleton=True)
+    app_singleton = providers.Factory(
+        creator=SimpleCreator, kwargs={"dep1": "original"}, cache_settings=providers.CacheSettings()
+    )
+    request_singleton = providers.Factory(
+        scope=Scope.REQUEST, creator=DependentCreator, cache_settings=providers.CacheSettings()
+    )
 
 
 def test_app_singleton() -> None:
@@ -54,24 +58,6 @@ def test_app_singleton_in_request_scope() -> None:
     assert singleton1 is singleton2
 
 
-def test_singleton_overridden() -> None:
-    app_container = Container(groups=[MyGroup])
-    singleton1 = app_container.resolve_provider(MyGroup.app_singleton)
-
-    app_container.override(MyGroup.app_singleton, SimpleCreator(dep1="override"))
-
-    singleton2 = app_container.resolve_provider(MyGroup.app_singleton)
-    singleton3 = app_container.resolve_provider(MyGroup.app_singleton)
-
-    app_container.reset_override(MyGroup.app_singleton)
-
-    singleton4 = app_container.resolve_provider(MyGroup.app_singleton)
-
-    assert singleton2 is not singleton1
-    assert singleton2 is singleton3
-    assert singleton4 is singleton1
-
-
 @pytest.mark.repeat(10)
 def test_singleton_threading_concurrency() -> None:
     calls: int = 0
@@ -84,7 +70,7 @@ def test_singleton_threading_concurrency() -> None:
         time.sleep(0.01)
         return ""
 
-    singleton = providers.Factory(creator=create_singleton, singleton=True)
+    singleton = providers.Factory(creator=create_singleton, cache_settings=providers.CacheSettings())
 
     def resolve_singleton(container: Container) -> str:
         return container.resolve_provider(singleton)
