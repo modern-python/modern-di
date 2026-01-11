@@ -12,6 +12,7 @@ class SimpleCreator:
 @dataclasses.dataclass(kw_only=True, slots=True)
 class DependentCreator:
     dep1: SimpleCreator
+    di_container: Container
 
 
 class MyGroup(Group):
@@ -20,19 +21,16 @@ class MyGroup(Group):
 
 
 def test_app_factory() -> None:
-    app_container = Container()
-    instance1 = app_container.resolve_provider(MyGroup.app_factory)
-    instance2 = app_container.resolve_provider(MyGroup.app_factory)
-    assert instance1 is not instance2
-
-
-def test_app_factory_with_registry() -> None:
     app_container = Container(groups=[MyGroup])
-    instance1 = app_container.resolve(dependency_type=SimpleCreator)
-    instance2: SimpleCreator = app_container.resolve(dependency_name="app_factory")
+    instance1 = app_container.resolve_provider(MyGroup.app_factory)
+    instance2 = app_container.resolve(dependency_type=SimpleCreator)
+    instance3: SimpleCreator = app_container.resolve(dependency_name="app_factory")
     assert isinstance(instance1, SimpleCreator)
     assert isinstance(instance2, SimpleCreator)
+    assert isinstance(instance3, SimpleCreator)
     assert instance1 is not instance2
+    assert instance1 is not instance3
+    assert instance2 is not instance3
 
 
 def test_request_factory() -> None:
@@ -41,6 +39,9 @@ def test_request_factory() -> None:
     instance1 = request_container.resolve_provider(MyGroup.request_factory)
     instance2 = request_container.resolve_provider(MyGroup.request_factory)
     assert instance1 is not instance2
+    assert isinstance(instance1.di_container, Container)
+    assert instance1.di_container.scope == Scope.REQUEST
+    assert instance1.di_container is instance2.di_container
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance3 = request_container.resolve_provider(MyGroup.request_factory)

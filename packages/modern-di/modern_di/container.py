@@ -4,14 +4,12 @@ import typing
 import typing_extensions
 
 from modern_di.group import Group
+from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
-
-if typing.TYPE_CHECKING:
-    from modern_di.providers.abstract import AbstractProvider
 
 T_co = typing.TypeVar("T_co", covariant=True)
 
@@ -44,6 +42,7 @@ class Container:
             self.providers_registry = parent_container.providers_registry
         else:
             self.providers_registry = ProvidersRegistry()
+            self.providers_registry.add_providers(di_container=ContainerProvider())
         if groups:
             for one_group in groups:
                 self.providers_registry.add_providers(**one_group.get_providers())
@@ -99,3 +98,13 @@ class Container:
     def __copy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""
         return self
+
+
+class ContainerProvider(AbstractProvider[typing.Any]):
+    __slots__ = AbstractProvider.BASE_SLOTS
+
+    def __init__(self) -> None:
+        super().__init__(scope=Scope.APP, bound_type=Container)
+
+    def resolve(self, container: Container) -> Container:
+        return container
