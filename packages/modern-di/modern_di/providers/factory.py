@@ -1,4 +1,5 @@
 import dataclasses
+import inspect
 import typing
 
 from modern_di import types
@@ -11,10 +12,14 @@ if typing.TYPE_CHECKING:
     from modern_di import Container
 
 
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+@dataclasses.dataclass(kw_only=True, slots=True)
 class CacheSettings(typing.Generic[types.T_co]):
     clear_cache: bool = True
-    finalizer: typing.Callable[[types.T_co], None | typing.Coroutine[None, None, None]] | None = None
+    finalizer: typing.Callable[[types.T_co], None | typing.Awaitable[None]] | None = None
+    is_async_finalizer: bool = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        self.is_async_finalizer = bool(self.finalizer) and inspect.iscoroutinefunction(self.finalizer)
 
 
 class Factory(AbstractProvider[types.T_co]):

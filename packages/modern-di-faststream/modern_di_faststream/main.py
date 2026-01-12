@@ -44,11 +44,14 @@ class _DiMiddleware(faststream.BaseMiddleware, typing.Generic[P]):
         request_container = self.di_container.build_child_container(
             scope=modern_di.Scope.REQUEST, context={faststream.StreamMessage: msg}
         )
-        with self.faststream_context.scope("request_container", request_container):
-            return typing.cast(
-                typing.AsyncIterator[DecodedMessage],
-                await call_next(msg),
-            )
+        try:
+            with self.faststream_context.scope("request_container", request_container):
+                return typing.cast(
+                    typing.AsyncIterator[DecodedMessage],
+                    await call_next(msg),
+                )
+        finally:
+            await request_container.close_async()
 
     if _OLD_MIDDLEWARES:  # pragma: no cover
 

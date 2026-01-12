@@ -1,7 +1,9 @@
+import contextlib
 import dataclasses
 import typing
 
 import fastapi
+from fastapi.routing import _merge_lifespan_context
 from modern_di import Container, Scope, providers
 from starlette.requests import HTTPConnection
 
@@ -17,13 +19,27 @@ def fetch_di_container(app_: fastapi.FastAPI) -> Container:
     return typing.cast(Container, app_.state.di_container)
 
 
+@contextlib.asynccontextmanager
+async def _lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]:
+    container = fetch_di_container(app_)
+    try:
+        yield
+    finally:
+        await container.close_async()
+
+
 def setup_di(app: fastapi.FastAPI, container: Container) -> Container:
     app.state.di_container = container
     container.providers_registry.add_providers(fastapi_request=fastapi_request, fastapi_websocket=fastapi_websocket)
+    old_lifespan_manager = app.router.lifespan_context
+    app.router.lifespan_context = _merge_lifespan_context(
+        old_lifespan_manager,
+        _lifespan_manager,
+    )
     return container
 
 
-async def build_di_container(connection: HTTPConnection) -> Container:
+async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
     context: dict[type[typing.Any], typing.Any] = {}
     scope: Scope | None = None
     if isinstance(connection, fastapi.Request):
@@ -32,7 +48,11 @@ async def build_di_container(connection: HTTPConnection) -> Container:
     elif isinstance(connection, fastapi.WebSocket):
         context[fastapi.WebSocket] = connection
         scope = Scope.SESSION
-    return fetch_di_container(connection.app).build_child_container(context=context, scope=scope)
+    container = fetch_di_container(connection.app).build_child_container(context=context, scope=scope)
+    try:
+        yield container
+    finally:
+        await container.close_async()
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
