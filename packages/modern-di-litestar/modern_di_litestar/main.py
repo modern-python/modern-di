@@ -1,3 +1,4 @@
+import contextlib
 import dataclasses
 import typing
 
@@ -22,6 +23,15 @@ def fetch_di_container(app_: litestar.Litestar) -> Container:
     return typing.cast(Container, app_.state.di_container)
 
 
+@contextlib.asynccontextmanager
+async def _lifespan_manager(app_: litestar.Litestar) -> typing.AsyncIterator[None]:
+    container = fetch_di_container(app_)
+    try:
+        yield
+    finally:
+        await container.close_async()
+
+
 class ModernDIPlugin(InitPlugin):
     __slots__ = ("container",)
 
@@ -33,13 +43,14 @@ class ModernDIPlugin(InitPlugin):
             litestar_request=litestar_request, litestar_websocket=litestar_websocket
         )
         app_config.state.di_container = self.container
-        app_config.dependencies["di_container"] = Provide(build_di_container, sync_to_thread=False)
+        app_config.dependencies["di_container"] = Provide(build_di_container)
+        app_config.lifespan.append(_lifespan_manager)
         return app_config
 
 
-def build_di_container(
+async def build_di_container(
     request: litestar.Request[typing.Any, typing.Any, typing.Any],
-) -> Container:
+) -> typing.AsyncIterator[Container]:
     context: dict[type[typing.Any], typing.Any] = {}
     scope: DIScope | None
     if isinstance(request, litestar.WebSocket):
@@ -48,7 +59,11 @@ def build_di_container(
     else:
         context[litestar.Request] = request
         scope = DIScope.REQUEST
-    return fetch_di_container(request.app).build_child_container(context=context, scope=scope)
+    container = fetch_di_container(request.app).build_child_container(context=context, scope=scope)
+    try:
+        yield container
+    finally:
+        await container.close_async()
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
