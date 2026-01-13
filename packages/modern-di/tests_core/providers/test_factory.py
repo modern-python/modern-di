@@ -79,7 +79,7 @@ def test_factory_overridden_app_scope() -> None:
     app_container.override(
         dependency_name="app_factory",
         dependency_type=SimpleCreator,
-        new_provider=providers.Object(obj=SimpleCreator(dep1="override")),
+        mock=SimpleCreator(dep1="override"),
     )
 
     instance2 = app_container.resolve(SimpleCreator)
@@ -102,11 +102,14 @@ def test_factory_overridden_request_scope() -> None:
     app_container.override(
         dependency_name="request_factory",
         dependency_type=DependentCreator,
-        new_provider=providers.Object(obj=DependentCreator(dep1=SimpleCreator(dep1="override"))),
+        mock=providers.Object(obj=DependentCreator(dep1=SimpleCreator(dep1="override"))),
     )
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance1 = request_container.resolve(DependentCreator)
+    request_container.close_sync()
+
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance2 = request_container.resolve(DependentCreator)
     assert instance1 is instance2
     assert instance2.dep1.dep1 == instance1.dep1.dep1 == "override"
