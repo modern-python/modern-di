@@ -3,6 +3,7 @@ import typing
 
 import typing_extensions
 
+from modern_di import types
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.cache_registry import CacheRegistry
@@ -88,14 +89,32 @@ class Container:
 
         return typing.cast(T_co, provider.resolve(self))
 
+    def resolve_provider(self, provider: "AbstractProvider[T_co]") -> T_co:
+        return typing.cast(T_co, provider.resolve(self.find_container(provider.scope)))
+
     async def close_async(self) -> None:
         await self.cache_registry.close_async()
 
     def close_sync(self) -> None:
         self.cache_registry.close_sync()
 
-    def resolve_provider(self, provider: "AbstractProvider[T_co]") -> T_co:
-        return typing.cast(T_co, provider.resolve(self.find_container(provider.scope)))
+    def override(
+        self,
+        *,
+        dependency_name: str | None = None,
+        dependency_type: type[types.T_co] | None = None,
+        new_provider: AbstractProvider[typing.Any],
+    ) -> None:
+        self.cache_registry.close_sync()
+        return self.providers_registry.override_provider(
+            dependency_name=dependency_name, dependency_type=dependency_type, new_provider=new_provider
+        )
+
+    def reset_override(
+        self, *, dependency_name: str | None = None, dependency_type: type[types.T_co] | None = None
+    ) -> None:
+        self.cache_registry.close_sync()
+        return self.providers_registry.reset_override(dependency_name=dependency_name, dependency_type=dependency_type)
 
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""
