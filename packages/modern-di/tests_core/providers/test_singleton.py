@@ -50,12 +50,13 @@ async def test_request_singleton() -> None:
     app_container = Container(groups=[MyGroup])
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance1 = request_container.resolve_provider(MyGroup.request_singleton)
-    instance2 = request_container.resolve_provider(MyGroup.request_singleton)
+    instance2 = request_container.resolve(DependentCreator)
+    assert isinstance(instance1.dep1, SimpleCreator)
     assert instance1 is instance2
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance3 = request_container.resolve_provider(MyGroup.request_singleton)
-    instance4 = request_container.resolve_provider(MyGroup.request_singleton)
+    instance4 = request_container.resolve(DependentCreator)
     assert instance3 is instance4
     assert instance1 is not instance3
 

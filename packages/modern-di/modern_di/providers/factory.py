@@ -71,7 +71,7 @@ class Factory(AbstractProvider[types.T_co]):
             if cache_item.cache is not None:
                 return typing.cast(types.T_co, cache_item.cache)
 
-            instance = self._creator(**kwargs)
+            instance = self._creator(**resolved_kwargs)
             cache_item.cache = instance
             return instance
         finally:
