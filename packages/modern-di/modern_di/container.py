@@ -5,6 +5,7 @@ import typing_extensions
 
 from modern_di import types
 from modern_di.group import Group
+from modern_di.providers import Object
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
@@ -93,9 +94,13 @@ class Container:
         return typing.cast(T_co, provider.resolve(self.find_container(provider.scope)))
 
     async def close_async(self) -> None:
+        if not self.parent_container:
+            self.providers_registry.reset_override()
         await self.cache_registry.close_async()
 
     def close_sync(self) -> None:
+        if not self.parent_container:
+            self.providers_registry.reset_override()
         self.cache_registry.close_sync()
 
     def override(
@@ -103,9 +108,10 @@ class Container:
         *,
         dependency_name: str | None = None,
         dependency_type: type[types.T_co] | None = None,
-        new_provider: AbstractProvider[typing.Any],
+        mock: typing.Any,  # noqa: ANN401
     ) -> None:
         self.cache_registry.close_sync()
+        new_provider = mock if isinstance(mock, AbstractProvider) else Object(obj=mock)
         return self.providers_registry.override_provider(
             dependency_name=dependency_name, dependency_type=dependency_type, new_provider=new_provider
         )
