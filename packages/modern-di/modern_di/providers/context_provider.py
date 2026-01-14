@@ -17,4 +17,5 @@ class ContextProvider(AbstractProvider[types.T_co]):
         self._context_type = context_type
 
     def resolve(self, container: "Container") -> types.T_co | None:
+        container = container.find_container(self.scope)
         return container.context_registry.find_context(self._context_type)

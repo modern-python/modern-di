@@ -36,7 +36,7 @@ class MyGroup(Group):
     )
 
 
-def test_app_singleton() -> None:
+async def test_app_singleton() -> None:
     app_container = Container(groups=[MyGroup])
     singleton1 = app_container.resolve_provider(MyGroup.app_singleton)
     singleton2 = app_container.resolve_provider(MyGroup.app_singleton)
@@ -44,6 +44,9 @@ def test_app_singleton() -> None:
     app_container.close_sync()
     cache_item = app_container.cache_registry.fetch_cache_item(MyGroup.app_singleton)
     assert cache_item.cache
+
+    app_container.resolve_provider(MyGroup.app_singleton)
+    await app_container.close_async()
 
 
 async def test_request_singleton() -> None:

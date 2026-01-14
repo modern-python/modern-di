@@ -12,7 +12,7 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 
 fastapi_request = providers.ContextProvider(scope=Scope.REQUEST, context_type=fastapi.Request)
-fastapi_websocket = providers.ContextProvider(scope=Scope.REQUEST, context_type=fastapi.WebSocket)
+fastapi_websocket = providers.ContextProvider(scope=Scope.SESSION, context_type=fastapi.WebSocket)
 
 
 def fetch_di_container(app_: fastapi.FastAPI) -> Container:

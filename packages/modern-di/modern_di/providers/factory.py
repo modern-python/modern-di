@@ -59,6 +59,7 @@ class Factory(AbstractProvider[types.T_co]):
         return result
 
     def resolve(self, container: "Container") -> types.T_co:
+        container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
         if cache_item.kwargs is not None:
             kwargs = cache_item.kwargs
