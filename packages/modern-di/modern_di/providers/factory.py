@@ -3,9 +3,9 @@ import inspect
 import typing
 
 from modern_di import types
-from modern_di.helpers.type_helpers import parse_signature
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
+from modern_di.types_parser import parse_creator
 
 
 if typing.TYPE_CHECKING:
@@ -34,16 +34,26 @@ class Factory(AbstractProvider[types.T_co]):
         kwargs: dict[str, typing.Any] | None = None,
         cache_settings: CacheSettings[types.T_co] | None = None,
     ) -> None:
-        dependency_type, self._parsed_kwargs = parse_signature(creator)
-        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else dependency_type)
+        dependency_type, self._parsed_kwargs = parse_creator(creator)
+        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else dependency_type.arg_type)
         self._creator = creator
         self.cache_settings = cache_settings
         self._kwargs = kwargs
 
     def _compile_kwargs(self, container: "Container") -> dict[str, typing.Any]:
-        result: dict[str, typing.Any] = self._parsed_kwargs.copy()
-        for k, v in result.items():
-            result[k] = container.providers_registry.find_provider(dependency_name=k, dependency_type=v)
+        result: dict[str, typing.Any] = {}
+        for k, v in self._parsed_kwargs.items():
+            provider: AbstractProvider[types.T_co] | None = container.providers_registry.find_provider(
+                dependency_name=k, dependency_type=v.arg_type
+            )
+            if provider:
+                result[k] = provider
+                continue
+
+            if (not self._kwargs or k not in self._kwargs) and v.default == types.UNSET:
+                msg = f"Argument {k} cannot be resolved, type={v.arg_type}"
+                raise RuntimeError(msg)
+
         if self._kwargs:
             result.update(self._kwargs)
         return result
