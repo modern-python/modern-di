@@ -22,6 +22,7 @@ class AnotherCreator:
 
 class MyGroup(Group):
     app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
+    app_factory_unresolvable = providers.Factory(creator=SimpleCreator, bound_type=None)
     request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator)
     request_factory_with_di_container = providers.Factory(scope=Scope.REQUEST, creator=AnotherCreator)
 
@@ -37,6 +38,12 @@ def test_app_factory() -> None:
     assert instance1 is not instance2
     assert instance1 is not instance3
     assert instance2 is not instance3
+
+
+def test_app_factory_unresolvable() -> None:
+    app_container = Container(groups=[MyGroup])
+    with pytest.raises(RuntimeError, match="Argument dep1 cannot be resolved, type=<class 'str'"):
+        app_container.resolve_provider(MyGroup.app_factory_unresolvable)
 
 
 def test_request_factory() -> None:
