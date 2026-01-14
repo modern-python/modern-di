@@ -16,7 +16,7 @@ T_co = typing.TypeVar("T_co", covariant=True)
 
 
 litestar_request = providers.ContextProvider(scope=Scope.REQUEST, context_type=litestar.Request)
-litestar_websocket = providers.ContextProvider(scope=Scope.REQUEST, context_type=litestar.WebSocket)
+litestar_websocket = providers.ContextProvider(scope=Scope.SESSION, context_type=litestar.WebSocket)
 
 
 def fetch_di_container(app_: litestar.Litestar) -> Container:

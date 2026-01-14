@@ -91,7 +91,7 @@ class Container:
         return typing.cast(T_co, provider.resolve(self))
 
     def resolve_provider(self, provider: "AbstractProvider[T_co]") -> T_co:
-        return typing.cast(T_co, provider.resolve(self.find_container(provider.scope)))
+        return typing.cast(T_co, provider.resolve(self))
 
     async def close_async(self) -> None:
         if not self.parent_container:
