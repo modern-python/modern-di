@@ -110,7 +110,7 @@ class Container:
         dependency_type: type[types.T_co] | None = None,
         mock: typing.Any,  # noqa: ANN401
     ) -> None:
-        self.cache_registry.close_sync()
+        self.cache_registry.clear_kwargs()
         new_provider = mock if isinstance(mock, AbstractProvider) else Object(obj=mock)
         return self.providers_registry.override_provider(
             dependency_name=dependency_name, dependency_type=dependency_type, new_provider=new_provider
@@ -119,7 +119,7 @@ class Container:
     def reset_override(
         self, *, dependency_name: str | None = None, dependency_type: type[types.T_co] | None = None
     ) -> None:
-        self.cache_registry.close_sync()
+        self.cache_registry.clear_kwargs()
         return self.providers_registry.reset_override(dependency_name=dependency_name, dependency_type=dependency_type)
 
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":

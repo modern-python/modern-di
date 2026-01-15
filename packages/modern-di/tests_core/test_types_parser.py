@@ -14,6 +14,7 @@ from modern_di.types_parser import SignatureItem, parse_creator
         (typing.Optional[str], SignatureItem(arg_type=str, is_nullable=True)),  # noqa: UP045
         (str | None, SignatureItem(arg_type=str, is_nullable=True)),
         (str | int, SignatureItem(args=[str, int])),
+        (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
     ],
 )
 def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
@@ -22,6 +23,7 @@ def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
 
 def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # type: ignore[empty-body]
 def none_func(arg1: int, arg2: str | None = None) -> None: ...
+def args_kwargs_func(*args: int, **kwargs: str) -> None: ...
 async def async_func(arg1: int = 1, arg2="str") -> int: ...  # type: ignore[no-untyped-def,empty-body]  # noqa: ANN001
 
 
@@ -62,6 +64,13 @@ class SomeRegularClass:
                     "arg1": SignatureItem(arg_type=int),
                     "arg2": SignatureItem(arg_type=str, is_nullable=True, default=None),
                 },
+            ),
+        ),
+        (
+            args_kwargs_func,
+            (
+                SignatureItem(),
+                {},
             ),
         ),
         (
