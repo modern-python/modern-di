@@ -25,7 +25,7 @@ async def di_container() -> typing.AsyncIterator[modern_di.Container]:
     try:
         yield di_container_
     finally:
-        di_container_.close()
+        await di_container_.close_async()
 
 
 @pytest.fixture
@@ -36,7 +36,10 @@ def request_di_container(di_container: modern_di.Container) -> modern_di.Contain
 @pytest.fixture
 def mock_dependencies(di_container: modern_di.Container) -> None:
     # Override dependencies using the new API
-    di_container.override(ioc.Dependencies.simple_factory, ioc.SimpleFactory(dep1="mock", dep2=777))
+    di_container.override(
+        dependency_type=SimpleFactory,
+        mock=SimpleFactory(dep1="mock", dep2=777)
+    )
 ```
 
 ## 2. Use fixtures in tests:
@@ -48,8 +51,8 @@ from modern_di import Container
 from app.ioc import Dependencies
 
 
-async def test_with_app_scope(di_container: Container) -> None:
-    sync_resource_instance = await di_container.resolve_provider(Dependencies.sync_resource)
+def test_with_app_scope(di_container: Container) -> None:
+    resource_instance = di_container.resolve_provider(Dependencies.sync_resource)
     # Do something with the dependency
 
 

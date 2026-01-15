@@ -5,14 +5,14 @@
 - Is a lifespan of a dependency;
 - Is required for almost each provider;
 - In frameworks' integrations some scopes are entered automatically;
-- Dependencies of **Singleton** providers are cached for the lifespan of their scope;
+- Dependencies of cached **Factory** providers are cached for the lifespan of their scope;
 
 ### Default scopes
 
 **APP**:
 
    - Tied to the entire application lifetime;
-   - Can be used for **Singleton** providers;
+   - Can be used for cached **Factory** providers;
 
 **SESSION**:
 
@@ -54,7 +54,7 @@ This causes a cascade effect that helps to assemble object graphs.
 More about providers:
 
 - Do not contain assembled objects:
-    - **Singleton** objects are stored in the container;
+    - Cached **Factory** objects are stored in the container;
     - **Factory** objects are built on each call.
 - Can have dependencies only of the same or more long-lived scopes:
     - **APP**-scoped providers can have only **APP**-scoped dependencies;

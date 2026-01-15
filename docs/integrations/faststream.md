@@ -43,7 +43,11 @@ def create_singleton() -> datetime.datetime:
 
 
 class AppGroup(Group):
-    singleton = providers.Singleton(Scope.APP, create_singleton)
+    singleton = providers.Factory(
+        scope=Scope.APP,
+        creator=create_singleton,
+        cache_settings=providers.CacheSettings()
+    )
 
 
 # Register your groups
@@ -62,4 +66,30 @@ async def read_root(
 ) -> datetime.datetime:
     return instance
 
+```
+
+## Framework Context Objects
+
+Framework-specific context objects like `faststream.StreamMessage` are automatically provided by the integration, so you don't need to explicitly define ContextProviders for these objects in your dependency groups.
+
+For example, to use the message object in a factory:
+
+```python
+import faststream
+from modern_di import Group, Scope, providers
+
+def create_message_info(message: faststream.StreamMessage) -> dict[str, str]:
+    return {
+        "message_id": str(message.message_id),
+        "processed": str(message.processed),
+        "timestamp": "2023-01-01T00:00:00Z"
+    }
+
+
+class AppGroup(Group):
+    # Factory uses the message from context (automatically provided by the integration)
+    message_info = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=create_message_info,
+    )
 ```
