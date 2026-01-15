@@ -79,6 +79,10 @@ You can customize caching behavior with `CacheSettings`:
 ```python
 from modern_di import Group, Scope, providers
 
+def create_resource() -> SomeResource:
+    # Create and return resource
+    pass
+
 class Dependencies(Group):
     # Cache with cleanup
     resource = providers.Factory(

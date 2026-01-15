@@ -122,5 +122,9 @@ try:
     # Use your instances...
 finally:
     # Close container when done
-    await request_container.close_async()
+    # For async usage:
+    # await request_container.close_async()
+
+    # For sync usage:
+    # request_container.close_sync()
 ```
