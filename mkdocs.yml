@@ -18,7 +18,7 @@ nav:
       - Fixtures: testing/fixtures.md
   - Migration:
       - To 1.x: migration/to-1.x.md
-      - From 'that-depends': migration/from-that-depends.md
+      - To 2.x: migration/to-2.x.md
   - Development:
       - Contributing: dev/contributing.md
       - Decisions: dev/decisions.md
