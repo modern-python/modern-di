@@ -57,7 +57,7 @@ class Factory(AbstractProvider[types.T_co]):
                 continue
 
             if (not self._kwargs or k not in self._kwargs) and v.default == types.UNSET:
-                msg = f"Argument {k} cannot be resolved, type={v.arg_type}"
+                msg = f"Argument {k} cannot be resolved, type={v.arg_type}, factory={self._creator}"
                 raise RuntimeError(msg)
 
         if self._kwargs:
