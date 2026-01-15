@@ -20,7 +20,7 @@ class SignatureItem:
             result["arg_type"] = type_.__origin__
             result["args"] = list(type_.__args__)
         elif isinstance(type_, (types.UnionType, typing._UnionGenericAlias)):  # type: ignore[attr-defined]  # noqa: SLF001
-            args = list(type_.__args__)
+            args = [x.__origin__ if isinstance(x, types.GenericAlias) else x for x in type_.__args__]
             if types.NoneType in args:
                 result["is_nullable"] = True
                 args.remove(types.NoneType)
@@ -41,6 +41,8 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
 
     param_hints = {}
     for param_name, param in sig.parameters.items():
+        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            continue
         default = UNSET
         if param.default is not param.empty:
             default = param.default

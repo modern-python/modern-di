@@ -43,9 +43,15 @@ class Factory(AbstractProvider[types.T_co]):
     def _compile_kwargs(self, container: "Container") -> dict[str, typing.Any]:
         result: dict[str, typing.Any] = {}
         for k, v in self._parsed_kwargs.items():
-            provider: AbstractProvider[types.T_co] | None = container.providers_registry.find_provider(
-                dependency_name=k, dependency_type=v.arg_type
-            )
+            provider: AbstractProvider[types.T_co] | None = None
+            if v.arg_type:
+                provider = container.providers_registry.find_provider(dependency_name=k, dependency_type=v.arg_type)
+            else:
+                for x in v.args:
+                    provider = container.providers_registry.find_provider(dependency_name=k, dependency_type=x)
+                    if provider:
+                        break
+
             if provider:
                 result[k] = provider
                 continue
