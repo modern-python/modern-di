@@ -43,7 +43,11 @@ def create_singleton() -> datetime.datetime:
 
 
 class AppGroup(Group):
-    singleton = providers.Singleton(Scope.APP, create_singleton)
+    singleton = providers.Factory(
+        scope=Scope.APP,
+        creator=create_singleton,
+        cache_settings=providers.CacheSettings()
+    )
 
 
 # Register your groups
@@ -101,4 +105,31 @@ async def websocket_endpoint(
     await websocket.accept()
     await websocket.send_text("test")
     await websocket.close()
+```
+
+## Framework Context Objects
+
+Framework-specific context objects like `fastapi.Request` and `fastapi.WebSocket` are automatically provided by the integration, so you don't need to explicitly define ContextProviders for these objects in your dependency groups.
+
+For example, to use the request object in a factory:
+
+```python
+import fastapi
+from modern_di import Group, Scope, providers
+
+
+def create_request_info(request: fastapi.Request) -> dict[str, str]:
+    return {
+        "method": request.method,
+        "url": str(request.url),
+        "timestamp": "2023-01-01T00:00:00Z"
+    }
+
+
+class AppGroup(Group):
+    # Factory uses the request from context (automatically provided by the integration)
+    request_info = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=create_request_info,
+    )
 ```

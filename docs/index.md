@@ -70,13 +70,20 @@ from modern_di import Group, Scope, providers
 
 
 class Dependencies(Group):
-    singleton = providers.Singleton(Scope.APP, create_singleton)
+    singleton = providers.Factory(
+        scope=Scope.APP,
+        creator=create_singleton,
+        cache_settings=providers.CacheSettings()
+    )
 
-    simple_factory = providers.Factory(Scope.REQUEST, SimpleFactory, dep1="text", dep2=123)
+    simple_factory = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=SimpleFactory,
+        kwargs={"dep1": "text", "dep2": 123}
+    )
     dependent_factory = providers.Factory(
-        Scope.REQUEST,
-        DependentFactory,
-        singleton=singleton.cast,
+        scope=Scope.REQUEST,
+        creator=DependentFactory,
     )
 ```
 
@@ -92,27 +99,28 @@ For now there are integrations for the following frameworks:
 
 Create a container and resolve dependencies in your code
 ```python
-from modern_di import Container, Scope
+from modern_di import Container
 
 
-# For applications that need both sync and async resolution, use AsyncContainer
 ALL_GROUPS = [Dependencies]
 
 # Initialize container of app scope
 container = Container(groups=ALL_GROUPS)
 
 # Resolve provider
-container.resolve_provider(Dependencies.singleton)
+instance1 = container.resolve_provider(Dependencies.singleton)
 
 # You can also resolve by type if you've registered groups
-instance3 = container.sync_resolve(str)  # resolves the singleton
+instance2 = container.resolve(dependency_type=str)  # resolves the singleton
 
 # Create container of request scope
 request_container = container.build_child_container(scope=Scope.REQUEST)
-# Resolve factories of request scope
-container.resolve_provider(Dependencies.simple_factory)
-container.resolve_provider(Dependencies.dependent_factory)
-
-# Close container when done
-container.close()
+try:
+    # Resolve factories of request scope
+    instance3 = request_container.resolve_provider(Dependencies.simple_factory)
+    instance4 = request_container.resolve_provider(Dependencies.dependent_factory)
+    # Use your instances...
+finally:
+    # Close container when done
+    await request_container.close_async()
 ```
