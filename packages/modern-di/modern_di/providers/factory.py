@@ -5,7 +5,7 @@ import typing
 from modern_di import types
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
-from modern_di.types_parser import parse_creator
+from modern_di.types_parser import SignatureItem, parse_creator
 
 
 if typing.TYPE_CHECKING:
@@ -25,7 +25,7 @@ class CacheSettings(typing.Generic[types.T_co]):
 class Factory(AbstractProvider[types.T_co]):
     __slots__ = [*AbstractProvider.BASE_SLOTS, "_creator", "_kwargs", "_parsed_kwargs", "cache_settings"]
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         scope: Scope = Scope.APP,
@@ -33,9 +33,16 @@ class Factory(AbstractProvider[types.T_co]):
         bound_type: type | None = types.UNSET,  # type: ignore[assignment]
         kwargs: dict[str, typing.Any] | None = None,
         cache_settings: CacheSettings[types.T_co] | None = None,
+        skip_creator_parsing: bool = False,
     ) -> None:
-        dependency_type, self._parsed_kwargs = parse_creator(creator)
-        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else dependency_type.arg_type)
+        if skip_creator_parsing:
+            parsed_type: type | None = None
+            parsed_kwargs: dict[str, SignatureItem] = {}
+        else:
+            return_sig, parsed_kwargs = parse_creator(creator)
+            parsed_type = return_sig.arg_type
+        self._parsed_kwargs = parsed_kwargs
+        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else parsed_type)
         self._creator = creator
         self.cache_settings = cache_settings
         self._kwargs = kwargs

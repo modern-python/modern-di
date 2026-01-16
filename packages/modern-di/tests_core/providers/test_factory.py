@@ -1,4 +1,5 @@
 import dataclasses
+import re
 
 import pytest
 from modern_di import Container, Group, Scope, providers
@@ -27,6 +28,7 @@ def func_with_union(dep1: SimpleCreator | int) -> str:
 class MyGroup(Group):
     app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
     app_factory_unresolvable = providers.Factory(creator=SimpleCreator, bound_type=None)
+    app_factory_skip_creator_parsing = providers.Factory(creator=SimpleCreator, skip_creator_parsing=True)
     func_with_union_factory = providers.Factory(creator=func_with_union, bound_type=None)
     request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator)
     request_factory_with_di_container = providers.Factory(scope=Scope.REQUEST, creator=AnotherCreator)
@@ -43,6 +45,14 @@ def test_app_factory() -> None:
     assert instance1 is not instance2
     assert instance1 is not instance3
     assert instance2 is not instance3
+
+
+def test_app_factory_skip_creator_parsing() -> None:
+    app_container = Container(groups=[MyGroup])
+    with pytest.raises(
+        TypeError, match=re.escape("SimpleCreator.__init__() missing 1 required keyword-only argument: 'dep1'")
+    ):
+        app_container.resolve_provider(MyGroup.app_factory_skip_creator_parsing)
 
 
 def test_app_factory_unresolvable() -> None:

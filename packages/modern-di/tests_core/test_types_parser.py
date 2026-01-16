@@ -24,6 +24,7 @@ def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
 def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # type: ignore[empty-body]
 def none_func(arg1: int, arg2: str | None = None) -> None: ...
 def args_kwargs_func(*args: int, **kwargs: str) -> None: ...
+def func_with_str_annotations(arg1: "list[int]", arg2: "str") -> None: ...
 async def async_func(arg1: int = 1, arg2="str") -> int: ...  # type: ignore[no-untyped-def,empty-body]  # noqa: ANN001
 
 
@@ -41,6 +42,10 @@ class DataClassInitFalse:
 
 class SomeRegularClass:
     def __init__(self, arg1: str, arg2: int) -> None: ...
+
+
+class ClassWithStringAnnotations:
+    def __init__(self, arg1: "str", arg2: "int") -> None: ...
 
 
 @pytest.mark.parametrize(
@@ -71,6 +76,16 @@ class SomeRegularClass:
             (
                 SignatureItem(),
                 {},
+            ),
+        ),
+        (
+            func_with_str_annotations,
+            (
+                SignatureItem(),
+                {
+                    "arg1": SignatureItem(arg_type=list, args=[int]),
+                    "arg2": SignatureItem(arg_type=str),
+                },
             ),
         ),
         (
@@ -112,8 +127,34 @@ class SomeRegularClass:
                 },
             ),
         ),
+        (
+            ClassWithStringAnnotations,
+            (
+                SignatureItem(arg_type=ClassWithStringAnnotations),
+                {
+                    "arg1": SignatureItem(arg_type=str),
+                    "arg2": SignatureItem(arg_type=int),
+                },
+            ),
+        ),
         (int, (SignatureItem(arg_type=int), {})),
     ],
 )
 def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[str, SignatureItem]]) -> None:
     assert parse_creator(creator) == result
+
+
+def func_with_wrong_annotations(arg1: "WrongType", arg2: "str") -> None: ...  # type: ignore[name-defined]  # noqa: F821
+
+
+class ClassWithWrongAnnotations:
+    def __init__(self, arg1: "WrongType", arg2: "int") -> None: ...  # type: ignore[name-defined]  # noqa: F821
+
+
+@pytest.mark.parametrize(
+    "creator",
+    [func_with_wrong_annotations, ClassWithWrongAnnotations],
+)
+def test_parse_creator_wrong_annotations(creator: type) -> None:
+    with pytest.raises(NameError, match="name 'WrongType' is not defined"):
+        assert parse_creator(creator)
