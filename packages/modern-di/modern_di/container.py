@@ -111,7 +111,7 @@ class Container:
         mock: typing.Any,  # noqa: ANN401
     ) -> None:
         self.cache_registry.clear_kwargs()
-        new_provider = mock if isinstance(mock, AbstractProvider) else Object(obj=mock)
+        new_provider = mock if isinstance(mock, AbstractProvider) else Object(obj=mock, bound_type=dependency_type)
         return self.providers_registry.override_provider(
             dependency_name=dependency_name, dependency_type=dependency_type, new_provider=new_provider
         )
