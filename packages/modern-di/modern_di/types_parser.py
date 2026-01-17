@@ -18,6 +18,9 @@ class SignatureItem:
         if type_ is types.NoneType:
             return cls()
 
+        if isinstance(type_, typing._AnnotatedAlias):  # type: ignore[attr-defined]  # noqa: SLF001
+            type_ = type_.__args__[0]
+
         result: dict[str, typing.Any] = {"default": default}
         if isinstance(type_, types.GenericAlias):
             result["arg_type"] = type_.__origin__
