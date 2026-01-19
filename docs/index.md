@@ -60,6 +60,7 @@ class SimpleFactory:
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class DependentFactory:
+    simple_factory: SimpleFactory
     singleton: str
 ```
 
@@ -99,7 +100,7 @@ For now there are integrations for the following frameworks:
 
 Create a container and resolve dependencies in your code
 ```python
-from modern_di import Container
+from modern_di import Container, Scope
 
 
 ALL_GROUPS = [Dependencies]
@@ -123,8 +124,8 @@ try:
 finally:
     # Close container when done
     # For async usage:
-    # await request_container.close_async()
+    await request_container.close_async()
 
     # For sync usage:
-    # request_container.close_sync()
+    request_container.close_sync()
 ```
