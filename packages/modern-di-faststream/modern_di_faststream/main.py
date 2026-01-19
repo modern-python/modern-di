@@ -80,6 +80,7 @@ def setup_di(
 
     container.providers_registry.add_providers(faststream_message=faststream_message)
     app.context.set_global("di_container", container)
+    app.after_shutdown(container.close_async)
     app.broker.add_middleware(_DIMiddlewareFactory(container))
     return container
 
