@@ -17,6 +17,11 @@ supports the following:
 - Fully typed and tested
 - Integrations with `FastAPI`, `FastStream` and `LiteStar`
 
+Usage examples:
+
+- with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
+
 ## 📚 [Documentation](https://modern-di.readthedocs.io)
 
 ## 📦 [PyPi](https://pypi.org/project/modern-di)

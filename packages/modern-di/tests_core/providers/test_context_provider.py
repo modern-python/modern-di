@@ -15,6 +15,15 @@ def test_context_provider() -> None:
     assert instance1 is instance2 is now
 
 
+def test_context_provider_set_context_after_creation() -> None:
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app_container = Container()
+    app_container.set_context(datetime.datetime, now)
+    instance1 = app_container.resolve_provider(context_provider)
+    instance2 = app_container.resolve_provider(context_provider)
+    assert instance1 is instance2 is now
+
+
 def test_context_provider_not_found() -> None:
     app_container = Container()
     assert app_container.resolve_provider(context_provider) is None

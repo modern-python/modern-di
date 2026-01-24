@@ -122,6 +122,9 @@ class Container:
         self.cache_registry.clear_kwargs()
         return self.providers_registry.reset_override(dependency_name=dependency_name, dependency_type=dependency_type)
 
+    def set_context(self, context_type: type[types.T], obj: types.T) -> None:
+        self.context_registry.set_context(context_type, obj)
+
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""
         return self
