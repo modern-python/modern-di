@@ -39,6 +39,16 @@ app = fastapi.FastAPI()
 modern_di_fastapi.setup_di(app, Container(groups=ALL_GROUPS))
 ```
 
+You can resolve the context provider by type or by name:
+
+```python
+# Resolving by type
+request_info_dict = container.resolve(dependency_type=dict)
+
+# Resolving by name
+request_info_dict = container.resolve(dependency_name="request_info")
+```
+
 ### Manual ContextProvider Usage
 
 You may still need to define ContextProviders manually in cases where you want to inject custom context objects that are not automatically provided by the integration:

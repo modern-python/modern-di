@@ -59,6 +59,9 @@ More about providers:
 - Can have dependencies only of the same or more long-lived scopes:
     - **APP**-scoped providers can have only **APP**-scoped dependencies;
     - **SESSION**-scoped providers can have APP and **SESSION**-scoped dependencies, etc.;
+- Providers can be resolved by name or by type:
+    - Resolving by name uses the provider attribute name in the Group;
+    - Resolving by type uses the return type annotation of the creator function or class.
 
 ## Container
 
@@ -69,6 +72,14 @@ All states live in containers:
 
 - Assembled objects;
 - Overrides for tests;
+
+Container provides two methods for resolving dependencies:
+
+1. `resolve_provider(provider)` - Resolve a specific provider instance
+2. `resolve(dependency_type=None, dependency_name=None)` - Resolve by type or name
+
+When resolving by type, the container looks for a provider that was registered with a matching `bound_type`.
+When resolving by name, the container looks for a provider with a matching attribute name in the Group.
 
 ## Group
 
