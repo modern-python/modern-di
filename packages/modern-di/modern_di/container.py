@@ -44,7 +44,7 @@ class Container:
             self.providers_registry = parent_container.providers_registry
         else:
             self.providers_registry = ProvidersRegistry()
-            self.providers_registry.add_providers(di_container=ContainerProvider())
+            self.providers_registry.add_providers(di_container=_ContainerProvider())
         if groups:
             for one_group in groups:
                 self.providers_registry.add_providers(**one_group.get_providers())
@@ -134,7 +134,7 @@ class Container:
         return self
 
 
-class ContainerProvider(AbstractProvider[typing.Any]):
+class _ContainerProvider(AbstractProvider[typing.Any]):
     __slots__ = AbstractProvider.BASE_SLOTS
 
     def __init__(self) -> None:
