@@ -1,14 +1,16 @@
 # Context Providers
 
-## ContextProvider
+Often, scopes are connected with external events: HTTP requests, messages from a queue, callbacks from a framework.
+These events can be represented by objects which can be used for dependency creation.
 
-ContextProvider is a provider type that allows injecting context values into dependencies. This is particularly useful for injecting framework-specific objects like requests, websockets, etc.
+`ContextProvider` is a provider type that allows injecting context values into dependencies.
+This is particularly useful for injecting framework-specific objects like requests, websockets, etc.
 
 ContextProvider makes context data available to other providers in your dependency graph by extracting values from the container's context.
 
 In integrations, some context objects (like `fastapi.Request`, `litestar.WebSocket`, etc.) are automatically provided.
 
-### Basic Usage with `FastAPI`
+## Basic Usage with `FastAPI`
 
 ```python
 from modern_di import Group, Container, Scope, providers
@@ -36,20 +38,18 @@ class Dependencies(Group):
 ALL_GROUPS = [Dependencies]
 # Setup DI with your groups
 app = fastapi.FastAPI()
-modern_di_fastapi.setup_di(app, Container(groups=ALL_GROUPS))
-```
+container = Container(groups=ALL_GROUPS)
+modern_di_fastapi.setup_di(app, container)
 
-You can resolve the context provider by type or by name:
 
-```python
 # Resolving by type
-request_info_dict = container.resolve(dependency_type=dict)
+request_info_dict = container.resolve(dict)
 
 # Resolving by name
 request_info_dict = container.resolve(dependency_name="request_info")
 ```
 
-### Manual ContextProvider Usage
+## Manual `ContextProvider` Usage
 
 You may still need to define ContextProviders manually in cases where you want to inject custom context objects that are not automatically provided by the integration:
 

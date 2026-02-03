@@ -12,6 +12,7 @@
 `modern-di` is a python dependency injection framework which, among other things,
 supports the following:
 
+- Automatic dependencies graph based on type annotations
 - Scopes and granular context management
 - Python 3.10+ support
 - Fully typed and tested
