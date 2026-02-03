@@ -29,8 +29,12 @@ async def di_container() -> typing.AsyncIterator[modern_di.Container]:
 
 
 @pytest.fixture
-def request_di_container(di_container: modern_di.Container) -> modern_di.Container:
-    return di_container.build_child_container(scope=modern_di.Scope.REQUEST)
+async def request_di_container(di_container: modern_di.Container) -> typing.AsyncIterator[modern_di.Container]:
+    di_container_ = di_container.build_child_container(scope=modern_di.Scope.REQUEST)
+    try:
+        yield di_container_
+    finally:
+        await di_container_.close_async()
 
 
 @pytest.fixture

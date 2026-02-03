@@ -5,6 +5,7 @@ Welcome to the `modern-di` documentation!
 `modern-di` is a Python dependency injection framework which, among other things,
 supports the following:
 
+- Automatic dependencies graph based on type annotations
 - Scopes and granular context management
 - Python 3.10+ support
 - Fully typed and tested
@@ -77,6 +78,7 @@ class Dependencies(Group):
         cache_settings=providers.CacheSettings()
     )
 
+    # relation between dependent_factory and simple_factory will be defined based on type annotations
     simple_factory = providers.Factory(
         scope=Scope.REQUEST,
         creator=SimpleFactory,

@@ -51,18 +51,6 @@ Providers are needed to describe, how to assemble objects.
 They retrieve the underlying dependencies and inject them into the created object.
 This causes a cascade effect that helps to assemble object graphs.
 
-More about providers:
-
-- Do not contain assembled objects:
-    - Cached **Factory** objects are stored in the container;
-    - **Factory** objects are built on each call.
-- Can have dependencies only of the same or more long-lived scopes:
-    - **APP**-scoped providers can have only **APP**-scoped dependencies;
-    - **SESSION**-scoped providers can have APP and **SESSION**-scoped dependencies, etc.;
-- Providers can be resolved by name or by type:
-    - Resolving by name uses the provider attribute name in the Group;
-    - Resolving by type uses the return type annotation of the creator function or class.
-
 ## Container
 
 Each container is assigned to a certain scope.
