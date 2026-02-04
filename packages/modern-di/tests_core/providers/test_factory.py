@@ -104,11 +104,7 @@ def test_factory_overridden_app_scope() -> None:
     app_container = Container(groups=[MyGroup])
     instance1 = app_container.resolve_provider(MyGroup.app_factory)
 
-    app_container.override(
-        dependency_name="app_factory",
-        dependency_type=SimpleCreator,
-        mock=SimpleCreator(dep1="override"),
-    )
+    app_container.override(MyGroup.app_factory, SimpleCreator(dep1="override"))
 
     instance2 = app_container.resolve(SimpleCreator)
     instance3 = app_container.resolve(SimpleCreator)
@@ -116,7 +112,7 @@ def test_factory_overridden_app_scope() -> None:
     assert instance2 is instance3
     assert instance2.dep1 != instance1.dep1
 
-    app_container.reset_override(dependency_name="app_factory", dependency_type=SimpleCreator)
+    app_container.reset_override(MyGroup.app_factory)
 
     instance4 = app_container.resolve_provider(MyGroup.app_factory)
 
@@ -127,11 +123,7 @@ def test_factory_overridden_app_scope() -> None:
 
 def test_factory_overridden_request_scope() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.override(
-        dependency_name="request_factory",
-        dependency_type=DependentCreator,
-        mock=providers.Object(obj=DependentCreator(dep1=SimpleCreator(dep1="override"))),
-    )
+    app_container.override(MyGroup.request_factory, DependentCreator(dep1=SimpleCreator(dep1="override")))
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     instance1 = request_container.resolve(DependentCreator)

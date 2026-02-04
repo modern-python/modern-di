@@ -48,10 +48,6 @@ class CacheRegistry:
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
         return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
 
-    def clear_kwargs(self) -> None:
-        for cache_item in self._items.values():
-            cache_item.kwargs = None
-
     async def close_async(self) -> None:
         for cache_item in self._items.values():
             await cache_item.close_async()

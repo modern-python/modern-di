@@ -231,24 +231,6 @@ instance = container.resolve(dependency_type=SomeType)
 instance = container.resolve(dependency_name="provider_name")
 ```
 
-### 7. Override Mechanism Changes
-
-The override mechanism has been changed.
-
-**Before (1.x):**
-```python
-container.override(provider, mock_instance)
-```
-
-**After (2.x):**
-```python
-container.override(
-    dependency_name="provider_name",
-    dependency_type=SomeType,
-    mock=mock_instance
-)
-```
-
 ## Migration Steps
 
 1. **Update Dependencies**: Ensure all modern-di packages are updated to 2.x versions
@@ -259,7 +241,6 @@ container.override(
    - Remove `Dict` and `List` providers, replace with `Factory` creators
 4. **Update Container Building**: Replace context managers with try/finally blocks
 5. **Update Provider Resolution**: Remove `sync_` prefixes and `await` keywords where appropriate
-6. **Update Overrides**: Use the new override API with explicit dependency names/types
 
 ## Breaking Changes
 
@@ -268,7 +249,6 @@ container.override(
 3. All provider constructors now use keyword-only arguments
 4. Container building no longer uses context managers
 5. Provider resolution methods simplified (no `sync_` prefix)
-6. Override mechanism changed to be more explicit
-7. Integration packages updated with new APIs
-8. Automatic container entry/exit removed (manual cleanup required)
-9. Provider casting mechanism changed (`.cast` attribute removed)
+6. Integration packages updated with new APIs
+7. Automatic container entry/exit removed (manual cleanup required)
+8. Provider casting mechanism changed (`.cast` attribute removed)
