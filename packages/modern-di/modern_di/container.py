@@ -5,10 +5,10 @@ import typing_extensions
 
 from modern_di import types
 from modern_di.group import Group
-from modern_di.providers import Object
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
+from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
@@ -21,6 +21,7 @@ class Container:
         "cache_registry",
         "context_registry",
         "lock",
+        "overrides_registry",
         "parent_container",
         "providers_registry",
         "scope",
@@ -40,11 +41,14 @@ class Container:
         self.cache_registry = CacheRegistry()
         self.context_registry = ContextRegistry(context=context or {})
         self.providers_registry: ProvidersRegistry
+        self.overrides_registry: OverridesRegistry
         if parent_container:
             self.providers_registry = parent_container.providers_registry
+            self.overrides_registry = parent_container.overrides_registry
         else:
             self.providers_registry = ProvidersRegistry()
             self.providers_registry.add_providers(di_container=_ContainerProvider())
+            self.overrides_registry = OverridesRegistry()
         if groups:
             for one_group in groups:
                 self.providers_registry.add_providers(**one_group.get_providers())
@@ -88,39 +92,29 @@ class Container:
             msg = f"Provider is not found, {dependency_type=}, {dependency_name=}"
             raise RuntimeError(msg)
 
-        return typing.cast(T_co, provider.resolve(self))
+        return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[T_co]") -> T_co:
+        if (override := self.overrides_registry.fetch_override(provider.provider_id)) is not None:
+            return typing.cast(T_co, override)
+
         return typing.cast(T_co, provider.resolve(self))
 
     async def close_async(self) -> None:
         if not self.parent_container:
-            self.providers_registry.reset_override()
+            self.overrides_registry.reset_override()
         await self.cache_registry.close_async()
 
     def close_sync(self) -> None:
         if not self.parent_container:
-            self.providers_registry.reset_override()
+            self.overrides_registry.reset_override()
         self.cache_registry.close_sync()
 
-    def override(
-        self,
-        *,
-        dependency_name: str | None = None,
-        dependency_type: type[types.T_co] | None = None,
-        mock: typing.Any,  # noqa: ANN401
-    ) -> None:
-        self.cache_registry.clear_kwargs()
-        new_provider = mock if isinstance(mock, AbstractProvider) else Object(obj=mock, bound_type=dependency_type)
-        return self.providers_registry.override_provider(
-            dependency_name=dependency_name, dependency_type=dependency_type, new_provider=new_provider
-        )
+    def override(self, provider: AbstractProvider[T_co], override_object: object) -> None:
+        self.overrides_registry.override(provider.provider_id, override_object)
 
-    def reset_override(
-        self, *, dependency_name: str | None = None, dependency_type: type[types.T_co] | None = None
-    ) -> None:
-        self.cache_registry.clear_kwargs()
-        return self.providers_registry.reset_override(dependency_name=dependency_name, dependency_type=dependency_type)
+    def reset_override(self, provider: AbstractProvider[T_co] | None = None) -> None:
+        self.overrides_registry.reset_override(provider.provider_id if provider else None)
 
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
         self.context_registry.set_context(context_type, obj)

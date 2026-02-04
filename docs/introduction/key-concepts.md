@@ -61,10 +61,16 @@ All states live in containers:
 - Assembled objects;
 - Overrides for tests;
 
-Container provides two methods for resolving dependencies:
+Container provides methods for resolving dependencies:
 
 1. `resolve_provider(provider)` - Resolve a specific provider instance
 2. `resolve(dependency_type=None, dependency_name=None)` - Resolve by type or name
+
+Container also provides methods for overriding providers with objects:
+
+1. `override(provider, override_object)` - Override a provider with a mock object for testing
+2. `reset_override(provider)` - Reset override for a specific provider
+3. `reset_override()` - Reset all overrides
 
 When resolving by type, the container looks for a provider that was registered with a matching `bound_type`.
 When resolving by name, the container looks for a provider with a matching attribute name in the Group.

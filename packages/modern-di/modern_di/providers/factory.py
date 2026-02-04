@@ -80,7 +80,9 @@ class Factory(AbstractProvider[types.T_co]):
             kwargs = self._compile_kwargs(container)
             cache_item.kwargs = kwargs
 
-        resolved_kwargs = {k: v.resolve(container) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()}
+        resolved_kwargs = {
+            k: container.resolve_provider(v) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()
+        }
 
         if not self.cache_settings:
             return self._creator(**resolved_kwargs)
