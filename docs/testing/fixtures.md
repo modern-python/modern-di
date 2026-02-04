@@ -39,7 +39,6 @@ async def request_di_container(di_container: modern_di.Container) -> typing.Asyn
 
 @pytest.fixture
 def mock_dependencies(di_container: modern_di.Container) -> None:
-    # Override dependencies using the new API
     di_container.override(
         provider=Dependencies.simple_factory,
         override_object=SimpleFactory(dep1="mock", dep2=777)
