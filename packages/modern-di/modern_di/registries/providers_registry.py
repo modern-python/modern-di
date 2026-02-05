@@ -16,12 +16,12 @@ class ProvidersRegistry:
         self._providers_by_type: dict[type, AbstractProvider[typing.Any]] = {}
 
     def find_provider(
-        self, dependency_name: str | None = None, dependency_type: type[types.T_co] | None = None
+        self, *, dependency_name: str | None = None, dependency_type: type[types.T_co] | None = None
     ) -> AbstractProvider[types.T_co] | None:
-        if dependency_name and (provider := self._providers_by_name.get(dependency_name)):
+        if dependency_type and (provider := self._providers_by_type.get(dependency_type)):
             return provider
 
-        if dependency_type and (provider := self._providers_by_type.get(dependency_type)):
+        if dependency_name and (provider := self._providers_by_name.get(dependency_name)):
             return provider
 
         return None
