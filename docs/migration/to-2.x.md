@@ -227,8 +227,7 @@ instance = container.sync_resolve(SomeType)
 ```python
 # now resolving is sync only
 instance = container.resolve_provider(provider)
-instance = container.resolve(dependency_type=SomeType)
-instance = container.resolve(dependency_name="provider_name")
+instance = container.resolve(SomeType)
 ```
 
 ## Migration Steps
@@ -240,7 +239,7 @@ instance = container.resolve(dependency_name="provider_name")
    - Replace `Singleton` and `Resource` with `Factory` using `CacheSettings`
    - Remove `Dict` and `List` providers, replace with `Factory` creators
 4. **Update Container Building**: Replace context managers with try/finally blocks
-5. **Update Provider Resolution**: Remove `sync_` prefixes and `await` keywords where appropriate
+5. **Update Provider Resolution**: Remove `sync_` prefixes and `await` keywords
 
 ## Breaking Changes
 

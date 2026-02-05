@@ -14,7 +14,7 @@ T_co = typing.TypeVar("T_co", covariant=True)
 P = typing.ParamSpec("P")
 
 
-faststream_message = providers.ContextProvider(scope=Scope.REQUEST, context_type=faststream.StreamMessage)
+faststream_message_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=faststream.StreamMessage)
 
 
 _major, _minor, *_ = version("faststream").split(".")
@@ -78,7 +78,7 @@ def setup_di(
         msg = "Broker must be defined to setup DI"
         raise RuntimeError(msg)
 
-    container.providers_registry.add_providers(faststream_message=faststream_message)
+    container.providers_registry.add_providers(faststream_message_provider)
     app.context.set_global("di_container", container)
     app.after_shutdown(container.close_async)
     app.broker.add_middleware(_DIMiddlewareFactory(container))

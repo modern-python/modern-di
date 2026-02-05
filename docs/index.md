@@ -114,7 +114,7 @@ container = Container(groups=ALL_GROUPS)
 instance1 = container.resolve_provider(Dependencies.singleton)
 
 # You can also resolve by type if you've registered groups
-instance2 = container.resolve(dependency_type=str)  # resolves the singleton
+instance2 = container.resolve(str)  # resolves the singleton
 
 # Create container of request scope
 request_container = container.build_child_container(scope=Scope.REQUEST)

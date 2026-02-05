@@ -15,8 +15,8 @@ from modern_di.scope import Scope as DIScope
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-litestar_request = providers.ContextProvider(scope=Scope.REQUEST, context_type=litestar.Request)
-litestar_websocket = providers.ContextProvider(scope=Scope.SESSION, context_type=litestar.WebSocket)
+litestar_request_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=litestar.Request)
+litestar_websocket_provider = providers.ContextProvider(scope=Scope.SESSION, context_type=litestar.WebSocket)
 
 
 def fetch_di_container(app_: litestar.Litestar) -> Container:
@@ -39,9 +39,7 @@ class ModernDIPlugin(InitPlugin):
         self.container = container
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
-        self.container.providers_registry.add_providers(
-            litestar_request=litestar_request, litestar_websocket=litestar_websocket
-        )
+        self.container.providers_registry.add_providers(litestar_request_provider, litestar_websocket_provider)
         app_config.state.di_container = self.container
         app_config.dependencies["di_container"] = Provide(build_di_container)
         app_config.lifespan.append(_lifespan_manager)

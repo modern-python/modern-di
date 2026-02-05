@@ -1,15 +1,12 @@
 # Resolving Dependencies
 
-Dependencies can be resolved in three ways:
+Dependencies can be resolved in two ways:
 
 1. **By provider reference** - Using `container.resolve_provider(provider)`
-2. **By type** - Using `container.resolve(dependency_type=SomeType)`
-3. **By name** - Using `container.resolve(dependency_name="provider_name")`
+2. **By type** - Using `container.resolve(SomeType)`
 
 When resolving by type, the container looks for a provider whose `bound_type` matches the requested type.
 By default, the `bound_type` is automatically inferred from the creator's return type annotation.
-
-When resolving by name, the container looks for a provider with a matching attribute name in the `Group`.
 
 ## Resolving of Sub Dependencies
 
@@ -20,9 +17,7 @@ One of the key features of `Modern-DI` since 2.x version is the automatic resolu
 
 When a factory is created:
 1. Modern-DI parses the creator's signature to identify parameter names and types
-2. For each parameter with a type annotation, it searches for a registered provider that matches:
-   - First by parameter type (if provided)
-   - Then by parameter name (if type lookup fails)
+2. For each parameter with a type annotation, it searches for a registered provider that matches by parameter type.
 3. If a matching provider is found, it's automatically injected when the factory is resolved
 4. If no matching provider is found and no default value is provided, an error is raised
 
