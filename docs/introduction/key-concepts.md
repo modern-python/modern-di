@@ -3,7 +3,7 @@
 ## Scope
 
 - Is a lifespan of a dependency;
-- Is required for almost each provider;
+- Equal to APP by default;
 - In frameworks' integrations some scopes are entered automatically;
 - Dependencies of cached **Factory** providers are cached for the lifespan of their scope;
 
@@ -64,7 +64,7 @@ All states live in containers:
 Container provides methods for resolving dependencies:
 
 1. `resolve_provider(provider)` - Resolve a specific provider instance
-2. `resolve(dependency_type=None, dependency_name=None)` - Resolve by type or name
+2. `resolve(SomeType)` - Resolve by type
 
 Container also provides methods for overriding providers with objects:
 
@@ -73,7 +73,6 @@ Container also provides methods for overriding providers with objects:
 3. `reset_override()` - Reset all overrides
 
 When resolving by type, the container looks for a provider that was registered with a matching `bound_type`.
-When resolving by name, the container looks for a provider with a matching attribute name in the Group.
 
 ## Group
 

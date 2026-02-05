@@ -11,8 +11,8 @@ from starlette.requests import HTTPConnection
 T_co = typing.TypeVar("T_co", covariant=True)
 
 
-fastapi_request = providers.ContextProvider(scope=Scope.REQUEST, context_type=fastapi.Request)
-fastapi_websocket = providers.ContextProvider(scope=Scope.SESSION, context_type=fastapi.WebSocket)
+fastapi_request_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=fastapi.Request)
+fastapi_websocket_provider = providers.ContextProvider(scope=Scope.SESSION, context_type=fastapi.WebSocket)
 
 
 def fetch_di_container(app_: fastapi.FastAPI) -> Container:
@@ -30,7 +30,7 @@ async def _lifespan_manager(app_: fastapi.FastAPI) -> typing.AsyncIterator[None]
 
 def setup_di(app: fastapi.FastAPI, container: Container) -> Container:
     app.state.di_container = container
-    container.providers_registry.add_providers(fastapi_request=fastapi_request, fastapi_websocket=fastapi_websocket)
+    container.providers_registry.add_providers(fastapi_request_provider, fastapi_websocket_provider)
     old_lifespan_manager = app.router.lifespan_context
     app.router.lifespan_context = _merge_lifespan_context(
         old_lifespan_manager,

@@ -38,13 +38,9 @@ def test_app_factory() -> None:
     app_container = Container(groups=[MyGroup])
     instance1 = app_container.resolve_provider(MyGroup.app_factory)
     instance2 = app_container.resolve(dependency_type=SimpleCreator)
-    instance3: SimpleCreator = app_container.resolve(dependency_name="app_factory")
     assert isinstance(instance1, SimpleCreator)
     assert isinstance(instance2, SimpleCreator)
-    assert isinstance(instance3, SimpleCreator)
     assert instance1 is not instance2
-    assert instance1 is not instance3
-    assert instance2 is not instance3
 
 
 def test_app_factory_skip_creator_parsing() -> None:
@@ -145,3 +141,16 @@ def test_factory_scope_is_not_initialized() -> None:
     app_container = Container(groups=[MyGroup])
     with pytest.raises(RuntimeError, match="Scope REQUEST is not initialize"):
         app_container.resolve_provider(MyGroup.request_factory)
+
+
+def test_factory_self_reference() -> None:
+    def second_creator(first_factory: str) -> str:
+        return f"{first_factory} two"
+
+    first_factory = providers.Factory(creator=lambda: "one")
+    second_factory = providers.Factory(creator=second_creator, kwargs={"first_factory": first_factory})
+
+    app_container = Container()
+    app_container.providers_registry.add_providers(first_factory, second_factory)
+
+    assert app_container.resolve_provider(second_factory) == "one two"

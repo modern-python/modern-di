@@ -70,9 +70,14 @@ async def read_root(
 
 ## Framework Context Objects
 
-Framework-specific context objects like `faststream.StreamMessage` are automatically provided by the integration, so you don't need to explicitly define ContextProviders for these objects in your dependency groups.
+Framework-specific context objects like `faststream.StreamMessage` are automatically made available by the integration. You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
 
-For example, to use the message object in a factory:
+The following context provider is available for import:
+- `faststream_message_provider` - Provides the current `faststream.StreamMessage` object
+
+### Implicit Usage (Type-based Resolution)
+
+In many cases, you can rely on automatic dependency resolution based on type annotations:
 
 ```python
 import faststream
@@ -87,9 +92,35 @@ def create_message_info(message: faststream.StreamMessage) -> dict[str, str]:
 
 
 class AppGroup(Group):
-    # Factory uses the message from context (automatically provided by the integration)
+    # Factory automatically resolves the message dependency based on type annotation
     message_info = providers.Factory(
         scope=Scope.REQUEST,
         creator=create_message_info,
+    )
+```
+
+### Explicit Usage (Provider-based Resolution)
+
+For more control, you can explicitly reference the context provider:
+
+```python
+import faststream
+import modern_di_faststream
+from modern_di import Group, Scope, providers
+
+def create_message_info(message: faststream.StreamMessage) -> dict[str, str]:
+    return {
+        "message_id": str(message.message_id),
+        "processed": str(message.processed),
+        "timestamp": "2023-01-01T00:00:00Z"
+    }
+
+
+class AppGroup(Group):
+    # Factory explicitly uses the message provider from the integration
+    message_info = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=create_message_info,
+        kwargs={"message": modern_di_faststream.faststream_message_provider}
     )
 ```

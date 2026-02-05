@@ -44,9 +44,6 @@ modern_di_fastapi.setup_di(app, container)
 
 # Resolving by type
 request_info_dict = container.resolve(dict)
-
-# Resolving by name
-request_info_dict = container.resolve(dependency_name="request_info")
 ```
 
 ## Manual `ContextProvider` Usage

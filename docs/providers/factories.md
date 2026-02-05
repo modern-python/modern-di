@@ -82,12 +82,8 @@ instance = container.resolve_provider(Dependencies.independent_factory)
 assert isinstance(instance, IndependentFactory)
 
 # Resolve by type (uses the return type of the creator function/class)
-instance2 = container.resolve(dependency_type=IndependentFactory)
+instance2 = container.resolve(IndependentFactory)
 assert isinstance(instance2, IndependentFactory)
-
-# Resolve by name (uses the attribute name in the Group)
-instance3 = container.resolve(dependency_name="independent_factory")
-assert isinstance(instance3, IndependentFactory)
 ```
 
 ### Cached Factories

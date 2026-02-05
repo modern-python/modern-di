@@ -52,10 +52,12 @@ class Factory(AbstractProvider[types.T_co]):
         for k, v in self._parsed_kwargs.items():
             provider: AbstractProvider[types.T_co] | None = None
             if v.arg_type:
-                provider = container.providers_registry.find_provider(dependency_name=k, dependency_type=v.arg_type)
+                provider = container.providers_registry.find_provider(v.arg_type)
+                if provider is self:
+                    provider = None
             else:
                 for x in v.args:
-                    provider = container.providers_registry.find_provider(dependency_name=k, dependency_type=x)
+                    provider = container.providers_registry.find_provider(x)
                     if provider:
                         break
 
