@@ -21,8 +21,8 @@ One of the key features of `Modern-DI` since 2.x version is the automatic resolu
 When a factory is created:
 1. Modern-DI parses the creator's signature to identify parameter names and types
 2. For each parameter with a type annotation, it searches for a registered provider that matches:
-   - First by parameter name (if provided)
-   - Then by parameter type (if name lookup fails)
+   - First by parameter type (if provided)
+   - Then by parameter name (if type lookup fails)
 3. If a matching provider is found, it's automatically injected when the factory is resolved
 4. If no matching provider is found and no default value is provided, an error is raised
 
