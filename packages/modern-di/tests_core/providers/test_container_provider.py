@@ -1,4 +1,4 @@
-from modern_di import Container, Group, Scope, container_provider, providers
+from modern_di import Container, Group, Scope, providers
 
 
 def test_container_provider_direct_resolving() -> None:
@@ -6,7 +6,7 @@ def test_container_provider_direct_resolving() -> None:
     assert app_container.resolve(Container) is app_container
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    assert request_container.resolve_provider(container_provider) is request_container
+    assert request_container.resolve_provider(providers.container_provider) is request_container
 
 
 def test_container_provider_sub_dependency() -> None:
