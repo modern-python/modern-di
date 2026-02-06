@@ -16,6 +16,7 @@ One of the key features of `Modern-DI` since 2.x version is the automatic resolu
 ### How It Works
 
 When a factory is created:
+
 1. Modern-DI parses the creator's signature to identify parameter names and types
 2. For each parameter with a type annotation, it searches for a registered provider that matches by parameter type.
 3. If a matching provider is found, it's automatically injected when the factory is resolved
@@ -27,12 +28,12 @@ Example:
 import dataclasses
 from modern_di import Group, Container, Scope, providers
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class DatabaseConfig:
     host: str
     port: int
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class DatabaseConnection:
     config: DatabaseConfig  # Automatically resolved by type
     timeout: int = 30  # Uses default value

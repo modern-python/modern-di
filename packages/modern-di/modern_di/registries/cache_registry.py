@@ -16,8 +16,6 @@ class CacheItem:
         if self.settings and self.settings.clear_cache:
             self.cache = None
 
-        self.kwargs = None
-
     async def close_async(self) -> None:
         if self.cache and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:

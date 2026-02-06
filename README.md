@@ -9,11 +9,10 @@
 | modern-di-faststream | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-faststream.svg)](https://pypi.python.org/pypi/modern-di-faststream) [![downloads](https://img.shields.io/pypi/dm/modern-di-faststream.svg)](https://pypistats.org/packages/modern-di-faststream)                        |
 | modern-di-litestar   | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-litestar.svg)](https://pypi.python.org/pypi/modern-di-litestar) [![downloads](https://img.shields.io/pypi/dm/modern-di-litestar.svg)](https://pypistats.org/packages/modern-di-litestar)                                |
 
-`modern-di` is a python dependency injection framework which, among other things,
-supports the following:
+`modern-di` is a python dependency injection framework which supports the following:
 
 - Automatic dependencies graph based on type annotations
-- Scopes and granular context management
+- Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
 - Integrations with `FastAPI`, `FastStream` and `LiteStar`

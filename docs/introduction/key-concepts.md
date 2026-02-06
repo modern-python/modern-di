@@ -74,6 +74,8 @@ Container also provides methods for overriding providers with objects:
 
 When resolving by type, the container looks for a provider that was registered with a matching `bound_type`.
 
+The container itself can also be resolved as a dependency using `container.resolve(Container)`, which returns the same container instance.
+
 ## Group
 
 A Group is a collection of providers. They cannot be instantiated.

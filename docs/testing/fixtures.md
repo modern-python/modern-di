@@ -30,6 +30,7 @@ async def di_container() -> typing.AsyncIterator[modern_di.Container]:
 
 @pytest.fixture
 async def request_di_container(di_container: modern_di.Container) -> typing.AsyncIterator[modern_di.Container]:
+    """Fixture with REQUEST-scope container."""
     di_container_ = di_container.build_child_container(scope=modern_di.Scope.REQUEST)
     try:
         yield di_container_

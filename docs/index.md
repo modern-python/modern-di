@@ -2,11 +2,10 @@
 
 Welcome to the `modern-di` documentation!
 
-`modern-di` is a Python dependency injection framework which, among other things,
-supports the following:
+`modern-di` is a Python dependency injection framework whichsupports the following:
 
 - Automatic dependencies graph based on type annotations
-- Scopes and granular context management
+- Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
 - Integrations with `FastAPI`, `FastStream` and `LiteStar`
@@ -73,7 +72,7 @@ from modern_di import Group, Scope, providers
 
 class Dependencies(Group):
     singleton = providers.Factory(
-        scope=Scope.APP,
+        scope=Scope.APP,  # scope is APP by default, can be missing
         creator=create_singleton,
         cache_settings=providers.CacheSettings()
     )
