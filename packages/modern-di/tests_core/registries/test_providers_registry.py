@@ -15,6 +15,6 @@ def test_providers_registry_add_provider_duplicates() -> None:
     providers_registry.add_providers(str_factory)
 
     with (
-        pytest.warns(RuntimeWarning, match="Provider is duplicated by type"),
+        pytest.raises(RuntimeError, match="Provider is duplicated by type"),
     ):
         providers_registry.add_providers(str_factory)

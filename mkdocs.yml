@@ -9,7 +9,8 @@ nav:
       - Key Concepts: introduction/key-concepts.md
   - Providers:
       - Factories: providers/factories.md
-      - Context Providers: providers/context-providers.md
+      - Context: providers/context.md
+      - Container: providers/container.md
   - Integrations:
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md

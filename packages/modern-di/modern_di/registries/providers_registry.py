@@ -1,5 +1,4 @@
 import typing
-import warnings
 
 from modern_di import types
 from modern_di.providers.abstract import AbstractProvider
@@ -21,10 +20,7 @@ class ProvidersRegistry:
                 continue
 
             if provider_type in self._providers:
-                warnings.warn(
-                    f"Provider is duplicated by type {provider_type}",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+                msg = f"Provider is duplicated by type {provider_type}"
+                raise RuntimeError(msg)
 
             self._providers[provider_type] = provider

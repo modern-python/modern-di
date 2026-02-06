@@ -6,6 +6,7 @@ import typing_extensions
 from modern_di import types
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.container_provider import container_provider
 from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverridesRegistry
@@ -44,7 +45,8 @@ class Container:
             self.overrides_registry = parent_container.overrides_registry
         else:
             self.providers_registry = ProvidersRegistry()
-            self.providers_registry.add_providers(_ContainerProvider())
+            container_provider.bound_type = type(self)
+            self.providers_registry.add_providers(container_provider)
             self.overrides_registry = OverridesRegistry()
         if groups:
             for one_group in groups:
@@ -121,13 +123,3 @@ class Container:
     def __copy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""
         return self
-
-
-class _ContainerProvider(AbstractProvider[typing.Any]):
-    __slots__ = AbstractProvider.BASE_SLOTS
-
-    def __init__(self) -> None:
-        super().__init__(scope=Scope.APP, bound_type=Container)
-
-    def resolve(self, container: Container) -> Container:
-        return container
