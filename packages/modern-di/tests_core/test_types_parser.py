@@ -22,6 +22,7 @@ class GenericClass(typing.Generic[types.T]): ...
         (typing.Union[str | int], SignatureItem(args=[str, int])),  # noqa: UP007
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
         (GenericClass[str], SignatureItem(arg_type=GenericClass, args=[str])),
+        (GenericClass[str] | None, SignatureItem(arg_type=GenericClass, is_nullable=True)),
     ],
 )
 def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
