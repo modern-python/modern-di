@@ -58,10 +58,13 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
         return SignatureItem.from_type(typing.cast(type, creator)), {}
 
     is_class = isinstance(creator, type)
-    if is_class and hasattr(creator, "__init__"):
-        type_hints = typing.get_type_hints(creator.__init__)
-    else:
-        type_hints = typing.get_type_hints(creator)
+    try:
+        if is_class and hasattr(creator, "__init__"):
+            type_hints = typing.get_type_hints(creator.__init__)
+        else:
+            type_hints = typing.get_type_hints(creator)
+    except NameError:
+        type_hints = {}
 
     param_hints = {}
     for param_name, param in sig.parameters.items():
