@@ -15,8 +15,8 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-def fetch_message_is_processed_from_request(message: StreamMessage[typing.Any]) -> bool:
-    return message.processed
+def fetch_message_is_processed_from_request(message: StreamMessage[typing.Any] | None = None) -> bool:
+    return message.processed if message else False
 
 
 class Dependencies(Group):
