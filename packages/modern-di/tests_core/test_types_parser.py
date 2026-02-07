@@ -9,6 +9,10 @@ from modern_di.types_parser import SignatureItem, parse_creator
 class GenericClass(typing.Generic[types.T]): ...
 
 
+if typing.TYPE_CHECKING:
+    from typing import Protocol
+
+
 @pytest.mark.parametrize(
     ("type_", "result"),
     [
@@ -54,6 +58,13 @@ class SomeRegularClass:
 
 class ClassWithStringAnnotations:
     def __init__(self, arg1: "str", arg2: "int") -> None: ...
+
+
+def func_with_wrong_annotations(arg1: "Protocol", arg2: "str") -> None: ...  # type: ignore[valid-type]
+
+
+class ClassWithWrongAnnotations:
+    def __init__(self, arg1: "WrongType", arg2: "int") -> None: ...  # type: ignore[name-defined]  # noqa: F821
 
 
 @pytest.mark.parametrize(
@@ -146,23 +157,12 @@ class ClassWithStringAnnotations:
             ),
         ),
         (int, (SignatureItem(arg_type=int), {})),
+        (func_with_wrong_annotations, (SignatureItem(), {"arg1": SignatureItem(), "arg2": SignatureItem()})),
+        (
+            ClassWithWrongAnnotations,
+            (SignatureItem(arg_type=ClassWithWrongAnnotations), {"arg1": SignatureItem(), "arg2": SignatureItem()}),
+        ),
     ],
 )
 def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[str, SignatureItem]]) -> None:
     assert parse_creator(creator) == result
-
-
-def func_with_wrong_annotations(arg1: "WrongType", arg2: "str") -> None: ...  # type: ignore[name-defined]  # noqa: F821
-
-
-class ClassWithWrongAnnotations:
-    def __init__(self, arg1: "WrongType", arg2: "int") -> None: ...  # type: ignore[name-defined]  # noqa: F821
-
-
-@pytest.mark.parametrize(
-    "creator",
-    [func_with_wrong_annotations, ClassWithWrongAnnotations],
-)
-def test_parse_creator_wrong_annotations(creator: type) -> None:
-    with pytest.raises(NameError, match="name 'WrongType' is not defined"):
-        assert parse_creator(creator)

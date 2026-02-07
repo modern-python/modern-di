@@ -25,11 +25,15 @@ def func_with_union(dep1: SimpleCreator | int) -> str:
     return str(dep1)
 
 
+def func_with_broken_annotation(dep1: "SomeWrongClass") -> None: ...  # type: ignore[name-defined]  # noqa: F821
+
+
 class MyGroup(Group):
     app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
     app_factory_unresolvable = providers.Factory(creator=SimpleCreator, bound_type=None)
     app_factory_skip_creator_parsing = providers.Factory(creator=SimpleCreator, skip_creator_parsing=True)
     func_with_union_factory = providers.Factory(creator=func_with_union, bound_type=None)
+    func_with_broken_annotation = providers.Factory(creator=func_with_broken_annotation, bound_type=None)
     request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator)
     request_factory_with_di_container = providers.Factory(scope=Scope.REQUEST, creator=AnotherCreator)
 
@@ -61,6 +65,12 @@ def test_func_with_union_factory() -> None:
     app_container = Container(groups=[MyGroup])
     instance1 = app_container.resolve_provider(MyGroup.func_with_union_factory)
     assert instance1
+
+
+def test_func_with_broken_annotation() -> None:
+    app_container = Container(groups=[MyGroup])
+    with pytest.raises(RuntimeError, match="Argument dep1 cannot be resolved, type=None"):
+        app_container.resolve_provider(MyGroup.func_with_broken_annotation)
 
 
 def test_request_factory() -> None:
