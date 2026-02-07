@@ -2,7 +2,11 @@ import dataclasses
 import typing
 
 import pytest
+from modern_di import types
 from modern_di.types_parser import SignatureItem, parse_creator
+
+
+class GenericClass(typing.Generic[types.T]): ...
 
 
 @pytest.mark.parametrize(
@@ -17,6 +21,7 @@ from modern_di.types_parser import SignatureItem, parse_creator
         (str | int, SignatureItem(args=[str, int])),
         (typing.Union[str | int], SignatureItem(args=[str, int])),  # noqa: UP007
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
+        (GenericClass[str], SignatureItem(arg_type=GenericClass, args=[str])),
     ],
 )
 def test_signature_item_parser(type_: type, result: SignatureItem) -> None:

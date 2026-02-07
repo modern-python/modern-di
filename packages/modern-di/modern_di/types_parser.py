@@ -22,10 +22,7 @@ class SignatureItem:
             type_ = type_.__args__[0]
 
         result: dict[str, typing.Any] = {"default": default}
-        if isinstance(type_, types.GenericAlias):
-            result["arg_type"] = type_.__origin__
-            result["args"] = list(type_.__args__)
-        elif isinstance(type_, (types.UnionType, typing._UnionGenericAlias)):  # type: ignore[attr-defined]  # noqa: SLF001
+        if isinstance(type_, (types.UnionType, typing._UnionGenericAlias)):  # type: ignore[attr-defined]  # noqa: SLF001
             args = [x.__origin__ if isinstance(x, types.GenericAlias) else x for x in type_.__args__]
             if types.NoneType in args:
                 result["is_nullable"] = True
@@ -34,6 +31,10 @@ class SignatureItem:
                 result["args"] = args
             elif args:
                 result["arg_type"] = args[0]
+        elif isinstance(type_, (types.GenericAlias, typing._GenericAlias)):  # type: ignore[attr-defined]  # noqa: SLF001
+            result["arg_type"] = type_.__origin__
+            result["args"] = list(type_.__args__)
+
         elif isinstance(type_, type):
             result["arg_type"] = type_
         return cls(**result)

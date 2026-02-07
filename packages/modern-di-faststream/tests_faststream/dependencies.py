@@ -1,4 +1,5 @@
 import dataclasses
+import typing
 
 from faststream import StreamMessage
 from modern_di import Group, Scope, providers
@@ -14,7 +15,7 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-def fetch_message_is_processed_from_request(message: StreamMessage) -> bool:  # type:ignore[type-arg]
+def fetch_message_is_processed_from_request(message: StreamMessage[typing.Any]) -> bool:
     return message.processed
 
 
