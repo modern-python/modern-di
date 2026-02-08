@@ -54,7 +54,7 @@ class SignatureItem:
 def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureItem, dict[str, SignatureItem]]:
     try:
         sig = inspect.signature(creator)
-    except ValueError:
+    except (ValueError, TypeError):
         return SignatureItem.from_type(typing.cast(type, creator)), {}
 
     is_class = isinstance(creator, type)
