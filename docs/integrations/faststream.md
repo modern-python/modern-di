@@ -70,7 +70,8 @@ async def read_root(
 
 ## Framework Context Objects
 
-Framework-specific context objects like `faststream.StreamMessage` are automatically made available by the integration. You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
+Framework-specific context objects like `faststream.StreamMessage` are automatically made available by the integration.
+You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
 
 The following context provider is available for import:
 - `faststream_message_provider` - Provides the current `faststream.StreamMessage` object

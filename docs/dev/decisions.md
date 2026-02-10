@@ -5,4 +5,4 @@
 4. Focus on maximum type safety:
   - No need for `# type: ignore`
   - No need for `typing.cast`
-5. No adding new features while tasks can be solved by default implementation.
+5. No adding new features while tasks can be solved by current implementation.

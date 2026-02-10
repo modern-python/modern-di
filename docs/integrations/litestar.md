@@ -90,15 +90,18 @@ async def websocket_handler(
 ) -> None:
     request_container = di_container.build_child_container(scope=Scope.REQUEST)
     # REQUEST scope is entered here
-    # You can resolve dependencies here
-    pass
+    try:
+        # You can resolve dependencies here
+    finally:
+        await request_container.close_async()
 
 app.register(websocket_handler)
 ```
 
 ## Framework Context Objects
 
-Framework-specific context objects like `litestar.Request` and `litestar.WebSocket` are automatically made available by the integration. You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
+Framework-specific context objects like `litestar.Request` and `litestar.WebSocket` are automatically made available by the integration.
+You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
 
 The following context providers are available for import:
 - `litestar_request_provider` - Provides the current `litestar.Request` object
