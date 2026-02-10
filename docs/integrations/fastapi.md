@@ -99,8 +99,10 @@ async def websocket_endpoint(
 ) -> None:
     request_container = session_container.build_child_container(scope=modern_di.Scope.REQUEST)
     # REQUEST scope is entered here
-    # You can resolve dependencies here
-    pass
+    try:
+        # You can resolve dependencies here
+    finally:
+        await request_container.close_async()
 
     await websocket.accept()
     await websocket.send_text("test")
@@ -109,7 +111,8 @@ async def websocket_endpoint(
 
 ## Framework Context Objects
 
-Framework-specific context objects like `fastapi.Request` and `fastapi.WebSocket` are automatically made available by the integration. You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
+Framework-specific context objects like `fastapi.Request` and `fastapi.WebSocket` are automatically made available by the integration.
+You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
 
 The following context providers are available for import:
 - `fastapi_request_provider` - Provides the current `fastapi.Request` object
