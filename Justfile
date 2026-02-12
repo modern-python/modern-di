@@ -26,9 +26,6 @@ test *args:
 test-core *args:
     uv run --directory=packages/modern-di pytest {{ args }}
 
-test-fastapi *args:
-    uv run --directory=packages/modern-di-fastapi pytest {{ args }}
-
 test-litestar *args:
     uv run --directory=packages/modern-di-litestar pytest {{ args }}
 
