@@ -14,7 +14,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: |
           (cd packages/modern-di && uv version $GITHUB_REF_NAME && just publish modern-di)
-          (cd packages/modern-di-fastapi && uv version $GITHUB_REF_NAME && just publish modern-di-fastapi)
           (cd packages/modern-di-litestar && uv version $GITHUB_REF_NAME && just publish modern-di-litestar)
           (cd packages/modern-di-faststream && uv version $GITHUB_REF_NAME && just publish modern-di-faststream)
         env:
