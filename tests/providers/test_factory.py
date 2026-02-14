@@ -2,6 +2,7 @@ import dataclasses
 import re
 
 import pytest
+
 from modern_di import Container, Group, Scope, providers
 
 

@@ -1,4 +1,4 @@
-name: publish
+name: Publish Package
 
 on:
   release:
@@ -11,9 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
-      - uses: astral-sh/setup-uv@v5
-      - run: |
-          (cd packages/modern-di && uv version $GITHUB_REF_NAME && just publish modern-di)
-          (cd packages/modern-di-faststream && uv version $GITHUB_REF_NAME && just publish modern-di-faststream)
+      - uses: astral-sh/setup-uv@v3
+      - run: just publish
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
