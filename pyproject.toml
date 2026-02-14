@@ -4,6 +4,7 @@ description = "Dependency Injection framework with IOC-container and scopes"
 authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
 requires-python = ">=3.10,<4"
 license = "MIT"
+readme = "README.md"
 keywords = ["DI", "dependency injector", "ioc-container", "mocks", "python"]
 classifiers = [
     "Programming Language :: Python :: 3.10",
@@ -15,7 +16,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 version = "0"
-dynamic = ["readme"]
 
 [project.urls]
 repository = "https://github.com/modern-python/modern-di"
