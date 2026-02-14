@@ -1,4 +1,5 @@
 import pytest
+
 from modern_di import providers
 from modern_di.registries.providers_registry import ProvidersRegistry
 

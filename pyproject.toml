@@ -1,27 +1,38 @@
 [project]
-name = "modern-di-workspace"
+name = "modern-di"
+description = "Dependency Injection framework with IOC-container and scopes"
+authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
 requires-python = ">=3.10,<4"
+license = "MIT"
+keywords = ["DI", "dependency injector", "ioc-container", "mocks", "python"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries",
+]
 version = "0"
+dynamic = ["readme"]
+
+[project.urls]
+repository = "https://github.com/modern-python/modern-di"
+docs = "https://modern-di.readthedocs.io"
 
 [dependency-groups]
 dev = [
     "pytest",
     "pytest-cov",
     "pytest-asyncio",
+]
+lint = [
     "ruff",
     "mypy",
     "eof-fixer",
     "typing-extensions",
 ]
-
-[tool.uv]
-package = false
-
-[tool.uv.workspace]
-members = ["packages/*"]
-
-[tool.uv.sources]
-modern-di = { workspace = true }
 
 [tool.mypy]
 python_version = "3.10"

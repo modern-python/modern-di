@@ -4,6 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
+
 from modern_di import Container, Group, Scope, providers
 
 

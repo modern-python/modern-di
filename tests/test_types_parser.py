@@ -2,6 +2,7 @@ import dataclasses
 import typing
 
 import pytest
+
 from modern_di import types
 from modern_di.types_parser import SignatureItem, parse_creator
 
