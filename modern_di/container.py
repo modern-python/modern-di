@@ -83,8 +83,8 @@ class Container:
 
         return container
 
-    def resolve(self, dependency_type: type[types.T]) -> types.T:
-        provider = self.providers_registry.find_provider(dependency_type)
+    def resolve(self, dependency_type: type[types.T], qualifier: str | None = None) -> types.T:
+        provider = self.providers_registry.find_provider(dependency_type, qualifier=qualifier)
         if not provider:
             msg = f"Provider is not found, {dependency_type=}"
             raise RuntimeError(msg)

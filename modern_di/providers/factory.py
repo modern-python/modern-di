@@ -34,6 +34,8 @@ class Factory(AbstractProvider[types.T_co]):
         kwargs: dict[str, typing.Any] | None = None,
         cache_settings: CacheSettings[types.T_co] | None = None,
         skip_creator_parsing: bool = False,
+        qualifier: str | None = None,
+        qualifiers: dict[typing.Type[typing.Any], str] | None = None,
     ) -> None:
         if skip_creator_parsing:
             parsed_type: type | None = None
@@ -42,7 +44,12 @@ class Factory(AbstractProvider[types.T_co]):
             return_sig, parsed_kwargs = parse_creator(creator)
             parsed_type = return_sig.arg_type
         self._parsed_kwargs = parsed_kwargs
-        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else parsed_type)
+        super().__init__(
+            scope=scope,
+            bound_type=bound_type if bound_type != types.UNSET else parsed_type,
+            qualifier=qualifier,
+            qualifiers=qualifiers,
+        )
         self._creator = creator
         self.cache_settings = cache_settings
         self._kwargs = kwargs
@@ -52,12 +59,15 @@ class Factory(AbstractProvider[types.T_co]):
         for k, v in self._parsed_kwargs.items():
             provider: AbstractProvider[types.T_co] | None = None
             if v.arg_type:
-                provider = container.providers_registry.find_provider(v.arg_type)
+                qualifier = self.qualifiers.get(v.arg_type)
+
+                provider = container.providers_registry.find_provider(v.arg_type, qualifier=qualifier)
+
                 if provider is self:
                     provider = None
             else:
                 for x in v.args:
-                    provider = container.providers_registry.find_provider(x)
+                    provider = container.providers_registry.find_provider(x, qualifier=None)
                     if provider:
                         break
 
