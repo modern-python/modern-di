@@ -1,3 +1,4 @@
+import abc
 from modern_di import Container, Group, Scope, providers
 
 
@@ -21,3 +22,24 @@ def test_container_provider_sub_dependency() -> None:
 
     instance = request_container.resolve(Scope)
     assert instance == Scope.REQUEST
+
+
+def test_container_provider_with_qualifier_direct_resolving() -> None:
+    class SomeDep(abc.ABC):
+        pass
+
+    class SomeDepA(SomeDep):
+        pass
+
+    class SomeDepB(SomeDep):
+        pass
+
+    class SomeGroup(Group):
+        dep = providers.Factory(creator=SomeDepA, bound_type=SomeDep)
+        another_dep = providers.Factory(creator=SomeDepB, bound_type=SomeDep, qualifier="another")
+
+    container = Container(groups=[SomeGroup])
+
+    assert isinstance(container.resolve(SomeDep), SomeDepA)
+
+    assert isinstance(container.resolve(SomeDep, qualifier="another"), SomeDepB)
