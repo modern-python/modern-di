@@ -2,7 +2,7 @@ import dataclasses
 import inspect
 import typing
 
-from modern_di import types
+from modern_di import errors, types
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
 from modern_di.types_parser import SignatureItem, parse_creator
@@ -66,8 +66,11 @@ class Factory(AbstractProvider[types.T_co]):
                 continue
 
             if (not self._kwargs or k not in self._kwargs) and v.default == types.UNSET:
-                msg = f"Argument {k} cannot be resolved, type={v.arg_type}, factory={self._creator}"
-                raise RuntimeError(msg)
+                raise RuntimeError(
+                    errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
+                        arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
+                    )
+                )
 
         if self._kwargs:
             result.update(self._kwargs)

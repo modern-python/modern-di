@@ -3,7 +3,7 @@ import typing
 
 import typing_extensions
 
-from modern_di import types
+from modern_di import errors, types
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -56,38 +56,45 @@ class Container:
         self, context: dict[type[typing.Any], typing.Any] | None = None, scope: Scope | None = None
     ) -> "typing_extensions.Self":
         if scope and scope <= self.scope:
-            msg = "Scope of child container must be more than current scope"
-            raise RuntimeError(msg)
+            raise RuntimeError(
+                errors.CONTAINER_SCOPE_IS_LOWER_ERROR.format(
+                    parent_scope=self.scope.name,
+                    child_scope=scope.name,
+                    allowed_scopes=[x.name for x in Scope if x > self.scope],
+                )
+            )
 
         if not scope:
             try:
                 scope = self.scope.__class__(self.scope.value + 1)
             except ValueError as exc:
-                msg = f"Max scope is reached, {self.scope.name}"
-                raise RuntimeError(msg) from exc
+                raise RuntimeError(
+                    errors.CONTAINER_MAX_SCOPE_REACHED_ERROR.format(parent_scope=self.scope.name)
+                ) from exc
 
         return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: Scope) -> "typing_extensions.Self":
         container = self
         if container.scope < scope:
-            msg = f"Scope {scope.name} is not initialized"
-            raise RuntimeError(msg)
+            raise RuntimeError(
+                errors.CONTAINER_NOT_INITIALIZED_SCOPE_ERROR.format(
+                    provider_scope=scope.name, container_scope=self.scope.name
+                )
+            )
 
         while container.scope > scope and container.parent_container:
             container = container.parent_container
 
         if container.scope != scope:
-            msg = f"Scope {scope.name} is skipped"
-            raise RuntimeError(msg)
+            raise RuntimeError(errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name))
 
         return container
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
         provider = self.providers_registry.find_provider(dependency_type)
         if not provider:
-            msg = f"Provider is not found, {dependency_type=}"
-            raise RuntimeError(msg)
+            raise RuntimeError(errors.CONTAINER_MISSING_PROVIDER_ERROR.format(provider_type=dependency_type))
 
         return self.resolve_provider(provider)
 
