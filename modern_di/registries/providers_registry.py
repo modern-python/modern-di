@@ -1,6 +1,6 @@
 import typing
 
-from modern_di import types
+from modern_di import errors, types
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -20,7 +20,6 @@ class ProvidersRegistry:
                 continue
 
             if provider_type in self._providers:
-                msg = f"Provider is duplicated by type {provider_type}"
-                raise RuntimeError(msg)
+                raise RuntimeError(errors.PROVIDER_DUPLICATE_TYPE_ERROR.format(provider_type=provider_type))
 
             self._providers[provider_type] = provider

@@ -58,7 +58,7 @@ def test_app_factory_skip_creator_parsing() -> None:
 
 def test_app_factory_unresolvable() -> None:
     app_container = Container(groups=[MyGroup])
-    with pytest.raises(RuntimeError, match="Argument dep1 cannot be resolved, type=<class 'str'"):
+    with pytest.raises(RuntimeError, match="Argument dep1 of type <class 'str'> cannot be resolved"):
         app_container.resolve_provider(MyGroup.app_factory_unresolvable)
 
 
@@ -70,7 +70,7 @@ def test_func_with_union_factory() -> None:
 
 def test_func_with_broken_annotation() -> None:
     app_container = Container(groups=[MyGroup])
-    with pytest.raises(RuntimeError, match="Argument dep1 cannot be resolved, type=None"):
+    with pytest.raises(RuntimeError, match="Argument dep1 of type None cannot be resolved"):
         app_container.resolve_provider(MyGroup.func_with_broken_annotation)
 
 
@@ -150,7 +150,7 @@ def test_factory_overridden_request_scope() -> None:
 
 def test_factory_scope_is_not_initialized() -> None:
     app_container = Container(groups=[MyGroup])
-    with pytest.raises(RuntimeError, match="Scope REQUEST is not initialize"):
+    with pytest.raises(RuntimeError, match=r"Provider of scope REQUEST cannot be resolved in container of scope APP."):
         app_container.resolve_provider(MyGroup.request_factory)
 
 
