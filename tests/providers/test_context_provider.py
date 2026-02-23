@@ -10,6 +10,7 @@ request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, contex
 def test_context_provider() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(context={datetime.datetime: now})
+    app_container.validate_provider(context_provider)
     instance1 = app_container.resolve_provider(context_provider)
     instance2 = app_container.resolve_provider(context_provider)
     assert instance1 is instance2 is now

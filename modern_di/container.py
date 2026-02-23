@@ -104,6 +104,9 @@ class Container:
 
         return typing.cast(types.T, provider.resolve(self))
 
+    def validate_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
+        return typing.cast(types.T, provider.validate(self))
+
     async def close_async(self) -> None:
         if not self.parent_container:
             self.overrides_registry.reset_override()

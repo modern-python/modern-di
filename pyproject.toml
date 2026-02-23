@@ -26,6 +26,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-asyncio",
+    "pytest-repeat",
 ]
 lint = [
     "ruff",

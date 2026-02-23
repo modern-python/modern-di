@@ -42,6 +42,7 @@ class MyGroup(Group):
 def test_app_factory() -> None:
     app_container = Container(groups=[MyGroup])
     instance1 = app_container.resolve_provider(MyGroup.app_factory)
+    app_container.validate_provider(MyGroup.app_factory)
     instance2 = app_container.resolve(dependency_type=SimpleCreator)
     assert isinstance(instance1, SimpleCreator)
     assert isinstance(instance2, SimpleCreator)
@@ -59,7 +60,7 @@ def test_app_factory_skip_creator_parsing() -> None:
 def test_app_factory_unresolvable() -> None:
     app_container = Container(groups=[MyGroup])
     with pytest.raises(RuntimeError, match="Argument dep1 of type <class 'str'> cannot be resolved"):
-        app_container.resolve_provider(MyGroup.app_factory_unresolvable)
+        app_container.validate_provider(MyGroup.app_factory_unresolvable)
 
 
 def test_func_with_union_factory() -> None:
@@ -71,14 +72,16 @@ def test_func_with_union_factory() -> None:
 def test_func_with_broken_annotation() -> None:
     app_container = Container(groups=[MyGroup])
     with pytest.raises(RuntimeError, match="Argument dep1 of type None cannot be resolved"):
-        app_container.resolve_provider(MyGroup.func_with_broken_annotation)
+        app_container.validate_provider(MyGroup.func_with_broken_annotation)
 
 
 def test_request_factory() -> None:
     app_container = Container(groups=[MyGroup])
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.validate_provider(MyGroup.request_factory)
     instance1 = request_container.resolve_provider(MyGroup.request_factory)
     instance2 = request_container.resolve_provider(MyGroup.request_factory)
+    request_container.validate_provider(MyGroup.request_factory)
     assert instance1 is not instance2
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)

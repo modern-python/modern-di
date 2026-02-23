@@ -7,6 +7,7 @@ def test_container_provider_direct_resolving() -> None:
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     assert request_container.resolve_provider(providers.container_provider) is request_container
+    request_container.validate_provider(providers.container_provider)
 
 
 def test_container_provider_sub_dependency() -> None:

@@ -17,5 +17,8 @@ class _ContainerProvider(AbstractProvider[typing.Any]):
     def resolve(self, container: "Container") -> "Container":
         return container
 
+    def validate(self, _: "Container") -> dict[str, typing.Any]:
+        return {"self": self}
+
 
 container_provider = _ContainerProvider()
