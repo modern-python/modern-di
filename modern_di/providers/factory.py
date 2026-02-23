@@ -76,6 +76,23 @@ class Factory(AbstractProvider[types.T_co]):
             result.update(self._kwargs)
         return result
 
+    def validate(self, container: "Container") -> dict[str, typing.Any]:
+        container = container.find_container(self.scope)
+        cache_item = container.cache_registry.fetch_cache_item(self)
+        if cache_item.kwargs is not None:
+            kwargs = cache_item.kwargs
+        else:
+            kwargs = self._compile_kwargs(container)
+            cache_item.kwargs = kwargs
+
+        return {
+            "bound_type": self.bound_type,
+            "creator": self._creator,
+            "self": self,
+            "kwargs": {k: v.validate(container) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()},
+            "cache_settings": self.cache_settings,
+        }
+
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
