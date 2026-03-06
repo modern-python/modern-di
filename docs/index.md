@@ -52,13 +52,13 @@ def create_singleton() -> str:
     return "some string"
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class SimpleFactory:
     dep1: str
     dep2: int
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class DependentFactory:
     simple_factory: SimpleFactory
     singleton: str

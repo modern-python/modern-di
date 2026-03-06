@@ -8,12 +8,12 @@ import pytest
 from modern_di import Container, Group, Scope, providers
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class SimpleCreator:
     dep1: str
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class DependentCreator:
     dep1: SimpleCreator
 
