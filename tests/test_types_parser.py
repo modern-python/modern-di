@@ -47,7 +47,7 @@ class SomeDataClass:
     arg2: int
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class DataClassInitFalse:
     arg1: str
     arg2: int = dataclasses.field(init=False)

@@ -121,12 +121,12 @@ my_list = providers.List(Scope.REQUEST, provider1, provider2, provider3)
 from dataclasses import dataclass
 from typing import List
 
-@dataclass
+@dataclass(kw_only=True, slots=True, frozen=True)
 class UserService:
     name: str
     age: int
 
-@dataclass
+@dataclass(kw_only=True, slots=True, frozen=True)
 class AuthService:
     token: str
     expiry: int

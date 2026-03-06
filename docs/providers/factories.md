@@ -62,7 +62,7 @@ import dataclasses
 from modern_di import Group, Container, Scope, providers
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class IndependentFactory:
     dep1: str
     dep2: int
