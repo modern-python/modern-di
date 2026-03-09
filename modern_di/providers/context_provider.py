@@ -15,7 +15,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
     def __init__(self, *, scope: Scope = Scope.APP, context_type: type[types.T_co]) -> None:
         super().__init__(scope=scope, bound_type=context_type)
 
-    def validate(self, _: "Container") -> dict[str, typing.Any]:
+    def validate(self, container: "Container") -> dict[str, typing.Any]:  # noqa: ARG002
         return {"bound_type": self.bound_type, "self": self}
 
     def resolve(self, container: "Container") -> types.T_co | None:
