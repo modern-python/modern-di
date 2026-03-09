@@ -17,7 +17,7 @@ class _ContainerProvider(AbstractProvider[typing.Any]):
     def resolve(self, container: "Container") -> "Container":
         return container
 
-    def validate(self, _: "Container") -> dict[str, typing.Any]:
+    def validate(self, container: "Container") -> dict[str, typing.Any]:  # noqa: ARG002
         return {"self": self}
 
 

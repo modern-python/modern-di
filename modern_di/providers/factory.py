@@ -57,7 +57,9 @@ class Factory(AbstractProvider[types.T_co]):
                     provider = None
             else:
                 for x in v.args:
-                    provider = container.providers_registry.find_provider(x)
+                    provider = typing.cast(
+                        AbstractProvider[types.T_co] | None, container.providers_registry.find_provider(x)
+                    )
                     if provider:
                         break
 
