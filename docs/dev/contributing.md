@@ -11,7 +11,7 @@ cd modern-di
 3. Install dependencies by running `just install`
 
 ## Running linters
-`Ruff` and `mypy` are used for static analysis.
+`Ruff` and `ty` are used for static analysis.
 
 Run all checks by command `just lint`
 

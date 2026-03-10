@@ -26,7 +26,7 @@ Each package is independently versioned and published to PyPI.
 - hatchling for building packages
 - pytest for testing
 - ruff for linting and formatting
-- mypy for type checking
+- ty for type checking
 - mkdocs with Material theme for documentation
 - GitHub Actions for CI/CD
 
@@ -44,7 +44,7 @@ The project uses `just` (a command runner) for common development tasks:
 
 ### Linting and Formatting
 ```bash
-just lint     # Format and fix code with ruff, then run mypy
+just lint     # Format and fix code with ruff, then run ty
 just lint-ci  # Check formatting and types without making changes
 ```
 
@@ -75,7 +75,7 @@ uv sync --all-extras --all-packages --frozen
 ```bash
 uv run ruff format .
 uv run ruff check . --fix
-uv run mypy .
+uv run ty check
 ```
 
 ### Testing
@@ -91,7 +91,7 @@ uv run --directory=packages/modern-di-faststream pytest     # FastStream tests
 
 ## Code Style
 - Line length: 120 characters
-- Strict mypy type checking enabled
+- Strict type checking enabled
 - Ruff is used for linting with most rules enabled except for a few explicitly ignored ones
 - isort configuration for import sorting
 
