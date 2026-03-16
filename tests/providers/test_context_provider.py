@@ -1,18 +1,30 @@
+import dataclasses
 import datetime
 
-from modern_di import Container, Scope, providers
+import pytest
+
+from modern_di import Container, Group, Scope, providers
 
 
-context_provider = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class SomeFactory:
+    arg1: datetime.datetime
+
+
+class MyGroup(Group):
+    context_provider = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    some_factory = providers.Factory(creator=SomeFactory)
 
 
 def test_context_provider() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(context={datetime.datetime: now})
-    app_container.validate_provider(context_provider)
-    instance1 = app_container.resolve_provider(context_provider)
-    instance2 = app_container.resolve_provider(context_provider)
+    app_container.validate_provider(MyGroup.context_provider)
+    instance1 = app_container.resolve_provider(MyGroup.context_provider)
+    instance2 = app_container.resolve_provider(MyGroup.context_provider)
     assert instance1 is instance2 is now
 
 
@@ -20,14 +32,20 @@ def test_context_provider_set_context_after_creation() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container()
     app_container.set_context(datetime.datetime, now)
-    instance1 = app_container.resolve_provider(context_provider)
-    instance2 = app_container.resolve_provider(context_provider)
+    instance1 = app_container.resolve_provider(MyGroup.context_provider)
+    instance2 = app_container.resolve_provider(MyGroup.context_provider)
     assert instance1 is instance2 is now
 
 
 def test_context_provider_not_found() -> None:
     app_container = Container()
-    assert app_container.resolve_provider(context_provider) is None
+    assert app_container.resolve_provider(MyGroup.context_provider) is None
+
+
+def test_context_provider_not_found_but_required() -> None:
+    app_container = Container(groups=[MyGroup])
+    with pytest.raises(RuntimeError, match=r"Argument arg1 of type <class 'datetime.datetime'> cannot be resolved"):
+        app_container.resolve(SomeFactory)
 
 
 def test_context_provider_in_request_scope() -> None:
