@@ -10,10 +10,16 @@ if typing.TYPE_CHECKING:
 
 
 class ContextProvider(AbstractProvider[types.T_co]):
-    __slots__ = AbstractProvider.BASE_SLOTS
+    __slots__ = [*AbstractProvider.BASE_SLOTS, "_context_type"]
 
-    def __init__(self, *, scope: Scope = Scope.APP, context_type: type[types.T_co]) -> None:
-        super().__init__(scope=scope, bound_type=context_type)
+    def __init__(
+        self,
+        *,
+        scope: Scope = Scope.APP,
+        context_type: type[types.T_co],
+        bound_type: type | None = types.UNSET,  # type: ignore[assignment]
+    ) -> None:
+        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else context_type)
 
     def validate(self, container: "Container") -> dict[str, typing.Any]:  # noqa: ARG002
         return {"bound_type": self.bound_type, "self": self}
