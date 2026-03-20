@@ -1,5 +1,9 @@
 # Migration Guide: Upgrading to modern-di 1.x
 
+!!! warning "Historical guide"
+    This guide covers migrating from 0.x to 1.x. The APIs shown here (`AsyncContainer`, `SyncContainer`, `providers.Singleton`, `.cast`) were **removed in 2.x**.
+    If you are on 1.x today, also follow the [2.x migration guide](to-2.x.md) to reach the current API.
+
 This document describes the changes required to migrate from modern-di 0.x versions to modern-di 1.x.
 
 ## Overview

@@ -44,7 +44,7 @@ Use `providers.CacheSettings()` to enable caching with optional cleanup configur
 Disables automatic dependency resolution. When `True`:
 - No automatic dependency resolution occurs
 - All parameters must be provided via the `kwargs` parameter
-- The `bound_type` will not be automatically inferred and defaults to `None`
+- The `bound_type` will not be automatically inferred from the creator's return type; unless `bound_type` is explicitly provided, it defaults to `None`
 
 ## Types of factories 
 There are two types of factories:
@@ -110,7 +110,7 @@ class Dependencies(Group):
     )
 
 
-container = Container()
+container = Container(groups=[Dependencies])
 singleton_instance1 = container.resolve_provider(Dependencies.singleton)
 singleton_instance2 = container.resolve_provider(Dependencies.singleton)
 
@@ -123,20 +123,28 @@ assert singleton_instance1 is singleton_instance2
 You can customize caching behavior with `CacheSettings`:
 
 ```python
+import contextlib
+
 from modern_di import Group, Scope, providers
+
+
+class SomeResource:
+    def close(self) -> None: ...
+
 
 def create_resource() -> SomeResource:
     # Create and return resource
-    pass
+    return SomeResource()
+
 
 class Dependencies(Group):
-    # Cache with cleanup
+    # Cache with cleanup — clear_cache=True (the default) ensures the closed
+    # resource is evicted from cache so it cannot be returned again after close
     resource = providers.Factory(
         scope=Scope.APP,
         creator=create_resource,
         cache_settings=providers.CacheSettings(
             finalizer=lambda res: res.close(),  # Cleanup function
-            clear_cache=False  # Keep cache after close
         )
     )
 ```

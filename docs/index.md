@@ -2,7 +2,7 @@
 
 Welcome to the `modern-di` documentation!
 
-`modern-di` is a Python dependency injection framework whichsupports the following:
+`modern-di` is a Python dependency injection framework which supports the following:
 
 - Automatic dependencies graph based on type annotations
 - Scopes and context management
@@ -123,10 +123,8 @@ try:
     instance4 = request_container.resolve_provider(Dependencies.dependent_factory)
     # Use your instances...
 finally:
-    # Close container when done
-    # For async usage:
-    await request_container.close_async()
-
-    # For sync usage:
+    # Close container when done (choose one depending on your context):
     request_container.close_sync()
+    # or, in an async context:
+    # await request_container.close_async()
 ```

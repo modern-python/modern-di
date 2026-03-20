@@ -15,7 +15,7 @@ class Group:
     providers: list[AbstractProvider[typing.Any]]
 
     def __new__(cls, *_: typing.Any, **__: typing.Any) -> "typing_extensions.Self":  # noqa: ANN401
-        msg = f"{cls.__name__} cannot not be instantiated"
+        msg = f"{cls.__name__} cannot be instantiated"
         raise RuntimeError(msg)
 
     @classmethod

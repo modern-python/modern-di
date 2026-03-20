@@ -10,7 +10,7 @@ if typing.TYPE_CHECKING:
 
 
 class ContextProvider(AbstractProvider[types.T_co]):
-    __slots__ = [*AbstractProvider.BASE_SLOTS, "_context_type"]
+    __slots__ = [*AbstractProvider.BASE_SLOTS]
 
     def __init__(
         self,
