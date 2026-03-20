@@ -10,6 +10,11 @@ Welcome to the `modern-di` documentation!
 - Fully typed and tested
 - Integrations with `FastAPI`, `FastStream` and `LiteStar`
 
+Usage examples:
+
+- with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
+
 ---
 
 # Quickstart
