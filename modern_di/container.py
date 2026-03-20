@@ -99,7 +99,7 @@ class Container:
         return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        if (override := self.overrides_registry.fetch_override(provider.provider_id)) is not None:
+        if (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET:
             return typing.cast(types.T, override)
 
         return typing.cast(types.T, provider.resolve(self))

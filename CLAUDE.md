@@ -1,0 +1,97 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+`modern-di` is a **zero-dependency** Python dependency injection framework that wires up object graphs from type annotations, manages lifetimes via hierarchical scopes, and supports both sync and async finalizers. This repo contains the core package plus framework integrations (FastAPI, FastStream, LiteStar), each independently versioned and published to PyPI.
+
+## Commands
+
+This project uses `just` (task runner) and `uv` (package manager).
+
+```bash
+just install      # uv lock --upgrade && uv sync --all-extras --frozen --group lint
+just lint         # eof-fixer + ruff format + ruff check --fix + ty check
+just lint-ci      # same checks without auto-fixing (used in CI)
+just test         # uv run pytest (with coverage by default)
+just test-branch  # pytest with branch coverage
+```
+
+Run a single test file:
+```bash
+uv run pytest tests/providers/test_factory.py
+```
+
+Run a specific test by name:
+```bash
+uv run pytest tests/providers/test_factory.py -k test_name
+```
+
+Without `just`:
+```bash
+uv run ruff format . && uv run ruff check . --fix && uv run ty check
+uv run pytest
+```
+
+## Architecture
+
+### Scope hierarchy
+
+`Scope` is an `IntEnum` with five levels: `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. Providers are bound to a scope; a provider can only be resolved from a container of the same or deeper (higher int) scope. Trying to resolve a REQUEST-scoped provider from an APP container raises a clear error.
+
+### Container tree
+
+`Container` is the central object. A root container is created with `Container(scope=Scope.APP, groups=[MyGroup])`. Child containers are created via `container.build_child_container(scope=Scope.REQUEST, context={...})`. Child containers share the parent's `providers_registry` and `overrides_registry` but have their own `cache_registry` and `context_registry`.
+
+### Group and Provider declaration
+
+`Group` is a namespace class (cannot be instantiated) used to declare providers as class-level attributes:
+
+```python
+class MyGroup(Group):
+    my_service = providers.Factory(scope=Scope.APP, creator=MyService)
+```
+
+`Factory` parses the `creator`'s `__init__` type hints at declaration time via `types_parser.parse_creator()`. During resolution it looks up each parameter type in `providers_registry` and recursively resolves dependencies.
+
+### Resolution flow
+
+1. `container.resolve(SomeType)` → looks up type in `providers_registry` → calls `resolve_provider(provider)`
+2. `resolve_provider` checks `overrides_registry` first (returns override immediately if found)
+3. Finds the container at the correct scope via `find_container(scope)` walking the parent chain
+4. Checks `cache_registry`; if cached, returns immediately
+5. Compiles kwargs: for each parsed parameter, finds a matching provider by type and resolves it recursively
+6. Calls the creator, stores result in cache if `cache_settings` configured
+
+### Registries
+
+| Registry | Shared? | Purpose |
+|---|---|---|
+| `ProvidersRegistry` | Shared across all containers | type → provider mapping |
+| `CacheRegistry` | Per-container | provider_id → cached instance |
+| `ContextRegistry` | Per-container | type → runtime context object |
+| `OverridesRegistry` | Shared across all containers | provider_id → override object (for testing) |
+
+### Key files
+
+- `modern_di/container.py` — Container class, the main entry point
+- `modern_di/providers/factory.py` — Factory provider with caching and finalizer support
+- `modern_di/types_parser.py` — Signature introspection engine (parses type hints for DI wiring)
+- `modern_di/scope.py` — Scope enum
+- `modern_di/group.py` — Group base class for provider namespaces
+
+### Testing patterns
+
+- Create a `Group` subclass with providers as class attributes, pass to `Container(groups=[...])`
+- Use `container.resolve_provider(provider)` (by reference) or `container.resolve(SomeType)` (by type)
+- For overrides: `container.override(provider, mock_obj)` / `container.reset_override(provider)`
+- For scope chain tests: `app_container.build_child_container(scope=Scope.REQUEST)`
+- `asyncio_mode = "auto"` in pytest config — async test functions work without extra markers
+
+## Code Style
+
+- Line length: 120 characters
+- `ruff` with `select = ["ALL"]` and minimal ignores; `ty` for type checking
+- Coverage excludes `TYPE_CHECKING` blocks
+- Design principle: conservative feature set; resolution is sync-only (async was removed in 2.x); no global state

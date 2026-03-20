@@ -97,15 +97,15 @@ async def websocket_endpoint(
     websocket: fastapi.WebSocket,
     session_container: typing.Annotated[modern_di.Container, fastapi.Depends(modern_di_fastapi.build_di_container)],
 ) -> None:
+    await websocket.accept()
     request_container = session_container.build_child_container(scope=modern_di.Scope.REQUEST)
     # REQUEST scope is entered here
     try:
         # You can resolve dependencies here
+        await websocket.send_text("test")
     finally:
         await request_container.close_async()
 
-    await websocket.accept()
-    await websocket.send_text("test")
     await websocket.close()
 ```
 

@@ -65,12 +65,17 @@ Container provides methods for resolving dependencies:
 
 1. `resolve_provider(provider)` - Resolve a specific provider instance
 2. `resolve(SomeType)` - Resolve by type
+3. `validate_provider(provider)` - Validate that the provider's dependency graph is wired correctly without creating real instances (useful at startup)
 
 Container also provides methods for overriding providers with objects:
 
 1. `override(provider, override_object)` - Override a provider with a mock object for testing
 2. `reset_override(provider)` - Reset override for a specific provider
 3. `reset_override()` - Reset all overrides
+
+Container provides methods for injecting context values after creation:
+
+1. `set_context(context_type, obj)` - Inject a context object into the container's context registry; equivalent to passing `context={context_type: obj}` to `build_child_container`
 
 When resolving by type, the container looks for a provider that was registered with a matching `bound_type`.
 

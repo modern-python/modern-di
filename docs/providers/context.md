@@ -40,10 +40,9 @@ ALL_GROUPS = [Dependencies]
 app = fastapi.FastAPI()
 container = Container(groups=ALL_GROUPS)
 modern_di_fastapi.setup_di(app, container)
-
-
-# Resolving by type
-request_info_dict = container.resolve(dict)
+# The integration creates a REQUEST-scoped child container per request and
+# automatically injects the fastapi.Request into its context. The factory
+# is resolved from the child container, not the APP-scope container.
 ```
 
 ## Manual `ContextProvider` Usage
@@ -77,7 +76,7 @@ class Dependencies(Group):
         creator=create_user_info,
     )
 
-    
+
 # Provide custom context when building container
 container = Container(groups=[Dependencies])
 custom_context = CustomContext(user_id="123", tenant_id="abc")
@@ -85,4 +84,8 @@ request_container = container.build_child_container(
     scope=Scope.REQUEST,
     context={CustomContext: custom_context}
 )
+
+# Now resolve the factory — it will receive the custom context automatically
+user_info = request_container.resolve_provider(Dependencies.user_info)
+# {"user_id": "123", "tenant_id": "abc"}
 ```

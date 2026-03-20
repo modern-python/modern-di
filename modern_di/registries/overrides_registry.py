@@ -1,8 +1,12 @@
 import dataclasses
 import typing
 
+from modern_di import types
+
 
 T_co = typing.TypeVar("T_co", covariant=True)
+
+_UNSET = object()
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -18,5 +22,5 @@ class OverridesRegistry:
         else:
             self.overrides.pop(provider_id, None)
 
-    def fetch_override(self, provider_id: str) -> object | None:
-        return self.overrides.get(provider_id)
+    def fetch_override(self, provider_id: str) -> object:
+        return self.overrides.get(provider_id, types.UNSET)
