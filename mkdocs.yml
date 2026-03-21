@@ -5,6 +5,7 @@ edit_uri: edit/main/docs/
 nav:
   - Quick-Start: index.md
   - Introduction:
+      - About DI: introduction/about-di.md
       - Resolving: introduction/resolving.md
   - Providers:
       - Factories: providers/factories.md
