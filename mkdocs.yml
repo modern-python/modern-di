@@ -17,6 +17,8 @@ nav:
       - Litestar: integrations/litestar.md
   - Testing:
       - Fixtures: testing/fixtures.md
+  - Troubleshooting:
+      - Duplicate Type Error: troubleshooting/duplicate-type-error.md
   - Migration:
       - To 1.x: migration/to-1.x.md
       - To 2.x: migration/to-2.x.md

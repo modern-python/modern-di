@@ -11,4 +11,10 @@ CONTAINER_MISSING_PROVIDER_ERROR = "Provider of type {provider_type} is not regi
 FACTORY_ARGUMENT_RESOLUTION_ERROR = (
     "Argument {arg_name} of type {arg_type} cannot be resolved. Trying to build dependency {bound_type}."
 )
-PROVIDER_DUPLICATE_TYPE_ERROR = "Provider is duplicated by type {provider_type}"
+PROVIDER_DUPLICATE_TYPE_ERROR = (
+    "Provider is duplicated by type {provider_type}. "
+    "To resolve this issue:\n"
+    "1. Set bound_type=None on one of the providers to make it unresolvable by type\n"
+    "2. Explicitly pass dependencies via the kwargs parameter to avoid automatic resolution\n"
+    "See https://modern-di.readthedocs.io/latest/troubleshooting/duplicate-type-error/ for more details"
+)
