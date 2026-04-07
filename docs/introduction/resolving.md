@@ -22,6 +22,8 @@ When a factory is created:
 3. If a matching provider is found, it's automatically injected when the factory is resolved
 4. If no matching provider is found and no default value is provided, an error is raised
 
+For union-typed parameters (e.g. `dep: A | B`), the first type in the union that has a registered provider is used. If you need a specific type injected, use a concrete type annotation or supply the value explicitly via `kwargs`.
+
 Example:
 
 ```python

@@ -19,7 +19,7 @@ class CacheItem:
     async def close_async(self) -> None:
         if self.cache and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
-                await self.settings.finalizer(self.cache)  # type: ignore[misc]
+                await self.settings.finalizer(self.cache)  # ty: ignore[invalid-await]
             else:
                 self.settings.finalizer(self.cache)
 
@@ -39,7 +39,7 @@ class CacheItem:
         self._clear()
 
 
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+@dataclasses.dataclass(kw_only=True, slots=True)
 class CacheRegistry:
     _items: dict[str, CacheItem] = dataclasses.field(init=False, default_factory=dict)
 
@@ -47,9 +47,23 @@ class CacheRegistry:
         return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
 
     async def close_async(self) -> None:
+        errors: list[BaseException] = []
         for cache_item in self._items.values():
-            await cache_item.close_async()
+            try:
+                await cache_item.close_async()
+            except Exception as e:  # noqa: BLE001, PERF203
+                errors.append(e)
+        if errors:
+            msg = f"Errors during async cleanup: {errors}"
+            raise RuntimeError(msg)
 
     def close_sync(self) -> None:
+        errors: list[BaseException] = []
         for cache_item in self._items.values():
-            cache_item.close_sync()
+            try:
+                cache_item.close_sync()
+            except Exception as e:  # noqa: BLE001, PERF203
+                errors.append(e)
+        if errors:
+            msg = f"Errors during sync cleanup: {errors}"
+            raise RuntimeError(msg)

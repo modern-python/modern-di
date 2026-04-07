@@ -17,7 +17,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
         *,
         scope: Scope = Scope.APP,
         context_type: type[types.T_co],
-        bound_type: type | None = types.UNSET,  # type: ignore[assignment]
+        bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
     ) -> None:
         super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else context_type)
         self._context_type = context_type

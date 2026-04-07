@@ -26,7 +26,7 @@ def func_with_union(dep1: SimpleCreator | int) -> str:
     return str(dep1)
 
 
-def func_with_broken_annotation(dep1: "SomeWrongClass") -> None: ...  # type: ignore[name-defined]  # noqa: F821
+def func_with_broken_annotation(dep1: "SomeWrongClass") -> None: ...  # ty: ignore[unresolved-reference]  # noqa: F821
 
 
 class MyGroup(Group):

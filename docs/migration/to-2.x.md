@@ -230,6 +230,9 @@ instance = container.resolve_provider(provider)
 instance = container.resolve(SomeType)
 ```
 
+!!! note "Async finalizers are still supported"
+    Only *resolution* became sync-only in 2.x. Async *finalizers* (cleanup functions) are still fully supported via `CacheSettings(finalizer=async_cleanup_fn)` and `await container.close_async()`. The distinction: you cannot `await` during dependency resolution, but you can use async functions to clean up resources when a container is closed.
+
 ## Migration Steps
 
 1. **Update Dependencies**: Ensure all modern-di packages are updated to 2.x versions

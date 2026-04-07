@@ -31,7 +31,7 @@ class Factory(AbstractProvider[types.T_co]):
         *,
         scope: Scope = Scope.APP,
         creator: typing.Callable[..., types.T_co],
-        bound_type: type | None = types.UNSET,  # type: ignore[assignment]
+        bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
         kwargs: dict[str, typing.Any] | None = None,
         cache_settings: CacheSettings[types.T_co] | None = None,
         skip_creator_parsing: bool = False,

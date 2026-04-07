@@ -19,3 +19,4 @@ dist/
 .python-version
 .venv
 uv.lock
+plan.md

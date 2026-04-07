@@ -34,11 +34,11 @@ def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
     assert SignatureItem.from_type(type_) == result
 
 
-def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # type: ignore[empty-body]
+def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # ty: ignore[empty-body]
 def none_func(arg1: typing.Annotated[int, None], arg2: str | None = None) -> None: ...
 def args_kwargs_func(*args: int, **kwargs: str) -> None: ...
 def func_with_str_annotations(arg1: "list[int]", arg2: "str") -> None: ...
-async def async_func(arg1: int = 1, arg2="str") -> int: ...  # type: ignore[no-untyped-def,empty-body]  # noqa: ANN001
+async def async_func(arg1: int = 1, arg2="str") -> int: ...  # ty: ignore[empty-body]  # noqa: ANN001
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -61,11 +61,11 @@ class ClassWithStringAnnotations:
     def __init__(self, arg1: "str", arg2: "int") -> None: ...
 
 
-def func_with_wrong_annotations(arg1: "Protocol", arg2: "str") -> None: ...  # type: ignore[valid-type]
+def func_with_wrong_annotations(arg1: "Protocol", arg2: "str") -> None: ...  # ty: ignore[invalid-type-form]
 
 
 class ClassWithWrongAnnotations:
-    def __init__(self, arg1: "WrongType", arg2: "int") -> None: ...  # type: ignore[name-defined]  # noqa: F821
+    def __init__(self, arg1: "WrongType", arg2: "int") -> None: ...  # ty: ignore[unresolved-reference]  # noqa: F821
 
 
 @pytest.mark.parametrize(

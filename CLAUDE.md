@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`modern-di` is a **zero-dependency** Python dependency injection framework that wires up object graphs from type annotations, manages lifetimes via hierarchical scopes, and supports both sync and async finalizers. This repo contains the core package plus framework integrations (FastAPI, FastStream, LiteStar), each independently versioned and published to PyPI.
+`modern-di` is a **zero-dependency** Python dependency injection framework that wires up object graphs from type annotations, manages lifetimes via hierarchical scopes, and supports both sync and async finalizers. Framework integrations (FastAPI, FastStream, LiteStar) live in **separate repositories** and are published as separate PyPI packages.
 
 ## Commands
 
@@ -18,14 +18,10 @@ just test         # uv run pytest (with coverage by default)
 just test-branch  # pytest with branch coverage
 ```
 
-Run a single test file:
+`just test` passes extra args to pytest:
 ```bash
-uv run pytest tests/providers/test_factory.py
-```
-
-Run a specific test by name:
-```bash
-uv run pytest tests/providers/test_factory.py -k test_name
+just test tests/providers/test_factory.py
+just test tests/providers/test_factory.py -k test_name
 ```
 
 Without `just`:
@@ -53,7 +49,9 @@ class MyGroup(Group):
     my_service = providers.Factory(scope=Scope.APP, creator=MyService)
 ```
 
-`Factory` parses the `creator`'s `__init__` type hints at declaration time via `types_parser.parse_creator()`. During resolution it looks up each parameter type in `providers_registry` and recursively resolves dependencies.
+`Factory` parses the `creator`'s `__init__` type hints at declaration time via `types_parser.parse_creator()`. During resolution it looks up each parameter type in `providers_registry` and recursively resolves dependencies. There is no separate `Singleton` class — singleton behavior is `Factory(cache_settings=CacheSettings())`. Pass `kwargs={}` to supply static arguments that bypass type-based resolution. Pass `skip_creator_parsing=True` for callables whose signatures cannot be introspected.
+
+`ContextProvider` is for runtime values injected at container creation time (e.g. a request object). `container_provider` is an auto-registered singleton that resolves to the `Container` itself.
 
 ### Resolution flow
 
@@ -76,10 +74,13 @@ class MyGroup(Group):
 ### Key files
 
 - `modern_di/container.py` — Container class, the main entry point
-- `modern_di/providers/factory.py` — Factory provider with caching and finalizer support
+- `modern_di/providers/factory.py` — Factory and CacheSettings (singleton pattern via caching + optional finalizer)
+- `modern_di/providers/context_provider.py` — ContextProvider for runtime-injected values
+- `modern_di/providers/container_provider.py` — auto-registered provider that resolves to the Container itself
 - `modern_di/types_parser.py` — Signature introspection engine (parses type hints for DI wiring)
 - `modern_di/scope.py` — Scope enum
 - `modern_di/group.py` — Group base class for provider namespaces
+- `modern_di/errors.py` — Error message templates
 
 ### Testing patterns
 

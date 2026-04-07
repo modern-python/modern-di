@@ -39,6 +39,10 @@ Use this to provide specific values for parameters or override automatically res
 Configuration for caching instances. Only applicable for cached factories.
 Use `providers.CacheSettings()` to enable caching with optional cleanup configuration.
 
+### Union type parameters
+
+When a parameter is annotated with a union type (e.g. `dep: A | B`), Modern-DI resolves the **first registered type** that matches. The order is determined by how types appear in the union left-to-right. If you rely on a specific type being injected, prefer a concrete type annotation over a union.
+
 ### skip_creator_parsing
 
 Disables automatic dependency resolution. When `True`:
@@ -90,7 +94,15 @@ assert isinstance(instance2, IndependentFactory)
 
 Cached factories resolve the dependency only once and cache the resolved instance for future injections.
 
-The caching mechanism is thread-safe, ensuring that even when multiple threads attempt to resolve the same cached factory simultaneously, only one instance will be created.
+The caching mechanism is thread-safe by default, ensuring that even when multiple threads attempt to resolve the same cached factory simultaneously, only one instance will be created.
+
+If your application is single-threaded, you can disable the lock for a small performance gain:
+
+```python
+container = Container(groups=[Dependencies], use_lock=False)
+```
+
+Do not set `use_lock=False` in multi-threaded applications — it removes the guarantee that only one instance is created per cached factory.
 
 ```python
 import random
