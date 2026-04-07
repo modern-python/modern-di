@@ -86,6 +86,72 @@ def test_app_singleton_in_request_scope() -> None:
     assert singleton1 is singleton2
 
 
+def test_sync_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
+    cleaned_up: list[str] = []
+
+    def failing_finalizer(_: SimpleCreator) -> None:
+        msg = "finalizer failed"
+        raise RuntimeError(msg)
+
+    def good_finalizer(_: SimpleCreator) -> None:
+        cleaned_up.append("done")
+
+    class BrokenGroup(Group):
+        first = providers.Factory(
+            creator=SimpleCreator,
+            kwargs={"dep1": "first"},
+            cache_settings=providers.CacheSettings(finalizer=failing_finalizer),
+        )
+        second = providers.Factory(
+            creator=SimpleCreator,
+            bound_type=None,
+            kwargs={"dep1": "second"},
+            cache_settings=providers.CacheSettings(finalizer=good_finalizer),
+        )
+
+    app_container = Container(groups=[BrokenGroup])
+    app_container.resolve_provider(BrokenGroup.first)
+    app_container.resolve_provider(BrokenGroup.second)
+
+    with pytest.raises(RuntimeError, match="Errors during sync cleanup"):
+        app_container.close_sync()
+
+    assert cleaned_up == ["done"]
+
+
+async def test_async_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
+    cleaned_up: list[str] = []
+
+    async def failing_finalizer(_: SimpleCreator) -> None:
+        msg = "async finalizer failed"
+        raise RuntimeError(msg)
+
+    async def good_finalizer(_: SimpleCreator) -> None:
+        cleaned_up.append("done")
+
+    class BrokenAsyncGroup(Group):
+        first = providers.Factory(
+            creator=SimpleCreator,
+            kwargs={"dep1": "first"},
+            cache_settings=providers.CacheSettings(finalizer=failing_finalizer),
+        )
+        second = providers.Factory(
+            creator=SimpleCreator,
+            bound_type=None,
+            kwargs={"dep1": "second"},
+            cache_settings=providers.CacheSettings(finalizer=good_finalizer),
+        )
+
+    app_container = Container(groups=[BrokenAsyncGroup])
+    app_container.resolve_provider(BrokenAsyncGroup.first)
+    app_container.resolve_provider(BrokenAsyncGroup.second)
+
+    with pytest.raises(RuntimeError, match="Errors during async cleanup"):
+        await app_container.close_async()
+
+    assert cleaned_up == ["done"]
+
+
 @pytest.mark.repeat(10)
 def test_singleton_threading_concurrency() -> None:
     calls: int = 0

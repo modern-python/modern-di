@@ -49,6 +49,9 @@ def mock_dependencies(di_container: modern_di.Container) -> typing.Iterator[None
     di_container.reset_override(Dependencies.simple_factory)
 ```
 
+!!! note "Overrides are global"
+    `container.override()` and `container.reset_override()` operate on the shared overrides registry, which is shared across all containers in the same tree (parent and all children). Calling `override()` on a child container affects every container in the tree for the duration of the override. Always call `reset_override()` in a `finally` block or use a fixture that guarantees cleanup.
+
 ## 2. Use fixtures in tests:
 
 ```python

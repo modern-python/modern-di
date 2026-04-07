@@ -45,8 +45,7 @@ class Container:
             self.overrides_registry = parent_container.overrides_registry
         else:
             self.providers_registry = ProvidersRegistry()
-            container_provider.bound_type = type(self)
-            self.providers_registry.add_providers(container_provider)
+            self.providers_registry.register(type(self), container_provider)
             self.overrides_registry = OverridesRegistry()
         if groups:
             for one_group in groups:

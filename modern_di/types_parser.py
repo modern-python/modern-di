@@ -2,6 +2,7 @@ import dataclasses
 import inspect
 import types
 import typing
+import warnings
 
 from modern_di.types import UNSET
 
@@ -14,26 +15,24 @@ class SignatureItem:
     default: object = UNSET
 
     @classmethod
-    def from_type(cls, type_: type, default: object = UNSET) -> "SignatureItem":  # noqa: C901
+    def from_type(cls, type_: type, default: object = UNSET) -> "SignatureItem":
         if type_ is types.NoneType:
             return cls()
 
         # typing.Annotated
-        if isinstance(type_, typing._AnnotatedAlias):  # type: ignore[attr-defined]  # noqa: SLF001
-            type_ = type_.__args__[0]
+        if hasattr(type_, "__metadata__"):
+            type_ = typing.get_args(type_)[0]
 
         result: dict[str, typing.Any] = {"default": default}
 
         # union type
-        if isinstance(type_, (types.UnionType, typing._UnionGenericAlias)):  # type: ignore[attr-defined]  # noqa: SLF001
-            args = [x.__origin__ if isinstance(x, types.GenericAlias) else x for x in type_.__args__]
+        if isinstance(type_, types.UnionType) or typing.get_origin(type_) is typing.Union:
+            args = [typing.get_origin(x) or x for x in typing.get_args(type_)]
             if types.NoneType in args:
                 result["is_nullable"] = True
                 args.remove(types.NoneType)
 
-            for i, arg in enumerate(args):
-                if isinstance(arg, (types.GenericAlias, typing._GenericAlias)):  # type: ignore[attr-defined]  # noqa: SLF001
-                    args[i] = arg.__origin__
+            args = [typing.get_origin(arg) or arg for arg in args]
 
             if len(args) > 1:
                 result["args"] = args
@@ -41,9 +40,9 @@ class SignatureItem:
                 result["arg_type"] = args[0]
 
         # generic
-        elif isinstance(type_, (types.GenericAlias, typing._GenericAlias)):  # type: ignore[attr-defined]  # noqa: SLF001
-            result["arg_type"] = type_.__origin__
-            result["args"] = list(type_.__args__)
+        elif typing.get_origin(type_) is not None:
+            result["arg_type"] = typing.get_origin(type_)
+            result["args"] = list(typing.get_args(type_))
 
         elif isinstance(type_, type):
             result["arg_type"] = type_
@@ -63,7 +62,12 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
             type_hints = typing.get_type_hints(creator.__init__)
         else:
             type_hints = typing.get_type_hints(creator)
-    except NameError:
+    except NameError as e:
+        warnings.warn(
+            f"Failed to resolve type hints for {creator}: {e}. Dependency wiring will be skipped.",
+            UserWarning,
+            stacklevel=2,
+        )
         type_hints = {}
 
     param_hints = {}

@@ -4,7 +4,7 @@ import typing
 from modern_di import types
 
 
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+@dataclasses.dataclass(kw_only=True, slots=True)
 class ContextRegistry:
     context: dict[type[typing.Any], typing.Any]
 
