@@ -1,5 +1,6 @@
 import dataclasses
 import re
+import warnings
 
 import pytest
 
@@ -32,7 +33,9 @@ def func_with_broken_annotation(dep1: "SomeWrongClass") -> None: ...  # ty: igno
 class MyGroup(Group):
     app_factory = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "original"})
     app_factory_unresolvable = providers.Factory(creator=SimpleCreator, bound_type=None)
-    app_factory_skip_creator_parsing = providers.Factory(creator=SimpleCreator, skip_creator_parsing=True)
+    app_factory_skip_creator_parsing = providers.Factory(
+        creator=SimpleCreator, skip_creator_parsing=True, bound_type=None
+    )
     func_with_union_factory = providers.Factory(creator=func_with_union, bound_type=None)
     func_with_broken_annotation = providers.Factory(creator=func_with_broken_annotation, bound_type=None)
     request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator)
@@ -168,3 +171,24 @@ def test_factory_self_reference() -> None:
     app_container.providers_registry.add_providers(first_factory, second_factory)
 
     assert app_container.resolve_provider(second_factory) == "one two"
+
+
+def test_factory_repr() -> None:
+    provider = providers.Factory(creator=str, scope=Scope.APP)
+    assert repr(provider) == "Factory(creator=<class 'str'>, scope=<Scope.APP: 1>, cached=False)"
+
+
+def test_factory_repr_cached() -> None:
+    provider = providers.Factory(creator=str, scope=Scope.APP, cache_settings=providers.CacheSettings())
+    assert repr(provider) == "Factory(creator=<class 'str'>, scope=<Scope.APP: 1>, cached=True)"
+
+
+def test_factory_skip_creator_parsing_without_bound_type_warns() -> None:
+    with pytest.warns(UserWarning, match="skip_creator_parsing=True without an explicit bound_type"):
+        providers.Factory(creator=str, skip_creator_parsing=True)
+
+
+def test_factory_skip_creator_parsing_with_bound_type_no_warning() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        providers.Factory(creator=str, skip_creator_parsing=True, bound_type=str)

@@ -10,6 +10,9 @@ class ProvidersRegistry:
     def __init__(self) -> None:
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
 
+    def __len__(self) -> int:
+        return len(self._providers)
+
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
 

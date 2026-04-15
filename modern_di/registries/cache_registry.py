@@ -43,6 +43,9 @@ class CacheItem:
 class CacheRegistry:
     _items: dict[str, CacheItem] = dataclasses.field(init=False, default_factory=dict)
 
+    def cached_count(self) -> int:
+        return sum(1 for item in self._items.values() if item.cache is not None)
+
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
         return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
 

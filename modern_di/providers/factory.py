@@ -1,6 +1,7 @@
 import dataclasses
 import inspect
 import typing
+import warnings
 
 from modern_di import errors, types
 from modern_di.providers import ContextProvider
@@ -37,6 +38,13 @@ class Factory(AbstractProvider[types.T_co]):
         skip_creator_parsing: bool = False,
     ) -> None:
         if skip_creator_parsing:
+            if bound_type is types.UNSET:
+                warnings.warn(
+                    "skip_creator_parsing=True without an explicit bound_type means this provider "
+                    "cannot be resolved by type. Pass bound_type=MyClass if you need type resolution.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             parsed_type: type | None = None
             parsed_kwargs: dict[str, SignatureItem] = {}
         else:
@@ -48,12 +56,17 @@ class Factory(AbstractProvider[types.T_co]):
         self.cache_settings = cache_settings
         self._kwargs = kwargs
 
+    def __repr__(self) -> str:
+        return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"
+
     def _compile_kwargs(self, container: "Container") -> dict[str, typing.Any]:
         result: dict[str, typing.Any] = {}
         for k, v in self._parsed_kwargs.items():
             provider: AbstractProvider[types.T_co] | None = None
             if v.arg_type:
-                provider = container.providers_registry.find_provider(v.arg_type)
+                provider = typing.cast(
+                    AbstractProvider[types.T_co] | None, container.providers_registry.find_provider(v.arg_type)
+                )
                 if provider is self:
                     provider = None
             else:

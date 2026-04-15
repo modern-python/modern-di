@@ -125,6 +125,23 @@ class Container:
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
         self.context_registry.set_context(context_type, obj)
 
+    def __repr__(self) -> str:
+        n_providers = len(self.providers_registry)
+        n_cached = self.cache_registry.cached_count()
+        return f"Container(scope={self.scope!r}, providers={n_providers}, cached={n_cached})"
+
+    def __enter__(self) -> "typing_extensions.Self":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close_sync()
+
+    async def __aenter__(self) -> "typing_extensions.Self":
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close_async()
+
     def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
         """Prevent cloning object."""
         return self

@@ -42,3 +42,24 @@ def test_container_resolve_missing_provider() -> None:
     app_container = Container()
     with pytest.raises(RuntimeError, match=r"Provider of type <class 'str'> is not registered in providers registry."):
         assert app_container.resolve(str) is None
+
+
+def test_container_sync_context_manager() -> None:
+    with Container() as container:
+        assert container.scope == Scope.APP
+
+    with container.build_child_container(scope=Scope.REQUEST) as request_container:
+        assert request_container.scope == Scope.REQUEST
+
+
+async def test_container_async_context_manager() -> None:
+    async with Container() as container:
+        assert container.scope == Scope.APP
+
+    async with container.build_child_container(scope=Scope.REQUEST) as request_container:
+        assert request_container.scope == Scope.REQUEST
+
+
+def test_container_repr() -> None:
+    container = Container()
+    assert repr(container) == "Container(scope=<Scope.APP: 1>, providers=1, cached=0)"
