@@ -55,3 +55,8 @@ def test_context_provider_in_request_scope() -> None:
     instance1 = request_container.resolve_provider(request_context_provider)
     instance2 = request_container.resolve_provider(request_context_provider)
     assert instance1 is instance2 is now
+
+
+def test_context_provider_repr() -> None:
+    provider = providers.ContextProvider(context_type=str, scope=Scope.REQUEST)
+    assert repr(provider) == "ContextProvider(context_type=<class 'str'>, scope=<Scope.REQUEST: 3>)"
