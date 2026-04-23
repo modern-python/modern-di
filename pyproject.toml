@@ -27,6 +27,7 @@ dev = [
     "pytest-cov",
     "pytest-asyncio",
     "pytest-repeat",
+    "pytest-benchmark",
 ]
 lint = [
     "ruff",
@@ -60,8 +61,10 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 [tool.pytest.ini_options]
 addopts = "--cov=. --cov-report term-missing"
 asyncio_mode = "auto"
+pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage]
 run.concurrency = ["thread"]
+run.omit = ["benchmarks/*"]
 report.exclude_also = ["if typing.TYPE_CHECKING:"]

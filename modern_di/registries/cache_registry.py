@@ -10,7 +10,9 @@ from modern_di.providers import CacheSettings, Factory
 class CacheItem:
     settings: CacheSettings[typing.Any] | None
     cache: typing.Any | None = None
-    kwargs: dict[str, typing.Any] | None = None
+    kwargs_compiled: bool = False
+    provider_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+    static_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:
@@ -41,7 +43,7 @@ class CacheItem:
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class CacheRegistry:
-    _items: dict[str, CacheItem] = dataclasses.field(init=False, default_factory=dict)
+    _items: dict[int, CacheItem] = dataclasses.field(init=False, default_factory=dict)
 
     def cached_count(self) -> int:
         return sum(1 for item in self._items.values() if item.cache is not None)
