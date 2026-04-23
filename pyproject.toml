@@ -17,6 +17,14 @@ classifiers = [
 ]
 version = "0"
 
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "modern_di"
+module-root = ""
+
 [project.urls]
 repository = "https://github.com/modern-python/modern-di"
 docs = "https://modern-di.readthedocs.io"
