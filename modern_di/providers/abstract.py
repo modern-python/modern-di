@@ -1,6 +1,6 @@
 import abc
+import itertools
 import typing
-import uuid
 
 from modern_di import types
 from modern_di.scope import Scope
@@ -8,6 +8,8 @@ from modern_di.scope import Scope
 
 if typing.TYPE_CHECKING:
     from modern_di import Container
+
+_provider_id_counter = itertools.count()
 
 
 class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
@@ -21,7 +23,7 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
     ) -> None:
         self.scope = scope
         self.bound_type = bound_type
-        self.provider_id: typing.Final = str(uuid.uuid4())
+        self.provider_id: typing.Final = next(_provider_id_counter)
 
     @abc.abstractmethod
     def resolve(self, container: "Container") -> typing.Any: ...  # noqa: ANN401

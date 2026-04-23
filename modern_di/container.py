@@ -16,6 +16,7 @@ from modern_di.scope import Scope
 
 class Container:
     __slots__ = (
+        "_scope_map",
         "cache_registry",
         "context_registry",
         "lock",
@@ -36,6 +37,9 @@ class Container:
         self.lock = threading.Lock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
+        self._scope_map: dict[Scope, typing_extensions.Self] = (
+            {**parent_container._scope_map, scope: self} if parent_container else {scope: self}  # noqa: SLF001
+        )
         self.cache_registry = CacheRegistry()
         self.context_registry = ContextRegistry(context=context or {})
         self.providers_registry: ProvidersRegistry
@@ -74,21 +78,15 @@ class Container:
         return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: Scope) -> "typing_extensions.Self":
-        container = self
-        if container.scope < scope:
-            raise RuntimeError(
-                errors.CONTAINER_NOT_INITIALIZED_SCOPE_ERROR.format(
-                    provider_scope=scope.name, container_scope=self.scope.name
+        if scope not in self._scope_map:
+            if scope > self.scope:
+                raise RuntimeError(
+                    errors.CONTAINER_NOT_INITIALIZED_SCOPE_ERROR.format(
+                        provider_scope=scope.name, container_scope=self.scope.name
+                    )
                 )
-            )
-
-        while container.scope > scope and container.parent_container:
-            container = container.parent_container
-
-        if container.scope != scope:
             raise RuntimeError(errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name))
-
-        return container
+        return self._scope_map[scope]
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
         provider = self.providers_registry.find_provider(dependency_type)
@@ -98,7 +96,10 @@ class Container:
         return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        if (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET:
+        if (
+            self.overrides_registry.overrides
+            and (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET
+        ):
             return typing.cast(types.T, override)
 
         return typing.cast(types.T, provider.resolve(self))

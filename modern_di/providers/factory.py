@@ -12,6 +12,7 @@ from modern_di.types_parser import SignatureItem, parse_creator
 
 if typing.TYPE_CHECKING:
     from modern_di import Container
+    from modern_di.registries.cache_registry import CacheItem
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -99,35 +100,37 @@ class Factory(AbstractProvider[types.T_co]):
             result.update(self._kwargs)
         return result
 
+    def _ensure_kwargs_cached(
+        self, container: "Container", cache_item: "CacheItem"
+    ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any]]:
+        if not cache_item.kwargs_compiled:
+            kwargs = self._compile_kwargs(container)
+            cache_item.provider_kwargs = {k: v for k, v in kwargs.items() if isinstance(v, AbstractProvider)}
+            cache_item.static_kwargs = {k: v for k, v in kwargs.items() if not isinstance(v, AbstractProvider)}
+            cache_item.kwargs_compiled = True
+        return cache_item.provider_kwargs, cache_item.static_kwargs
+
     def validate(self, container: "Container") -> dict[str, typing.Any]:
         container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
-        if cache_item.kwargs is not None:
-            kwargs = cache_item.kwargs
-        else:
-            kwargs = self._compile_kwargs(container)
-            cache_item.kwargs = kwargs
-
+        provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
+        validated_kwargs: dict[str, typing.Any] = {k: v.validate(container) for k, v in provider_kwargs.items()}
+        validated_kwargs.update(static_kwargs)
         return {
             "bound_type": self.bound_type,
             "creator": self._creator,
             "self": self,
-            "kwargs": {k: v.validate(container) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()},
+            "kwargs": validated_kwargs,
             "cache_settings": self.cache_settings,
         }
 
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
-        if cache_item.kwargs is not None:
-            kwargs = cache_item.kwargs
-        else:
-            kwargs = self._compile_kwargs(container)
-            cache_item.kwargs = kwargs
-
-        resolved_kwargs = {
-            k: container.resolve_provider(v) if isinstance(v, AbstractProvider) else v for k, v in kwargs.items()
-        }
+        provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
+        resolved_kwargs = dict(static_kwargs)
+        for k, v in provider_kwargs.items():
+            resolved_kwargs[k] = container.resolve_provider(v)
 
         if not self.cache_settings:
             return self._creator(**resolved_kwargs)
