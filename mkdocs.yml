@@ -15,6 +15,7 @@ nav:
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
       - Litestar: integrations/litestar.md
+      - Typer: integrations/typer.md
   - Testing:
       - Fixtures: testing/fixtures.md
   - Troubleshooting:

@@ -8,6 +8,7 @@
 | [modern-di-fastapi](https://github.com/modern-python/modern-di-fastapi)         | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-fastapi.svg)](https://pypi.python.org/pypi/modern-di-fastapi) [![downloads](https://img.shields.io/pypi/dm/modern-di-fastapi.svg)](https://pypistats.org/packages/modern-di-fastapi)             |
 | [modern-di-faststream  ](https://github.com/modern-python/modern-di-faststream) | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-faststream.svg)](https://pypi.python.org/pypi/modern-di-faststream) [![downloads](https://img.shields.io/pypi/dm/modern-di-faststream.svg)](https://pypistats.org/packages/modern-di-faststream) |
 | [modern-di-litestar ](https://github.com/modern-python/modern-di-litestar)      | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-litestar.svg)](https://pypi.python.org/pypi/modern-di-litestar) [![downloads](https://img.shields.io/pypi/dm/modern-di-litestar.svg)](https://pypistats.org/packages/modern-di-litestar)         |
+| [modern-di-typer](https://github.com/modern-python/modern-di-typer)            | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-typer.svg)](https://pypi.python.org/pypi/modern-di-typer) [![downloads](https://img.shields.io/pypi/dm/modern-di-typer.svg)](https://pypistats.org/packages/modern-di-typer)                     |
 
 `modern-di` is a python dependency injection framework which supports the following:
 
@@ -16,7 +17,7 @@
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `FastAPI`, `FastStream` and `LiteStar`
+- Integrations with `FastAPI`, `FastStream`,`LiteStar` and `Typer`
 
 Usage examples:
 
