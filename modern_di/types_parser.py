@@ -85,7 +85,7 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
             param_hints[param_name] = SignatureItem(default=default)
 
     if is_class:
-        return_sig = SignatureItem.from_type(typing.cast(type, creator))
+        return_sig = SignatureItem.from_type(creator)
     elif "return" in type_hints:
         return_sig = SignatureItem.from_type(type_hints["return"])
     else:

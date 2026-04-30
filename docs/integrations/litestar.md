@@ -61,6 +61,40 @@ app = Litestar(
 )
 ```
 
+### Auto-wiring with `autowired_groups`
+
+Pass `autowired_groups` to `ModernDIPlugin` to automatically register every provider in those groups as a Litestar dependency, keyed by its attribute name. This lets route handlers declare dependencies as plain parameters without per-route `FromDI` calls:
+
+```python
+import dataclasses
+import litestar
+from modern_di import Container, Group, Scope, providers
+from modern_di_litestar import ModernDIPlugin
+
+
+@dataclasses.dataclass(kw_only=True)
+class UserRepository:
+    pass
+
+
+class AppGroup(Group):
+    user_repo = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
+
+
+ALL_GROUPS = [AppGroup]
+
+app = litestar.Litestar(
+    plugins=[ModernDIPlugin(Container(groups=ALL_GROUPS), autowired_groups=ALL_GROUPS)],
+)
+
+
+@litestar.get("/users")
+async def list_users(user_repo: UserRepository) -> list[str]:
+    ...
+```
+
+If the same attribute name appears in multiple groups, a `UserWarning` is emitted and the last group's provider wins.
+
 ## Websockets
 
 Usually our application uses only two scopes: `APP` and `REQUEST`.
