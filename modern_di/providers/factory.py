@@ -129,7 +129,7 @@ class Factory(AbstractProvider[types.T_co]):
         cache_item = container.cache_registry.fetch_cache_item(self)
 
         if self.cache_settings and cache_item.cache is not None:
-            return typing.cast(types.T_co, cache_item.cache)
+            return cache_item.cache
 
         provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
         resolved_kwargs = dict(static_kwargs)
@@ -144,7 +144,7 @@ class Factory(AbstractProvider[types.T_co]):
 
         try:
             if cache_item.cache is not None:
-                return typing.cast(types.T_co, cache_item.cache)
+                return cache_item.cache
 
             instance = self._creator(**resolved_kwargs)
             cache_item.cache = instance

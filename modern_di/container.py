@@ -100,9 +100,9 @@ class Container:
             self.overrides_registry.overrides
             and (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET
         ):
-            return typing.cast(types.T, override)
+            return override  # ty: ignore[invalid-return-type]
 
-        return typing.cast(types.T, provider.resolve(self))
+        return provider.resolve(self)
 
     def validate_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         return typing.cast(types.T, provider.validate(self))
