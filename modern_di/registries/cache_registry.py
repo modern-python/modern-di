@@ -49,7 +49,13 @@ class CacheRegistry:
         return sum(1 for item in self._items.values() if item.cache is not None)
 
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
-        return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
+        pid = provider.provider_id
+        item = self._items.get(pid)
+        if item is not None:
+            return item
+        item = CacheItem(settings=provider.cache_settings)
+        self._items[pid] = item
+        return item
 
     async def close_async(self) -> None:
         errors: list[BaseException] = []
