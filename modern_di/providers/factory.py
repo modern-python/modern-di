@@ -105,8 +105,15 @@ class Factory(AbstractProvider[types.T_co]):
     ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any]]:
         if not cache_item.kwargs_compiled:
             kwargs = self._compile_kwargs(container)
-            cache_item.provider_kwargs = {k: v for k, v in kwargs.items() if isinstance(v, AbstractProvider)}
-            cache_item.static_kwargs = {k: v for k, v in kwargs.items() if not isinstance(v, AbstractProvider)}
+            provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
+            static_kwargs: dict[str, typing.Any] = {}
+            for k, v in kwargs.items():
+                if isinstance(v, AbstractProvider):
+                    provider_kwargs[k] = v
+                else:
+                    static_kwargs[k] = v
+            cache_item.provider_kwargs = provider_kwargs
+            cache_item.static_kwargs = static_kwargs
             cache_item.kwargs_compiled = True
         return cache_item.provider_kwargs, cache_item.static_kwargs
 
