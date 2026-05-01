@@ -127,6 +127,10 @@ class Factory(AbstractProvider[types.T_co]):
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
+
+        if self.cache_settings and cache_item.cache is not None:
+            return typing.cast(types.T_co, cache_item.cache)
+
         provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
         resolved_kwargs = dict(static_kwargs)
         for k, v in provider_kwargs.items():
@@ -134,9 +138,6 @@ class Factory(AbstractProvider[types.T_co]):
 
         if not self.cache_settings:
             return self._creator(**resolved_kwargs)
-
-        if cache_item.cache is not None:
-            return typing.cast(types.T_co, cache_item.cache)
 
         if container.lock:
             container.lock.acquire()
