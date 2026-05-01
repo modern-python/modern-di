@@ -117,6 +117,12 @@ class Factory(AbstractProvider[types.T_co]):
             cache_item.kwargs_compiled = True
         return cache_item.provider_kwargs, cache_item.static_kwargs
 
+    def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
+        scoped_container = container.find_container(self.scope)
+        cache_item = scoped_container.cache_registry.fetch_cache_item(self)
+        provider_kwargs, _ = self._ensure_kwargs_cached(scoped_container, cache_item)
+        return provider_kwargs
+
     def validate(self, container: "Container") -> dict[str, typing.Any]:
         container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)

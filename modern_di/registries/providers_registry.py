@@ -13,6 +13,9 @@ class ProvidersRegistry:
     def __len__(self) -> int:
         return len(self._providers)
 
+    def __iter__(self) -> typing.Iterator[AbstractProvider[typing.Any]]:
+        return iter(self._providers.values())
+
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
 

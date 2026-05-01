@@ -1,8 +1,9 @@
 import copy
+import dataclasses
 
 import pytest
 
-from modern_di import Container, Scope, providers
+from modern_di import Container, Group, Scope, providers
 
 
 def test_container_prevent_copy() -> None:
@@ -63,3 +64,41 @@ async def test_container_async_context_manager() -> None:
 def test_container_repr() -> None:
     container = Container()
     assert repr(container) == "Container(scope=<Scope.APP: 1>, providers=1, cached=0)"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class CycleA:
+    dep: "CycleB"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class CycleB:
+    dep: CycleA
+
+
+class CycleGroup(Group):
+    a = providers.Factory(creator=CycleA)
+    b = providers.Factory(creator=CycleB)
+
+
+def test_validate_detects_cycle() -> None:
+    container = Container(groups=[CycleGroup])
+    with pytest.raises(RuntimeError, match="Circular dependency detected: CycleA -> CycleB -> CycleA"):
+        container.validate()
+
+
+def test_validate_passes_for_valid_graph() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Dep:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        dep: Dep
+
+    class ValidGroup(Group):
+        dep = providers.Factory(creator=Dep)
+        svc = providers.Factory(creator=Service)
+
+    container = Container(groups=[ValidGroup])
+    container.validate()  # should not raise

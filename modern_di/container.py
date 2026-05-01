@@ -107,6 +107,32 @@ class Container:
     def validate_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         return typing.cast(types.T, provider.validate(self))
 
+    def validate(self) -> None:
+        visiting: set[int] = set()
+        visited: set[int] = set()
+        path: list[AbstractProvider[typing.Any]] = []
+
+        def _visit(provider: AbstractProvider[typing.Any]) -> None:
+            pid = provider.provider_id
+            if pid in visited:
+                return
+            if pid in visiting:
+                cycle_start = next(i for i, p in enumerate(path) if p.provider_id == pid)
+                cycle_names = [p.bound_type.__name__ if p.bound_type else repr(p) for p in path[cycle_start:]]
+                cycle_names.append(cycle_names[0])
+                raise RuntimeError(errors.CYCLE_DEPENDENCY_ERROR.format(cycle_path=" -> ".join(cycle_names)))
+
+            visiting.add(pid)
+            path.append(provider)
+            for dep_provider in provider.get_dependencies(self).values():
+                _visit(dep_provider)
+            path.pop()
+            visiting.discard(pid)
+            visited.add(pid)
+
+        for one_provider in self.providers_registry:
+            _visit(one_provider)
+
     async def close_async(self) -> None:
         if not self.parent_container:
             self.overrides_registry.reset_override()

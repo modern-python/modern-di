@@ -30,3 +30,6 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
 
     @abc.abstractmethod
     def validate(self, container: "Container") -> dict[str, typing.Any]: ...
+
+    def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
+        return {}

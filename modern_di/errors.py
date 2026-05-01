@@ -11,6 +11,7 @@ CONTAINER_MISSING_PROVIDER_ERROR = "Provider of type {provider_type} is not regi
 FACTORY_ARGUMENT_RESOLUTION_ERROR = (
     "Argument {arg_name} of type {arg_type} cannot be resolved. Trying to build dependency {bound_type}."
 )
+CYCLE_DEPENDENCY_ERROR = "Circular dependency detected: {cycle_path}. Check your provider graph for unintended cycles."
 PROVIDER_DUPLICATE_TYPE_ERROR = (
     "Provider is duplicated by type {provider_type}. "
     "To resolve this issue:\n"
