@@ -1,4 +1,4 @@
-# ruff: noqa: ANN001, ANN201, E402
+# ruff: noqa: ANN001, ANN201
 """Benchmark: cycle detection overhead in resolve_provider.
 
 Compares current code (with threading.local cycle tracking) against
@@ -9,7 +9,6 @@ Run:
 """
 
 import dataclasses
-import typing
 
 from modern_di import Container, Group, Scope, providers, types
 from modern_di.providers.abstract import AbstractProvider
@@ -48,6 +47,7 @@ def _baseline_resolve_provider(self: Container, provider: "AbstractProvider[type
 
 # --- Leaf resolution (no deps) ---
 
+
 def test_leaf_optimized(benchmark):
     """Resolve a leaf provider (no dependencies) — with cycle detection."""
     container = Container(scope=Scope.APP, groups=[BenchGroup])
@@ -67,6 +67,7 @@ def test_leaf_baseline(benchmark):
 
 # --- 2-level chain ---
 
+
 def test_chain2_optimized(benchmark):
     """Resolve a 2-level dependency chain — with cycle detection."""
     container = Container(scope=Scope.APP, groups=[BenchGroup])
@@ -85,6 +86,7 @@ def test_chain2_baseline(benchmark):
 
 
 # --- 3-level chain ---
+
 
 def test_chain3_optimized(benchmark):
     """Resolve a 3-level dependency chain — with cycle detection."""
