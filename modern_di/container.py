@@ -16,6 +16,7 @@ from modern_di.scope import Scope
 
 class Container:
     __slots__ = (
+        "_resolving",
         "_scope_map",
         "cache_registry",
         "context_registry",
@@ -37,6 +38,7 @@ class Container:
         self.lock = threading.Lock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
+        self._resolving: threading.local = parent_container._resolving if parent_container else threading.local()  # noqa: SLF001
         self._scope_map: dict[Scope, typing_extensions.Self] = (
             {**parent_container._scope_map, scope: self} if parent_container else {scope: self}  # noqa: SLF001
         )
@@ -102,7 +104,19 @@ class Container:
         ):
             return override  # ty: ignore[invalid-return-type]
 
-        return provider.resolve(self)
+        provider_id = provider.provider_id
+        resolving: dict[int, AbstractProvider[typing.Any]] = getattr(self._resolving, "stack", None) or {}
+        if provider_id in resolving:
+            cycle_names = [p.bound_type.__name__ if p.bound_type else repr(p) for p in resolving.values()]
+            cycle_names.append(provider.bound_type.__name__ if provider.bound_type else repr(provider))
+            raise RuntimeError(errors.CYCLE_DEPENDENCY_ERROR.format(cycle_path=" -> ".join(cycle_names)))
+
+        resolving[provider_id] = provider
+        self._resolving.stack = resolving
+        try:
+            return provider.resolve(self)
+        finally:
+            del resolving[provider_id]
 
     def validate_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         return typing.cast(types.T, provider.validate(self))

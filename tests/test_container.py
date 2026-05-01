@@ -1,8 +1,9 @@
 import copy
+import dataclasses
 
 import pytest
 
-from modern_di import Container, Scope, providers
+from modern_di import Container, Group, Scope, providers
 
 
 def test_container_prevent_copy() -> None:
@@ -63,3 +64,40 @@ async def test_container_async_context_manager() -> None:
 def test_container_repr() -> None:
     container = Container()
     assert repr(container) == "Container(scope=<Scope.APP: 1>, providers=1, cached=0)"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class CycleA:
+    dep: "CycleB"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class CycleB:
+    dep: CycleA
+
+
+class CycleGroup(Group):
+    a = providers.Factory(creator=CycleA)
+    b = providers.Factory(creator=CycleB)
+
+
+def test_cycle_detection_two_providers() -> None:
+    container = Container(groups=[CycleGroup])
+    with pytest.raises(RuntimeError, match="Circular dependency detected: CycleA -> CycleB -> CycleA"):
+        container.resolve(CycleA)
+
+
+def test_no_false_positive_cycle_after_error() -> None:
+    """After a cycle error, the resolving set is cleaned up and unrelated providers still work."""
+
+    class OK:
+        pass
+
+    class OKGroup(Group):
+        ok = providers.Factory(creator=OK)
+
+    container = Container(groups=[CycleGroup, OKGroup])
+    with pytest.raises(RuntimeError, match="Circular dependency"):
+        container.resolve(CycleA)
+
+    assert isinstance(container.resolve(OK), OK)
