@@ -113,7 +113,8 @@ from modern_di import Container, Scope
 ALL_GROUPS = [Dependencies]
 
 # Initialize container of app scope
-container = Container(groups=ALL_GROUPS)
+# Pass validate=True to detect circular dependencies at startup
+container = Container(groups=ALL_GROUPS, validate=True)
 
 # Resolve provider
 instance1 = container.resolve_provider(Dependencies.singleton)

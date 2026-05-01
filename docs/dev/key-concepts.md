@@ -66,6 +66,13 @@ Container provides methods for resolving dependencies:
 1. `resolve_provider(provider)` - Resolve a specific provider instance
 2. `resolve(SomeType)` - Resolve by type
 3. `validate_provider(provider)` - Validate that the provider's dependency graph is wired correctly without creating real instances (useful at startup)
+4. `validate()` - Walk the entire provider graph and detect circular dependencies (raises `RuntimeError` with the cycle path if found)
+
+You can also pass `validate=True` to `Container(...)` to run validation automatically at creation time:
+
+```python
+container = Container(groups=[MyGroup], validate=True)  # raises on circular deps
+```
 
 Container also provides methods for overriding providers with objects:
 
