@@ -81,6 +81,11 @@ class CycleGroup(Group):
     b = providers.Factory(creator=CycleB)
 
 
+def test_validate_on_creation() -> None:
+    with pytest.raises(RuntimeError, match="Circular dependency detected"):
+        Container(groups=[CycleGroup], validate=True)
+
+
 def test_validate_detects_cycle() -> None:
     container = Container(groups=[CycleGroup])
     with pytest.raises(RuntimeError, match="Circular dependency detected: CycleA -> CycleB -> CycleA"):

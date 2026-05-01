@@ -32,7 +32,7 @@ where the override dict is always empty — the bool check costs ~0 ns (empty di
 Replace the linear parent-chain walk with a `scope → container` dict built once at
 container construction time.
 
-**Change:** `container.py` — `_scope_map` dict built in `__init__`, `find_container()` rewritten.
+**Change:** `container.py` — `scope_map` dict built in `__init__`, `find_container()` rewritten.
 
 | Scenario | Baseline (ns) | Optimized (ns) | Speedup |
 |---|---|---|---|

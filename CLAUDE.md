@@ -40,6 +40,8 @@ uv run pytest
 
 `Container` is the central object. A root container is created with `Container(scope=Scope.APP, groups=[MyGroup])`. Child containers are created via `container.build_child_container(scope=Scope.REQUEST, context={...})`. Child containers share the parent's `providers_registry` and `overrides_registry` but have their own `cache_registry` and `context_registry`.
 
+Pass `validate=True` to run cycle detection on the provider graph at container creation time (zero cost when disabled). Can also be called explicitly via `container.validate()`.
+
 ### Group and Provider declaration
 
 `Group` is a namespace class (cannot be instantiated) used to declare providers as class-level attributes:

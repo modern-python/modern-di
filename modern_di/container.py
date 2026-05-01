@@ -16,7 +16,6 @@ from modern_di.scope import Scope
 
 class Container:
     __slots__ = (
-        "_scope_map",
         "cache_registry",
         "context_registry",
         "lock",
@@ -24,21 +23,23 @@ class Container:
         "parent_container",
         "providers_registry",
         "scope",
+        "scope_map",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         scope: Scope = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
         use_lock: bool = True,
+        validate: bool = False,
     ) -> None:
         self.lock = threading.Lock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
-        self._scope_map: dict[Scope, typing_extensions.Self] = (
-            {**parent_container._scope_map, scope: self} if parent_container else {scope: self}  # noqa: SLF001
+        self.scope_map: dict[Scope, typing_extensions.Self] = (
+            {**parent_container.scope_map, scope: self} if parent_container else {scope: self}
         )
         self.cache_registry = CacheRegistry()
         self.context_registry = ContextRegistry(context=context or {})
@@ -54,6 +55,8 @@ class Container:
         if groups:
             for one_group in groups:
                 self.providers_registry.add_providers(*one_group.get_providers())
+        if validate:
+            self.validate()
 
     def build_child_container(
         self, context: dict[type[typing.Any], typing.Any] | None = None, scope: Scope | None = None
@@ -78,7 +81,7 @@ class Container:
         return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: Scope) -> "typing_extensions.Self":
-        if scope not in self._scope_map:
+        if scope not in self.scope_map:
             if scope > self.scope:
                 raise RuntimeError(
                     errors.CONTAINER_NOT_INITIALIZED_SCOPE_ERROR.format(
@@ -86,7 +89,7 @@ class Container:
                     )
                 )
             raise RuntimeError(errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name))
-        return self._scope_map[scope]
+        return self.scope_map[scope]
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
         provider = self.providers_registry.find_provider(dependency_type)
