@@ -60,6 +60,10 @@ class Factory(AbstractProvider[types.T_co]):
     def __repr__(self) -> str:
         return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"
 
+    def _resolution_step(self) -> exceptions.ResolutionStep:
+        name = self.bound_type.__name__ if self.bound_type else getattr(self._creator, "__name__", repr(self._creator))
+        return exceptions.ResolutionStep(scope=self.scope, name=name)
+
     def _compile_kwargs(self, container: "Container") -> dict[str, typing.Any]:
         result: dict[str, typing.Any] = {}
         for k, v in self._parsed_kwargs.items():
@@ -140,10 +144,14 @@ class Factory(AbstractProvider[types.T_co]):
         if self.cache_settings and cache_item.cache is not None:
             return cache_item.cache
 
-        provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
-        resolved_kwargs = dict(static_kwargs)
-        for k, v in provider_kwargs.items():
-            resolved_kwargs[k] = container.resolve_provider(v)
+        try:
+            provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
+            resolved_kwargs = dict(static_kwargs)
+            for k, v in provider_kwargs.items():
+                resolved_kwargs[k] = container.resolve_provider(v)
+        except exceptions.ResolutionError as exc:
+            exc.prepend_step(self._resolution_step())
+            raise
 
         if not self.cache_settings:
             return self._creator(**resolved_kwargs)
