@@ -1,7 +1,27 @@
+import difflib
+import inspect
 import typing
 
-from modern_di import exceptions, types
+from modern_di import errors, exceptions, types
 from modern_di.providers.abstract import AbstractProvider
+
+
+_MAX_SUGGESTIONS = 3
+_SIMILARITY_CUTOFF = 0.6
+
+
+def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]) -> str | None:
+    registered = provider.bound_type
+    if registered is None or not inspect.isclass(registered):
+        return None
+    try:
+        if issubclass(registered, requested_type):
+            return errors.SUGGESTION_SUBCLASS.format(type_name=registered.__name__, scope=provider.scope.name)
+        if issubclass(requested_type, registered):
+            return errors.SUGGESTION_BASECLASS.format(type_name=registered.__name__, scope=provider.scope.name)
+    except TypeError:
+        return None
+    return None
 
 
 class ProvidersRegistry:
@@ -31,3 +51,35 @@ class ProvidersRegistry:
                 continue
 
             self.register(provider.bound_type, provider)
+
+    def build_suggestions(self, requested_type: type) -> list[str]:
+        requested_is_class = inspect.isclass(requested_type)
+        requested_name = getattr(requested_type, "__name__", str(requested_type))
+
+        hierarchy_hints: list[str] = []
+        name_to_provider: dict[str, AbstractProvider[typing.Any]] = {}
+
+        for provider in self._providers.values():
+            registered = provider.bound_type
+            if registered is None or registered is requested_type:
+                continue
+
+            hint = _hierarchy_hint(requested_type, provider) if requested_is_class else None
+            if hint is not None:
+                hierarchy_hints.append(hint)
+                if len(hierarchy_hints) >= _MAX_SUGGESTIONS:
+                    return hierarchy_hints
+                continue
+
+            name = getattr(registered, "__name__", None)
+            if name:
+                name_to_provider[name] = provider
+
+        remaining = _MAX_SUGGESTIONS - len(hierarchy_hints)
+        typo_hints = [
+            errors.SUGGESTION_SIMILAR.format(type_name=name, scope=name_to_provider[name].scope.name)
+            for name in difflib.get_close_matches(
+                requested_name, name_to_provider.keys(), n=remaining, cutoff=_SIMILARITY_CUTOFF
+            )
+        ]
+        return hierarchy_hints + typo_hints
