@@ -1,9 +1,9 @@
 import abc
+import enum
 import itertools
 import typing
 
 from modern_di import types
-from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
@@ -18,7 +18,7 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
     def __init__(
         self,
         *,
-        scope: Scope,
+        scope: enum.IntEnum,
         bound_type: type | None,
     ) -> None:
         self.scope = scope

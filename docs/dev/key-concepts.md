@@ -36,6 +36,28 @@
    - For lifetime less than **ACTION**;
    - Must be managed manually.
 
+### Custom scopes
+
+For non-standard lifecycles (per-tenant containers, background jobs, etc.) you
+can pass any `IntEnum` value where `Scope` is accepted:
+
+```python
+from enum import IntEnum
+from modern_di import Container, Scope, providers
+
+class MyScope(IntEnum):
+    TENANT = 6
+    BACKGROUND_JOB = 7
+
+provider = providers.Factory(scope=MyScope.TENANT, creator=...)
+tenant_container = Container().build_child_container(scope=MyScope.TENANT)
+```
+
+A child scope's integer value must be strictly greater than its parent's. The
+auto-derive of the next scope (when `scope` is omitted from
+`build_child_container`) only advances within the parent's own enum class — to
+cross enum boundaries, pass `scope=` explicitly.
+
 ### How to choose scope
 
 Provider's scope must be max value between scopes of all its dependencies.

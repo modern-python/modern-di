@@ -1,13 +1,13 @@
 import dataclasses
+import enum
 import typing
 
 from modern_di import errors
-from modern_di.scope import Scope
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ResolutionStep:
-    scope: Scope
+    scope: enum.IntEnum
     name: str
 
 
@@ -20,7 +20,7 @@ class ContainerError(ModernDIError):
 
 
 class InvalidChildScopeError(ContainerError):
-    def __init__(self, *, parent_scope: Scope, child_scope: Scope, allowed_scopes: list[str]) -> None:
+    def __init__(self, *, parent_scope: enum.IntEnum, child_scope: enum.IntEnum, allowed_scopes: list[str]) -> None:
         self.parent_scope = parent_scope
         self.child_scope = child_scope
         self.allowed_scopes = allowed_scopes
@@ -34,13 +34,13 @@ class InvalidChildScopeError(ContainerError):
 
 
 class MaxScopeReachedError(ContainerError):
-    def __init__(self, *, parent_scope: Scope) -> None:
+    def __init__(self, *, parent_scope: enum.IntEnum) -> None:
         self.parent_scope = parent_scope
         super().__init__(errors.CONTAINER_MAX_SCOPE_REACHED_ERROR.format(parent_scope=parent_scope.name))
 
 
 class ScopeNotInitializedError(ContainerError):
-    def __init__(self, *, provider_scope: Scope, container_scope: Scope) -> None:
+    def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
         self.container_scope = container_scope
         super().__init__(
@@ -52,7 +52,7 @@ class ScopeNotInitializedError(ContainerError):
 
 
 class ScopeSkippedError(ContainerError):
-    def __init__(self, *, provider_scope: Scope) -> None:
+    def __init__(self, *, provider_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
         super().__init__(errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=provider_scope.name))
 

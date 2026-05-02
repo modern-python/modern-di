@@ -11,7 +11,7 @@ def test_container_provider_direct_resolving() -> None:
 
 def test_container_provider_sub_dependency() -> None:
     def creator(di_container: Container) -> Scope:
-        return di_container.scope
+        return Scope(di_container.scope)
 
     class MyGroup(Group):
         factory = providers.Factory(scope=Scope.REQUEST, creator=creator)
