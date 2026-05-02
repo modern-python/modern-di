@@ -1,7 +1,14 @@
+import dataclasses
 import typing
 
 from modern_di import errors
 from modern_di.scope import Scope
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class ResolutionStep:
+    scope: Scope
+    name: str
 
 
 class ModernDIError(RuntimeError):
@@ -51,7 +58,33 @@ class ScopeSkippedError(ContainerError):
 
 
 class ResolutionError(ModernDIError):
-    """Base class for errors raised while resolving a provider."""
+    """Base class for errors raised while resolving a provider.
+
+    Carries an optional `dependency_path` accumulated as the error propagates up
+    the resolution chain, so the rendered message shows the full path from the
+    initially requested type down to the failing dependency.
+    """
+
+    def __init__(self, message: str) -> None:
+        self._base_message = message
+        self.dependency_path: list[ResolutionStep] = []
+        super().__init__(message)
+
+    def prepend_step(self, step: ResolutionStep) -> None:
+        self.dependency_path.insert(0, step)
+        self.args = (str(self),)
+
+    def __str__(self) -> str:
+        if not self.dependency_path:
+            return self._base_message
+
+        scope_width = max(len(step.scope.name) for step in self.dependency_path)
+        lines = ["Cannot resolve dependency chain:"]
+        for i, step in enumerate(self.dependency_path):
+            prefix = "" if i == 0 else "    " * (i - 1) + "└─> "
+            lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{step.name}")
+        lines.append(f"  caused by: {self._base_message}")
+        return "\n".join(lines)
 
 
 class ProviderNotRegisteredError(ResolutionError):
