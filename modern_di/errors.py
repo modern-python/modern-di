@@ -8,6 +8,10 @@ CONTAINER_NOT_INITIALIZED_SCOPE_ERROR = (
 )
 CONTAINER_SCOPE_IS_SKIPPED_ERROR = "Provider of scope {provider_scope} is skipped in the chain of containers."
 CONTAINER_MISSING_PROVIDER_ERROR = "Provider of type {provider_type} is not registered in providers registry."
+SUGGESTION_HEADER = "Did you mean:"
+SUGGESTION_SUBCLASS = "  - {type_name} (registered subclass, scope={scope})"
+SUGGESTION_BASECLASS = "  - {type_name} (registered base class, scope={scope})"
+SUGGESTION_SIMILAR = "  - {type_name} (similar name, scope={scope})"
 FACTORY_ARGUMENT_RESOLUTION_ERROR = (
     "Argument {arg_name} of type {arg_type} cannot be resolved. Trying to build dependency {bound_type}."
 )

@@ -86,7 +86,10 @@ class Container:
     def resolve(self, dependency_type: type[types.T]) -> types.T:
         provider = self.providers_registry.find_provider(dependency_type)
         if not provider:
-            raise exceptions.ProviderNotRegisteredError(provider_type=dependency_type)
+            raise exceptions.ProviderNotRegisteredError(
+                provider_type=dependency_type,
+                suggestions=self.providers_registry.build_suggestions(dependency_type),
+            )
 
         return self.resolve_provider(provider)
 

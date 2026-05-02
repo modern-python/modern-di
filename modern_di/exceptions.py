@@ -88,9 +88,18 @@ class ResolutionError(ModernDIError):
 
 
 class ProviderNotRegisteredError(ResolutionError):
-    def __init__(self, *, provider_type: type) -> None:
+    def __init__(
+        self,
+        *,
+        provider_type: type,
+        suggestions: list[str] | None = None,
+    ) -> None:
         self.provider_type = provider_type
-        super().__init__(errors.CONTAINER_MISSING_PROVIDER_ERROR.format(provider_type=provider_type))
+        self.suggestions = suggestions or []
+        message = errors.CONTAINER_MISSING_PROVIDER_ERROR.format(provider_type=provider_type)
+        if self.suggestions:
+            message += "\n" + errors.SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
+        super().__init__(message)
 
 
 class ArgumentResolutionError(ResolutionError):
