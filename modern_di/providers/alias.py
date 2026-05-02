@@ -34,14 +34,5 @@ class Alias(AbstractProvider[types.T_co]):
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         return {"source": self._find_source(container)}
 
-    def validate(self, container: "Container") -> dict[str, typing.Any]:
-        source = self._find_source(container)
-        return {
-            "bound_type": self.bound_type,
-            "source_type": self._source_type,
-            "source": source.validate(container),
-            "self": self,
-        }
-
     def resolve(self, container: "Container") -> types.T_co:
         return container.resolve_provider(self._find_source(container))

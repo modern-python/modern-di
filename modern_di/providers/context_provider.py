@@ -25,9 +25,6 @@ class ContextProvider(AbstractProvider[types.T_co]):
     def __repr__(self) -> str:
         return f"ContextProvider(context_type={self._context_type!r}, scope={self.scope!r})"
 
-    def validate(self, container: "Container") -> dict[str, typing.Any]:  # noqa: ARG002
-        return {"bound_type": self.bound_type, "self": self}
-
     def resolve(self, container: "Container") -> types.T_co | None:
         container = container.find_container(self.scope)
         return container.context_registry.find_context(self._context_type)

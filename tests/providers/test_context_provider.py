@@ -22,8 +22,7 @@ class MyGroup(Group):
 
 def test_context_provider() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    app_container = Container(context={datetime.datetime: now})
-    app_container.validate_provider(MyGroup.context_provider)
+    app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
     instance2 = app_container.resolve_provider(MyGroup.context_provider)
     assert instance1 is instance2 is now

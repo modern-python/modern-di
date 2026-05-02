@@ -102,9 +102,6 @@ class Container:
 
         return provider.resolve(self)
 
-    def validate_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        return typing.cast(types.T, provider.validate(self))
-
     def validate(self) -> None:
         visiting: set[int] = set()
         visited: set[int] = set()

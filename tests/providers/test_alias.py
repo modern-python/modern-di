@@ -33,7 +33,6 @@ def test_alias_delegates_to_source() -> None:
 
 def test_alias_resolve_provider() -> None:
     container = Container(groups=[MyGroup])
-    container.validate_provider(MyGroup.abstract_repo)
     instance = container.resolve_provider(MyGroup.abstract_repo)
     assert isinstance(instance, PostgresRepository)
 
@@ -99,7 +98,7 @@ def test_alias_missing_source_raises_on_validate_provider() -> None:
 
     container = Container(groups=[G])
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository"):
-        container.validate_provider(G.abstract)
+        container.resolve_provider(G.abstract)
 
 
 def test_alias_missing_source_raises_on_container_validate() -> None:

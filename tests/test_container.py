@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import typing
 
 import pytest
 
@@ -11,6 +12,7 @@ from modern_di.exceptions import (
     ProviderNotRegisteredError,
     ScopeSkippedError,
 )
+from modern_di.providers.abstract import AbstractProvider
 
 
 def test_container_prevent_copy() -> None:
@@ -125,3 +127,43 @@ def test_validate_passes_for_valid_graph() -> None:
 
     container = Container(groups=[ValidGroup])
     container.validate()  # should not raise
+
+
+def test_validate_memoizes_diamond() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Bottom:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Left:
+        bottom: Bottom
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Right:
+        bottom: Bottom
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Top:
+        left: Left
+        right: Right
+
+    bottom_provider = providers.Factory(creator=Bottom)
+    call_count = 0
+    original_get_dependencies = bottom_provider.get_dependencies
+
+    def counting_get_dependencies(container: Container) -> dict[str, AbstractProvider[typing.Any]]:
+        nonlocal call_count
+        call_count += 1
+        return original_get_dependencies(container)
+
+    bottom_provider.get_dependencies = counting_get_dependencies  # ty: ignore[invalid-assignment]
+
+    class DiamondGroup(Group):
+        bottom = bottom_provider
+        left = providers.Factory(creator=Left)
+        right = providers.Factory(creator=Right)
+        top = providers.Factory(creator=Top)
+
+    container = Container(groups=[DiamondGroup])
+    container.validate()
+    assert call_count == 1
