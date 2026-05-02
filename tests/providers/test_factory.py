@@ -5,6 +5,7 @@ import warnings
 import pytest
 
 from modern_di import Container, Group, Scope, providers
+from modern_di.exceptions import ArgumentResolutionError, ScopeNotInitializedError
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -62,8 +63,10 @@ def test_app_factory_skip_creator_parsing() -> None:
 
 def test_app_factory_unresolvable() -> None:
     app_container = Container(groups=[MyGroup])
-    with pytest.raises(RuntimeError, match="Argument dep1 of type <class 'str'> cannot be resolved"):
+    with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type <class 'str'> cannot be resolved") as exc:
         app_container.validate_provider(MyGroup.app_factory_unresolvable)
+    assert exc.value.arg_name == "dep1"
+    assert exc.value.arg_type is str
 
 
 def test_func_with_union_factory() -> None:
@@ -74,7 +77,7 @@ def test_func_with_union_factory() -> None:
 
 def test_func_with_broken_annotation() -> None:
     app_container = Container(groups=[MyGroup])
-    with pytest.raises(RuntimeError, match="Argument dep1 of type None cannot be resolved"):
+    with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type None cannot be resolved"):
         app_container.validate_provider(MyGroup.func_with_broken_annotation)
 
 
@@ -156,8 +159,13 @@ def test_factory_overridden_request_scope() -> None:
 
 def test_factory_scope_is_not_initialized() -> None:
     app_container = Container(groups=[MyGroup])
-    with pytest.raises(RuntimeError, match=r"Provider of scope REQUEST cannot be resolved in container of scope APP."):
+    with pytest.raises(
+        ScopeNotInitializedError,
+        match=r"Provider of scope REQUEST cannot be resolved in container of scope APP.",
+    ) as exc:
         app_container.resolve_provider(MyGroup.request_factory)
+    assert exc.value.provider_scope == Scope.REQUEST
+    assert exc.value.container_scope == Scope.APP
 
 
 def test_factory_self_reference() -> None:

@@ -1,5 +1,6 @@
 import typing
 
+from modern_di import exceptions
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -15,8 +16,7 @@ class Group:
     providers: list[AbstractProvider[typing.Any]]
 
     def __new__(cls, *_: typing.Any, **__: typing.Any) -> "typing_extensions.Self":  # noqa: ANN401
-        msg = f"{cls.__name__} cannot be instantiated"
-        raise RuntimeError(msg)
+        raise exceptions.GroupInstantiationError(group_name=cls.__name__)
 
     @classmethod
     def get_providers(cls) -> list[AbstractProvider[typing.Any]]:

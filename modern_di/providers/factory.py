@@ -3,7 +3,7 @@ import inspect
 import typing
 import warnings
 
-from modern_di import errors, types
+from modern_di import exceptions, types
 from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
@@ -82,18 +82,14 @@ class Factory(AbstractProvider[types.T_co]):
             if provider:
                 result[k] = provider
                 if is_kwarg_not_found and isinstance(provider, ContextProvider) and provider.resolve(container) is None:
-                    raise RuntimeError(
-                        errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
-                            arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
-                        )
+                    raise exceptions.ArgumentResolutionError(
+                        arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
                     )
                 continue
 
             if v.default == types.UNSET and is_kwarg_not_found:
-                raise RuntimeError(
-                    errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
-                        arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
-                    )
+                raise exceptions.ArgumentResolutionError(
+                    arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
                 )
 
         if self._kwargs:

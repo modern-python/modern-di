@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 from modern_di import Container, Group, Scope, providers
+from modern_di.exceptions import FinalizerError
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -113,8 +114,10 @@ def test_sync_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
     app_container.resolve_provider(BrokenGroup.first)
     app_container.resolve_provider(BrokenGroup.second)
 
-    with pytest.raises(RuntimeError, match="Errors during sync cleanup"):
+    with pytest.raises(FinalizerError, match="Errors during sync cleanup") as exc:
         app_container.close_sync()
+    assert exc.value.is_async is False
+    assert len(exc.value.finalizer_errors) == 1
 
     assert cleaned_up == ["done"]
 
@@ -146,8 +149,10 @@ async def test_async_finalizer_exception_does_not_abort_remaining_cleanup() -> N
     app_container.resolve_provider(BrokenAsyncGroup.first)
     app_container.resolve_provider(BrokenAsyncGroup.second)
 
-    with pytest.raises(RuntimeError, match="Errors during async cleanup"):
+    with pytest.raises(FinalizerError, match="Errors during async cleanup") as exc:
         await app_container.close_async()
+    assert exc.value.is_async is True
+    assert len(exc.value.finalizer_errors) == 1
 
     assert cleaned_up == ["done"]
 

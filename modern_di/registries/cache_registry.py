@@ -2,7 +2,7 @@ import dataclasses
 import typing
 import warnings
 
-from modern_di import types
+from modern_di import exceptions, types
 from modern_di.providers import CacheSettings, Factory
 
 
@@ -52,23 +52,21 @@ class CacheRegistry:
         return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
 
     async def close_async(self) -> None:
-        errors: list[BaseException] = []
+        finalizer_errors: list[BaseException] = []
         for cache_item in self._items.values():
             try:
                 await cache_item.close_async()
             except Exception as e:  # noqa: BLE001, PERF203
-                errors.append(e)
-        if errors:
-            msg = f"Errors during async cleanup: {errors}"
-            raise RuntimeError(msg)
+                finalizer_errors.append(e)
+        if finalizer_errors:
+            raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=True)
 
     def close_sync(self) -> None:
-        errors: list[BaseException] = []
+        finalizer_errors: list[BaseException] = []
         for cache_item in self._items.values():
             try:
                 cache_item.close_sync()
             except Exception as e:  # noqa: BLE001, PERF203
-                errors.append(e)
-        if errors:
-            msg = f"Errors during sync cleanup: {errors}"
-            raise RuntimeError(msg)
+                finalizer_errors.append(e)
+        if finalizer_errors:
+            raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=False)

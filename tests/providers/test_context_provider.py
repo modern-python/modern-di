@@ -4,6 +4,7 @@ import datetime
 import pytest
 
 from modern_di import Container, Group, Scope, providers
+from modern_di.exceptions import ArgumentResolutionError
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -44,8 +45,12 @@ def test_context_provider_not_found() -> None:
 
 def test_context_provider_not_found_but_required() -> None:
     app_container = Container(groups=[MyGroup])
-    with pytest.raises(RuntimeError, match=r"Argument arg1 of type <class 'datetime.datetime'> cannot be resolved"):
+    with pytest.raises(
+        ArgumentResolutionError, match=r"Argument arg1 of type <class 'datetime.datetime'> cannot be resolved"
+    ) as exc:
         app_container.resolve(SomeFactory)
+    assert exc.value.arg_name == "arg1"
+    assert exc.value.arg_type is datetime.datetime
 
 
 def test_context_provider_in_request_scope() -> None:
