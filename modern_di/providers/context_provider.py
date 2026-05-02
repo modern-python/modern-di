@@ -1,3 +1,4 @@
+import enum
 import typing
 
 from modern_di import types
@@ -15,7 +16,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
     def __init__(
         self,
         *,
-        scope: Scope = Scope.APP,
+        scope: enum.IntEnum = Scope.APP,
         context_type: type[types.T_co],
         bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
     ) -> None:

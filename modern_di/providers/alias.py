@@ -1,3 +1,4 @@
+import enum
 import typing
 
 from modern_di import exceptions, types
@@ -16,7 +17,7 @@ class Alias(AbstractProvider[types.T_co]):
         self,
         *,
         source_type: type[types.T_co],
-        scope: Scope = Scope.APP,
+        scope: enum.IntEnum = Scope.APP,
         bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
     ) -> None:
         super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else source_type)

@@ -1,3 +1,4 @@
+import enum
 import threading
 import typing
 
@@ -28,7 +29,7 @@ class Container:
 
     def __init__(  # noqa: PLR0913
         self,
-        scope: Scope = Scope.APP,
+        scope: enum.IntEnum = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
@@ -38,7 +39,7 @@ class Container:
         self.lock = threading.Lock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
-        self.scope_map: dict[Scope, typing_extensions.Self] = (
+        self.scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
             {**parent_container.scope_map, scope: self} if parent_container else {scope: self}
         )
         self.cache_registry = CacheRegistry()
@@ -59,13 +60,13 @@ class Container:
             self.validate()
 
     def build_child_container(
-        self, context: dict[type[typing.Any], typing.Any] | None = None, scope: Scope | None = None
+        self, context: dict[type[typing.Any], typing.Any] | None = None, scope: enum.IntEnum | None = None
     ) -> "typing_extensions.Self":
         if scope and scope <= self.scope:
             raise exceptions.InvalidChildScopeError(
                 parent_scope=self.scope,
                 child_scope=scope,
-                allowed_scopes=[x.name for x in Scope if x > self.scope],
+                allowed_scopes=[x.name for x in type(self.scope) if x > self.scope],
             )
 
         if not scope:
@@ -76,7 +77,7 @@ class Container:
 
         return self.__class__(scope=scope, parent_container=self, context=context)
 
-    def find_container(self, scope: Scope) -> "typing_extensions.Self":
+    def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         if scope not in self.scope_map:
             if scope > self.scope:
                 raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)

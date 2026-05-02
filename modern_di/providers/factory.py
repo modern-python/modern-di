@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 import inspect
 import typing
 import warnings
@@ -31,7 +32,7 @@ class Factory(AbstractProvider[types.T_co]):
     def __init__(  # noqa: PLR0913
         self,
         *,
-        scope: Scope = Scope.APP,
+        scope: enum.IntEnum = Scope.APP,
         creator: typing.Callable[..., types.T_co],
         bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
         kwargs: dict[str, typing.Any] | None = None,
