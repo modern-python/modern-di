@@ -4,6 +4,13 @@ import dataclasses
 import pytest
 
 from modern_di import Container, Group, Scope, providers
+from modern_di.exceptions import (
+    CircularDependencyError,
+    InvalidChildScopeError,
+    MaxScopeReachedError,
+    ProviderNotRegisteredError,
+    ScopeSkippedError,
+)
 
 
 def test_container_prevent_copy() -> None:
@@ -16,8 +23,9 @@ def test_container_prevent_copy() -> None:
 def test_container_scope_skipped() -> None:
     app_factory = providers.Factory(creator=lambda: "test")
     container = Container(scope=Scope.REQUEST)
-    with pytest.raises(RuntimeError, match=r"Provider of scope APP is skipped in the chain of containers."):
+    with pytest.raises(ScopeSkippedError, match=r"Provider of scope APP is skipped in the chain of containers.") as exc:
         container.resolve_provider(app_factory)
+    assert exc.value.provider_scope == Scope.APP
 
 
 def test_container_build_child() -> None:
@@ -29,20 +37,27 @@ def test_container_build_child() -> None:
 
 def test_container_scope_limit_reached() -> None:
     step_container = Container(scope=Scope.STEP)
-    with pytest.raises(RuntimeError, match=r"Max scope of STEP is reached."):
+    with pytest.raises(MaxScopeReachedError, match=r"Max scope of STEP is reached.") as exc:
         step_container.build_child_container()
+    assert exc.value.parent_scope == Scope.STEP
 
 
 def test_container_build_child_wrong_scope() -> None:
     app_container = Container()
-    with pytest.raises(RuntimeError, match="Scope of child container cannot be"):
+    with pytest.raises(InvalidChildScopeError, match="Scope of child container cannot be") as exc:
         app_container.build_child_container(scope=Scope.APP)
+    assert exc.value.parent_scope == Scope.APP
+    assert exc.value.child_scope == Scope.APP
 
 
 def test_container_resolve_missing_provider() -> None:
     app_container = Container()
-    with pytest.raises(RuntimeError, match=r"Provider of type <class 'str'> is not registered in providers registry."):
+    with pytest.raises(
+        ProviderNotRegisteredError,
+        match=r"Provider of type <class 'str'> is not registered in providers registry.",
+    ) as exc:
         assert app_container.resolve(str) is None
+    assert exc.value.provider_type is str
 
 
 def test_container_sync_context_manager() -> None:
@@ -82,14 +97,17 @@ class CycleGroup(Group):
 
 
 def test_validate_on_creation() -> None:
-    with pytest.raises(RuntimeError, match="Circular dependency detected"):
+    with pytest.raises(CircularDependencyError, match="Circular dependency detected"):
         Container(groups=[CycleGroup], validate=True)
 
 
 def test_validate_detects_cycle() -> None:
     container = Container(groups=[CycleGroup])
-    with pytest.raises(RuntimeError, match="Circular dependency detected: CycleA -> CycleB -> CycleA"):
+    with pytest.raises(
+        CircularDependencyError, match="Circular dependency detected: CycleA -> CycleB -> CycleA"
+    ) as exc:
         container.validate()
+    assert exc.value.cycle_path == ["CycleA", "CycleB", "CycleA"]
 
 
 def test_validate_passes_for_valid_graph() -> None:

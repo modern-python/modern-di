@@ -1,6 +1,6 @@
 import typing
 
-from modern_di import errors, types
+from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -21,7 +21,7 @@ class ProvidersRegistry:
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
         if provider_type in self._providers:
-            raise RuntimeError(errors.PROVIDER_DUPLICATE_TYPE_ERROR.format(provider_type=provider_type))
+            raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
 
         self._providers[provider_type] = provider
 

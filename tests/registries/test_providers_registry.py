@@ -1,6 +1,7 @@
 import pytest
 
 from modern_di import providers
+from modern_di.exceptions import DuplicateProviderTypeError
 from modern_di.registries.providers_registry import ProvidersRegistry
 
 
@@ -15,7 +16,6 @@ def test_providers_registry_add_provider_duplicates() -> None:
     providers_registry = ProvidersRegistry()
     providers_registry.add_providers(str_factory)
 
-    with (
-        pytest.raises(RuntimeError, match="Provider is duplicated by type <class 'str'>"),
-    ):
+    with pytest.raises(DuplicateProviderTypeError, match="Provider is duplicated by type <class 'str'>") as exc:
         providers_registry.add_providers(str_factory)
+    assert exc.value.provider_type is str

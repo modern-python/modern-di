@@ -3,7 +3,7 @@ import typing
 
 import typing_extensions
 
-from modern_di import errors, types
+from modern_di import exceptions, types
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -62,39 +62,31 @@ class Container:
         self, context: dict[type[typing.Any], typing.Any] | None = None, scope: Scope | None = None
     ) -> "typing_extensions.Self":
         if scope and scope <= self.scope:
-            raise RuntimeError(
-                errors.CONTAINER_SCOPE_IS_LOWER_ERROR.format(
-                    parent_scope=self.scope.name,
-                    child_scope=scope.name,
-                    allowed_scopes=[x.name for x in Scope if x > self.scope],
-                )
+            raise exceptions.InvalidChildScopeError(
+                parent_scope=self.scope,
+                child_scope=scope,
+                allowed_scopes=[x.name for x in Scope if x > self.scope],
             )
 
         if not scope:
             try:
                 scope = self.scope.__class__(self.scope.value + 1)
             except ValueError as exc:
-                raise RuntimeError(
-                    errors.CONTAINER_MAX_SCOPE_REACHED_ERROR.format(parent_scope=self.scope.name)
-                ) from exc
+                raise exceptions.MaxScopeReachedError(parent_scope=self.scope) from exc
 
         return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: Scope) -> "typing_extensions.Self":
         if scope not in self.scope_map:
             if scope > self.scope:
-                raise RuntimeError(
-                    errors.CONTAINER_NOT_INITIALIZED_SCOPE_ERROR.format(
-                        provider_scope=scope.name, container_scope=self.scope.name
-                    )
-                )
-            raise RuntimeError(errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name))
+                raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)
+            raise exceptions.ScopeSkippedError(provider_scope=scope)
         return self.scope_map[scope]
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
         provider = self.providers_registry.find_provider(dependency_type)
         if not provider:
-            raise RuntimeError(errors.CONTAINER_MISSING_PROVIDER_ERROR.format(provider_type=dependency_type))
+            raise exceptions.ProviderNotRegisteredError(provider_type=dependency_type)
 
         return self.resolve_provider(provider)
 
@@ -123,7 +115,7 @@ class Container:
                 cycle_start = next(i for i, p in enumerate(path) if p.provider_id == pid)
                 cycle_names = [p.bound_type.__name__ if p.bound_type else repr(p) for p in path[cycle_start:]]
                 cycle_names.append(cycle_names[0])
-                raise RuntimeError(errors.CYCLE_DEPENDENCY_ERROR.format(cycle_path=" -> ".join(cycle_names)))
+                raise exceptions.CircularDependencyError(cycle_path=cycle_names)
 
             visiting.add(pid)
             path.append(provider)
