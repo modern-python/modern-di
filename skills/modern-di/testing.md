@@ -116,6 +116,6 @@ Check that all dependencies can be resolved without creating real objects:
 ```python
 def test_wiring():
     container = Container(scope=Scope.APP, groups=[Dependencies])
-    container.validate_provider(Dependencies.users_repository)
-    # Raises RuntimeError if any dependency is missing
+    container.validate()
+    # Raises if any provider has missing dependencies, missing alias sources, or circular deps
 ```

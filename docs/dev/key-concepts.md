@@ -65,8 +65,7 @@ Container provides methods for resolving dependencies:
 
 1. `resolve_provider(provider)` - Resolve a specific provider instance
 2. `resolve(SomeType)` - Resolve by type
-3. `validate_provider(provider)` - Validate that the provider's dependency graph is wired correctly without creating real instances (useful at startup)
-4. `validate()` - Walk the entire provider graph and detect circular dependencies (raises `RuntimeError` with the cycle path if found)
+3. `validate()` - Walk the entire provider graph and detect missing dependencies, missing alias sources, and circular dependencies — without creating real instances (useful at startup)
 
 You can also pass `validate=True` to `Container(...)` to run validation automatically at creation time:
 

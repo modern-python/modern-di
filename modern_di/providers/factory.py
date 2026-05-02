@@ -123,20 +123,6 @@ class Factory(AbstractProvider[types.T_co]):
         provider_kwargs, _ = self._ensure_kwargs_cached(scoped_container, cache_item)
         return provider_kwargs
 
-    def validate(self, container: "Container") -> dict[str, typing.Any]:
-        container = container.find_container(self.scope)
-        cache_item = container.cache_registry.fetch_cache_item(self)
-        provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
-        validated_kwargs: dict[str, typing.Any] = {k: v.validate(container) for k, v in provider_kwargs.items()}
-        validated_kwargs.update(static_kwargs)
-        return {
-            "bound_type": self.bound_type,
-            "creator": self._creator,
-            "self": self,
-            "kwargs": validated_kwargs,
-            "cache_settings": self.cache_settings,
-        }
-
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
