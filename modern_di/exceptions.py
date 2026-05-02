@@ -102,6 +102,12 @@ class ProviderNotRegisteredError(ResolutionError):
         super().__init__(message)
 
 
+class AliasSourceNotRegisteredError(ResolutionError):
+    def __init__(self, *, source_type: type) -> None:
+        self.source_type = source_type
+        super().__init__(errors.ALIAS_SOURCE_NOT_REGISTERED_ERROR.format(source_type=source_type))
+
+
 class ArgumentResolutionError(ResolutionError):
     def __init__(self, *, arg_name: str, arg_type: typing.Any, bound_type: typing.Any) -> None:  # noqa: ANN401
         self.arg_name = arg_name
