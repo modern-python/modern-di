@@ -23,3 +23,7 @@ PROVIDER_DUPLICATE_TYPE_ERROR = (
     "2. Explicitly pass dependencies via the kwargs parameter to avoid automatic resolution\n"
     "See https://modern-di.readthedocs.io/latest/troubleshooting/duplicate-type-error/ for more details"
 )
+ALIAS_SOURCE_NOT_REGISTERED_ERROR = (
+    "Alias source type {source_type} is not registered in providers registry. "
+    "Register a provider for {source_type} before defining the alias."
+)
