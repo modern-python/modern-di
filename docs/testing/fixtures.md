@@ -39,8 +39,9 @@ def di_request_container(
         yield container
 
 
-# Bulk: every Provider on Dependencies becomes a pytest fixture named after
-# the class attribute.
+# Bulk: every Provider on each group becomes a pytest fixture named after
+# the class attribute. Pass several groups in one call if you split your
+# providers across multiple Group subclasses.
 expose(Dependencies)
 
 # Manual: a single dependency as a named fixture.

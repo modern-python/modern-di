@@ -91,7 +91,7 @@ class MyGroup(Group):
 - For overrides: `container.override(provider, mock_obj)` / `container.reset_override(provider)`
 - For scope chain tests: `app_container.build_child_container(scope=Scope.REQUEST)`
 - `asyncio_mode = "auto"` in pytest config — async test functions work without extra markers
-- Downstream projects can install **`modern-di-pytest`** to expose DI dependencies as pytest fixtures. It ships two callables: `modern_di_fixture(type_or_provider)` for single fixtures and `expose(group)` to bulk-generate one fixture per provider in a `Group`. The package itself does **not** depend on `modern-di-pytest`; the integration lives in a sibling repository (`modern-python/modern-di-pytest`).
+- Downstream projects can install **`modern-di-pytest`** to expose DI dependencies as pytest fixtures. It ships two callables: `modern_di_fixture(type_or_provider)` for single fixtures and `expose(*groups)` to bulk-generate one fixture per provider across one or more `Group` subclasses (duplicate attribute names raise `ValueError`). The package itself does **not** depend on `modern-di-pytest`; the integration lives in a sibling repository (`modern-python/modern-di-pytest`).
 
 ## Code Style
 

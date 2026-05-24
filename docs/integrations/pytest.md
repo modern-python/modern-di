@@ -2,8 +2,8 @@
 
 `modern-di-pytest` turns any DI dependency into a pytest fixture. Two
 callables cover the entire surface — `modern_di_fixture` for a single
-dependency and `expose` for bulk-generating one fixture per provider in a
-`Group`.
+dependency and `expose` for bulk-generating one fixture per provider across
+one or more `Group` subclasses.
 
 ## How to use
 
@@ -51,13 +51,15 @@ def di_container() -> typing.Iterator[modern_di.Container]:
 ```python
 from modern_di_pytest import expose, modern_di_fixture
 
-from app.ioc import Dependencies
+from app.ioc import Auth, Billing, Dependencies
 from app.services import EmailClient
 
 
-# Bulk: every Provider on Dependencies becomes a pytest fixture
-# named after the class attribute. Non-Provider attributes are skipped.
-expose(Dependencies)
+# Bulk: every Provider on each group becomes a pytest fixture
+# named after the class attribute. Pass several groups in one call;
+# duplicate names across groups raise ValueError. Non-Provider attributes
+# are skipped.
+expose(Dependencies, Auth, Billing)
 
 # Manual: a single type or Provider as a named fixture.
 email_client = modern_di_fixture(EmailClient)
@@ -105,8 +107,8 @@ request_user_service = modern_di_fixture(
 )
 ```
 
-The same `container_fixture=` parameter is also accepted by `expose`, so a
-whole `Group` can be exposed against the request container.
+The same `container_fixture=` parameter is also accepted by `expose`, so
+one or more `Group` subclasses can be exposed against the request container.
 
 ## Overrides
 
