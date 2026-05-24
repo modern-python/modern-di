@@ -17,6 +17,7 @@ nav:
       - FastStream: integrations/faststream.md
       - Litestar: integrations/litestar.md
       - Typer: integrations/typer.md
+      - Pytest: integrations/pytest.md
   - Testing:
       - Fixtures: testing/fixtures.md
   - Troubleshooting:

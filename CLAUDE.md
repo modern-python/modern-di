@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`modern-di` is a **zero-dependency** Python dependency injection framework that wires up object graphs from type annotations, manages lifetimes via hierarchical scopes, and supports both sync and async finalizers. Framework integrations (FastAPI, FastStream, LiteStar) live in **separate repositories** and are published as separate PyPI packages.
+`modern-di` is a **zero-dependency** Python dependency injection framework that wires up object graphs from type annotations, manages lifetimes via hierarchical scopes, and supports both sync and async finalizers. Framework integrations (FastAPI, FastStream, LiteStar, Typer) and the pytest integration (`modern-di-pytest`) live in **separate repositories** and are published as separate PyPI packages.
 
 ## Commands
 
@@ -91,6 +91,7 @@ class MyGroup(Group):
 - For overrides: `container.override(provider, mock_obj)` / `container.reset_override(provider)`
 - For scope chain tests: `app_container.build_child_container(scope=Scope.REQUEST)`
 - `asyncio_mode = "auto"` in pytest config — async test functions work without extra markers
+- Downstream projects can install **`modern-di-pytest`** to expose DI dependencies as pytest fixtures. It ships two callables: `modern_di_fixture(type_or_provider)` for single fixtures and `expose(group)` to bulk-generate one fixture per provider in a `Group`. The package itself does **not** depend on `modern-di-pytest`; the integration lives in a sibling repository (`modern-python/modern-di-pytest`).
 
 ## Code Style
 

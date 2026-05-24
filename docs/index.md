@@ -9,7 +9,7 @@ Welcome to the `modern-di` documentation!
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `FastAPI`, `FastStream` and `LiteStar`
+- Integrations with `FastAPI`, `FastStream`, `LiteStar`, `Typer`, and `pytest`
 
 Usage examples:
 
@@ -102,6 +102,8 @@ For now there are integrations for the following frameworks:
 1. [FastAPI](integrations/fastapi)
 2. [FastStream](integrations/faststream)
 3. [LiteStar](integrations/litestar)
+4. [Typer](integrations/typer)
+5. [Pytest](integrations/pytest)
 
 ## 4.2. Or use `modern-di` without integrations
 

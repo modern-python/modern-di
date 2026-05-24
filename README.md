@@ -9,6 +9,7 @@
 | [modern-di-faststream  ](https://github.com/modern-python/modern-di-faststream) | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-faststream.svg)](https://pypi.python.org/pypi/modern-di-faststream) [![downloads](https://img.shields.io/pypi/dm/modern-di-faststream.svg)](https://pypistats.org/packages/modern-di-faststream) |
 | [modern-di-litestar ](https://github.com/modern-python/modern-di-litestar)      | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-litestar.svg)](https://pypi.python.org/pypi/modern-di-litestar) [![downloads](https://img.shields.io/pypi/dm/modern-di-litestar.svg)](https://pypistats.org/packages/modern-di-litestar)         |
 | [modern-di-typer](https://github.com/modern-python/modern-di-typer)            | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-typer.svg)](https://pypi.python.org/pypi/modern-di-typer) [![downloads](https://img.shields.io/pypi/dm/modern-di-typer.svg)](https://pypistats.org/packages/modern-di-typer)                     |
+| [modern-di-pytest](https://github.com/modern-python/modern-di-pytest)          | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-pytest.svg)](https://pypi.python.org/pypi/modern-di-pytest) [![downloads](https://img.shields.io/pypi/dm/modern-di-pytest.svg)](https://pypistats.org/packages/modern-di-pytest)                 |
 
 `modern-di` is a python dependency injection framework which supports the following:
 
@@ -17,7 +18,8 @@
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `FastAPI`, `FastStream`,`LiteStar` and `Typer`
+- Integrations with `FastAPI`, `FastStream`, `LiteStar` and `Typer`
+- Pytest integration (`modern-di-pytest`) — turns any DI dependency into a pytest fixture
 
 Usage examples:
 
