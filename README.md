@@ -26,6 +26,12 @@ Usage examples:
 - with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
 - with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
 
+## Part of `modern-python`
+
+Browse the full list of templates and libraries in
+[`modern-python`](https://github.com/modern-python) — see the org profile for the
+categorized index.
+
 ## 📚 [Documentation](https://modern-di.readthedocs.io)
 
 ## 📦 [PyPi](https://pypi.org/project/modern-di)
