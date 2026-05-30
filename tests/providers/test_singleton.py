@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import FinalizerError
+from modern_di.exceptions import AsyncFinalizerInSyncCloseError, FinalizerError
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -67,10 +67,13 @@ async def test_request_singleton() -> None:
 
     cache_item = request_container.cache_registry.fetch_cache_item(MyGroup.request_singleton)
 
-    with pytest.warns(RuntimeWarning, match="Calling `close_sync` for async finalizer"):
+    with pytest.raises(FinalizerError) as exc_info:
         request_container.close_sync()
+    assert exc_info.value.is_async is False
+    assert len(exc_info.value.finalizer_errors) == 1
+    assert isinstance(exc_info.value.finalizer_errors[0], AsyncFinalizerInSyncCloseError)
 
-    assert cache_item.cache
+    assert cache_item.cache  # preserved — user can still recover via close_async
     await request_container.close_async()
 
     assert cache_item.cache is None

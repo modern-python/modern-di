@@ -1,6 +1,5 @@
 import dataclasses
 import typing
-import warnings
 
 from modern_di import exceptions, types
 from modern_di.providers import CacheSettings, Factory
@@ -30,12 +29,7 @@ class CacheItem:
     def close_sync(self) -> None:
         if self.cache and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
-                warnings.warn(
-                    f"Calling `close_sync` for async finalizer, type={type(self.cache)}",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return
+                raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
             self.settings.finalizer(self.cache)
 
         self._clear()
