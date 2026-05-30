@@ -14,12 +14,18 @@ class ResolutionStep:
 class ModernDIError(RuntimeError):
     """Base class for all modern-di errors. Inherits from RuntimeError for backwards compatibility."""
 
+    __slots__ = ()
+
 
 class ContainerError(ModernDIError):
     """Base class for container and scope errors."""
 
+    __slots__ = ()
+
 
 class InvalidChildScopeError(ContainerError):
+    __slots__ = ("allowed_scopes", "child_scope", "parent_scope")
+
     def __init__(self, *, parent_scope: enum.IntEnum, child_scope: enum.IntEnum, allowed_scopes: list[str]) -> None:
         self.parent_scope = parent_scope
         self.child_scope = child_scope
@@ -34,12 +40,16 @@ class InvalidChildScopeError(ContainerError):
 
 
 class MaxScopeReachedError(ContainerError):
+    __slots__ = ("parent_scope",)
+
     def __init__(self, *, parent_scope: enum.IntEnum) -> None:
         self.parent_scope = parent_scope
         super().__init__(errors.CONTAINER_MAX_SCOPE_REACHED_ERROR.format(parent_scope=parent_scope.name))
 
 
 class ScopeNotInitializedError(ContainerError):
+    __slots__ = ("container_scope", "provider_scope")
+
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
         self.container_scope = container_scope
@@ -52,6 +62,8 @@ class ScopeNotInitializedError(ContainerError):
 
 
 class ScopeSkippedError(ContainerError):
+    __slots__ = ("container_scope", "provider_scope")
+
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
         self.container_scope = container_scope
@@ -70,6 +82,8 @@ class ResolutionError(ModernDIError):
     the resolution chain, so the rendered message shows the full path from the
     initially requested type down to the failing dependency.
     """
+
+    __slots__ = ("_base_message", "dependency_path")
 
     def __init__(self, message: str) -> None:
         self._base_message = message
@@ -94,6 +108,8 @@ class ResolutionError(ModernDIError):
 
 
 class ProviderNotRegisteredError(ResolutionError):
+    __slots__ = ("provider_type", "suggestions")
+
     def __init__(
         self,
         *,
@@ -109,12 +125,16 @@ class ProviderNotRegisteredError(ResolutionError):
 
 
 class AliasSourceNotRegisteredError(ResolutionError):
+    __slots__ = ("source_type",)
+
     def __init__(self, *, source_type: type) -> None:
         self.source_type = source_type
         super().__init__(errors.ALIAS_SOURCE_NOT_REGISTERED_ERROR.format(source_type=source_type))
 
 
 class ArgumentResolutionError(ResolutionError):
+    __slots__ = ("arg_name", "arg_type", "bound_type", "suggestions")
+
     def __init__(
         self,
         *,
@@ -138,6 +158,8 @@ class ArgumentResolutionError(ResolutionError):
 
 
 class CircularDependencyError(ResolutionError):
+    __slots__ = ("cycle_path",)
+
     def __init__(self, *, cycle_path: list[str]) -> None:
         self.cycle_path = cycle_path
         super().__init__(errors.CYCLE_DEPENDENCY_ERROR.format(cycle_path=" -> ".join(cycle_path)))
@@ -146,14 +168,20 @@ class CircularDependencyError(ResolutionError):
 class RegistrationError(ModernDIError):
     """Base class for errors raised while registering providers."""
 
+    __slots__ = ()
+
 
 class DuplicateProviderTypeError(RegistrationError):
+    __slots__ = ("provider_type",)
+
     def __init__(self, *, provider_type: type) -> None:
         self.provider_type = provider_type
         super().__init__(errors.PROVIDER_DUPLICATE_TYPE_ERROR.format(provider_type=provider_type))
 
 
 class FinalizerError(ModernDIError):
+    __slots__ = ("finalizer_errors", "is_async")
+
     def __init__(self, *, finalizer_errors: list[BaseException], is_async: bool) -> None:
         self.finalizer_errors = finalizer_errors
         self.is_async = is_async
@@ -161,7 +189,22 @@ class FinalizerError(ModernDIError):
         super().__init__(f"Errors during {kind} cleanup: {finalizer_errors}")
 
 
+class AsyncFinalizerInSyncCloseError(ModernDIError):
+    """Raised when ``close_sync`` encounters a cached resource with an async finalizer."""
+
+    __slots__ = ("finalizer_type",)
+
+    def __init__(self, *, finalizer_type: type) -> None:
+        self.finalizer_type = finalizer_type
+        super().__init__(
+            f"Cannot run async finalizer for {finalizer_type.__name__} during sync close. "
+            f"Use `await container.close_async()` (or `async with container:`) instead."
+        )
+
+
 class GroupInstantiationError(ModernDIError):
+    __slots__ = ("group_name",)
+
     def __init__(self, *, group_name: str) -> None:
         self.group_name = group_name
         super().__init__(f"{group_name} cannot be instantiated")

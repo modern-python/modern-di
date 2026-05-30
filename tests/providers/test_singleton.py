@@ -6,7 +6,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import FinalizerError
+from modern_di.exceptions import AsyncFinalizerInSyncCloseError, FinalizerError
+from modern_di.types import UNSET
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -45,7 +46,7 @@ async def test_app_singleton() -> None:
     assert singleton1 is singleton2
     app_container.close_sync()
     cache_item = app_container.cache_registry.fetch_cache_item(MyGroup.app_singleton)
-    assert cache_item.cache
+    assert cache_item.cache is not UNSET
 
     app_container.resolve_provider(MyGroup.app_singleton)
     await app_container.close_async()
@@ -67,13 +68,16 @@ async def test_request_singleton() -> None:
 
     cache_item = request_container.cache_registry.fetch_cache_item(MyGroup.request_singleton)
 
-    with pytest.warns(RuntimeWarning, match="Calling `close_sync` for async finalizer"):
+    with pytest.raises(FinalizerError) as exc_info:
         request_container.close_sync()
+    assert exc_info.value.is_async is False
+    assert len(exc_info.value.finalizer_errors) == 1
+    assert isinstance(exc_info.value.finalizer_errors[0], AsyncFinalizerInSyncCloseError)
 
-    assert cache_item.cache
+    assert cache_item.cache is not UNSET  # preserved — user can still recover via close_async
     await request_container.close_async()
 
-    assert cache_item.cache is None
+    assert cache_item.cache is UNSET
 
 
 def test_app_singleton_in_request_scope() -> None:
@@ -155,6 +159,75 @@ async def test_async_finalizer_exception_does_not_abort_remaining_cleanup() -> N
     assert len(exc.value.finalizer_errors) == 1
 
     assert cleaned_up == ["done"]
+
+
+def test_finalizer_runs_for_falsy_cached_resource_sync() -> None:
+    cleaned_up: list[object] = []
+
+    def collect(value: object) -> None:
+        cleaned_up.append(value)
+
+    class FalsyGroup(Group):
+        empty_dict = providers.Factory(
+            creator=dict,
+            cache_settings=providers.CacheSettings(finalizer=collect),
+        )
+
+    app_container = Container(groups=[FalsyGroup])
+    instance = app_container.resolve_provider(FalsyGroup.empty_dict)
+    assert instance == {}
+
+    app_container.close_sync()
+    assert cleaned_up == [{}]
+
+
+async def test_finalizer_runs_for_falsy_cached_resource_async() -> None:
+    cleaned_up: list[object] = []
+
+    async def collect(value: object) -> None:
+        cleaned_up.append(value)
+
+    class FalsyGroup(Group):
+        empty_list = providers.Factory(
+            creator=list,
+            cache_settings=providers.CacheSettings(finalizer=collect),
+        )
+
+    app_container = Container(groups=[FalsyGroup])
+    instance = app_container.resolve_provider(FalsyGroup.empty_list)
+    assert instance == []
+
+    await app_container.close_async()
+    assert cleaned_up == [[]]
+
+
+def test_cached_none_is_returned_and_finalized() -> None:
+    """A creator that returns ``None`` should be treated as a real cached value."""
+    call_count = 0
+    cleaned_up: list[object] = []
+
+    def create_none() -> None:
+        nonlocal call_count
+        call_count += 1
+
+    def collect(value: object) -> None:
+        cleaned_up.append(value)
+
+    class NoneGroup(Group):
+        none_resource = providers.Factory(
+            creator=create_none,
+            cache_settings=providers.CacheSettings(finalizer=collect),
+        )
+
+    app_container = Container(groups=[NoneGroup])
+    app_container.resolve_provider(NoneGroup.none_resource)
+    app_container.resolve_provider(NoneGroup.none_resource)
+
+    assert call_count == 1  # cached after first call, not re-created
+    assert app_container.cache_registry.cached_count() == 1
+
+    app_container.close_sync()
+    assert cleaned_up == [None]
 
 
 @pytest.mark.repeat(10)
