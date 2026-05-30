@@ -125,15 +125,11 @@ instance1 = container.resolve_provider(Dependencies.singleton)
 instance2 = container.resolve(str)  # resolves the singleton
 
 # Create container of request scope
-request_container = container.build_child_container(scope=Scope.REQUEST)
-try:
+with container.build_child_container(scope=Scope.REQUEST) as request_container:
     # Resolve factories of request scope
     instance3 = request_container.resolve_provider(Dependencies.simple_factory)
     instance4 = request_container.resolve_provider(Dependencies.dependent_factory)
     # Use your instances...
-finally:
-    # Close container when done (choose one depending on your context):
-    request_container.close_sync()
-    # or, in an async context:
-    # await request_container.close_async()
+# Finalizers run automatically on `with` exit. In async code, use
+# `async with container.build_child_container(...) as request_container:` instead.
 ```

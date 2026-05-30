@@ -193,11 +193,9 @@ class AppModule(Group):
     )
 
 # Automatic finalizer execution
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-try:
+with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     session = request_container.resolve(DatabaseSession)
-finally:
-    request_container.close_sync()  # Finalizers called
+    # Finalizers called automatically on exit
 ```
 
 ### 5. Framework Integrations

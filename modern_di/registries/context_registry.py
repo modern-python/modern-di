@@ -8,11 +8,11 @@ from modern_di import types
 class ContextRegistry:
     context: dict[type[typing.Any], typing.Any]
 
-    def find_context(self, context_type: type[types.T]) -> types.T | None:
-        if context_type and (context := self.context.get(context_type)):
-            return typing.cast(types.T, context)
+    def find_context(self, context_type: type[types.T]) -> types.T | object:
+        if context_type is not None and context_type in self.context:
+            return typing.cast(types.T, self.context[context_type])
 
-        return None
+        return types.UNSET
 
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
         self.context[context_type] = obj

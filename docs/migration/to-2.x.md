@@ -181,7 +181,7 @@ cached_with_cleanup = providers.Factory(
 
 ### 5. Container Building and Scoping
 
-Child container creation has changed: context managers have been removed and explicit close methods have been added.
+Child container creation continues to support context managers in 2.x — use `with` / `async with` for automatic cleanup. The explicit `close_sync()` / `close_async()` methods are also available for callers that need to manage the container lifecycle manually.
 
 **Before (1.x):**
 ```python
@@ -196,16 +196,17 @@ with container.build_child_container(context=context, scope=Scope.REQUEST) as re
 
 **After (2.x):**
 ```python
-# Container building remains the same, but now requires explicit cleanup
+# Same context-manager form continues to work
+with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
+    # Use request_container
+
+async with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
+    # Use request_container
+
+# If you need manual lifecycle control, call close_sync() or await close_async() yourself
 request_container = container.build_child_container(context=context, scope=Scope.REQUEST)
 # Use request_container
-
-# Cleanup now requires explicit calls:
-# For async cleanup
-await request_container.close_async()
-
-# For sync cleanup
-request_container.close_sync()
+request_container.close_sync()  # or: await request_container.close_async()
 ```
 
 ### 6. Provider Resolution
@@ -241,7 +242,7 @@ instance = container.resolve(SomeType)
    - Replace positional arguments with keyword arguments
    - Replace `Singleton` and `Resource` with `Factory` using `CacheSettings`
    - Remove `Dict` and `List` providers, replace with `Factory` creators
-4. **Update Container Building**: Replace context managers with try/finally blocks
+4. **Update Container Building**: Continue to use `with` / `async with` for automatic cleanup; `close_sync()` / `close_async()` are also available for manual lifecycle control
 5. **Update Provider Resolution**: Remove `sync_` prefixes and `await` keywords
 
 ## Breaking Changes
@@ -249,8 +250,6 @@ instance = container.resolve(SomeType)
 1. `AsyncContainer` and `SyncContainer` classes removed (use `Container` instead)
 2. `Singleton`, `Resource`, `Dict`, and `List` provider types removed
 3. All provider constructors now use keyword-only arguments
-4. Container building no longer uses context managers
-5. Provider resolution methods simplified (no `sync_` prefix)
-6. Integration packages updated with new APIs
-7. Automatic container entry/exit removed (manual cleanup required)
-8. Provider casting mechanism changed (`.cast` attribute removed)
+4. Provider resolution methods simplified (no `sync_` prefix)
+5. Integration packages updated with new APIs
+6. Provider casting mechanism changed (`.cast` attribute removed)

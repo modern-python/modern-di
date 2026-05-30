@@ -109,17 +109,26 @@ class AliasSourceNotRegisteredError(ResolutionError):
 
 
 class ArgumentResolutionError(ResolutionError):
-    def __init__(self, *, arg_name: str, arg_type: typing.Any, bound_type: typing.Any) -> None:  # noqa: ANN401
+    def __init__(
+        self,
+        *,
+        arg_name: str,
+        arg_type: typing.Any,  # noqa: ANN401
+        bound_type: typing.Any,  # noqa: ANN401
+        suggestions: list[str] | None = None,
+    ) -> None:
         self.arg_name = arg_name
         self.arg_type = arg_type
         self.bound_type = bound_type
-        super().__init__(
-            errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
-                arg_name=arg_name,
-                arg_type=arg_type,
-                bound_type=bound_type,
-            )
+        self.suggestions = suggestions or []
+        message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
+            arg_name=arg_name,
+            arg_type=arg_type,
+            bound_type=bound_type,
         )
+        if self.suggestions:
+            message += "\n" + errors.SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
+        super().__init__(message)
 
 
 class CircularDependencyError(ResolutionError):

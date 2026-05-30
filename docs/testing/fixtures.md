@@ -98,22 +98,16 @@ modern_di_fastapi.setup_di(application, modern_di.Container(groups=ioc.ALL_GROUP
 
 @pytest.fixture
 async def di_container() -> typing.AsyncIterator[modern_di.Container]:
-    container: typing.Final = modern_di_fastapi.fetch_di_container(application)
-    try:
+    async with modern_di_fastapi.fetch_di_container(application) as container:
         yield container
-    finally:
-        await container.close_async()
 
 
 @pytest.fixture
 async def request_di_container(
     di_container: modern_di.Container,
 ) -> typing.AsyncIterator[modern_di.Container]:
-    container = di_container.build_child_container(scope=modern_di.Scope.REQUEST)
-    try:
+    async with di_container.build_child_container(scope=modern_di.Scope.REQUEST) as container:
         yield container
-    finally:
-        await container.close_async()
 
 
 @pytest.fixture

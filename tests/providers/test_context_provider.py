@@ -64,3 +64,39 @@ def test_context_provider_in_request_scope() -> None:
 def test_context_provider_repr() -> None:
     provider = providers.ContextProvider(context_type=str, scope=Scope.REQUEST)
     assert repr(provider) == "ContextProvider(context_type=<class 'str'>, scope=<Scope.REQUEST: 3>)"
+
+
+@pytest.mark.parametrize("value", [0, False, "", [], {}, 0.0])
+def test_context_provider_returns_falsy_values(value: object) -> None:
+    context_type = type(value)
+    provider = providers.ContextProvider(scope=Scope.APP, context_type=context_type)
+    app_container = Container(context={context_type: value})
+    assert app_container.resolve_provider(provider) == value
+
+
+def test_factory_resolves_with_falsy_context_value() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+    class FlagConsumer:
+        flag: bool
+
+    class FlagGroup(Group):
+        flag_provider = providers.ContextProvider(scope=Scope.APP, context_type=bool)
+        consumer = providers.Factory(creator=FlagConsumer)
+
+    app_container = Container(groups=[FlagGroup], context={bool: False})
+    instance = app_container.resolve(FlagConsumer)
+    assert instance.flag is False
+
+
+def test_factory_resolves_with_none_context_value() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+    class NoneHolder:
+        value: datetime.datetime | None
+
+    class NoneGroup(Group):
+        ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+        holder = providers.Factory(creator=NoneHolder)
+
+    app_container = Container(groups=[NoneGroup], context={datetime.datetime: None})
+    instance = app_container.resolve(NoneHolder)
+    assert instance.value is None

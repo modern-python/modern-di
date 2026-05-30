@@ -4,7 +4,7 @@ import typing
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ProviderNotRegisteredError
+from modern_di.exceptions import ArgumentResolutionError, ProviderNotRegisteredError
 from modern_di.registries.providers_registry import _hierarchy_hint
 
 
@@ -149,6 +149,81 @@ def test_hierarchy_hint_swallows_protocol_typeerror() -> None:
 
     provider = providers.Factory(creator=lambda: 1, bound_type=int)
     assert _hierarchy_hint(MyProto, provider) is None
+
+
+def test_argument_resolution_subclass_suggestion() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        db: Database
+
+    class G(Group):
+        db = providers.Factory(creator=PostgresDatabase)
+        service = providers.Factory(creator=Service)
+
+    container = Container(groups=[G])
+    with pytest.raises(ArgumentResolutionError) as exc_info:
+        container.resolve(Service)
+
+    rendered = str(exc_info.value)
+    assert "Did you mean:" in rendered
+    assert "PostgresDatabase (registered subclass, scope=APP)" in rendered
+    assert exc_info.value.suggestions == ["  - PostgresDatabase (registered subclass, scope=APP)"]
+
+
+def test_argument_resolution_baseclass_suggestion() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        db: PostgresDatabase
+
+    class G(Group):
+        db = providers.Factory(creator=Database)
+        service = providers.Factory(creator=Service)
+
+    container = Container(groups=[G])
+    with pytest.raises(ArgumentResolutionError) as exc_info:
+        container.resolve(Service)
+
+    rendered = str(exc_info.value)
+    assert "Did you mean:" in rendered
+    assert "Database (registered base class, scope=APP)" in rendered
+
+
+def test_argument_resolution_typo_suggestion() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Repostory:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        repo: Repostory
+
+    class G(Group):
+        repo = providers.Factory(creator=Repository)
+        service = providers.Factory(creator=Service)
+
+    container = Container(groups=[G])
+    with pytest.raises(ArgumentResolutionError) as exc_info:
+        container.resolve(Service)
+
+    rendered = str(exc_info.value)
+    assert "Did you mean:" in rendered
+    assert "Repository (similar name, scope=APP)" in rendered
+
+
+def test_argument_resolution_no_suggestions_when_nothing_matches() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        n: int
+
+    class G(Group):
+        service = providers.Factory(creator=Service)
+
+    container = Container(groups=[G])
+    with pytest.raises(ArgumentResolutionError) as exc_info:
+        container.resolve(Service)
+
+    assert "Did you mean:" not in str(exc_info.value)
+    assert exc_info.value.suggestions == []
 
 
 def test_hierarchy_hint_preferred_over_typo() -> None:
