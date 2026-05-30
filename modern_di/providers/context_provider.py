@@ -18,9 +18,11 @@ class ContextProvider(AbstractProvider[types.T_co]):
         *,
         scope: enum.IntEnum = Scope.APP,
         context_type: type[types.T_co],
-        bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
+        bound_type: type | None | types.UnsetType = types.UNSET,
     ) -> None:
-        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else context_type)
+        super().__init__(
+            scope=scope, bound_type=context_type if isinstance(bound_type, types.UnsetType) else bound_type
+        )
         self._context_type = context_type
 
     def __repr__(self) -> str:

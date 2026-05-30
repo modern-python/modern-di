@@ -18,9 +18,9 @@ class Alias(AbstractProvider[types.T_co]):
         *,
         source_type: type[types.T_co],
         scope: enum.IntEnum = Scope.APP,
-        bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
+        bound_type: type | None | types.UnsetType = types.UNSET,
     ) -> None:
-        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else source_type)
+        super().__init__(scope=scope, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type)
         self._source_type = source_type
 
     def __repr__(self) -> str:

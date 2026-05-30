@@ -52,9 +52,15 @@ class ScopeNotInitializedError(ContainerError):
 
 
 class ScopeSkippedError(ContainerError):
-    def __init__(self, *, provider_scope: enum.IntEnum) -> None:
+    def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
-        super().__init__(errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=provider_scope.name))
+        self.container_scope = container_scope
+        super().__init__(
+            errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(
+                provider_scope=provider_scope.name,
+                container_scope=container_scope.name,
+            )
+        )
 
 
 class ResolutionError(ModernDIError):

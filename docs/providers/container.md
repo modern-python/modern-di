@@ -44,3 +44,30 @@ class Dependencies(Group):
         kwargs={"di_container": providers.container_provider}
     )
 ```
+
+## Context Propagation
+
+`ContextRegistry` is **per-container**. Calling `set_context` on a parent container does not propagate to child containers that were already built — each container keeps its own context map.
+
+!!! warning "set_context only affects this container"
+    The following does **not** work as written:
+
+    ```python
+    app_container = Container()
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    app_container.set_context(MyContext, value)  # invisible to request_container
+    ```
+
+    Either set context **before** building the child, or pass it via `build_child_container`:
+
+    ```python
+    # Option A: set on the parent first
+    app_container = Container()
+    app_container.set_context(MyContext, value)
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+
+    # Option B: pass context directly to the child
+    request_container = app_container.build_child_container(
+        scope=Scope.REQUEST, context={MyContext: value}
+    )
+    ```

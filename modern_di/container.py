@@ -60,7 +60,10 @@ class Container:
             self.validate()
 
     def build_child_container(
-        self, context: dict[type[typing.Any], typing.Any] | None = None, scope: enum.IntEnum | None = None
+        self,
+        *,
+        scope: enum.IntEnum | None = None,
+        context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
         if scope and scope <= self.scope:
             raise exceptions.InvalidChildScopeError(
@@ -81,7 +84,7 @@ class Container:
         if scope not in self.scope_map:
             if scope > self.scope:
                 raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)
-            raise exceptions.ScopeSkippedError(provider_scope=scope)
+            raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope)
         return self.scope_map[scope]
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
@@ -139,19 +142,27 @@ class Container:
             self.overrides_registry.reset_override()
         self.cache_registry.close_sync()
 
-    def override(self, provider: AbstractProvider[types.T], override_object: object) -> None:
+    def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> None:
         self.overrides_registry.override(provider.provider_id, override_object)
 
     def reset_override(self, provider: AbstractProvider[types.T] | None = None) -> None:
         self.overrides_registry.reset_override(provider.provider_id if provider else None)
 
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
+        """Register a runtime context value on *this* container only.
+
+        ``ContextRegistry`` is per-container. Values set here are not seen by
+        child containers that were already built. Either set context before
+        calling :meth:`build_child_container`, or pass ``context={...}`` to
+        :meth:`build_child_container` directly.
+        """
         self.context_registry.set_context(context_type, obj)
 
     def __repr__(self) -> str:
         n_providers = len(self.providers_registry)
         n_cached = self.cache_registry.cached_count()
-        return f"Container(scope={self.scope!r}, providers={n_providers}, cached={n_cached})"
+        parent = self.parent_container.scope.name if self.parent_container else None
+        return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def __enter__(self) -> "typing_extensions.Self":
         return self

@@ -1,12 +1,20 @@
 CONTAINER_SCOPE_IS_LOWER_ERROR = (
-    "Scope of child container cannot be {child_scope} if parent scope is {parent_scope}. "
+    "Scope of child container cannot be {child_scope} if parent scope is {parent_scope} "
+    "(child scope value must be strictly greater than parent scope value). "
     "Possible scopes are {allowed_scopes}."
 )
-CONTAINER_MAX_SCOPE_REACHED_ERROR = "Max scope of {parent_scope} is reached."
+CONTAINER_MAX_SCOPE_REACHED_ERROR = (
+    "Max scope of {parent_scope} is reached. "
+    "To go deeper, build a child container with a custom IntEnum scope whose value is higher."
+)
 CONTAINER_NOT_INITIALIZED_SCOPE_ERROR = (
     "Provider of scope {provider_scope} cannot be resolved in container of scope {container_scope}."
 )
-CONTAINER_SCOPE_IS_SKIPPED_ERROR = "Provider of scope {provider_scope} is skipped in the chain of containers."
+CONTAINER_SCOPE_IS_SKIPPED_ERROR = (
+    "No {provider_scope}-scope container exists in this chain; "
+    "this chain starts at {container_scope}. "
+    "Build a {provider_scope}-scope container as the root."
+)
 CONTAINER_MISSING_PROVIDER_ERROR = "Provider of type {provider_type} is not registered in providers registry."
 SUGGESTION_HEADER = "Did you mean:"
 SUGGESTION_SUBCLASS = "  - {type_name} (registered subclass, scope={scope})"
