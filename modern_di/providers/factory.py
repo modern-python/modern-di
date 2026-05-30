@@ -138,7 +138,7 @@ class Factory(AbstractProvider[types.T_co]):
         container = container.find_container(self.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
 
-        if self.cache_settings and cache_item.cache is not None:
+        if self.cache_settings and cache_item.cache is not types.UNSET:
             return cache_item.cache
 
         try:
@@ -157,7 +157,7 @@ class Factory(AbstractProvider[types.T_co]):
             container.lock.acquire()
 
         try:
-            if cache_item.cache is not None:
+            if cache_item.cache is not types.UNSET:
                 return cache_item.cache
 
             instance = self._creator(**resolved_kwargs)

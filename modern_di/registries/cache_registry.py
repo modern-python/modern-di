@@ -8,17 +8,17 @@ from modern_di.providers import CacheSettings, Factory
 @dataclasses.dataclass(kw_only=True, slots=True)
 class CacheItem:
     settings: CacheSettings[typing.Any] | None
-    cache: typing.Any | None = None
+    cache: typing.Any = types.UNSET
     kwargs_compiled: bool = False
     provider_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
     static_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:
-            self.cache = None
+            self.cache = types.UNSET
 
     async def close_async(self) -> None:
-        if self.cache and self.settings and self.settings.finalizer:
+        if self.cache is not types.UNSET and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
                 await self.settings.finalizer(self.cache)  # ty: ignore[invalid-await]
             else:
@@ -27,7 +27,7 @@ class CacheItem:
         self._clear()
 
     def close_sync(self) -> None:
-        if self.cache and self.settings and self.settings.finalizer:
+        if self.cache is not types.UNSET and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
                 raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
             self.settings.finalizer(self.cache)
@@ -40,7 +40,7 @@ class CacheRegistry:
     _items: dict[int, CacheItem] = dataclasses.field(init=False, default_factory=dict)
 
     def cached_count(self) -> int:
-        return sum(1 for item in self._items.values() if item.cache is not None)
+        return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
 
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
         return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
