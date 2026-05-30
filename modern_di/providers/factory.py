@@ -34,7 +34,7 @@ class Factory(AbstractProvider[types.T_co]):
         *,
         scope: enum.IntEnum = Scope.APP,
         creator: typing.Callable[..., types.T_co],
-        bound_type: type | None = types.UNSET,  # ty: ignore[invalid-parameter-default]
+        bound_type: type | None | types.UnsetType = types.UNSET,
         kwargs: dict[str, typing.Any] | None = None,
         cache_settings: CacheSettings[types.T_co] | None = None,
         skip_creator_parsing: bool = False,
@@ -53,7 +53,7 @@ class Factory(AbstractProvider[types.T_co]):
             return_sig, parsed_kwargs = parse_creator(creator)
             parsed_type = return_sig.arg_type
         self._parsed_kwargs = parsed_kwargs
-        super().__init__(scope=scope, bound_type=bound_type if bound_type != types.UNSET else parsed_type)
+        super().__init__(scope=scope, bound_type=parsed_type if isinstance(bound_type, types.UnsetType) else bound_type)
         self._creator = creator
         self.cache_settings = cache_settings
         self._kwargs = kwargs

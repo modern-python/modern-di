@@ -25,7 +25,7 @@ def test_container_prevent_copy() -> None:
 def test_container_scope_skipped() -> None:
     app_factory = providers.Factory(creator=lambda: "test")
     container = Container(scope=Scope.REQUEST)
-    with pytest.raises(ScopeSkippedError, match=r"Provider of scope APP is skipped in the chain of containers.") as exc:
+    with pytest.raises(ScopeSkippedError, match=r"No APP-scope container exists in this chain") as exc:
         container.resolve_provider(app_factory)
     assert exc.value.provider_scope == Scope.APP
 
@@ -80,7 +80,10 @@ async def test_container_async_context_manager() -> None:
 
 def test_container_repr() -> None:
     container = Container()
-    assert repr(container) == "Container(scope=<Scope.APP: 1>, providers=1, cached=0)"
+    assert repr(container) == "Container(scope=APP, parent=None, providers=1, cached=0)"
+
+    request_container = container.build_child_container(scope=Scope.REQUEST)
+    assert repr(request_container) == "Container(scope=REQUEST, parent=APP, providers=1, cached=0)"
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
