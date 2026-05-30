@@ -86,15 +86,25 @@ class Factory(AbstractProvider[types.T_co]):
             is_kwarg_not_found = not self._kwargs or k not in self._kwargs
             if provider:
                 result[k] = provider
-                if is_kwarg_not_found and isinstance(provider, ContextProvider) and provider.resolve(container) is None:
+                if (
+                    is_kwarg_not_found
+                    and isinstance(provider, ContextProvider)
+                    and provider._find_context_value(container) is types.UNSET  # noqa: SLF001
+                ):
                     raise exceptions.ArgumentResolutionError(
                         arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
                     )
                 continue
 
             if v.default == types.UNSET and is_kwarg_not_found:
+                suggestions = (
+                    container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
+                )
                 raise exceptions.ArgumentResolutionError(
-                    arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
+                    arg_name=k,
+                    arg_type=v.arg_type,
+                    bound_type=self.bound_type or self._creator,
+                    suggestions=suggestions,
                 )
 
         if self._kwargs:
