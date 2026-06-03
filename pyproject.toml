@@ -18,7 +18,7 @@ classifiers = [
 version = "0"
 
 [build-system]
-requires = ["uv_build"]
+requires = ["uv_build>=0.11,<1.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -67,7 +67,7 @@ isort.lines-after-imports = 2
 isort.no-lines-before = ["standard-library", "local-folder"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=. --cov-report term-missing"
+addopts = "--cov=. --cov-report term-missing --cov-fail-under=100"
 asyncio_mode = "auto"
 pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"

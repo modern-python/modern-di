@@ -139,7 +139,7 @@ def test_suggestions_capped_at_three() -> None:
 
 
 def test_hierarchy_hint_skips_non_class_bound_type() -> None:
-    provider = providers.Factory(creator=list, bound_type=list[int])
+    provider = providers.Factory(creator=list, bound_type=int | str)  # ty: ignore[invalid-argument-type]
     assert _hierarchy_hint(int, provider) is None
 
 
