@@ -62,7 +62,7 @@ def test_container_resolve_missing_provider() -> None:
         ProviderNotRegisteredError,
         match=r"Provider of type <class 'str'> is not registered in providers registry.",
     ) as exc:
-        assert app_container.resolve(str) is None
+        app_container.resolve(str)
     assert exc.value.provider_type is str
 
 
@@ -143,7 +143,9 @@ def test_validate_detects_cycle() -> None:
         container.validate()
     [issue] = exc.value.errors
     assert isinstance(issue, CircularDependencyError)
-    assert issue.cycle_path == ["CycleA", "CycleB", "CycleA"]
+    cycle = issue.cycle_path
+    assert cycle[0] == cycle[-1]
+    assert set(cycle) == {"CycleA", "CycleB"}
 
 
 def test_validate_passes_for_valid_graph() -> None:

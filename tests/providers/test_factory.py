@@ -39,7 +39,6 @@ class MyGroup(Group):
         creator=SimpleCreator, skip_creator_parsing=True, bound_type=None
     )
     func_with_union_factory = providers.Factory(creator=func_with_union, bound_type=None)
-    func_with_broken_annotation = providers.Factory(creator=func_with_broken_annotation, bound_type=None)
     request_factory = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator)
     request_factory_with_di_container = providers.Factory(scope=Scope.REQUEST, creator=AnotherCreator)
 
@@ -72,13 +71,17 @@ def test_app_factory_unresolvable() -> None:
 def test_func_with_union_factory() -> None:
     app_container = Container(groups=[MyGroup])
     instance1 = app_container.resolve_provider(MyGroup.func_with_union_factory)
-    assert instance1
+    assert instance1 == str(SimpleCreator(dep1="original"))
 
 
 def test_func_with_broken_annotation() -> None:
-    app_container = Container(groups=[MyGroup])
+    with pytest.warns(UserWarning, match="Failed to resolve type hints"):
+        factory = providers.Factory(creator=func_with_broken_annotation, bound_type=None)
+
+    app_container = Container()
+    app_container.providers_registry.add_providers(factory)
     with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type None cannot be resolved"):
-        app_container.resolve_provider(MyGroup.func_with_broken_annotation)
+        app_container.resolve_provider(factory)
 
 
 def test_request_factory() -> None:

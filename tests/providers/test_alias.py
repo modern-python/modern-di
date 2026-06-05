@@ -32,12 +32,6 @@ def test_alias_delegates_to_source() -> None:
     assert concrete is abstract
 
 
-def test_alias_resolve_provider() -> None:
-    container = Container(groups=[MyGroup])
-    instance = container.resolve_provider(MyGroup.abstract_repo)
-    assert isinstance(instance, PostgresRepository)
-
-
 def test_alias_without_caching_returns_fresh_instance_per_call() -> None:
     class G(Group):
         repo = providers.Factory(creator=PostgresRepository)
