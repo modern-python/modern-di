@@ -108,3 +108,14 @@ def test_auto_derive_within_custom_enum() -> None:
     tenant_container = Container(scope=MyScope.TENANT)
     bg_container = tenant_container.build_child_container()
     assert bg_container.scope is MyScope.BACKGROUND_JOB
+
+
+def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
+    class ZeroEnum(enum.IntEnum):
+        ZERO = 0
+        ONE = 1
+        TWO = 2
+
+    parent = Container(scope=ZeroEnum.ONE)
+    with pytest.raises(InvalidChildScopeError):
+        parent.build_child_container(scope=ZeroEnum.ZERO)
