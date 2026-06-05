@@ -270,17 +270,49 @@ const findersConfig = [
   { dim: 'logic',    heur: LOGIC_HEURISTICS },
 ]
 
-const finderResults = await parallel(
-  findersConfig.map(({ dim, heur }) => () =>
+// Pipeline: each dimension flows through Find (1 finder) → Verify (3 verifiers per finding, majority vote).
+// No barrier between Find and Verify — dimension A's findings start verifying while dimension B is still finding.
+const perDimensionVerified = await pipeline(
+  findersConfig,
+  // Stage 1: Find
+  ({ dim, heur }) =>
     agent(finderPrompt(dim, heur, context), {
       label: `find:${dim}`,
       phase: 'Find',
       schema: FINDER_RESULT_SCHEMA,
-    })
-  )
+    }),
+  // Stage 2: Verify every finding in this dimension (3 lenses each, majority vote)
+  (finderResult, original) => {
+    const findings = finderResult?.findings ?? []
+    log(`verify:${original.dim}: ${findings.length} findings entering verify`)
+    return parallel(findings.map((f, i) => () =>
+      parallel(['reproduce', 'read-real-code', 'spec-vs-behavior'].map(lens => () =>
+        agent(verifierPrompt(lens, f), {
+          label: `verify:${original.dim}#${i}:${lens}`,
+          phase: 'Verify',
+          schema: VERDICT_SCHEMA,
+        })
+      ))
+      .then(votes => {
+        const valid = votes.filter(Boolean)
+        const confirms = valid.filter(v => v.confirmed).length
+        const survives = confirms >= 2
+        // Use spec-vs-behavior verdict if present, else "unknown"
+        const specVote = valid.find(v => v.lens === 'spec-vs-behavior')
+        const reclassification = specVote?.reclassification ?? 'unknown'
+        return {
+          ...f,
+          verifier_votes: valid,
+          survives,
+          reclassification,
+        }
+      })
+    ))
+  }
 )
 
-const rawFindings = finderResults.filter(Boolean).flatMap(r => r.findings)
-log(`find: ${rawFindings.length} raw findings across ${finderResults.filter(Boolean).length}/4 finders`)
+const verifiedFlat = perDimensionVerified.filter(Boolean).flat().filter(Boolean)
+const survivors = verifiedFlat.filter(v => v.survives)
+log(`verify: ${verifiedFlat.length} verified, ${survivors.length} survived majority vote`)
 
-return { finders_only: true, raw_count: rawFindings.length, findings: rawFindings }
+return { verify_only: true, total_verified: verifiedFlat.length, survivor_count: survivors.length, survivors }
