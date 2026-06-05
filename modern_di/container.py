@@ -36,6 +36,8 @@ class Container:
         use_lock: bool = True,
         validate: bool = False,
     ) -> None:
+        if not isinstance(scope, enum.IntEnum):
+            raise exceptions.InvalidScopeTypeError(scope_value=scope)
         self.lock = threading.RLock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
@@ -51,7 +53,7 @@ class Container:
             self.overrides_registry = parent_container.overrides_registry
         else:
             self.providers_registry = ProvidersRegistry()
-            self.providers_registry.register(type(self), container_provider)
+            self.providers_registry.register(Container, container_provider)
             self.overrides_registry = OverridesRegistry()
         if groups:
             for one_group in groups:
@@ -78,7 +80,7 @@ class Container:
             except ValueError as exc:
                 raise exceptions.MaxScopeReachedError(parent_scope=self.scope) from exc
 
-        return self.__class__(scope=scope, parent_container=self, context=context)
+        return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self.lock is not None)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         if scope not in self.scope_map:
