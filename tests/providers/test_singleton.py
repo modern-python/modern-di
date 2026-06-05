@@ -259,3 +259,34 @@ def test_singleton_threading_concurrency() -> None:
 
     assert all(x == "" for x in results)
     assert calls == 1
+
+
+def test_singleton_resolution_is_reentrant() -> None:
+    class Inner:
+        pass
+
+    class Outer:
+        def __init__(self, container: Container) -> None:
+            self.inner = container.resolve(Inner)
+
+    class ReentrantGroup(Group):
+        inner = providers.Factory(creator=Inner, cache_settings=providers.CacheSettings())
+        outer = providers.Factory(creator=Outer, cache_settings=providers.CacheSettings())
+
+    container = Container(groups=[ReentrantGroup])
+    result: list[Outer] = []
+
+    # Use a daemon Thread (not ThreadPoolExecutor) so the worker can be abandoned
+    # if it deadlocks — ThreadPoolExecutor.__exit__ would otherwise hang on shutdown
+    # waiting for the deadlocked worker to finish.
+    def worker() -> None:
+        result.append(container.resolve(Outer))
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "container.resolve deadlocked — singleton lock is not re-entrant"
+    assert len(result) == 1
+    assert isinstance(result[0], Outer)
+    assert isinstance(result[0].inner, Inner)
