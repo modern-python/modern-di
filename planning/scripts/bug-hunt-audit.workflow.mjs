@@ -184,6 +184,75 @@ const LOGIC_HEURISTICS = `Audit correctness.
 - types_parser correctness. PEP 604 unions (X | Y), Optional, Annotated, TYPE_CHECKING strings, forward refs, generics, *args / **kwargs, default-valued params, Self.
 - Container tree edges. build_child_container called on a closed parent? on the same parent concurrently? with a shallower scope than parent? With validate=True after cycles introduced post-creation?`
 
+function verifierPrompt(lens, finding) {
+  const findingJson = JSON.stringify(finding, null, 2)
+
+  if (lens === 'reproduce') {
+    return `You are the REPRODUCE verifier for a bug-hunt audit finding.
+
+Your job: try to construct the minimum scenario that would actually trigger the claimed bug. If you can build a repro, the finding is confirmed. If you cannot — for any reason: the claim is too vague, the cited code does not exhibit the described behavior, the repro requires unrealistic conditions, the code path is unreachable — the finding is REFUTED.
+
+IMPORTANT: Default to "confirmed=false" when uncertain. False positives waste user attention more than false negatives.
+
+FINDING:
+${findingJson}
+
+DO:
+1. Open the cited file and read the surrounding context.
+2. Construct (in your head or on paper) the smallest scenario that would trigger the bug: setup code, the trigger call, the observable wrong behavior.
+3. If the scenario holds together, set confirmed=true and put the repro sketch in reasoning.
+4. If it does not hold together, set confirmed=false and explain why in reasoning.
+
+Set lens="reproduce" and reclassification="unknown" (this lens does not reclassify).
+
+Return the structured verdict.`
+  }
+
+  if (lens === 'read-real-code') {
+    return `You are the READ-REAL-CODE verifier for a bug-hunt audit finding.
+
+Your job: open the cited file at the cited line and confirm the code actually does what the finding claims. Many finder agents hallucinate; this lens catches that.
+
+IMPORTANT: Default to "confirmed=false" when uncertain. False positives waste user attention more than false negatives.
+
+FINDING:
+${findingJson}
+
+DO:
+1. Open the file at the cited path. Read the cited line plus enough surrounding context (10-30 lines) to understand control flow.
+2. Compare what the code actually does to what the finding's description and evidence claim.
+3. If the code matches the claim (the bug really is in this code at this location), set confirmed=true.
+4. If the code does not match — the cited line is something else, the claim describes behavior the code does not exhibit, the evidence quote is fabricated or paraphrased badly — set confirmed=false. Quote what the code actually does in reasoning.
+
+Set lens="read-real-code" and reclassification="unknown" (this lens does not reclassify).
+
+Return the structured verdict.`
+  }
+
+  // spec-vs-behavior
+  return `You are the SPEC-VS-BEHAVIOR verifier for a bug-hunt audit finding.
+
+Your job: cross-check the finding against the project's specifications (CLAUDE.md, README.md, relevant docstrings). Decide whether this is a bug in the code, a bug in the spec, or actually intended behavior that the finder misjudged.
+
+IMPORTANT: Default to "confirmed=false" when uncertain. False positives waste user attention more than false negatives.
+
+FINDING:
+${findingJson}
+
+DO:
+1. Re-read the relevant section of CLAUDE.md (e.g. "Scope hierarchy", "Resolution flow", "Registries").
+2. Re-read the relevant docstrings.
+3. Decide:
+   - If the code violates a documented spec OR violates an obvious correctness contract not contradicted by spec: confirmed=true, reclassification="bug-in-code".
+   - If the spec says X but code does Y and the code's Y is the obviously correct behavior: confirmed=true, reclassification="bug-in-spec".
+   - If the spec explicitly endorses the behavior the finder flagged (e.g. "resolution is sync-only", "conservative feature set"): confirmed=false, reclassification="intended-behavior". Quote the spec line in reasoning.
+   - If uncertain: confirmed=false, reclassification="unknown".
+
+Set lens="spec-vs-behavior".
+
+Return the structured verdict.`
+}
+
 // --- script body ---
 
 phase('Discover')
