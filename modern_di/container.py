@@ -36,7 +36,7 @@ class Container:
         use_lock: bool = True,
         validate: bool = False,
     ) -> None:
-        self.lock = threading.Lock() if use_lock else None
+        self.lock = threading.RLock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
         self.scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
