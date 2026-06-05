@@ -7,6 +7,7 @@ from modern_di.exceptions import (
     AliasSourceNotRegisteredError,
     CircularDependencyError,
     ScopeNotInitializedError,
+    ValidationFailedError,
 )
 
 
@@ -120,8 +121,11 @@ def test_alias_participates_in_cycle_detection() -> None:
         concrete = providers.Factory(creator=Concrete)
         iface_alias = providers.Alias(source_type=Concrete, bound_type=Iface)
 
-    with pytest.raises(CircularDependencyError, match="Concrete"):
+    with pytest.raises(ValidationFailedError) as exc:
         Container(groups=[G], validate=True)
+    [issue] = exc.value.errors
+    assert isinstance(issue, CircularDependencyError)
+    assert "Concrete" in str(issue)
 
 
 def test_alias_default_bound_type_is_source_type() -> None:

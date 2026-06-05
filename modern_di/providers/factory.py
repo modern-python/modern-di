@@ -65,24 +65,22 @@ class Factory(AbstractProvider[types.T_co]):
         name = self.bound_type.__name__ if self.bound_type else getattr(self._creator, "__name__", repr(self._creator))
         return exceptions.ResolutionStep(scope=self.scope, name=name)
 
+    def _find_dep_provider(self, container: "Container", v: SignatureItem) -> "AbstractProvider[typing.Any] | None":
+        if v.arg_type:
+            provider = container.providers_registry.find_provider(v.arg_type)
+            if provider is self:
+                return None
+            return provider
+        for x in v.args:
+            provider = container.providers_registry.find_provider(x)
+            if provider:
+                return provider
+        return None
+
     def _compile_kwargs(self, container: "Container") -> dict[str, typing.Any]:
         result: dict[str, typing.Any] = {}
         for k, v in self._parsed_kwargs.items():
-            provider: AbstractProvider[types.T_co] | None = None
-            if v.arg_type:
-                provider = typing.cast(
-                    AbstractProvider[types.T_co] | None, container.providers_registry.find_provider(v.arg_type)
-                )
-                if provider is self:
-                    provider = None
-            else:
-                for x in v.args:
-                    provider = typing.cast(
-                        AbstractProvider[types.T_co] | None, container.providers_registry.find_provider(x)
-                    )
-                    if provider:
-                        break
-
+            provider = self._find_dep_provider(container, v)
             is_kwarg_not_found = not self._kwargs or k not in self._kwargs
             if provider:
                 result[k] = provider
@@ -129,10 +127,37 @@ class Factory(AbstractProvider[types.T_co]):
         return cache_item.provider_kwargs, cache_item.static_kwargs
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
-        scoped_container = container.find_container(self.scope)
-        cache_item = scoped_container.cache_registry.fetch_cache_item(self)
-        provider_kwargs, _ = self._ensure_kwargs_cached(scoped_container, cache_item)
-        return provider_kwargs
+        """Return parameter-name → dependency-provider mapping using only the providers registry.
+
+        Pure lookup: no scope check, no cache touch, no context-value lookup. Used by
+        Container.validate() to traverse the static graph.
+        """
+        result: dict[str, AbstractProvider[typing.Any]] = {}
+        for k, v in self._parsed_kwargs.items():
+            if self._kwargs and k in self._kwargs:
+                continue
+            provider = self._find_dep_provider(container, v)
+            if provider is not None:
+                result[k] = provider
+        return result
+
+    def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
+        """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
+        for k, v in self._parsed_kwargs.items():
+            is_kwarg_not_found = not self._kwargs or k not in self._kwargs
+            if not is_kwarg_not_found:
+                continue
+            if self._find_dep_provider(container, v) is not None:
+                continue
+            if v.default is not types.UNSET:
+                continue
+            suggestions = container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
+            yield exceptions.ArgumentResolutionError(
+                arg_name=k,
+                arg_type=v.arg_type,
+                bound_type=self.bound_type or self._creator,
+                suggestions=suggestions,
+            )
 
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)

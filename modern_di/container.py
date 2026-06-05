@@ -107,6 +107,7 @@ class Container:
         return provider.resolve(self)
 
     def validate(self) -> None:
+        validation_errors: list[Exception] = []
         visiting: set[int] = set()
         visited: set[int] = set()
         path: list[AbstractProvider[typing.Any]] = []
@@ -119,18 +120,33 @@ class Container:
                 cycle_start = next(i for i, p in enumerate(path) if p.provider_id == pid)
                 cycle_names = [p.bound_type.__name__ if p.bound_type else repr(p) for p in path[cycle_start:]]
                 cycle_names.append(cycle_names[0])
-                raise exceptions.CircularDependencyError(cycle_path=cycle_names)
+                validation_errors.append(exceptions.CircularDependencyError(cycle_path=cycle_names))
+                return
 
             visiting.add(pid)
             path.append(provider)
-            for dep_provider in provider.get_dependencies(self).values():
+            validation_errors.extend(provider.iter_validation_issues(self))
+
+            for dep_name, dep_provider in provider.get_dependencies(self).items():
+                if dep_provider.scope > provider.scope:
+                    validation_errors.append(
+                        exceptions.InvalidScopeDependencyError(
+                            provider=provider,
+                            parameter_name=dep_name,
+                            dep_provider=dep_provider,
+                        )
+                    )
                 _visit(dep_provider)
+
             path.pop()
             visiting.discard(pid)
             visited.add(pid)
 
         for one_provider in self.providers_registry:
             _visit(one_provider)
+
+        if validation_errors:
+            raise exceptions.ValidationFailedError(errors=validation_errors)
 
     async def close_async(self) -> None:
         if not self.parent_container:

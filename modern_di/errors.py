@@ -35,3 +35,8 @@ ALIAS_SOURCE_NOT_REGISTERED_ERROR = (
     "Alias source type {source_type} is not registered in providers registry. "
     "Register a provider for {source_type} before defining the alias."
 )
+INVALID_SCOPE_DEPENDENCY_ERROR = (
+    "Provider {provider_name} (scope {provider_scope}) declares parameter "
+    "{parameter_name!r} typed as a provider of {dep_name} at deeper scope "
+    "{dep_scope}. A provider cannot depend on a deeper-scoped provider."
+)
