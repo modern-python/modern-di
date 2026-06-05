@@ -10,6 +10,7 @@ from modern_di.exceptions import (
     CircularDependencyError,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
+    InvalidScopeTypeError,
     MaxScopeReachedError,
     ProviderNotRegisteredError,
     ScopeSkippedError,
@@ -294,3 +295,32 @@ def test_validation_failed_error_str_renders_inner_errors() -> None:
     rendered = str(exc.value)
     assert "found 1 issue(s)" in rendered
     assert "Circular dependency detected" in rendered
+
+
+def test_build_child_container_propagates_use_lock_false() -> None:
+    root = Container(use_lock=False)
+    child = root.build_child_container(scope=Scope.REQUEST)
+    assert root.lock is None
+    assert child.lock is None
+
+
+def test_container_provider_resolves_on_subclasses() -> None:
+    class MyContainer(Container):
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        di_container: Container
+
+    class G(Group):
+        svc = providers.Factory(creator=Service)
+
+    container = MyContainer(groups=[G])
+    instance = container.resolve(Service)
+    assert instance.di_container is container
+
+
+def test_container_rejects_non_intenum_scope_at_init() -> None:
+    with pytest.raises(InvalidScopeTypeError) as exc:
+        Container(scope=99)  # ty: ignore[invalid-argument-type]
+    assert "99" in str(exc.value)

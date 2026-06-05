@@ -79,6 +79,19 @@ class ScopeSkippedError(ContainerError):
         )
 
 
+class InvalidScopeTypeError(ContainerError):
+    __slots__ = ("scope_value",)
+
+    def __init__(self, *, scope_value: typing.Any) -> None:  # noqa: ANN401
+        self.scope_value = scope_value
+        super().__init__(
+            errors.INVALID_SCOPE_TYPE_ERROR.format(
+                scope_repr=repr(scope_value),
+                scope_type=type(scope_value).__name__,
+            )
+        )
+
+
 class ResolutionError(ModernDIError):
     """Base class for errors raised while resolving a provider.
 

@@ -40,3 +40,4 @@ INVALID_SCOPE_DEPENDENCY_ERROR = (
     "{parameter_name!r} typed as a provider of {dep_name} at deeper scope "
     "{dep_scope}. A provider cannot depend on a deeper-scoped provider."
 )
+INVALID_SCOPE_TYPE_ERROR = "Container scope must be an enum.IntEnum member; got {scope_repr} ({scope_type})."
