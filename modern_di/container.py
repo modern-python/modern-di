@@ -65,14 +65,14 @@ class Container:
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
-        if scope and scope <= self.scope:
+        if scope is not None and scope <= self.scope:
             raise exceptions.InvalidChildScopeError(
                 parent_scope=self.scope,
                 child_scope=scope,
                 allowed_scopes=[x.name for x in type(self.scope) if x > self.scope],
             )
 
-        if not scope:
+        if scope is None:
             try:
                 scope = self.scope.__class__(self.scope.value + 1)
             except ValueError as exc:
