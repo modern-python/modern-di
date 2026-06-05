@@ -83,15 +83,17 @@ class Factory(AbstractProvider[types.T_co]):
             provider = self._find_dep_provider(container, v)
             is_kwarg_not_found = not self._kwargs or k not in self._kwargs
             if provider:
-                result[k] = provider
                 if (
                     is_kwarg_not_found
                     and isinstance(provider, ContextProvider)
                     and provider._find_context_value(container) is types.UNSET  # noqa: SLF001
                 ):
-                    raise exceptions.ArgumentResolutionError(
-                        arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
-                    )
+                    if v.default is types.UNSET:
+                        raise exceptions.ArgumentResolutionError(
+                            arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
+                        )
+                    continue
+                result[k] = provider
                 continue
 
             if v.default == types.UNSET and is_kwarg_not_found:

@@ -100,3 +100,19 @@ def test_factory_resolves_with_none_context_value() -> None:
     app_container = Container(groups=[NoneGroup], context={datetime.datetime: None})
     instance = app_container.resolve(NoneHolder)
     assert instance.value is None
+
+
+def test_factory_uses_default_when_context_provider_value_unset() -> None:
+    default = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class TsHolder:
+        ts: datetime.datetime = default
+
+    class TsGroup(Group):
+        ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+        holder = providers.Factory(creator=TsHolder)
+
+    app_container = Container(groups=[TsGroup])
+    instance = app_container.resolve(TsHolder)
+    assert instance.ts == default
