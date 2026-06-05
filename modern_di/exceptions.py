@@ -5,6 +5,10 @@ import typing
 from modern_di import errors
 
 
+if typing.TYPE_CHECKING:
+    from modern_di.providers.abstract import AbstractProvider
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class ResolutionStep:
     scope: enum.IntEnum
@@ -177,6 +181,46 @@ class DuplicateProviderTypeError(RegistrationError):
     def __init__(self, *, provider_type: type) -> None:
         self.provider_type = provider_type
         super().__init__(errors.PROVIDER_DUPLICATE_TYPE_ERROR.format(provider_type=provider_type))
+
+
+class InvalidScopeDependencyError(RegistrationError):
+    __slots__ = ("dep_provider", "parameter_name", "provider")
+
+    def __init__(
+        self,
+        *,
+        provider: "AbstractProvider[typing.Any]",
+        parameter_name: str,
+        dep_provider: "AbstractProvider[typing.Any]",
+    ) -> None:
+        self.provider = provider
+        self.parameter_name = parameter_name
+        self.dep_provider = dep_provider
+        provider_name = provider.bound_type.__name__ if provider.bound_type else repr(provider)
+        dep_name = dep_provider.bound_type.__name__ if dep_provider.bound_type else repr(dep_provider)
+        super().__init__(
+            errors.INVALID_SCOPE_DEPENDENCY_ERROR.format(
+                provider_name=provider_name,
+                provider_scope=provider.scope.name,
+                parameter_name=parameter_name,
+                dep_name=dep_name,
+                dep_scope=dep_provider.scope.name,
+            )
+        )
+
+
+class ValidationFailedError(ContainerError):
+    __slots__ = ("errors",)
+
+    def __init__(self, *, errors: list[Exception]) -> None:
+        self.errors = errors
+        kinds = ", ".join(sorted({type(e).__name__ for e in errors}))
+        super().__init__(f"Container.validate() found {len(errors)} issue(s): {kinds}")
+
+    def __str__(self) -> str:
+        header = super().__str__()
+        rendered = "\n".join(f"  - {e}" for e in self.errors)
+        return f"{header}\n{rendered}"
 
 
 class FinalizerError(ModernDIError):

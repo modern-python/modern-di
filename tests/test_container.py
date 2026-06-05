@@ -6,11 +6,14 @@ import pytest
 
 from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
+    ArgumentResolutionError,
     CircularDependencyError,
     InvalidChildScopeError,
+    InvalidScopeDependencyError,
     MaxScopeReachedError,
     ProviderNotRegisteredError,
     ScopeSkippedError,
+    ValidationFailedError,
 )
 from modern_di.providers.abstract import AbstractProvider
 
@@ -102,17 +105,19 @@ class CycleGroup(Group):
 
 
 def test_validate_on_creation() -> None:
-    with pytest.raises(CircularDependencyError, match="Circular dependency detected"):
+    with pytest.raises(ValidationFailedError) as exc:
         Container(groups=[CycleGroup], validate=True)
+    [issue] = exc.value.errors
+    assert isinstance(issue, CircularDependencyError)
 
 
 def test_validate_detects_cycle() -> None:
     container = Container(groups=[CycleGroup])
-    with pytest.raises(
-        CircularDependencyError, match="Circular dependency detected: CycleA -> CycleB -> CycleA"
-    ) as exc:
+    with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    assert exc.value.cycle_path == ["CycleA", "CycleB", "CycleA"]
+    [issue] = exc.value.errors
+    assert isinstance(issue, CircularDependencyError)
+    assert issue.cycle_path == ["CycleA", "CycleB", "CycleA"]
 
 
 def test_validate_passes_for_valid_graph() -> None:
@@ -170,3 +175,122 @@ def test_validate_memoizes_diamond() -> None:
     container = Container(groups=[DiamondGroup])
     container.validate()
     assert call_count == 1
+
+
+def test_validate_walks_deeper_scoped_providers() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        pass
+
+    class G(Group):
+        svc = providers.Factory(scope=Scope.REQUEST, creator=Service)
+
+    Container(groups=[G], validate=True)
+
+
+def test_validate_raises_on_inverted_scope_dependency() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Inner:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Outer:
+        inner: Inner
+
+    class G(Group):
+        inner = providers.Factory(scope=Scope.REQUEST, creator=Inner)
+        outer = providers.Factory(scope=Scope.APP, creator=Outer)
+
+    container = Container(groups=[G])
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    [issue] = exc.value.errors
+    assert isinstance(issue, InvalidScopeDependencyError)
+    assert issue.parameter_name == "inner"
+    assert issue.provider.scope == Scope.APP
+    assert issue.dep_provider.scope == Scope.REQUEST
+
+
+def test_validate_raises_on_missing_required_dependency() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        missing: Missing
+
+    class G(Group):
+        svc = providers.Factory(creator=Service)
+
+    container = Container(groups=[G])
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    [issue] = exc.value.errors
+    assert isinstance(issue, ArgumentResolutionError)
+    assert issue.arg_name == "missing"
+
+
+def test_validate_accumulates_multiple_errors() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Inner:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Outer:
+        inner: Inner
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Bad:
+        missing: Missing
+
+    class G(Group):
+        inner = providers.Factory(scope=Scope.REQUEST, creator=Inner)
+        outer = providers.Factory(scope=Scope.APP, creator=Outer)
+        bad = providers.Factory(creator=Bad)
+        cycle_a = providers.Factory(creator=CycleA)
+        cycle_b = providers.Factory(creator=CycleB)
+
+    container = Container(groups=[G])
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    error_types = {type(e) for e in exc.value.errors}
+    assert InvalidScopeDependencyError in error_types
+    assert ArgumentResolutionError in error_types
+    assert CircularDependencyError in error_types
+
+
+def test_validate_detects_cycle_across_scopes() -> None:
+    class CrossScopeCycleGroup(Group):
+        a = providers.Factory(scope=Scope.REQUEST, creator=CycleA)
+        b = providers.Factory(scope=Scope.REQUEST, creator=CycleB)
+
+    container = Container(groups=[CrossScopeCycleGroup])
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    [issue] = exc.value.errors
+    assert isinstance(issue, CircularDependencyError)
+
+
+def test_validate_handles_factory_with_static_kwargs() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        name: str
+
+    class G(Group):
+        svc = providers.Factory(creator=Service, kwargs={"name": "static"})
+
+    Container(groups=[G], validate=True)
+
+
+def test_validation_failed_error_str_renders_inner_errors() -> None:
+    container = Container(groups=[CycleGroup])
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    rendered = str(exc.value)
+    assert "found 1 issue(s)" in rendered
+    assert "Circular dependency detected" in rendered
