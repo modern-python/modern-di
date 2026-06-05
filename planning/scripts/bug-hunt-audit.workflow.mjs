@@ -253,6 +253,83 @@ Set lens="spec-vs-behavior".
 Return the structured verdict.`
 }
 
+function synthPrompt(survivors) {
+  return `You are the synthesizer for a bug-hunt audit of the modern-di repository. You receive the surviving findings (each adversarially verified by 3 lenses, majority-confirmed). Your job:
+
+1. DEDUPLICATE across dimensions. A "weak assertion" finding from tests and a "missed edge" from logic are often the same root issue. Merge them: keep the more specific title, union the evidence, list both source dimensions.
+
+2. TRIAGE every surviving finding into exactly one bucket:
+   - must-fix-now — correctness (logic dimension) or security, severity "high", all 3 verifier votes confirmed (verifier_votes.filter(v => v.confirmed).length === 3).
+   - should-fix-soon — severity "high" with 2/3 verifier confirmation, OR severity "medium" with 3/3 confirmation AND dimension is logic or security.
+   - nice-to-have — UX rough edges, low-severity logic findings, test weaknesses not currently masking known bugs.
+   - spec-fix — reclassification is "bug-in-spec" (regardless of severity). Code is correct; docs are wrong.
+   - wont-fix — reclassification is "intended-behavior". Record so they don't resurface next audit.
+   Findings outside these definitions: drop to nice-to-have.
+
+3. WRITE the report to planning/audits/2026-06-05-bug-hunt-audit-report.md using your Write tool. Use this exact structure:
+
+\`\`\`markdown
+# Bug-Hunt Audit Report — 2026-06-05
+
+**Spec:** planning/specs/2026-06-05-bug-hunt-audit-design.md
+**Plan:** planning/plans/2026-06-05-bug-hunt-audit-plan.md
+**Survivors:** N findings post-verify, M after dedup
+
+## Summary
+
+| Bucket | Count |
+|---|---|
+| must-fix-now | … |
+| should-fix-soon | … |
+| nice-to-have | … |
+| spec-fix | … |
+| wont-fix | … |
+
+## must-fix-now
+
+### <Finding title>
+- Dimension(s): logic
+- File: modern_di/container.py:120-128
+- Severity: high
+- Verifier confirmations: 3/3
+
+**Description.** …
+
+**Evidence.**
+\\\`\\\`\\\`python
+…
+\\\`\\\`\\\`
+
+**Reproduction.**
+\\\`\\\`\\\`python
+…
+\\\`\\\`\\\`
+
+**Suggested fix.** …
+
+(repeat per finding)
+
+## should-fix-soon
+(same structure)
+
+## nice-to-have
+(same structure)
+
+## spec-fix
+(same structure, but "Suggested fix" describes the doc/spec edit)
+
+## wont-fix
+(same structure, plus a final line "Rationale:" quoting the spec/CLAUDE.md line that endorses this behavior)
+\`\`\`
+
+4. After writing the report, return the structured summary (report_path = "planning/audits/2026-06-05-bug-hunt-audit-report.md", counts per bucket).
+
+SURVIVORS (already verified):
+${JSON.stringify(survivors, null, 2)}
+
+If survivors is empty, still write the report file with each bucket marked "(no findings)" and return zero counts.`
+}
+
 // --- script body ---
 
 phase('Discover')
@@ -315,4 +392,15 @@ const verifiedFlat = perDimensionVerified.filter(Boolean).flat().filter(Boolean)
 const survivors = verifiedFlat.filter(v => v.survives)
 log(`verify: ${verifiedFlat.length} verified, ${survivors.length} survived majority vote`)
 
-return { verify_only: true, total_verified: verifiedFlat.length, survivor_count: survivors.length, survivors }
+phase('Synthesize')
+const summary = await agent(synthPrompt(survivors), {
+  label: 'synth',
+  phase: 'Synthesize',
+  schema: SYNTH_SUMMARY_SCHEMA,
+  agentType: 'general-purpose',
+})
+
+log(`synth: report written to ${summary.report_path}`)
+log(`synth: must=${summary.counts.must_fix_now} should=${summary.counts.should_fix_soon} nice=${summary.counts.nice_to_have} spec=${summary.counts.spec_fix} wont=${summary.counts.wont_fix}`)
+
+return summary
