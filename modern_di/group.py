@@ -18,4 +18,15 @@ class Group:
 
     @classmethod
     def get_providers(cls) -> list[AbstractProvider[typing.Any]]:
-        return [x for x in cls.__dict__.values() if isinstance(x, AbstractProvider)]
+        seen_names: set[str] = set()
+        collected: list[AbstractProvider[typing.Any]] = []
+        for klass in cls.__mro__:
+            if klass is Group or klass is object:
+                continue
+            for name, value in klass.__dict__.items():
+                if name in seen_names:
+                    continue
+                seen_names.add(name)
+                if isinstance(value, AbstractProvider):
+                    collected.append(value)
+        return collected
