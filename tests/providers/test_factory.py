@@ -180,6 +180,23 @@ def test_factory_self_reference() -> None:
     assert app_container.resolve_provider(second_factory) == "one two"
 
 
+def test_factory_self_reference_in_union_falls_through_to_default() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class SelfRef:
+        x: int = 1
+
+    def make(x: int | SelfRef = 1) -> SelfRef:
+        return SelfRef(x=x if isinstance(x, int) else x.x)
+
+    factory = providers.Factory(creator=make)
+    app_container = Container()
+    app_container.providers_registry.add_providers(factory)
+
+    result = app_container.resolve(SelfRef)
+    assert isinstance(result, SelfRef)
+    assert result.x == 1
+
+
 def test_factory_repr() -> None:
     provider = providers.Factory(creator=str, scope=Scope.APP)
     assert repr(provider) == "Factory(creator=<class 'str'>, scope=<Scope.APP: 1>, cached=False)"
