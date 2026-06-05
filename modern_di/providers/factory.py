@@ -73,7 +73,7 @@ class Factory(AbstractProvider[types.T_co]):
             return provider
         for x in v.args:
             provider = container.providers_registry.find_provider(x)
-            if provider:
+            if provider is not None and provider is not self:
                 return provider
         return None
 
