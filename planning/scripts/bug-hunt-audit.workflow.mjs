@@ -110,7 +110,32 @@ const SYNTH_SUMMARY_SCHEMA = {
   },
 }
 
+const DISCOVER_PROMPT = `You are the discover agent for a bug-hunt audit of the modern-di repository (a zero-dependency Python DI library). Produce a single structured context blob that downstream finder agents will use to ground their work.
+
+Do exactly the following, then return the structured output:
+
+1. Walk the repo from its root. Build a file_map covering:
+   - every file under modern_di/ (source)
+   - every file under tests/ (test suite)
+   - every file under benchmarks/
+   - top-level docs: README.md, CLAUDE.md
+   - planning/specs/2026-06-05-bug-hunt-audit-design.md (the audit spec — relevant context)
+   Skip .venv, .pytest_cache, .ruff_cache, .git, .benchmarks, .idea, __pycache__.
+   For each file: relative path, line count, and a one-line role describing its responsibility.
+
+2. Extract behavior_claims from README.md and CLAUDE.md and the docstrings of the main public modules (modern_di/__init__.py, modern_di/container.py, modern_di/scope.py, modern_di/group.py). A claim is a concrete statement about how the library behaves — e.g. "Scope is an IntEnum with five levels APP < SESSION < REQUEST < ACTION < STEP" or "ContextProvider is for runtime values injected at container creation". For each claim record the exact source (file + section/identifier). 20-50 claims is the right order of magnitude — be selective; only claims a finder could compare against code.
+
+3. Grab the last 20 commits from \`git log --oneline -20\` and put the subject lines in recent_commits.
+
+Do not analyze, do not look for bugs, do not opine. Just produce the context blob. Other agents do the analysis.`
+
 // --- script body ---
 
-log('bug-hunt-audit: skeleton invoked (no agents yet)')
-return { skeleton: true }
+phase('Discover')
+const context = await agent(DISCOVER_PROMPT, {
+  label: 'discover',
+  schema: CONTEXT_BLOB_SCHEMA,
+})
+log(`discover: ${context.file_map.length} files mapped, ${context.behavior_claims.length} claims extracted`)
+
+return { discover_only: true, context }
