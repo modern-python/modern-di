@@ -1,11 +1,12 @@
 import dataclasses
 import re
+import unittest.mock
 import warnings
 
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError, ScopeNotInitializedError
+from modern_di.exceptions import ArgumentResolutionError, ScopeNotInitializedError, UnknownFactoryKwargError
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -216,3 +217,51 @@ def test_factory_skip_creator_parsing_with_bound_type_no_warning() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         providers.Factory(creator=str, skip_creator_parsing=True, bound_type=str)
+
+
+def test_factory_rejects_unknown_kwarg_at_construction() -> None:
+    with pytest.raises(UnknownFactoryKwargError) as exc:
+        providers.Factory(creator=lambda a=1: a, kwargs={"a": 1, "nonexistent": "oops"})
+    assert "nonexistent" in str(exc.value)
+    assert "a" in exc.value.known_keys
+    assert "nonexistent" in exc.value.unknown_keys
+
+
+def test_factory_unknown_kwarg_suggests_close_match() -> None:
+    with pytest.raises(UnknownFactoryKwargError) as exc:
+        providers.Factory(
+            creator=lambda connection_string="default": connection_string, kwargs={"connetion_string": "x"}
+        )
+    assert "connection_string" in str(exc.value)
+
+
+def test_factory_kwarg_validation_skips_when_signature_unavailable() -> None:
+    # When inspect.signature raises (e.g. for some C-implemented callables),
+    # the validator silently skips rather than crashing.
+    with unittest.mock.patch("inspect.signature", side_effect=ValueError):
+        providers.Factory(creator=lambda x=1: x, kwargs={"anything": 1})
+
+
+def test_factory_allows_extra_kwargs_when_creator_accepts_var_keyword() -> None:
+    def make(**kwargs: object) -> dict[str, object]:
+        return kwargs
+
+    factory = providers.Factory(creator=make, kwargs={"anything": 1, "extra": 2})
+    container = Container()
+    container.providers_registry.add_providers(factory)
+    result = container.resolve(dict)
+    assert result == {"anything": 1, "extra": 2}
+
+
+def test_factory_default_value_compared_with_is_not_eq() -> None:
+    class SomeUnregisteredType:
+        pass
+
+    def make(x: SomeUnregisteredType = unittest.mock.ANY) -> str:
+        return repr(x)
+
+    factory = providers.Factory(creator=make)
+    container = Container()
+    container.providers_registry.add_providers(factory)
+    result = container.resolve(str)
+    assert result == repr(unittest.mock.ANY)

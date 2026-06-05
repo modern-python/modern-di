@@ -196,6 +196,33 @@ class DuplicateProviderTypeError(RegistrationError):
         super().__init__(errors.PROVIDER_DUPLICATE_TYPE_ERROR.format(provider_type=provider_type))
 
 
+class UnknownFactoryKwargError(RegistrationError):
+    __slots__ = ("creator", "known_keys", "suggestions", "unknown_keys")
+
+    def __init__(
+        self,
+        *,
+        creator: typing.Any,  # noqa: ANN401
+        unknown_keys: list[str],
+        known_keys: list[str],
+        suggestions: dict[str, str] | None = None,
+    ) -> None:
+        self.creator = creator
+        self.unknown_keys = unknown_keys
+        self.known_keys = known_keys
+        self.suggestions = suggestions or {}
+        creator_name = getattr(creator, "__name__", repr(creator))
+        parts = [f"Factory kwargs contain unknown key(s) not in {creator_name} signature:"]
+        for key in unknown_keys:
+            sug = self.suggestions.get(key)
+            line = f"  - {key!r}"
+            if sug:
+                line += f" (did you mean {sug!r}?)"
+            parts.append(line)
+        parts.append(f"Known parameters: {known_keys}")
+        super().__init__("\n".join(parts))
+
+
 class InvalidScopeDependencyError(RegistrationError):
     __slots__ = ("dep_provider", "parameter_name", "provider")
 

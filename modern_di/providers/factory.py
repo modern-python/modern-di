@@ -1,4 +1,5 @@
 import dataclasses
+import difflib
 import enum
 import inspect
 import typing
@@ -52,11 +53,41 @@ class Factory(AbstractProvider[types.T_co]):
         else:
             return_sig, parsed_kwargs = parse_creator(creator)
             parsed_type = return_sig.arg_type
+            if kwargs:
+                self._validate_kwargs_against_signature(creator, kwargs, parsed_kwargs)
         self._parsed_kwargs = parsed_kwargs
         super().__init__(scope=scope, bound_type=parsed_type if isinstance(bound_type, types.UnsetType) else bound_type)
         self._creator = creator
         self.cache_settings = cache_settings
         self._kwargs = kwargs
+
+    @staticmethod
+    def _validate_kwargs_against_signature(
+        creator: typing.Callable[..., typing.Any],
+        kwargs: dict[str, typing.Any],
+        parsed_kwargs: dict[str, SignatureItem],
+    ) -> None:
+        try:
+            sig = inspect.signature(creator)
+        except (ValueError, TypeError):
+            return
+        if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            return
+        known = set(parsed_kwargs)
+        unknown = sorted(set(kwargs) - known)
+        if not unknown:
+            return
+        suggestions: dict[str, str] = {}
+        for bad in unknown:
+            matches = difflib.get_close_matches(bad, known, n=1)
+            if matches:
+                suggestions[bad] = matches[0]
+        raise exceptions.UnknownFactoryKwargError(
+            creator=creator,
+            unknown_keys=unknown,
+            known_keys=sorted(known),
+            suggestions=suggestions,
+        )
 
     def __repr__(self) -> str:
         return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"
@@ -96,7 +127,7 @@ class Factory(AbstractProvider[types.T_co]):
                 result[k] = provider
                 continue
 
-            if v.default == types.UNSET and is_kwarg_not_found:
+            if v.default is types.UNSET and is_kwarg_not_found:
                 suggestions = (
                     container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
                 )
