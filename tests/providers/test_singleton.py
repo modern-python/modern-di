@@ -20,10 +20,6 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-def sync_finalizer(_: SimpleCreator) -> None:
-    pass
-
-
 async def async_finalizer(_: DependentCreator) -> None:
     pass
 
@@ -32,7 +28,7 @@ class MyGroup(Group):
     app_singleton = providers.Factory(
         creator=SimpleCreator,
         kwargs={"dep1": "original"},
-        cache_settings=providers.CacheSettings(clear_cache=False, finalizer=sync_finalizer),
+        cache_settings=providers.CacheSettings(),
     )
     request_singleton = providers.Factory(
         scope=Scope.REQUEST, creator=DependentCreator, cache_settings=providers.CacheSettings(finalizer=async_finalizer)
@@ -40,16 +36,82 @@ class MyGroup(Group):
 
 
 async def test_app_singleton() -> None:
-    app_container = Container(groups=[MyGroup])
-    singleton1 = app_container.resolve_provider(MyGroup.app_singleton)
-    singleton2 = app_container.resolve_provider(MyGroup.app_singleton)
-    assert singleton1 is singleton2
-    app_container.close_sync()
-    cache_item = app_container.cache_registry.fetch_cache_item(MyGroup.app_singleton)
-    assert cache_item.cache is not UNSET
+    sync_calls: list[SimpleCreator] = []
 
-    app_container.resolve_provider(MyGroup.app_singleton)
+    class LocalGroup(Group):
+        singleton = providers.Factory(
+            creator=SimpleCreator,
+            kwargs={"dep1": "original"},
+            cache_settings=providers.CacheSettings(clear_cache=False, finalizer=sync_calls.append),
+        )
+
+    app_container = Container(groups=[LocalGroup])
+    singleton1 = app_container.resolve_provider(LocalGroup.singleton)
+    singleton2 = app_container.resolve_provider(LocalGroup.singleton)
+    assert singleton1 is singleton2
+
+    app_container.close_sync()
+    cache_item = app_container.cache_registry.fetch_cache_item(LocalGroup.singleton)
+    assert cache_item.cache is not UNSET
+    assert sync_calls == [singleton1]
+
+    singleton3 = app_container.resolve_provider(LocalGroup.singleton)
+    assert singleton3 is singleton1
+
     await app_container.close_async()
+    assert sync_calls == [singleton1]
+
+
+def test_close_does_not_re_finalize_with_clear_cache_false() -> None:
+    calls: list[str] = []
+
+    class G(Group):
+        f = providers.Factory(
+            creator=lambda: "r",
+            bound_type=str,
+            cache_settings=providers.CacheSettings(clear_cache=False, finalizer=calls.append),
+        )
+
+    container = Container(groups=[G])
+    container.resolve(str)
+    container.close_sync()
+    container.close_sync()
+    container.close_sync()
+    assert calls == ["r"]
+
+
+def test_close_re_finalizes_after_re_resolve_with_clear_cache_true() -> None:
+    calls: list[str] = []
+
+    class G(Group):
+        f = providers.Factory(
+            creator=lambda: "r",
+            bound_type=str,
+            cache_settings=providers.CacheSettings(clear_cache=True, finalizer=calls.append),
+        )
+
+    container = Container(groups=[G])
+    container.resolve(str)
+    container.close_sync()
+    container.resolve(str)
+    container.close_sync()
+    assert calls == ["r", "r"]
+
+
+async def test_close_async_runs_sync_finalizer() -> None:
+    calls: list[str] = []
+
+    class G(Group):
+        f = providers.Factory(
+            creator=lambda: "r",
+            bound_type=str,
+            cache_settings=providers.CacheSettings(finalizer=calls.append),
+        )
+
+    container = Container(groups=[G])
+    container.resolve(str)
+    await container.close_async()
+    assert calls == ["r"]
 
 
 async def test_request_singleton() -> None:
