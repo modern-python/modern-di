@@ -67,16 +67,41 @@ def test_container_resolve_missing_provider() -> None:
 
 
 def test_container_sync_context_manager() -> None:
-    with Container() as container:
+    cleaned_up: list[str] = []
+
+    class G(Group):
+        resource = providers.Factory(
+            creator=lambda: "r",
+            bound_type=str,
+            cache_settings=providers.CacheSettings(finalizer=cleaned_up.append),
+        )
+
+    with Container(groups=[G]) as container:
         assert container.scope == Scope.APP
+        assert container.resolve(str) == "r"
+    assert cleaned_up == ["r"]
 
     with container.build_child_container(scope=Scope.REQUEST) as request_container:
         assert request_container.scope == Scope.REQUEST
 
 
 async def test_container_async_context_manager() -> None:
-    async with Container() as container:
+    cleaned_up: list[str] = []
+
+    async def collect(value: str) -> None:
+        cleaned_up.append(value)
+
+    class G(Group):
+        resource = providers.Factory(
+            creator=lambda: "r",
+            bound_type=str,
+            cache_settings=providers.CacheSettings(finalizer=collect),
+        )
+
+    async with Container(groups=[G]) as container:
         assert container.scope == Scope.APP
+        assert container.resolve(str) == "r"
+    assert cleaned_up == ["r"]
 
     async with container.build_child_container(scope=Scope.REQUEST) as request_container:
         assert request_container.scope == Scope.REQUEST

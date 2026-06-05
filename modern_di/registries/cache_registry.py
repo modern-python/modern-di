@@ -10,27 +10,31 @@ class CacheItem:
     settings: CacheSettings[typing.Any] | None
     cache: typing.Any = types.UNSET
     kwargs_compiled: bool = False
+    finalized: bool = False
     provider_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
     static_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:
             self.cache = types.UNSET
+            self.finalized = False
 
     async def close_async(self) -> None:
-        if self.cache is not types.UNSET and self.settings and self.settings.finalizer:
+        if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
                 await self.settings.finalizer(self.cache)  # ty: ignore[invalid-await]
             else:
                 self.settings.finalizer(self.cache)
+            self.finalized = True
 
         self._clear()
 
     def close_sync(self) -> None:
-        if self.cache is not types.UNSET and self.settings and self.settings.finalizer:
+        if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
                 raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
             self.settings.finalizer(self.cache)
+            self.finalized = True
 
         self._clear()
 
