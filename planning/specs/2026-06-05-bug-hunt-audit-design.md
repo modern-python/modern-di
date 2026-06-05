@@ -16,7 +16,7 @@ Every finding in the final report must:
 
 1. Name a specific `file:line` (or line range).
 2. Have been adversarially verified by at least 2 of 3 verifiers with distinct lenses.
-3. Carry a triage bucket (`must-fix-now`, `should-fix-soon`, `nice-to-have`, `spec-fix`, or `won't-fix-with-rationale`).
+3. Carry a triage bucket (`must-fix-now`, `should-fix-soon`, `nice-to-have`, `spec-fix`, or `wont-fix`).
 4. Be reproducible from the report alone — no need to re-derive the scenario from source.
 
 ## Scope
@@ -160,7 +160,7 @@ The synth phase sorts surviving findings into these buckets:
 - **should-fix-soon** — high severity with 2/3 confirmation, OR medium-severity correctness/security with 3/3.
 - **nice-to-have** — UX rough edges, test weaknesses that don't currently mask known bugs, low-severity logic edges.
 - **spec-fix** — reclassified as `bug-in-spec` (code is correct, docs are wrong). Separate bucket because the fix is editing docs, not code.
-- **won't-fix-with-rationale** — survived verify but is intentional design per `CLAUDE.md` ("conservative feature set", "resolution is sync-only", etc.). Recorded so they don't resurface next audit.
+- **wont-fix** — survived verify but is intentional design per `CLAUDE.md` ("conservative feature set", "resolution is sync-only", etc.). Recorded with a rationale quoting the spec/CLAUDE.md line that endorses the behavior, so they don't resurface next audit.
 
 ## Deliverables
 
