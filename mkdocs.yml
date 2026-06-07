@@ -1,4 +1,5 @@
 site_name: modern-di
+site_url: https://modern-di.modern-python.online
 repo_url: https://github.com/modern-python/modern-di
 docs_dir: docs
 edit_uri: edit/main/docs/

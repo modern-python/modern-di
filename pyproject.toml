@@ -27,7 +27,7 @@ module-root = ""
 
 [project.urls]
 repository = "https://github.com/modern-python/modern-di"
-docs = "https://modern-di.readthedocs.io"
+docs = "https://modern-di.modern-python.online"
 
 [dependency-groups]
 dev = [
