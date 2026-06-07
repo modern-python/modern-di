@@ -28,5 +28,7 @@ publish:
     uv build
     uv publish --token $PYPI_TOKEN
 
+# Force-pushes built site to gh-pages; CI runs this on push to main.
+# Manual invocation from a stale checkout will roll the live site back.
 docs-deploy:
     uvx --with-requirements docs/requirements.txt mkdocs gh-deploy --force
