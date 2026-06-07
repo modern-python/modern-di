@@ -27,3 +27,6 @@ publish:
     uv version $GITHUB_REF_NAME
     uv build
     uv publish --token $PYPI_TOKEN
+
+docs-deploy:
+    uvx --with-requirements docs/requirements.txt mkdocs gh-deploy --force

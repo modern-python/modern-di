@@ -32,7 +32,7 @@ Browse the full list of templates and libraries in
 [`modern-python`](https://github.com/modern-python) — see the org profile for the
 categorized index.
 
-## 📚 [Documentation](https://modern-di.modern-python.online)
+## 📚 [Documentation](https://modern-di.modern-python.org)
 
 ## 📦 [PyPi](https://pypi.org/project/modern-di)
 

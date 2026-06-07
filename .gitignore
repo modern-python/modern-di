@@ -20,3 +20,4 @@ dist/
 .venv
 uv.lock
 plan.md
+site/
