@@ -29,7 +29,7 @@ PROVIDER_DUPLICATE_TYPE_ERROR = (
     "To resolve this issue:\n"
     "1. Set bound_type=None on one of the providers to make it unresolvable by type\n"
     "2. Explicitly pass dependencies via the kwargs parameter to avoid automatic resolution\n"
-    "See https://modern-di.modern-python.online/latest/troubleshooting/duplicate-type-error/ for more details"
+    "See https://modern-di.modern-python.org/troubleshooting/duplicate-type-error/ for more details"
 )
 ALIAS_SOURCE_NOT_REGISTERED_ERROR = (
     "Alias source type {source_type} is not registered in providers registry. "
