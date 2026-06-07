@@ -8,7 +8,7 @@
 
 **Tech Stack:** MkDocs 1.6.x + mkdocs-material (already configured in `mkdocs.yml` and `docs/requirements.txt`); GitHub Actions; `uvx` for local mkdocs invocation (project does not depend on mkdocs in its uv lockfile).
 
-**Reference spec:** `docs/superpowers/specs/2026-06-07-mkdocs-github-pages-migration-design.md`
+**Reference spec:** `planning/specs/2026-06-07-mkdocs-github-pages-migration-design.md`
 
 ---
 
@@ -414,7 +414,7 @@ gh pr create --title "Migrate docs hosting from Read the Docs to GitHub Pages" -
 - Finalizes the `.online` → `.org` subdomain rename across `README.md`, `pyproject.toml`, `mkdocs.yml`, and `modern_di/errors.py`.
 - Leaves `.readthedocs.yaml` in place; a follow-up PR will remove it once the new setup is verified.
 
-See full design rationale in `docs/superpowers/specs/2026-06-07-mkdocs-github-pages-migration-design.md`.
+See full design rationale in `planning/specs/2026-06-07-mkdocs-github-pages-migration-design.md`.
 
 ## Post-merge steps (manual)
 
