@@ -25,7 +25,7 @@ The package itself has zero runtime dependencies, so only dev/lint deps can prod
 - **Failure notification:** Open or update a single rolling GitHub issue labeled `scheduled-failure`, owned by `github-actions[bot]`. First failure opens the issue. Subsequent failures while the issue is open add a comment with the new run URL. Maintainer closes the issue after fixing; the next failure starts a fresh one.
 - **Workflow_dispatch failures do NOT report.** The issue logic is guarded by `github.event_name == 'schedule'`, so manual test runs don't self-spam.
 - **Tooling:** Use the `gh` CLI (preinstalled on `ubuntu-latest`) for issue management. No third-party action.
-- **Permissions:** Default workflow permissions stay read-only; the `report-failure` job alone declares `permissions: issues: write`.
+- **Permissions:** Default workflow permissions stay read-only; the `report-failure` job alone declares `permissions: contents: read, issues: write`. (`contents: read` is required for `actions/checkout` because declaring any job-level `permissions:` block zeroes out unspecified scopes.)
 - **Concurrency:** `scheduled.yml` uses `cancel-in-progress: false` (a queued cron must never cancel another), distinct from `ci.yml`'s cancel-on-new-push behavior.
 - **No new top-level skills, deps, or repo conventions.** Only `.github/workflows/` + one helper shell script.
 
@@ -121,6 +121,7 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       issues: write
     steps:
       - uses: actions/checkout@v4
@@ -177,14 +178,14 @@ Script is checked in as executable. Behavior:
 - **Issue auto-close on success.** If the issue is open and the next scheduled run passes, the issue stays open until the maintainer closes it manually. Auto-close was considered and rejected as overreach — a green run doesn't prove the underlying breakage was actually addressed; it might just mean the upstream dep was reverted.
 - **Bisecting which dep caused the breakage.** The issue body points the maintainer at `just install` to reproduce locally; they can `uv lock` diff from there.
 
-## Testing the workflow before merging
+## Testing the workflow
 
-Two pre-merge validations:
+**Pre-merge: only `ci.yml` can be exercised.** GitHub requires `workflow_dispatch` workflows to exist on the default branch before they can be dispatched, so `scheduled.yml` itself cannot be triggered from the topic branch. The refactored `ci.yml` does run on the PR via `pull_request`, which fully validates the reusable-workflow extraction.
 
-1. **Green path:** Push the branch, then trigger `scheduled.yml` from the Actions tab via `workflow_dispatch`. Confirm the `checks` job passes and the `report-failure` job is skipped (no issue created — manual dispatch is event-guarded out).
-2. **Red path:** On the branch, temporarily change `just install lint-ci` to `just install lint-ci && false` in `_checks.yml`. Push, trigger `workflow_dispatch`, observe — still no issue (dispatch is guarded). Then temporarily swap the guard to `if: failure()` (no event check), dispatch again, confirm the issue opens with the right body. Revert both temporary edits before merging.
+**Post-merge validations:**
 
-Alternative for step 2: open a PR that intentionally fails lint to confirm the refactored `ci.yml` still works end-to-end via `_checks.yml`.
+1. **Green path:** Trigger `scheduled-dep-check` from the Actions tab via `workflow_dispatch` (or `gh workflow run scheduled.yml`). Confirm the `checks` job passes and the `report-failure` job is skipped (no issue created — manual dispatch is event-guarded out).
+2. **Red path (optional but recommended):** In a follow-up branch, temporarily change `just install lint-ci` to `just install lint-ci && false` in `_checks.yml` AND swap the report-failure guard to `if: failure()` (no event check). Merge that to default branch, dispatch, confirm the issue opens with the right body. Then dispatch again and confirm a comment appears on the same issue rather than a new one. Revert both temporary edits via another PR.
 
 ## Success criteria
 
