@@ -9,9 +9,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v2
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v6
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v8.2.0
       - run: just publish
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
