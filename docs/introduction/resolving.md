@@ -1,57 +1,52 @@
-# Resolving Dependencies
+# Resolving dependencies
 
-Dependencies can be resolved in two ways:
+`modern-di` exposes two ways to resolve a dependency:
 
-1. **By provider reference** - Using `container.resolve_provider(provider)`
-2. **By type** - Using `container.resolve(SomeType)`
+- **By type** — `container.resolve(SomeType)`. The resolver finds the provider whose `bound_type` matches `SomeType`. This is what handlers and creator signatures normally use.
+- **By provider reference** — `container.resolve_provider(Dependencies.some_provider)`. Resolves a specific provider directly, skipping the type lookup. Useful in tests and when two providers produce the same type.
 
-When resolving by type, the container looks for a provider whose `bound_type` matches the requested type.
-By default, the `bound_type` is automatically inferred from the creator's return type annotation.
+In practice, prefer resolution by type — it lets the same code work whether you swap implementations via subclassing, `Alias`, or `override`. Reach for `resolve_provider` only when type-based resolution would be ambiguous.
 
-## Resolving of Sub Dependencies
+## Automatic sub-dependency resolution
 
-One of the key features of `Modern-DI` since 2.x version is the automatic resolution of sub dependencies through type annotations.
-`Modern-DI` automatically analyzes the creator function or class constructor to identify its parameter types and attempts to resolve them from registered providers.
-
-### How It Works
-
-When a factory is created:
-
-1. Modern-DI parses the creator's signature to identify parameter names and types
-2. For each parameter with a type annotation, it searches for a registered provider that matches by parameter type.
-3. If a matching provider is found, it's automatically injected when the factory is resolved
-4. If no matching provider is found and no default value is provided, an error is raised
-
-For union-typed parameters (e.g. `dep: A | B`), the first type in the union that has a registered provider is used. If you need a specific type injected, use a concrete type annotation or supply the value explicitly via `kwargs`.
-
-Example:
+A `Factory`'s creator function or class constructor is introspected at declaration time. For each parameter with a type annotation, the resolver looks for a provider whose `bound_type` matches and injects the resolved value. Parameters with default values fall back to those defaults if no provider matches.
 
 ```python
 import dataclasses
-from modern_di import Group, Container, Scope, providers
+from modern_di import Container, Group, Scope, providers
+
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class DatabaseConfig:
     host: str
     port: int
 
+
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class DatabaseConnection:
-    config: DatabaseConfig  # Automatically resolved by type
-    timeout: int = 30  # Uses default value
+    config: DatabaseConfig    # auto-resolved by type
+    timeout: int = 30         # uses default if unresolvable
+
 
 class Dependencies(Group):
     db_config = providers.Factory(
         creator=DatabaseConfig,
-        kwargs={"host": "localhost", "port": 5432}
+        kwargs={"host": "localhost", "port": 5432},
     )
-    db_connection = providers.Factory(
-        creator=DatabaseConnection
-    )
+    db_connection = providers.Factory(creator=DatabaseConnection)
 
-container = Container(groups=[Dependencies])
+
+container = Container(groups=[Dependencies], validate=True)
+
 connection = container.resolve(DatabaseConnection)
-assert isinstance(connection.config, DatabaseConfig)
 assert connection.config.host == "localhost"
 assert connection.timeout == 30
 ```
+
+For union-typed parameters (`dep: A | B`), the resolver picks the *first* type in the union that has a registered provider. If you need a specific one, use a concrete annotation or pass the value explicitly via `kwargs`.
+
+## See also
+
+- [Scopes](../providers/scopes.md) — the scope chain governs which container resolves which provider.
+- [Lifecycle](../providers/lifecycle.md) — `Container(validate=True)` catches resolution problems at startup.
+- [Factories: `bound_type`](../providers/factories.md) — how the type lookup key is set, and how to opt out.

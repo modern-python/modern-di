@@ -42,6 +42,16 @@ Children share their parent's `providers_registry` (provider definitions) and `o
 
 Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state. `Container(groups=[...], validate=True)` enforces this at startup — turn it on.
 
+### How to choose a scope
+
+A provider's scope should be the **maximum** scope value among all its dependencies (i.e. the shortest-lived one). Examples:
+
+- A provider depends on an APP-scoped engine and a REQUEST-scoped session → REQUEST.
+- A provider has no dependencies → APP (the default).
+- A provider depends only on APP-scoped providers → APP.
+
+If you pick a broader scope than the rule allows, `validate=True` catches it at startup.
+
 ## Building child containers
 
 Two patterns:
@@ -71,6 +81,29 @@ session: AsyncSession = request_container.resolve(AsyncSession)  # local to REQU
 ```
 
 Trying to resolve a REQUEST-scoped provider from an APP container raises a clear error — the request container hasn't been built yet, so there's nothing to resolve into.
+
+## Custom scopes
+
+For non-standard lifecycles (per-tenant containers, background-job runs, anything that doesn't fit the built-in five), pass any `IntEnum` value where `Scope` is accepted:
+
+```python
+from enum import IntEnum
+from modern_di import Container, providers
+
+
+class MyScope(IntEnum):
+    TENANT = 6
+    BACKGROUND_JOB = 7
+
+
+tenant_provider = providers.Factory(scope=MyScope.TENANT, creator=...)
+
+container = Container(groups=[MyGroup])
+with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
+    ...
+```
+
+The child scope's integer value must be strictly greater than its parent's. When `scope=` is omitted from `build_child_container`, the auto-derived next scope only advances within the parent's own enum class — to cross enum boundaries (e.g. jump from a built-in `Scope` to `MyScope.TENANT`), pass `scope=` explicitly.
 
 ## See also
 

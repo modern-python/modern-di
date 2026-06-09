@@ -26,8 +26,10 @@ class Database(Group):
 
 # Infrastructure: cache
 class Cache(Group):
-    redis_client = providers.ContextProvider(
-        scope=Scope.APP, context_type=aioredis.Redis,
+    redis_client = providers.Factory(
+        scope=Scope.APP,
+        creator=create_redis,
+        cache_settings=providers.CacheSettings(finalizer=close_redis),
     )
 
 
@@ -38,7 +40,7 @@ class Repositories(Group):
 
 
 class UseCases(Group):
-    # PlaceOrder signature: (users: UserRepository, orders: OrderRepository, cache: aioredis.Redis)
+    # PlaceOrder signature: (users: UserRepository, orders: OrderRepository, cache: redis.asyncio.Redis)
     place_order = providers.Factory(scope=Scope.REQUEST, creator=PlaceOrder)
     cancel_order = providers.Factory(scope=Scope.REQUEST, creator=CancelOrder)
 

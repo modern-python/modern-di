@@ -1,6 +1,6 @@
 # Async resources via lifespan
 
-**Problem.** A resource needs `await` to construct — a Redis pool, a Kafka producer, an authenticated HTTP client, anything that does I/O at startup. `modern-di` resolves synchronously, so the construction has to happen outside the resolve path.
+**Problem.** A resource genuinely needs an `await` (or a running event loop) to construct — `aiohttp.ClientSession`, an `asyncpg` connection pool, an authenticated client whose construction does a token exchange. `modern-di` resolves synchronously, so the construction has to happen outside the resolve path.
 
 ## Solution
 
@@ -10,21 +10,21 @@ Do the async construction in the framework's lifespan. Use `container.set_contex
 import contextlib
 from collections.abc import AsyncIterator
 
+import aiohttp
 import fastapi
-import redis.asyncio as aioredis
 from modern_di import Container, Group, Scope, providers
 
 
 class Dependencies(Group):
-    redis_client = providers.ContextProvider(
+    http_client = providers.ContextProvider(
         scope=Scope.APP,
-        context_type=aioredis.Redis,
+        context_type=aiohttp.ClientSession,
     )
 
-    # Downstream factories declare `client: aioredis.Redis` and get the live instance
-    cache = providers.Factory(
+    # Downstream factories declare `client: aiohttp.ClientSession` and get the live instance
+    weather_api = providers.Factory(
         scope=Scope.REQUEST,
-        creator=CacheService,            # signature: (client: aioredis.Redis)
+        creator=WeatherApi,            # signature: (client: aiohttp.ClientSession)
     )
 
 
@@ -34,29 +34,29 @@ container = Container(groups=[Dependencies], validate=True)
 @contextlib.asynccontextmanager
 async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
     async with container:                                          # ensures close_async on exit
-        client = aioredis.Redis.from_url("redis://localhost")
-        container.set_context(aioredis.Redis, client)
-        try:
+        async with aiohttp.ClientSession() as session:             # must be inside running loop
+            container.set_context(aiohttp.ClientSession, session)
             yield
-        finally:
-            await client.aclose()
+        # ClientSession is closed by `async with` here
 
 
 app = fastapi.FastAPI(lifespan=lifespan)
 ```
 
-The same pattern works for Kafka producers, async HTTP clients with auth tokens, anything that needs `await` at startup.
+`aiohttp.ClientSession` captures the running event loop at construction time, so it has to be built inside an async context — which the lifespan provides.
+
+The same pattern works for `asyncpg.create_pool(...)` (truly async), authenticated API clients that do a token exchange at startup, or anything else that needs `await` to be ready.
 
 ## Pitfalls
 
 - **Set context *before* yielding.** The lifespan hands control to the app inside the `yield`. If you `set_context` after yielding, requests that arrive in between won't see the value.
 - **`set_context` does not propagate to existing children.** If you already built a REQUEST child container, calling `set_context` on the parent after the fact won't reach it. In the lifespan pattern above this is fine — child containers are created per request *after* lifespan startup completes.
 - **Choose APP scope unless the resource is per-connection.** Redis/Kafka clients are process-singletons. For per-websocket-session resources, use `Scope.SESSION`.
-- **`async with container:` handles APP-scope finalizers.** If you also registered a `CacheSettings(finalizer=...)` somewhere, this runs it on exit. Explicit `await client.aclose()` is for the lifespan-managed object that isn't wrapped by a Factory.
+- **`async with container:` handles APP-scope finalizers.** If you also registered a `CacheSettings(finalizer=...)` somewhere, this runs it on exit. The lifespan-managed object isn't wrapped by a Factory, so its cleanup (`async with aiohttp.ClientSession()` in the example) is on you.
 
 ## When a sync creator works instead
 
-Many async-flavored resources are actually constructed synchronously — `redis.asyncio.Redis.from_url(...)` and `sqlalchemy.ext.asyncio.create_async_engine(...)` both return without awaiting. For those, prefer a normal `Factory` with `cache_settings=CacheSettings(finalizer=async_close_fn)` and skip the lifespan + `set_context` dance entirely. Use this recipe only when construction genuinely requires `await`.
+Many "async" resources actually construct synchronously — `redis.asyncio.Redis.from_url(...)`, `sqlalchemy.ext.asyncio.create_async_engine(...)`, and `httpx.AsyncClient(...)` all return without awaiting. For those, prefer a normal `Factory` with `cache_settings=CacheSettings(finalizer=async_close_fn)` and skip the lifespan + `set_context` dance entirely. Use this recipe only when construction genuinely needs `await` or a running event loop.
 
 ## See also
 

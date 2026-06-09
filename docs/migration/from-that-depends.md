@@ -301,7 +301,7 @@ engine = providers.Factory(
 )
 ```
 
-### Async creator (e.g. `await create_redis_pool()`)
+### Async creator (e.g. `aiohttp.ClientSession`, `await asyncpg.create_pool(...)`)
 
 Do the async work in the framework's lifespan, then inject the result as context. `set_context` registers the live object so `ContextProvider` (or type-based resolution) can return it:
 
@@ -309,13 +309,13 @@ Do the async work in the framework's lifespan, then inject the result as context
 import contextlib
 from collections.abc import AsyncIterator
 
+import aiohttp
 import fastapi
-import redis.asyncio as aioredis
 from modern_di import Container, Group, Scope, providers
 
 
 class Dependencies(Group):
-    redis_client = providers.ContextProvider(scope=Scope.APP, context_type=aioredis.Redis)
+    http_client = providers.ContextProvider(scope=Scope.APP, context_type=aiohttp.ClientSession)
 
 
 container = Container(groups=[Dependencies])
@@ -323,19 +323,16 @@ container = Container(groups=[Dependencies])
 
 @contextlib.asynccontextmanager
 async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
-    async with container:                    # runs close_async on exit
-        client = aioredis.Redis.from_url("redis://localhost")
-        container.set_context(aioredis.Redis, client)
-        try:
+    async with container:                              # runs close_async on exit
+        async with aiohttp.ClientSession() as session:  # must be inside running loop
+            container.set_context(aiohttp.ClientSession, session)
             yield
-        finally:
-            await client.aclose()
 
 
 app = fastapi.FastAPI(lifespan=lifespan)
 ```
 
-Downstream factories declare `client: aioredis.Redis` as a parameter and get the live instance via type-based resolution.
+Downstream factories declare `client: aiohttp.ClientSession` as a parameter and get the live instance via type-based resolution. Use this pattern for `aiohttp.ClientSession`, `asyncpg.create_pool`, or any resource whose constructor genuinely requires `await` or a running event loop. Resources that *look* async but construct synchronously (`redis.asyncio.Redis.from_url`, `sqlalchemy.ext.asyncio.create_async_engine`, `httpx.AsyncClient`) are better expressed as the previous case — sync creator with an async finalizer.
 
 ### Per-request async construction
 
