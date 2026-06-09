@@ -7,10 +7,39 @@
 Split providers into multiple `Group` subclasses by domain — database, cache, messaging, use cases — and pass them all to `Container(groups=[...])`. Cross-group dependencies wire by type, with no explicit references between groups.
 
 ```python
+import redis.asyncio as aioredis
+import sqlalchemy.ext.asyncio as sa_async
 from modern_di import Container, Group, Scope, providers
 
 
-# Infrastructure: database
+# --- factory functions (defined once, shared across groups) ---
+
+def create_engine() -> sa_async.AsyncEngine:
+    return sa_async.create_async_engine("postgresql+asyncpg://localhost/app")
+
+
+async def close_engine(engine: sa_async.AsyncEngine) -> None:
+    await engine.dispose()
+
+
+def create_session(engine: sa_async.AsyncEngine) -> sa_async.AsyncSession:
+    return sa_async.AsyncSession(engine, expire_on_commit=False)
+
+
+async def close_session(session: sa_async.AsyncSession) -> None:
+    await session.close()
+
+
+def create_redis() -> aioredis.Redis:
+    return aioredis.Redis.from_url("redis://localhost")
+
+
+async def close_redis(client: aioredis.Redis) -> None:
+    await client.aclose()
+
+
+# --- groups ---
+
 class Database(Group):
     engine = providers.Factory(
         scope=Scope.APP,
@@ -24,7 +53,6 @@ class Database(Group):
     )
 
 
-# Infrastructure: cache
 class Cache(Group):
     redis_client = providers.Factory(
         scope=Scope.APP,
@@ -33,14 +61,14 @@ class Cache(Group):
     )
 
 
-# Domain
 class Repositories(Group):
+    # UserRepository signature: (session: AsyncSession)
     users = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
     orders = providers.Factory(scope=Scope.REQUEST, creator=OrderRepository)
 
 
 class UseCases(Group):
-    # PlaceOrder signature: (users: UserRepository, orders: OrderRepository, cache: redis.asyncio.Redis)
+    # PlaceOrder signature: (users: UserRepository, orders: OrderRepository, cache: aioredis.Redis)
     place_order = providers.Factory(scope=Scope.REQUEST, creator=PlaceOrder)
     cancel_order = providers.Factory(scope=Scope.REQUEST, creator=CancelOrder)
 

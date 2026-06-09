@@ -25,7 +25,7 @@
 2. Apply this code example to your application:
 
 ```python
-import datetime
+import dataclasses
 import typing
 
 import modern_di
@@ -34,42 +34,53 @@ import typer
 from modern_di import Container, Group, Scope, providers
 
 
-app = typer.Typer()
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    environment: str = "production"
 
 
-def create_singleton() -> datetime.datetime:
-    return datetime.datetime.now(tz=datetime.timezone.utc)
+@dataclasses.dataclass(kw_only=True, slots=True)
+class HealthReporter:
+    settings: Settings    # auto-injected by type
+
+    def report(self) -> str:
+        return f"healthy in {self.settings.environment}"
 
 
 class AppGroup(Group):
-    singleton = providers.Factory(
+    settings = providers.Factory(
         scope=Scope.APP,
-        creator=create_singleton,
-        cache_settings=providers.CacheSettings()
+        creator=Settings,
+        cache_settings=providers.CacheSettings(),
+    )
+    health_reporter = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=HealthReporter,
     )
 
 
-ALL_GROUPS = [AppGroup]
-
-container = Container(groups=ALL_GROUPS)
+app = typer.Typer()
+container = Container(groups=[AppGroup], validate=True)
 modern_di_typer.setup_di(app, container)
 
 
 @app.command()
 @modern_di_typer.inject
-def my_command(
-    instance: typing.Annotated[
-        datetime.datetime,
-        modern_di_typer.FromDI(datetime.datetime),  # Resolve by type instead of provider
+def status(
+    reporter: typing.Annotated[
+        HealthReporter,
+        modern_di_typer.FromDI(HealthReporter),    # resolve by type
     ],
 ) -> None:
-    typer.echo(instance)
+    typer.echo(reporter.report())
 
 
 if __name__ == "__main__":
-    with container:
+    with container:                                # runs APP-scope finalizers on exit
         app()
 ```
+
+`@modern_di_typer.inject` builds a `REQUEST` child container for each command invocation and resolves `FromDI`-annotated parameters from it. The outer `with container:` ensures APP-scope finalizers run when the CLI exits.
 
 ## Action scope
 

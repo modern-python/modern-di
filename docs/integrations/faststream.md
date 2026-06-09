@@ -25,7 +25,7 @@
 2. Apply this code example to your application:
 
 ```python
-import datetime
+import dataclasses
 import typing
 
 import faststream
@@ -34,94 +34,109 @@ import modern_di_faststream
 from modern_di import Container, Group, Scope, providers
 
 
-broker = NatsBroker()
-app = faststream.FastStream(broker=broker)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    feature_flag: bool = False
 
 
-def create_singleton() -> datetime.datetime:
-    return datetime.datetime.now(tz=datetime.timezone.utc)
+@dataclasses.dataclass(kw_only=True, slots=True)
+class OrderProcessor:
+    settings: Settings        # auto-injected by type
+
+    def process(self, payload: dict) -> dict:
+        return {"ok": True, "feature_flag": self.settings.feature_flag}
 
 
 class AppGroup(Group):
-    singleton = providers.Factory(
+    settings = providers.Factory(
         scope=Scope.APP,
-        creator=create_singleton,
-        cache_settings=providers.CacheSettings()
+        creator=Settings,
+        cache_settings=providers.CacheSettings(),
+    )
+    order_processor = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=OrderProcessor,
     )
 
 
-# Register your groups
-ALL_GROUPS = [AppGroup]
+broker = NatsBroker()
+app = faststream.FastStream(broker=broker)
 
-# Setup DI with your groups
-modern_di_faststream.setup_di(app, Container(groups=ALL_GROUPS))
+modern_di_faststream.setup_di(app, Container(groups=[AppGroup], validate=True))
 
 
-@broker.subscriber("in")
-async def read_root(
-    instance: typing.Annotated[
-        datetime.datetime,
-        modern_di_faststream.FromDI(datetime.datetime),  # Resolve by type instead of provider
+@broker.subscriber("orders.in")
+async def handle_order(
+    payload: dict,
+    processor: typing.Annotated[
+        OrderProcessor,
+        modern_di_faststream.FromDI(OrderProcessor),    # resolve by type
     ],
-) -> datetime.datetime:
-    return instance
-
+) -> dict:
+    return processor.process(payload)
 ```
 
-## Framework Context Objects
+## Scopes
 
-Framework-specific context objects like `faststream.StreamMessage` are automatically made available by the integration.
-You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
+The integration creates a `Scope.REQUEST` child container **for each message** the subscriber receives. REQUEST-scoped providers (and their finalizers) live for the duration of that one message; APP-scoped providers persist for the whole process. At app shutdown, the integration runs `await container.close_async()` on the APP container.
 
-The following context provider is available for import:
-- `faststream_message_provider` - Provides the current `faststream.StreamMessage` object
+There is no `Scope.SESSION` for FastStream — message brokers don't have a session concept comparable to websockets.
 
-### Implicit Usage (Type-based Resolution)
+## Framework context objects
 
-In many cases, you can rely on automatic dependency resolution based on type annotations:
+`faststream.StreamMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the current message.
+
+The following context provider is also available for explicit import:
+
+- `faststream_message_provider` — provides the current `faststream.StreamMessage` object.
+
+### Implicit (type-based) usage
 
 ```python
 import faststream
 from modern_di import Group, Scope, providers
 
+
 def create_message_info(message: faststream.StreamMessage) -> dict[str, str]:
     return {
         "message_id": str(message.message_id),
         "processed": str(message.processed),
-        "timestamp": "2023-01-01T00:00:00Z"
     }
 
 
 class AppGroup(Group):
-    # Factory automatically resolves the message dependency based on type annotation
+    # The message dependency is resolved by type annotation
     message_info = providers.Factory(
         scope=Scope.REQUEST,
         creator=create_message_info,
     )
 ```
 
-### Explicit Usage (Provider-based Resolution)
-
-For more control, you can explicitly reference the context provider:
+### Explicit (provider-based) usage
 
 ```python
 import faststream
 import modern_di_faststream
 from modern_di import Group, Scope, providers
 
+
 def create_message_info(message: faststream.StreamMessage) -> dict[str, str]:
-    return {
-        "message_id": str(message.message_id),
-        "processed": str(message.processed),
-        "timestamp": "2023-01-01T00:00:00Z"
-    }
+    return {"message_id": str(message.message_id)}
 
 
 class AppGroup(Group):
-    # Factory explicitly uses the message provider from the integration
     message_info = providers.Factory(
         scope=Scope.REQUEST,
         creator=create_message_info,
-        kwargs={"message": modern_di_faststream.faststream_message_provider}
+        kwargs={"message": modern_di_faststream.faststream_message_provider},
     )
 ```
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `setup_di(app, container)` | Wire the APP-scope container into FastStream — creates a REQUEST child container per message and closes the APP container at shutdown. |
+| `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in subscriber signatures; accepts a provider instance or a plain type. |
+| `fetch_di_container(app)` | Returns the APP-scope container registered with the FastStream app. |
+| `faststream_message_provider` | `ContextProvider` for the current `faststream.StreamMessage`. |
