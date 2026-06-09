@@ -8,14 +8,7 @@ When creating a Factory provider, you can configure several parameters:
 
 ### scope
 
-Defines the lifecycle of the dependency. Available scopes are:
-- `Scope.APP` - Tied to the entire application lifetime (default)
-- `Scope.SESSION` - For websocket session lifetime
-- `Scope.REQUEST` - For dependencies created for each user request
-- `Scope.ACTION` - For lifetime less than request
-- `Scope.STEP` - For lifetime less than ACTION
-
-Providers can have dependencies only of the same or more long-lived scopes.
+Defines the lifecycle of the dependency. Defaults to `Scope.APP`. The available scopes are `APP → SESSION → REQUEST → ACTION → STEP`; see [Scopes](scopes.md) for the full mental model and the dependency rule.
 
 ### creator
 
@@ -36,8 +29,7 @@ Use this to provide specific values for parameters or override automatically res
 
 ### cache_settings
 
-Configuration for caching instances. Only applicable for cached factories.
-Use `providers.CacheSettings()` to enable caching with optional cleanup configuration.
+Configuration for caching instances. Only applicable for cached factories. Use `providers.CacheSettings()` to enable caching with optional cleanup configuration. See [Lifecycle](lifecycle.md) for how caching, finalizers, and `close_async()` fit together.
 
 ### Union type parameters
 

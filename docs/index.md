@@ -11,18 +11,18 @@ Welcome to the `modern-di` documentation!
 - Fully typed and tested
 - Integrations with `FastAPI`, `FastStream`, `LiteStar`, `Typer`, and `pytest`
 
-Usage examples:
+Reference templates:
 
-- with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
-- with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
+- LiteStar — [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- FastAPI — [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
+
+For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqlalchemy.md) section.
 
 ---
 
 # Quickstart
 
-## 1. Install `modern-di` using your favorite tool:
-
-If you need only `modern-di` without integrations:
+## 1. Install `modern-di`
 
 === "uv"
 
@@ -42,94 +42,85 @@ If you need only `modern-di` without integrations:
     poetry add modern-di
     ```
 
-If you need to integrate with `fastapi` or `litestar`, then install `modern-di-fastapi` or `modern-di-litestar` accordingly.
+If you want a framework integration, install the matching adapter — e.g. `modern-di-fastapi`, `modern-di-litestar`, `modern-di-faststream`, `modern-di-typer`. For pytest support, install `modern-di-pytest`.
 
-## 2. Describe resources and classes:
+## 2. Describe your dependencies
+
+Two providers, two scopes: a `Settings` shared by the whole process, and a `UserRepository` rebuilt per request.
+
 ```python
 import dataclasses
-import logging
-import typing
-
-
-logger = logging.getLogger(__name__)
-
-
-def create_singleton() -> str:
-    return "some string"
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class SimpleFactory:
-    dep1: str
-    dep2: int
+class Settings:
+    database_url: str = "postgresql+asyncpg://localhost/app"
 
 
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class DependentFactory:
-    simple_factory: SimpleFactory
-    singleton: str
+@dataclasses.dataclass(kw_only=True, slots=True)
+class UserRepository:
+    settings: Settings    # auto-injected by type
+
+    def find(self, user_id: int) -> dict[str, int]:
+        return {"id": user_id}
 ```
 
-## 3. Describe dependencies groups
+## 3. Declare a Group
+
+A `Group` is a namespace that lists your providers. You instantiate a `Container` from it; the `Group` itself is schema only.
 
 ```python
 from modern_di import Group, Scope, providers
 
 
 class Dependencies(Group):
-    singleton = providers.Factory(
-        scope=Scope.APP,  # scope is APP by default, can be missing
-        creator=create_singleton,
-        cache_settings=providers.CacheSettings()
+    settings = providers.Factory(
+        scope=Scope.APP,                          # APP is the default
+        creator=Settings,
+        cache_settings=providers.CacheSettings(),  # one Settings for the whole app
     )
 
-    # relation between dependent_factory and simple_factory will be defined based on type annotations
-    simple_factory = providers.Factory(
-        scope=Scope.REQUEST,
-        creator=SimpleFactory,
-        kwargs={"dep1": "text", "dep2": 123}
-    )
-    dependent_factory = providers.Factory(
-        scope=Scope.REQUEST,
-        creator=DependentFactory,
+    user_repository = providers.Factory(
+        scope=Scope.REQUEST,                       # rebuilt for each request
+        creator=UserRepository,
     )
 ```
 
 ## 4.1. Integrate with your framework
 
-For now there are integrations for the following frameworks:
+Pick the integration you need:
 
-1. [FastAPI](integrations/fastapi)
-2. [FastStream](integrations/faststream)
-3. [LiteStar](integrations/litestar)
-4. [Typer](integrations/typer)
-5. [Pytest](integrations/pytest)
+- [FastAPI](integrations/fastapi.md)
+- [FastStream](integrations/faststream.md)
+- [LiteStar](integrations/litestar.md)
+- [Typer](integrations/typer.md)
+- [Pytest](integrations/pytest.md)
 
-## 4.2. Or use `modern-di` without integrations
+The integration package builds the per-request child container automatically and closes the APP container at shutdown.
 
-Create a container and resolve dependencies in your code
+## 4.2. Or use `modern-di` directly
+
 ```python
 from modern_di import Container, Scope
 
 
-ALL_GROUPS = [Dependencies]
+async def main() -> None:
+    # Pass validate=True to detect cycles and scope-chain errors at startup
+    async with Container(groups=[Dependencies], validate=True) as container:
+        # APP-scoped providers resolve straight from the container
+        settings = container.resolve(Settings)
 
-# Initialize container of app scope
-# Pass validate=True to detect circular dependencies at startup
-container = Container(groups=ALL_GROUPS, validate=True)
+        # REQUEST-scoped providers need a REQUEST child container
+        async with container.build_child_container(scope=Scope.REQUEST) as request:
+            repo = request.resolve(UserRepository)
+            user = repo.find(42)
 
-# Resolve provider
-instance1 = container.resolve_provider(Dependencies.singleton)
-
-# You can also resolve by type if you've registered groups
-instance2 = container.resolve(str)  # resolves the singleton
-
-# Create container of request scope
-with container.build_child_container(scope=Scope.REQUEST) as request_container:
-    # Resolve factories of request scope
-    instance3 = request_container.resolve_provider(Dependencies.simple_factory)
-    instance4 = request_container.resolve_provider(Dependencies.dependent_factory)
-    # Use your instances...
-# Finalizers run automatically on `with` exit. In async code, use
-# `async with container.build_child_container(...) as request_container:` instead.
+        # Request-scope finalizers ran on `async with` exit
+    # App-scope finalizers ran on the outer `async with` exit
 ```
+
+## Where to next
+
+- [Scopes](providers/scopes.md) — the APP → REQUEST lifetime model in one page.
+- [Lifecycle](providers/lifecycle.md) — finalizers, `close_async()`, validation.
+- [Recipes](recipes/sqlalchemy.md) — async SQLAlchemy, lifespan-managed resources, testing with overrides.

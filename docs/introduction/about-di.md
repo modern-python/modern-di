@@ -65,9 +65,7 @@ service = UserService(cache=MockCache())     # Testing
 
 ## Lifetime Management in DI
 
-Objects can have different lifetime cycles (singleton, scoped, transient).
-
-Here are examples in `modern-di`:
+Objects can have different lifetime cycles (singleton, scoped, transient). `modern-di` expresses this with [Scopes](../providers/scopes.md) — APP for process-wide singletons, REQUEST for per-request resources, and so on. Here are examples:
 
 ```python
 

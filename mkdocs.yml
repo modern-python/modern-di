@@ -9,6 +9,8 @@ nav:
       - About DI: introduction/about-di.md
       - Resolving: introduction/resolving.md
   - Providers:
+      - Scopes: providers/scopes.md
+      - Lifecycle: providers/lifecycle.md
       - Factories: providers/factories.md
       - Context: providers/context.md
       - Container: providers/container.md
@@ -19,6 +21,12 @@ nav:
       - Litestar: integrations/litestar.md
       - Typer: integrations/typer.md
       - Pytest: integrations/pytest.md
+  - Recipes:
+      - Async SQLAlchemy: recipes/sqlalchemy.md
+      - Async resources via lifespan: recipes/async-lifespan.md
+      - Multi-Group organization: recipes/multi-group.md
+      - Testing with overrides: recipes/testing-overrides.md
+      - Request-scoped engine selection: recipes/request-scoped-engine.md
   - Testing:
       - Fixtures: testing/fixtures.md
   - Troubleshooting:
