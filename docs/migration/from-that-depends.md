@@ -51,7 +51,7 @@ Framework integrations and the pytest helper live in separate packages — insta
 Three things change in how you think about the framework. Most migration confusion comes from these:
 
 - **`Group` is a schema, `Container` is the runtime.** In `that-depends`, a `BaseContainer` subclass is *both* the schema and the runtime — you resolve directly from the class. In `modern-di`, `Group` is a namespace-only class (you cannot instantiate it) and you create the runtime `Container(groups=[MyGroup])` separately, typically once at app start. All resolution, overrides, and lifecycle calls go through that `Container` instance.
-- **Resolution is sync-only.** `modern-di` does not have `AsyncFactory`, `AsyncSingleton`, or `await container.resolve(...)`. Async work happens in the framework's lifespan — see §6. There is no plan to add async resolution back.
+- **Resolution is sync-only.** `modern-di` does not have `AsyncFactory`, `AsyncSingleton`, or `await container.resolve(...)`. Async work happens in the framework's lifespan — see [§6](#6-async-resources). There is no plan to add async resolution back.
 - **Scopes are explicit.** `Scope.APP → SESSION → REQUEST → ACTION → STEP`. A provider can only depend on providers of equal-or-broader scope (a `REQUEST`-scoped provider may depend on `APP`-scoped providers, but not the other way around). Framework integrations create the per-request child container automatically.
 
 ## 3. Provider mapping
@@ -60,30 +60,30 @@ Use this table as the index for the rest of the guide.
 
 | `that-depends` | `modern-di` replacement | Where to look |
 |---|---|---|
-| `Factory` | `providers.Factory(...)` | §4 |
-| `Singleton` | `providers.Factory(..., cache_settings=CacheSettings())` | §4 |
-| `Resource` (sync gen / ctx mgr) | `providers.Factory(..., cache_settings=CacheSettings(finalizer=...))` | §4 |
-| `Resource` (async gen / ctx mgr) | Lifespan + `ContextProvider` (or sync creator + async finalizer) | §6 |
-| `ContextResource` | `providers.Factory(scope=Scope.REQUEST, ...)` | §5 |
-| `AsyncFactory` | Lifespan-managed; expose via `ContextProvider` | §6 |
-| `AsyncSingleton` | Lifespan-managed; expose via `ContextProvider` | §6 |
-| `Object` | `providers.Factory` with a creator that returns the value | §4 |
-| `List` | `providers.Factory` with a creator that returns a list | §4 |
-| `Dict` | `providers.Factory` with a creator that returns a dict | §4 |
-| `Selector` | No direct equivalent — see §10 |
-| `AttrGetter` (`provider.attr`) | No direct equivalent — see §10 |
-| `ThreadLocalSingleton` | No direct equivalent — see §10 |
-| `State` | `ContextProvider` + `set_context` | §5 |
-| `Provider.bind(Type)` | `providers.Alias(source_type=..., bound_type=...)` | §4 |
-| `@inject` + `Provide[T]()` (web) | `FromDI(T)` from the framework integration | §9 |
-| `@inject` + `Provide[T]()` (non-web) | Explicit `container.resolve(T)` | §10 |
-| `container_context()` | `container.build_child_container(scope=..., context=...)` | §5 |
-| `DIContextMiddleware` | `setup_di(app, container)` / `ModernDIPlugin(container)` | §8 |
-| `fetch_context_item` / `_by_type` | `ContextProvider(context_type=T)` | §5 |
-| `init_resources()` | Lazy initialization — no equivalent needed | §7 |
-| `tear_down()` / `tear_down_sync()` | `await container.close_async()` / `container.close_sync()` | §7 |
-| `container.override_providers_sync({...})` | `container.override(provider, mock)` | §7 |
-| `provider.override_sync(mock)` | `container.override(provider, mock)` | §7 |
+| `Factory` | `providers.Factory(...)` | [§4](#4-migrate-the-dependency-graph) |
+| `Singleton` | `providers.Factory(..., cache_settings=CacheSettings())` | [§4](#4-migrate-the-dependency-graph) |
+| `Resource` (sync gen / ctx mgr) | `providers.Factory(..., cache_settings=CacheSettings(finalizer=...))` | [§4](#4-migrate-the-dependency-graph) |
+| `Resource` (async gen / ctx mgr) | Lifespan + `ContextProvider` (or sync creator + async finalizer) | [§6](#6-async-resources) |
+| `ContextResource` | `providers.Factory(scope=Scope.REQUEST, ...)` | [§5](#5-context-resources-and-request-scope) |
+| `AsyncFactory` | Lifespan-managed; expose via `ContextProvider` | [§6](#6-async-resources) |
+| `AsyncSingleton` | Lifespan-managed; expose via `ContextProvider` | [§6](#6-async-resources) |
+| `Object` | `providers.Factory` with a creator that returns the value | [§4](#4-migrate-the-dependency-graph) |
+| `List` | `providers.Factory` with a creator that returns a list | [§4](#4-migrate-the-dependency-graph) |
+| `Dict` | `providers.Factory` with a creator that returns a dict | [§4](#4-migrate-the-dependency-graph) |
+| `Selector` | No direct equivalent — see [§10](#10-no-direct-equivalent) |
+| `AttrGetter` (`provider.attr`) | No direct equivalent — see [§10](#10-no-direct-equivalent) |
+| `ThreadLocalSingleton` | No direct equivalent — see [§10](#10-no-direct-equivalent) |
+| `State` | `ContextProvider` + `set_context` | [§5](#5-context-resources-and-request-scope) |
+| `Provider.bind(Type)` | `providers.Alias(source_type=..., bound_type=...)` | [§4](#4-migrate-the-dependency-graph) |
+| `@inject` + `Provide[T]()` (web) | `FromDI(T)` from the framework integration | [§9](#9-routes) |
+| `@inject` + `Provide[T]()` (non-web) | Explicit `container.resolve(T)` | [§10](#10-no-direct-equivalent) |
+| `container_context()` | `container.build_child_container(scope=..., context=...)` | [§5](#5-context-resources-and-request-scope) |
+| `DIContextMiddleware` | `setup_di(app, container)` / `ModernDIPlugin(container)` | [§8](#8-framework-integration) |
+| `fetch_context_item` / `_by_type` | `ContextProvider(context_type=T)` | [§5](#5-context-resources-and-request-scope) |
+| `init_resources()` | Lazy initialization — no equivalent needed | [§7](#7-lifecycle-and-testing) |
+| `tear_down()` / `tear_down_sync()` | `await container.close_async()` / `container.close_sync()` | [§7](#7-lifecycle-and-testing) |
+| `container.override_providers_sync({...})` | `container.override(provider, mock)` | [§7](#7-lifecycle-and-testing) |
+| `provider.override_sync(mock)` | `container.override(provider, mock)` | [§7](#7-lifecycle-and-testing) |
 
 ## 4. Migrate the dependency graph
 
