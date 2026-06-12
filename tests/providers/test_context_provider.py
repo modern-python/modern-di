@@ -116,3 +116,26 @@ def test_factory_uses_default_when_context_provider_value_unset() -> None:
     app_container = Container(groups=[TsGroup])
     instance = app_container.resolve(TsHolder)
     assert instance.ts == default
+
+
+class _LateCtx: ...
+
+
+class _NeedsLateCtx:
+    def __init__(self, ctx: _LateCtx | None = None) -> None:
+        self.ctx = ctx
+
+
+class _LateCtxGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_LateCtx)
+    svc = providers.Factory(scope=Scope.APP, creator=_NeedsLateCtx)
+
+
+def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
+    container = Container(scope=Scope.APP, groups=[_LateCtxGroup])
+    first = container.resolve(_NeedsLateCtx)
+    assert first.ctx is None  # context unset, default applied
+    value = _LateCtx()
+    container.set_context(_LateCtx, value)
+    second = container.resolve(_NeedsLateCtx)
+    assert second.ctx is value

@@ -178,14 +178,18 @@ class Container:
         self.overrides_registry.reset_override(provider.provider_id if provider else None)
 
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
-        """Register a runtime context value on *this* container only.
+        """Register a runtime context value on *this* container.
 
-        ``ContextRegistry`` is per-container. Values set here are not seen by
-        child containers that were already built. Either set context before
-        calling :meth:`build_child_container`, or pass ``context={...}`` to
-        :meth:`build_child_container` directly.
+        A ``ContextProvider`` reads the context registry of the container at the
+        provider's own scope — context never propagates between parent and child
+        containers. Set the value on the container whose scope matches the
+        ``ContextProvider`` (for request-scoped context, pass ``context={...}``
+        to :meth:`build_child_container` or call ``set_context`` on the request
+        container). Values set after a dependent factory has already resolved
+        are picked up by subsequent resolves.
         """
         self.context_registry.set_context(context_type, obj)
+        self.cache_registry.invalidate_compiled_kwargs()
 
     def __repr__(self) -> str:
         n_providers = len(self.providers_registry)
