@@ -96,9 +96,16 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Proposed fix:** Validate the whole batch against the registry (and against itself) before registering, or roll back providers added in the failed `add_providers` call.
 - **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section R1, quoted above)
 
+#### B-11: Shared ProvidersRegistry mutation (child container with `groups=`) races concurrent readers — `RuntimeError` in `validate()`/suggestions and a bypassable duplicate guard
+- **Severity:** medium
+- **Evidence:** `modern_di/registries/providers_registry.py:42-46` — `register` is unsynchronized check-then-act; `providers_registry.py:62` — `build_suggestions` iterates `self._providers.values()`; `providers_registry.py:36-37` — `__iter__` feeds `Container.validate` (`modern_di/container.py:147`); and `container.py:58-60` lets `Container(parent_container=..., groups=[...])` mutate this *shared* registry post-construction from any thread. Probe (with `sys.setswitchinterval(1e-6)` to widen windows): thread A builds child containers with new groups while thread B calls `validate()` / resolves an unregistered type → 180 crashes in the first failing trial: `validate path: RuntimeError: dictionary changed size during iteration` and `resolve-miss path: RuntimeError: dictionary changed size during iteration` (probe T5). Two threads concurrently registering the *same* group: `BOTH succeeded (guard bypassed): 3` of 200 trials — no `DuplicateProviderTypeError` raised for either (probe T4). At the default switch interval with a smaller registry the same probes showed 0 hits (0/60 and 0/200), so the windows are narrow but real.
+- **Why it's a problem:** A reader thread doing the documented safety operations (`validate()`, or a `resolve` miss that renders suggestions) crashes with a raw `RuntimeError` carrying no DI context, and the registry's one integrity invariant (`DuplicateProviderTypeError`) is not enforced under the same concurrency; `Container.lock` guards only singleton creation, not the registry. The prior wont-fixes cover different structures ("OverridesRegistry shared across siblings" — design; "Factory kwargs compilation writes to shared CacheItem without lock" — benign identical writes); neither covers ProvidersRegistry, and these symptoms are crashes/lost errors, not last-write-wins.
+- **Proposed fix:** Snapshot before iterating (`list(self._providers.values())` in `__iter__`/`build_suggestions`) and make `register` atomic under a small registry lock — or document that all group registration must complete before any concurrent resolution/validation begins.
+- **Verified by:** probe script output (`/tmp/audit_probe_registry_threads.py` sections T4/T5, quoted above)
+
 ### Drift (docs vs code)
 
-(none found in the core-code pass; the providers/registries pass added D-1 below — CLAUDE.md's registry-sharing claim table was cross-checked against `container.py:47-57` and is accurate: ProvidersRegistry shared, CacheRegistry per-container, ContextRegistry per-container, OverridesRegistry shared)
+(none found in the core-code pass; the providers/registries pass added D-1 below and the spec-review gap-closure pass added D-2 — CLAUDE.md's registry-sharing claim table was cross-checked against `container.py:47-57` and is accurate: ProvidersRegistry shared, CacheRegistry per-container, ContextRegistry per-container, OverridesRegistry shared)
 
 #### D-1: Docs promise "reverse-resolve order" finalization; code finalizes in cache-item insertion order
 - **Severity:** medium
@@ -106,6 +113,13 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Why it's a problem:** Users design finalizers (close session before disposing engine) around the documented guarantee, which the code does not provide.
 - **Proposed fix:** Fix the code per B-7; if B-7 is instead ruled intentional, rewrite both doc sentences to state the real insertion-order rule and its warmup caveat.
 - **Verified by:** probe script output (`/tmp/audit_probe_factory.py` section S1b) + doc/code diff
+
+#### D-2: Context troubleshooting page quotes a `RuntimeError` the library never raises; the real unset-context failure never mentions context
+- **Severity:** medium
+- **Evidence:** `docs/troubleshooting/context-not-set.md:7-11` presents, under "Understanding the error", the message `RuntimeError: ContextProvider for <class 'TenantId'> has no value in container at scope REQUEST. Call \`container.set_context(TenantId, value)\` before resolving, or pass it via \`build_child_container(context={TenantId: value})\`.` — `grep -rn "has no value in container" modern_di/` finds nothing (probe C4: exit=1). Actual behavior (probe C1): `ContextProvider(scope=Scope.REQUEST, context_type=ReqCtx)` plus a Factory whose creator requires `t: ReqCtx` with no default, REQUEST child built without context → `modern_di.exceptions.ArgumentResolutionError` with chain rendering, message `Argument t of type <class 'ReqCtx'> cannot be resolved. Trying to build dependency <class 'NeedsCtx'>.` — `mentions 'set_context': False`, `mentions 'context': False` (the `factory.py:122-125` raise passes no suggestions). Direct `resolve_provider` of the ContextProvider returns `None` (probe C2).
+- **Why it's a problem:** Users hitting the real error can't reach the troubleshooting page by searching its quoted (nonexistent) message, and the real message misdirects toward a missing provider registration when a ContextProvider *is* registered — the actual fix (`set_context` / `build_child_container(context=...)`) appears nowhere in the error. The required-param raise itself is sound DI behavior (prior 2026-06-05 wont-fix "ContextProvider silently returns None when unset" explicitly endorses the factory-path raise for required params; the new angle here is the phantom documented error text and the raise's missing context hint, which that wont-fix did not address).
+- **Proposed fix:** In `Factory._compile_kwargs`, when the failing dep provider is a ContextProvider with an UNSET value, raise a context-specific error (or pass suggestions naming `set_context`/`build_child_container(context=...)`); update the doc snippet at `docs/troubleshooting/context-not-set.md:7-11` to show the real error text.
+- **Verified by:** probe script output (`/tmp/audit_probe_ctx_required.py` sections C1/C2/C4, quoted above)
 
 ### Quality (internals)
 
@@ -146,7 +160,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 #### Q-6: `pytest benchmarks/` collects zero tests — the run command documented inside the benchmark files silently runs nothing
 - **Severity:** medium
-- **Evidence:** Benchmark files are named `bench_*.py`, which does not match pytest's default `python_files = test_*.py` (no override in `pyproject.toml:69-73`). `uv run pytest benchmarks/ --collect-only -q --no-cov` → `no tests collected`; passing the three files explicitly collects 22 tests and all pass with `--benchmark-disable`. Yet `benchmarks/bench_override_fastpath.py:13` documents exactly the broken form: `uv run pytest benchmarks/ --benchmark-only --no-cov -v`.
+- **Evidence:** Benchmark files are named `bench_*.py`, which does not match pytest's default `python_files = test_*.py` (no override in `pyproject.toml:69-73`). `uv run pytest benchmarks/ --collect-only -q --no-cov` → `no tests collected`; passing the three files explicitly collects 22 tests and all pass with `--benchmark-disable`. Yet `benchmarks/bench_override_fastpath.py:13` documents exactly the broken form: `uv run pytest benchmarks/ --benchmark-only --no-cov -v`. The `Justfile` offers no benchmark recipe either (its recipes are default/install/lint/lint-ci/test/test-branch/publish/docs-deploy, `Justfile:1-34`), and its `test` recipe is plain `uv run --no-sync pytest {{ args }}` inheriting the pyproject addopts `--cov=. --cov-report term-missing --cov-fail-under=100` (`pyproject.toml:70`) — so `just test benchmarks/` both collects zero tests and fails the coverage gate. Verified: `uv run --no-sync pytest benchmarks/` → `no tests ran in 1.06s` plus `FAIL Required test coverage of 100% not reached. Total coverage: 0.00%`.
 - **Why it's a problem:** Anyone following the in-file instructions gets "no tests ran" (exit 5) and may conclude the benchmarks are gone; regressions in the measured fast paths go unbenchmarked.
 - **Proposed fix:** Add `python_files = ["test_*.py", "bench_*.py"]` to `[tool.pytest.ini_options]` (benchmarks stay out of default runs since pytest-benchmark only activates with `--benchmark-*` flags — verify), or rename the files `test_bench_*.py` and exclude `benchmarks/` from default collection via `testpaths`.
 - **Verified by:** probe commands (collect-only outputs quoted above; 22 tests pass with `--benchmark-disable`)
@@ -172,7 +186,10 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Proposed fix:** Add `__slots__ = ("scope", "bound_type", "provider_id")` (i.e. the BASE_SLOTS) on `AbstractProvider` and drop `BASE_SLOTS` from subclass slot lists (keeping each subclass declaring only its own fields).
 - **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section R2, quoted above)
 
-### DX (public API)
+**Negative results (thread-safety lens):** probed via `/tmp/audit_probe_registry_threads.py` (the same run that produced B-11):
+- Two threads hammering `override`/`reset_override` on the shared OverridesRegistry while a third resolves: no exceptions, no sentinel leaks — last-write-wins as covered by the 2026-06-05 wont-fix "OverridesRegistry is shared across siblings" (probe T1).
+- Four threads each doing 200 × `build_child_container` + resolve: the APP singleton stayed one instance across 800 child resolves (double-checked lock held) and per-child CacheRegistries produced 800/800 distinct REQUEST instances, no errors (probe T2).
+- Two threads racing `set_context` on the same container while a third resolves the ContextProvider: plain last-write-wins, both values observed, no torn or vanished reads (probe T3).
 
 #### X-1: Resolving from a closed container silently succeeds and re-creates singletons
 - **Severity:** low
@@ -202,7 +219,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Proposed fix:** Have `validate()` skip the scope check for `Alias` edges (or make `Alias` inherit its source's scope at validation time), consistent with the wont-fix decision that alias scope is decorative.
 - **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section A3, quoted above)
 
-#### X-5: Mutual alias cycle on an unvalidated container surfaces as a raw `RecursionError`
+#### X-5: Mutual alias cycle on an unvalidated container surfaces as a raw `RecursionError` (prior wont-fix, new angle: alias hops get no `ResolutionStep` context, unlike Factory edges)
 - **Severity:** low
 - **Evidence:** `modern_di/providers/alias.py:38-39` — `Alias.resolve` recurses into `container.resolve_provider(source)` with no cycle guard. Probe A2: two aliases pointing at each other — `validate=True` correctly raises `ValidationFailedError` with `CircularDependencyError: IfaceA -> IfaceB -> IfaceA`, but plain `resolve(IfaceA)` raises a bare `RecursionError` with no DI context (alias chains also get no `ResolutionStep` in dependency-chain rendering, unlike Factory edges — `factory.py:207-209`).
 - **Why it's a problem:** Without opt-in validation, a two-line alias typo produces a thousand-frame `RecursionError` instead of the rich cycle error the library can already produce.
