@@ -45,3 +45,8 @@ INVALID_SCOPE_DEPENDENCY_ERROR = (
     "{dep_scope}. A provider cannot depend on a deeper-scoped provider."
 )
 INVALID_SCOPE_TYPE_ERROR = "Container scope must be an enum.IntEnum member; got {scope_repr} ({scope_type})."
+FACTORY_UNSUPPORTED_PARAMETER_ERROR = (
+    "Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}. "
+    "Pass the value via the kwargs parameter, give the parameter a default, "
+    "or use skip_creator_parsing=True with an explicit bound_type."
+)

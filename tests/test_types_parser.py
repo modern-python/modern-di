@@ -4,7 +4,7 @@ import typing
 
 import pytest
 
-from modern_di import providers, types
+from modern_di import exceptions, providers, types
 from modern_di.types_parser import SignatureItem, parse_creator
 
 
@@ -20,14 +20,14 @@ if typing.TYPE_CHECKING:
     [
         (int, SignatureItem(arg_type=int)),
         (typing.Annotated[int, None], SignatureItem(arg_type=int)),
-        (list[int], SignatureItem(arg_type=list, args=[int])),
-        (dict[str, typing.Any], SignatureItem(arg_type=dict, args=[str, typing.Any])),
+        (list[int], SignatureItem(raw_annotation=list[int])),
+        (dict[str, typing.Any], SignatureItem(raw_annotation=dict[str, typing.Any])),
         (typing.Optional[str], SignatureItem(arg_type=str, is_nullable=True)),  # noqa: UP045
         (str | None, SignatureItem(arg_type=str, is_nullable=True)),
         (str | int, SignatureItem(args=[str, int])),
         (typing.Union[str | int], SignatureItem(args=[str, int])),  # noqa: UP007
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
-        (GenericClass[str], SignatureItem(arg_type=GenericClass, args=[str])),
+        (GenericClass[str], SignatureItem(raw_annotation=GenericClass[str])),
         (GenericClass[str] | None, SignatureItem(arg_type=GenericClass, is_nullable=True)),
     ],
 )
@@ -38,7 +38,8 @@ def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
 def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # ty: ignore[empty-body]
 def none_func(arg1: typing.Annotated[int, None], arg2: str | None = None) -> None: ...
 def args_kwargs_func(*args: int, **kwargs: str) -> None: ...
-def func_with_str_annotations(arg1: "list[int]", arg2: "str") -> None: ...
+def func_with_str_annotations(arg1: "str", arg2: "tuple[int, ...]" = ()) -> None: ...
+def func_with_str_generic_annotation(arg1: "list[int]", arg2: "str") -> None: ...
 async def async_func(arg1: int = 1, arg2="str") -> int: ...  # ty: ignore[empty-body]  # noqa: ANN001
 
 
@@ -104,8 +105,8 @@ class ClassWithWrongAnnotations:
             (
                 SignatureItem(),
                 {
-                    "arg1": SignatureItem(arg_type=list, args=[int]),
-                    "arg2": SignatureItem(arg_type=str),
+                    "arg1": SignatureItem(arg_type=str),
+                    "arg2": SignatureItem(raw_annotation=tuple[int, ...], default=()),
                 },
             ),
         ),
@@ -170,6 +171,11 @@ def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[s
     assert parse_creator(creator) == result
 
 
+def test_parse_creator_str_generic_annotation_without_default_raises() -> None:
+    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match="arg1"):
+        parse_creator(func_with_str_generic_annotation)
+
+
 def _partial_target(x: int, y: int) -> int:
     return x + y
 
@@ -183,3 +189,48 @@ def test_partial_creator_warns_and_skips_instead_of_crashing() -> None:
             bound_type=int,
         )
     assert provider is not None
+
+
+class _GenericDep: ...
+
+
+def _generic_param_creator(x: list[_GenericDep]) -> str:
+    return str(x)
+
+
+def test_parameterized_generic_param_without_default_raises_at_declaration() -> None:
+    assert _generic_param_creator([]) == "[]"
+    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match=r"list\[.*_GenericDep\]"):
+        providers.Factory(creator=_generic_param_creator)
+
+
+def _generic_param_with_default(x: tuple[str, ...] = ()) -> str:
+    return str(x)
+
+
+def test_parameterized_generic_param_with_default_is_allowed() -> None:
+    assert _generic_param_with_default(("a",)) == str(("a",))
+    provider = providers.Factory(creator=_generic_param_with_default)
+    assert provider is not None
+
+
+def _pos_only_creator(x: int, /, y: int) -> int:
+    return x + y
+
+
+def test_positional_only_param_raises_at_declaration() -> None:
+    assert _pos_only_creator(1, y=2) == _pos_only_creator(2, y=1)
+    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match="positional-only"):
+        providers.Factory(creator=_pos_only_creator)
+
+
+def _pos_only_with_default(x: int = 0, /, y: int = 1) -> int:
+    return x + y
+
+
+def test_positional_only_param_with_default_is_skipped() -> None:
+    assert _pos_only_with_default(2) == _pos_only_with_default(1, 2)
+    assert parse_creator(_pos_only_with_default) == (
+        SignatureItem(arg_type=int),
+        {"y": SignatureItem(arg_type=int, default=1)},
+    )

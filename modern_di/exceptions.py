@@ -230,6 +230,21 @@ class UnknownFactoryKwargError(RegistrationError):
         super().__init__("\n".join(parts))
 
 
+class UnsupportedCreatorParameterError(RegistrationError):
+    __slots__ = ("creator", "parameter_name", "reason")
+
+    def __init__(self, *, creator: typing.Any, parameter_name: str, reason: str) -> None:  # noqa: ANN401
+        self.creator = creator
+        self.parameter_name = parameter_name
+        self.reason = reason
+        creator_name = getattr(creator, "__name__", repr(creator))
+        super().__init__(
+            errors.FACTORY_UNSUPPORTED_PARAMETER_ERROR.format(
+                parameter_name=parameter_name, creator_name=creator_name, reason=reason
+            )
+        )
+
+
 class InvalidScopeDependencyError(RegistrationError):
     __slots__ = ("dep_provider", "parameter_name", "provider")
 
