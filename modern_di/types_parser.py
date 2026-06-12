@@ -32,8 +32,6 @@ class SignatureItem:
                 result["is_nullable"] = True
                 args.remove(types.NoneType)
 
-            args = [typing.get_origin(arg) or arg for arg in args]
-
             if len(args) > 1:
                 result["args"] = args
             elif args:

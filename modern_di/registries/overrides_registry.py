@@ -4,11 +4,6 @@ import typing
 from modern_di import types
 
 
-T_co = typing.TypeVar("T_co", covariant=True)
-
-_UNSET = object()
-
-
 @dataclasses.dataclass(kw_only=True, slots=True)
 class OverridesRegistry:
     overrides: dict[int, typing.Any] = dataclasses.field(init=False, default_factory=dict)

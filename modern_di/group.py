@@ -8,10 +8,6 @@ if typing.TYPE_CHECKING:
     import typing_extensions
 
 
-T = typing.TypeVar("T")
-P = typing.ParamSpec("P")
-
-
 class Group:
     def __new__(cls, *_: typing.Any, **__: typing.Any) -> "typing_extensions.Self":  # noqa: ANN401
         raise exceptions.GroupInstantiationError(group_name=cls.__name__)
