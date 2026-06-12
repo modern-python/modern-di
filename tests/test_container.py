@@ -351,3 +351,12 @@ def test_container_rejects_non_intenum_scope_at_init() -> None:
     with pytest.raises(InvalidScopeTypeError) as exc:
         Container(scope=99)  # ty: ignore[invalid-argument-type]
     assert "99" in str(exc.value)
+
+
+def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
+    app = Container(scope=Scope.APP)
+    with pytest.raises(InvalidChildScopeError):
+        Container(scope=Scope.APP, parent_container=app)
+    request = app.build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(InvalidChildScopeError):
+        Container(scope=Scope.APP, parent_container=request)

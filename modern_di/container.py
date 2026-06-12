@@ -38,6 +38,12 @@ class Container:
     ) -> None:
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
+        if parent_container is not None and scope <= parent_container.scope:
+            raise exceptions.InvalidChildScopeError(
+                parent_scope=parent_container.scope,
+                child_scope=scope,
+                allowed_scopes=[x.name for x in type(parent_container.scope) if x > parent_container.scope],
+            )
         self.lock = threading.RLock() if use_lock else None
         self.scope = scope
         self.parent_container = parent_container
