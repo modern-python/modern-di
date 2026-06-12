@@ -8,6 +8,7 @@ from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
     CircularDependencyError,
+    ContainerClosedError,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
     InvalidScopeTypeError,
@@ -79,10 +80,9 @@ def test_container_sync_context_manager() -> None:
     with Container(groups=[G]) as container:
         assert container.scope == Scope.APP
         assert container.resolve(str) == "r"
+        with container.build_child_container(scope=Scope.REQUEST) as request_container:
+            assert request_container.scope == Scope.REQUEST
     assert cleaned_up == ["r"]
-
-    with container.build_child_container(scope=Scope.REQUEST) as request_container:
-        assert request_container.scope == Scope.REQUEST
 
 
 async def test_container_async_context_manager() -> None:
@@ -101,10 +101,9 @@ async def test_container_async_context_manager() -> None:
     async with Container(groups=[G]) as container:
         assert container.scope == Scope.APP
         assert container.resolve(str) == "r"
+        async with container.build_child_container(scope=Scope.REQUEST) as request_container:
+            assert request_container.scope == Scope.REQUEST
     assert cleaned_up == ["r"]
-
-    async with container.build_child_container(scope=Scope.REQUEST) as request_container:
-        assert request_container.scope == Scope.REQUEST
 
 
 def test_container_repr() -> None:
@@ -360,3 +359,19 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
     request = app.build_child_container(scope=Scope.REQUEST)
     with pytest.raises(InvalidChildScopeError):
         Container(scope=Scope.APP, parent_container=request)
+
+
+def test_closed_container_refuses_resolve_and_child_building() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
+    with pytest.raises(ContainerClosedError):
+        container.build_child_container(scope=Scope.REQUEST)
+
+
+async def test_closed_container_async_path() -> None:
+    container = Container(scope=Scope.APP)
+    await container.close_async()
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)

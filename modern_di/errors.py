@@ -45,4 +45,8 @@ INVALID_SCOPE_DEPENDENCY_ERROR = (
     "{dep_scope}. A provider cannot depend on a deeper-scoped provider."
 )
 INVALID_SCOPE_TYPE_ERROR = "Container scope must be an enum.IntEnum member; got {scope_repr} ({scope_type})."
+CONTAINER_CLOSED_ERROR = (
+    "Container (scope {container_scope}) is closed and can no longer resolve dependencies "
+    "or build child containers. Create a new container."
+)
 FACTORY_UNSUPPORTED_PARAMETER_ERROR = "Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}"

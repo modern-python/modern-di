@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import AsyncFinalizerInSyncCloseError, FinalizerError
+from modern_di.exceptions import AsyncFinalizerInSyncCloseError, ContainerClosedError, FinalizerError
 from modern_di.types import UNSET
 
 
@@ -55,8 +55,8 @@ async def test_app_singleton() -> None:
     assert cache_item.cache is not UNSET
     assert sync_calls == [singleton1]
 
-    singleton3 = app_container.resolve_provider(LocalGroup.singleton)
-    assert singleton3 is singleton1
+    with pytest.raises(ContainerClosedError):
+        app_container.resolve_provider(LocalGroup.singleton)
 
     await app_container.close_async()
     assert sync_calls == [singleton1]
@@ -80,7 +80,7 @@ def test_close_does_not_re_finalize_with_clear_cache_false() -> None:
     assert calls == ["r"]
 
 
-def test_close_re_finalizes_after_re_resolve_with_clear_cache_true() -> None:
+def test_closed_container_refuses_re_resolve_with_clear_cache_true() -> None:
     calls: list[str] = []
 
     class G(Group):
@@ -93,9 +93,11 @@ def test_close_re_finalizes_after_re_resolve_with_clear_cache_true() -> None:
     container = Container(groups=[G])
     container.resolve(str)
     container.close_sync()
-    container.resolve(str)
-    container.close_sync()
-    assert calls == ["r", "r"]
+    assert calls == ["r"]
+    with pytest.raises(ContainerClosedError):
+        container.resolve(str)
+    container.close_sync()  # close stays idempotent and never re-runs finalizers
+    assert calls == ["r"]
 
 
 async def test_close_async_runs_sync_finalizer() -> None:

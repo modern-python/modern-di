@@ -18,6 +18,7 @@ from modern_di.scope import Scope
 class Container:
     __slots__ = (
         "cache_registry",
+        "closed",
         "context_registry",
         "lock",
         "overrides_registry",
@@ -45,6 +46,7 @@ class Container:
                 allowed_scopes=[x.name for x in type(parent_container.scope) if x > parent_container.scope],
             )
         self.lock = threading.RLock() if use_lock else None
+        self.closed = False
         self.scope = scope
         self.parent_container = parent_container
         self.scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
@@ -75,6 +77,9 @@ class Container:
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
+        if self.closed:
+            raise exceptions.ContainerClosedError(container_scope=self.scope)
+
         if scope is not None and scope <= self.scope:
             raise exceptions.InvalidChildScopeError(
                 parent_scope=self.scope,
@@ -108,6 +113,9 @@ class Container:
         return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
+        if self.closed:
+            raise exceptions.ContainerClosedError(container_scope=self.scope)
+
         if (
             self.overrides_registry.overrides
             and (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET
@@ -166,12 +174,18 @@ class Container:
     async def close_async(self) -> None:
         if not self.parent_container:
             self.overrides_registry.reset_override()
-        await self.cache_registry.close_async()
+        try:
+            await self.cache_registry.close_async()
+        finally:
+            self.closed = True
 
     def close_sync(self) -> None:
         if not self.parent_container:
             self.overrides_registry.reset_override()
-        self.cache_registry.close_sync()
+        try:
+            self.cache_registry.close_sync()
+        finally:
+            self.closed = True
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> None:
         self.overrides_registry.override(provider.provider_id, override_object)

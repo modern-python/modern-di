@@ -92,6 +92,14 @@ class InvalidScopeTypeError(ContainerError):
         )
 
 
+class ContainerClosedError(ContainerError):
+    __slots__ = ("container_scope",)
+
+    def __init__(self, *, container_scope: enum.IntEnum) -> None:
+        self.container_scope = container_scope
+        super().__init__(errors.CONTAINER_CLOSED_ERROR.format(container_scope=container_scope.name))
+
+
 class ResolutionError(ModernDIError):
     """Base class for errors raised while resolving a provider.
 
