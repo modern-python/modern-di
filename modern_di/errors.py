@@ -23,6 +23,10 @@ SUGGESTION_SIMILAR = "  - {type_name} (similar name, scope={scope})"
 FACTORY_ARGUMENT_RESOLUTION_ERROR = (
     "Argument {arg_name} of type {arg_type} cannot be resolved. Trying to build dependency {bound_type}."
 )
+FACTORY_ARGUMENT_UNANNOTATED_ERROR = (
+    "Argument {arg_name} has no usable type annotation, so it cannot be resolved by type. "
+    "Pass it via the kwargs parameter or add a type annotation. Trying to build dependency {bound_type}."
+)
 CYCLE_DEPENDENCY_ERROR = "Circular dependency detected: {cycle_path}. Check your provider graph for unintended cycles."
 PROVIDER_DUPLICATE_TYPE_ERROR = (
     "Provider is duplicated by type {provider_type}. "

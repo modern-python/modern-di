@@ -80,7 +80,7 @@ def test_func_with_broken_annotation() -> None:
 
     app_container = Container()
     app_container.providers_registry.add_providers(factory)
-    with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type None cannot be resolved"):
+    with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         app_container.resolve_provider(factory)
 
 
@@ -268,3 +268,37 @@ def test_factory_default_value_compared_with_is_not_eq() -> None:
     container.providers_registry.add_providers(factory)
     result = container.resolve(str)
     assert result == repr(unittest.mock.ANY)
+
+
+def _unannotated_creator(x):  # noqa: ANN001, ANN202  # pragma: no cover
+    return x
+
+
+class _UnannotatedGroup(Group):
+    svc = providers.Factory(creator=_unannotated_creator, bound_type=object, scope=Scope.APP)
+
+
+def test_unannotated_param_error_explains_missing_annotation() -> None:
+    container = Container(scope=Scope.APP, groups=[_UnannotatedGroup])
+    with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
+        container.resolve(object)
+
+
+class _UnionDep1: ...
+
+
+class _UnionDep2: ...
+
+
+def _union_creator(x: _UnionDep1 | _UnionDep2) -> str:  # pragma: no cover
+    return str(x)
+
+
+class _UnionGroup(Group):
+    svc = providers.Factory(creator=_union_creator, scope=Scope.APP)
+
+
+def test_union_param_error_names_the_union_members() -> None:
+    container = Container(scope=Scope.APP, groups=[_UnionGroup])
+    with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2"):
+        container.resolve(str)

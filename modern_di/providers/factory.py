@@ -121,7 +121,10 @@ class Factory(AbstractProvider[types.T_co]):
                 ):
                     if v.default is types.UNSET:
                         raise exceptions.ArgumentResolutionError(
-                            arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
+                            arg_name=k,
+                            arg_type=v.arg_type,
+                            bound_type=self.bound_type or self._creator,
+                            member_types=v.args,
                         )
                     continue
                 result[k] = provider
@@ -136,6 +139,7 @@ class Factory(AbstractProvider[types.T_co]):
                     arg_type=v.arg_type,
                     bound_type=self.bound_type or self._creator,
                     suggestions=suggestions,
+                    member_types=v.args,
                 )
 
         if self._kwargs:
@@ -190,6 +194,7 @@ class Factory(AbstractProvider[types.T_co]):
                 arg_type=v.arg_type,
                 bound_type=self.bound_type or self._creator,
                 suggestions=suggestions,
+                member_types=v.args,
             )
 
     def resolve(self, container: "Container") -> types.T_co:

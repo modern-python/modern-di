@@ -159,16 +159,23 @@ class ArgumentResolutionError(ResolutionError):
         arg_type: typing.Any,  # noqa: ANN401
         bound_type: typing.Any,  # noqa: ANN401
         suggestions: list[str] | None = None,
+        member_types: list[type] | None = None,
     ) -> None:
         self.arg_name = arg_name
         self.arg_type = arg_type
         self.bound_type = bound_type
         self.suggestions = suggestions or []
-        message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
-            arg_name=arg_name,
-            arg_type=arg_type,
-            bound_type=bound_type,
-        )
+        if arg_type is not None:
+            message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
+                arg_name=arg_name, arg_type=arg_type, bound_type=bound_type
+            )
+        elif member_types:
+            joined = " | ".join(getattr(t, "__name__", str(t)) for t in member_types)
+            message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
+                arg_name=arg_name, arg_type=joined, bound_type=bound_type
+            )
+        else:
+            message = errors.FACTORY_ARGUMENT_UNANNOTATED_ERROR.format(arg_name=arg_name, bound_type=bound_type)
         if self.suggestions:
             message += "\n" + errors.SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
         super().__init__(message)
