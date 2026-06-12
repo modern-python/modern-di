@@ -191,6 +191,48 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - Four threads each doing 200 × `build_child_container` + resolve: the APP singleton stayed one instance across 800 child resolves (double-checked lock held) and per-child CacheRegistries produced 800/800 distinct REQUEST instances, no errors (probe T2).
 - Two threads racing `set_context` on the same container while a third resolves the ContextProvider: plain last-write-wins, both values observed, no torn or vanished reads (probe T3).
 
+#### Q-10: Static-kwargs precedence over a type-matched provider is documented but untested
+- **Severity:** medium
+- **Evidence:** `tests/providers/test_factory.py:36` — `app_factory` supplies `dep1` via `kwargs={"dep1": "original"}`, but no `str` provider is registered anywhere in that suite, so the conflict never occurs; `tests/providers/test_factory.py:179` (`test_factory_self_reference`) passes a provider *object* in kwargs, which is indistinguishable from type-resolution. The precedence branch (`modern_di/providers/factory.py:141-142` — `result.update(self._kwargs)` overwriting a provider already placed at `factory.py:127`) is executed but its winner is never asserted. Probe: registered `str` provider returning `"from-provider"` plus `kwargs={"name": "static-wins"}` → `P1 static kwargs precedence: static-wins`.
+- **Why it's a problem:** `docs/providers/factories.md:25-28` documents that static kwargs win over type resolution; flipping the order of `result[k] = provider` and `result.update(self._kwargs)` would silently invert the documented contract with the whole suite green.
+- **Proposed fix:** Add a test registering a provider for a param's type *and* a static kwarg for the same param with a distinguishable value; assert the static value is injected.
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P1, output quoted) + grep (no test registers a provider for a kwargs-supplied param's type)
+
+#### Q-11: Creator raising mid-creation is untested — no test pins "failed instance not cached, deps still finalized, retry succeeds"
+- **Severity:** medium
+- **Evidence:** grep across `tests/` finds no creator that raises (only finalizers raise, `tests/providers/test_singleton.py:156-223`). The contract lives at `modern_di/providers/factory.py:221-222`: if `self._creator(**resolved_kwargs)` raises, `cache_item.cache` stays UNSET. Probe P2: cached `Svc(dep: Dep)` whose creator raises once → `first resolve raised: boom`, `cached_count after failure: 1` (the `Dep` dependency *is* cached, the failed `Svc` is not), `retry succeeded: True`, `finalizer events: ['svc-finalized', 'dep-finalized']` at close.
+- **Why it's a problem:** Error recovery during startup (flaky DB connect, retry on next resolve) is a core lifecycle contract; a regression that caches a partially-constructed sentinel, leaks the already-created dep, or poisons `kwargs_compiled` would pass the entire suite.
+- **Proposed fix:** Add a test with a cached factory whose creator raises on first call: assert the exception propagates, the failed provider is not cached (dep may be), a second resolve succeeds, and close finalizes both the dep and the retried instance exactly once.
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P2, output quoted) + grep
+
+#### Q-12: ContextProvider scope-selects-registry semantics only tested in matching configurations — replacing `find_container(self.scope)` with the current container would pass the whole suite
+- **Severity:** medium
+- **Evidence:** `tests/providers/test_context_provider.py:23-37` (APP provider, context on the APP container, resolved from it), `:55-61` (REQUEST provider, context on the REQUEST child, resolved from it) — in every test the container holding the context *is* the container resolved from, so `modern_di/providers/context_provider.py:38` (`container.find_container(self.scope)`) is never distinguished from plain `container`. No test resolves an APP-scoped ContextProvider *from a child*, nor asserts the documented mismatch behavior (`docs/troubleshooting/context-not-set.md:43-45`). Probe P3: APP-scoped provider, context passed to the REQUEST child → resolves to `None`.
+- **Why it's a problem:** The provider's-scope-picks-the-registry rule is documented core semantics (and a documented troubleshooting cause); a regression to current-container lookup would silently change which context wins in parent/child setups while staying green.
+- **Proposed fix:** Add two tests: (1) APP-scoped ContextProvider with context set at APP resolves correctly from a REQUEST child; (2) APP-scoped ContextProvider with context passed only to the REQUEST child returns `None` (scope mismatch).
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P3, output quoted) + code-path trace
+
+#### Q-13: Alias-of-alias chains are untested (resolve and validate)
+- **Severity:** low
+- **Evidence:** `tests/providers/test_alias.py` — every `Alias.source_type` points at a Factory; no test exercises the recursion `Alias.resolve → container.resolve_provider(another Alias)` (`modern_di/providers/alias.py:38-39`) or `validate()` walking an alias→alias edge. Probe P4: `Impl ← Alias(IfA) ← Alias(IfB)` with `validate=True` constructs cleanly and `resolve(IfB)` returns the cached `Impl` instance.
+- **Why it's a problem:** Two-hop delegation through interface layers is a natural use of Alias; nothing pins that chains resolve, hit the source's cache, or survive validation.
+- **Proposed fix:** Add a test with an alias whose source is another alias: assert resolution returns the source instance and `validate=True` passes.
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P4, output quoted)
+
+#### Q-14: Alias resolved from a child container over an APP-cached source is never asserted to return the APP singleton
+- **Severity:** low
+- **Evidence:** `tests/providers/test_alias.py:27-32` (`test_alias_delegates_to_source`) asserts identity only on the APP container itself; `:48-59` (`test_alias_respects_source_scope`) resolves from a child but over an *uncached deeper-scoped* source and asserts only `isinstance`. No test asserts `request_container.resolve(AbstractRepository) is app_cached_instance`. Probe P5: alias resolved from a REQUEST child returned the APP-cached singleton (`True`).
+- **Why it's a problem:** The cross-container delegation path (child → alias → APP cache) is the common production shape (interface injected into request handlers); a regression caching a second instance per child would pass all current alias tests.
+- **Proposed fix:** Extend `test_alias_delegates_to_source` (or add a test) to resolve the alias from a REQUEST child and assert identity with the instance cached at APP.
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P5, output quoted)
+
+#### Q-15: Duplicate bound type across two groups at `Container(groups=[...])` is untested — only the bare-registry double-add is pinned
+- **Severity:** low
+- **Evidence:** `tests/registries/test_providers_registry.py:13-21` re-adds the *same provider object* directly to a standalone `ProvidersRegistry`; no test constructs `Container(groups=[G1, G2])` with two *distinct* providers binding the same type — the user-facing path through `modern_di/container.py:58-60` (also the surface where B-10's partial-registration pollution lives). Probe P6: `Container(groups=[GA, GB])` with two `str`-bound factories raised `DuplicateProviderTypeError: Provider is duplicated by type <class 'str'>...`.
+- **Why it's a problem:** The realistic collision (two teams' groups both binding the same type) goes through group registration at container construction; the existing test would survive a regression that, e.g., deduplicated by provider identity instead of bound type.
+- **Proposed fix:** Add a test asserting `Container(groups=[GA, GB])` with distinct same-type providers raises `DuplicateProviderTypeError` (and, once B-10 is decided, assert the registry's post-failure state).
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P6, output quoted)
+
 ### DX (public API)
 
 #### X-1: Resolving from a closed container silently succeeds and re-creates singletons
@@ -227,6 +269,13 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Why it's a problem:** Without opt-in validation, a two-line alias typo produces a thousand-frame `RecursionError` instead of the rich cycle error the library can already produce.
 - **Proposed fix:** Track a small per-resolve visited set for alias hops (alias chains are short), or at minimum have `Alias.resolve` prepend a `ResolutionStep` so the recursion is attributable; document `validate=True` as the cycle guard in `docs/providers/alias.md`.
 - **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section A2, quoted above)
+
+#### X-6: The documented single-file test invocation fails on the 100% coverage gate even when all tests pass
+- **Severity:** medium
+- **Evidence:** `pyproject.toml:70` — `addopts = "--cov=. --cov-report term-missing --cov-fail-under=100"` applies to every pytest invocation; `CLAUDE.md` documents `just test tests/providers/test_factory.py` (and `-k` selection) as the supported targeted workflow, and the `Justfile` `test` recipe passes args straight through. Probe: `uv run --no-sync pytest tests/test_group.py` → `5 passed` but `FAIL Required test coverage of 100% not reached. Total coverage: 23.31%`, exit code 1.
+- **Why it's a problem:** Every targeted run exits nonzero with a scary FAIL line despite green tests, breaking scripted checks (and agents) that trust the exit code; the workaround (`--no-cov`) is documented nowhere. Q-6 flagged the same gate for `benchmarks/`; this is the far more common everyday path.
+- **Proposed fix:** Move coverage flags out of `addopts` into the `just test`/CI recipes (full-suite only), or document `--no-cov` next to the single-file examples in CLAUDE.md and the Justfile.
+- **Verified by:** probe (commands and output quoted above)
 
 ### Docs gaps
 
