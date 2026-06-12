@@ -4,7 +4,7 @@ import typing
 
 import pytest
 
-from modern_di import exceptions, providers, types
+from modern_di import Container, Scope, exceptions, providers, types
 from modern_di.types_parser import SignatureItem, parse_creator
 
 
@@ -173,7 +173,7 @@ def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[s
 
 def test_parse_creator_str_generic_annotation_without_default_raises() -> None:
     with pytest.raises(exceptions.UnsupportedCreatorParameterError, match="arg1"):
-        parse_creator(func_with_str_generic_annotation)
+        providers.Factory(creator=func_with_str_generic_annotation)
 
 
 def _partial_target(x: int, y: int) -> int:
@@ -204,6 +204,14 @@ def test_parameterized_generic_param_without_default_raises_at_declaration() -> 
         providers.Factory(creator=_generic_param_creator)
 
 
+def test_parameterized_generic_param_supplied_via_kwargs_is_allowed() -> None:
+    sentinel = [_GenericDep()]
+    provider = providers.Factory(creator=_generic_param_creator, kwargs={"x": sentinel})
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(str, provider)
+    assert container.resolve(str) == str(sentinel)
+
+
 def _generic_param_with_default(x: tuple[str, ...] = ()) -> str:
     return str(x)
 
@@ -220,8 +228,10 @@ def _pos_only_creator(x: int, /, y: int) -> int:
 
 def test_positional_only_param_raises_at_declaration() -> None:
     assert _pos_only_creator(1, y=2) == _pos_only_creator(2, y=1)
-    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match="positional-only"):
+    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match="positional-only") as exc_info:
         providers.Factory(creator=_pos_only_creator)
+    # kwargs cannot help: the creator is always invoked creator(**kwargs)
+    assert "kwargs" not in str(exc_info.value)
 
 
 def _pos_only_with_default(x: int = 0, /, y: int = 1) -> int:

@@ -55,6 +55,18 @@ class Factory(AbstractProvider[types.T_co]):
             parsed_type = return_sig.arg_type
             if kwargs:
                 self._validate_kwargs_against_signature(creator, kwargs, parsed_kwargs)
+            for param_name, item in parsed_kwargs.items():
+                if item.raw_annotation is None or item.default is not types.UNSET or (kwargs and param_name in kwargs):
+                    continue
+                raise exceptions.UnsupportedCreatorParameterError(
+                    creator=creator,
+                    parameter_name=param_name,
+                    reason=(
+                        f"parameterized generic annotation {item.raw_annotation!r} cannot be resolved by type; "
+                        f"pass the value via the kwargs parameter, give the parameter a default, "
+                        f"or use skip_creator_parsing=True"
+                    ),
+                )
         self._parsed_kwargs = parsed_kwargs
         super().__init__(scope=scope, bound_type=parsed_type if isinstance(bound_type, types.UnsetType) else bound_type)
         self._creator = creator

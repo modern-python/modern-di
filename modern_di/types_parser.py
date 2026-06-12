@@ -61,7 +61,10 @@ def _parse_parameter(
         raise exceptions.UnsupportedCreatorParameterError(
             creator=creator,
             parameter_name=param_name,
-            reason="positional-only parameters cannot be passed by keyword",
+            reason=(
+                "positional-only parameters cannot be passed by keyword; "
+                "give the parameter a default or use skip_creator_parsing=True"
+            ),
         )
 
     default = UNSET
@@ -69,16 +72,8 @@ def _parse_parameter(
         default = param.default
 
     if param_name in type_hints:
-        item = SignatureItem.from_type(type_hints[param_name], default=default)
-    else:
-        item = SignatureItem(default=default)
-    if item.raw_annotation is not None and item.default is UNSET:
-        raise exceptions.UnsupportedCreatorParameterError(
-            creator=creator,
-            parameter_name=param_name,
-            reason=f"parameterized generic annotation {item.raw_annotation!r} cannot be resolved by type",
-        )
-    return item
+        return SignatureItem.from_type(type_hints[param_name], default=default)
+    return SignatureItem(default=default)
 
 
 def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureItem, dict[str, SignatureItem]]:
