@@ -46,11 +46,15 @@ class ProvidersRegistry:
         self._providers[provider_type] = provider
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
+        new_providers: dict[type, AbstractProvider[typing.Any]] = {}
         for provider in args:
             if not provider.bound_type:
                 continue
+            if provider.bound_type in new_providers or provider.bound_type in self._providers:
+                raise exceptions.DuplicateProviderTypeError(provider_type=provider.bound_type)
+            new_providers[provider.bound_type] = provider
 
-            self.register(provider.bound_type, provider)
+        self._providers.update(new_providers)
 
     def build_suggestions(self, requested_type: type) -> list[str]:
         requested_is_class = inspect.isclass(requested_type)

@@ -62,8 +62,10 @@ class Container:
             self.providers_registry.register(Container, container_provider)
             self.overrides_registry = OverridesRegistry()
         if groups:
+            all_providers: list[AbstractProvider[typing.Any]] = []
             for one_group in groups:
-                self.providers_registry.add_providers(*one_group.get_providers())
+                all_providers.extend(one_group.get_providers())
+            self.providers_registry.add_providers(*all_providers)
         if validate:
             self.validate()
 

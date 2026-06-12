@@ -19,3 +19,14 @@ def test_providers_registry_add_provider_duplicates() -> None:
     with pytest.raises(DuplicateProviderTypeError, match="Provider is duplicated by type <class 'str'>") as exc:
         providers_registry.add_providers(str_factory)
     assert exc.value.provider_type is str
+
+
+def test_providers_registry_register_duplicate_raises() -> None:
+    str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
+
+    providers_registry = ProvidersRegistry()
+    providers_registry.register(str, str_factory)
+
+    with pytest.raises(DuplicateProviderTypeError, match="Provider is duplicated by type <class 'str'>") as exc:
+        providers_registry.register(str, str_factory)
+    assert exc.value.provider_type is str
