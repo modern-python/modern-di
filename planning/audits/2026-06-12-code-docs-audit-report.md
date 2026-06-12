@@ -6,7 +6,28 @@
 
 ## Summary
 
-(filled at the end of the audit)
+57 findings across five categories. Every Bug and Drift finding was independently reproduced by an adversarial reviewer with fresh probe scripts; zero findings were refuted.
+
+| Category | High | Medium | Low | Total |
+|---|---|---|---|---|
+| Bugs (B) | 1 | 7 | 3 | 11 |
+| Drift (D) | 3 | 8 | 3 | 14 |
+| Quality (Q) | 0 | 4 | 11 | 15 |
+| DX (X) | 0 | 2 | 4 | 6 |
+| Docs gaps (G) | 0 | 4 | 7 | 11 |
+| **Total** | **4** | **25** | **28** | **57** |
+
+**Top 5 by impact:**
+
+1. **B-7 + D-1** (high): finalizers run in cache-insertion order, not the documented reverse-resolve (LIFO) order — and the warmup pattern the docs themselves recommend triggers dependency-before-dependent teardown.
+2. **D-6** (high): the documented fix for missing context ("call `set_context` on the parent before building the child") verifiably does not work — context never propagates parent→child; wrong on three pages and in the `container.py` docstring.
+3. **D-3** (high): the introductory `about-di.md` example crashes with `ScopeNotInitializedError` when run as written — a newcomer's likely first contact with the library fails.
+4. **D-7** (high): the `alias.md` override walkthrough fails on its own assert when its blocks are run in page order — an active alias override silently wins over a source override.
+5. **B-9** (medium): `set_context` on the same container is silently ignored once a dependent factory's kwargs were compiled — the staleness is invisible and its symptom page (`context-not-set.md`) doesn't list this cause (G-4).
+
+Honorable mention: **B-1** (medium) — parameterized generics like `list[Svc]` silently degrade to their origin type, allowing wrong-type injection when a bare `list` provider exists.
+
+**Cross-finding decisions to make together:** Q-6 + X-6 (benchmark collection and the 100%-coverage gate in `addopts`); B-9 + G-4 (fix the staleness or document it); B-5 + Q-13 (validate's alias escape constrains the proposed alias-chain test); D-1 + B-7 (one is the doc side, one the code side — fixing either closes both).
 
 ## Finding format
 
