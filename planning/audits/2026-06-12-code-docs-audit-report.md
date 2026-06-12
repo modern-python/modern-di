@@ -121,6 +121,90 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Proposed fix:** In `Factory._compile_kwargs`, when the failing dep provider is a ContextProvider with an UNSET value, raise a context-specific error (or pass suggestions naming `set_context`/`build_child_container(context=...)`); update the doc snippet at `docs/troubleshooting/context-not-set.md:7-11` to show the real error text.
 - **Verified by:** probe script output (`/tmp/audit_probe_ctx_required.py` sections C1/C2/C4, quoted above)
 
+#### D-3: about-di.md "Using modern-di" example crashes — REQUEST-scoped provider resolved from the APP container
+- **Severity:** high
+- **Evidence:** `docs/introduction/about-di.md:139-145` — the example declares `db` and `user_service` at `scope=Scope.REQUEST`, then runs `container = Container(groups=[AppModule])` / `user_service = container.resolve(UserService)` with the comment "Resolve entire dependency graph". `modern_di/container.py:88` raises for this: executed verbatim (`/tmp/audit_doc_about_di_1.py`) → `modern_di.exceptions.ScopeNotInitializedError: Provider of scope REQUEST cannot be resolved in container of scope APP.`
+- **Why it's a problem:** This is the page's flagship "Manual DI vs modern-di" comparison; a new user copying it hits an exception on the very first resolve, on the page meant to sell the framework.
+- **Proposed fix:** Either build a REQUEST child (`with container.build_child_container(scope=Scope.REQUEST) as request: request.resolve(UserService)`) or drop `scope=Scope.REQUEST` from the two providers in this intro example.
+- **Verified by:** executed example (output quoted above)
+
+#### D-4: Two pages claim duplicate bound types "silently shadow"; registration actually raises `DuplicateProviderTypeError`
+- **Severity:** medium
+- **Evidence:** `docs/recipes/multi-group.md:86` — "**Type collisions are silent.** If two groups both register providers for `AsyncSession` … the second registration wins." and `:87` — "It only matters for the silent-shadow case above."; `docs/recipes/request-scoped-engine.md:76` — "Without them, both would register under `AsyncEngine` and the second one would shadow the first." Code: `modern_di/registries/providers_registry.py:42-45` — `register` raises `DuplicateProviderTypeError` on any duplicate type. Probe (`/tmp/audit_probe_collisions.py`): both scenarios → `DuplicateProviderTypeError: Provider is duplicated by type <class '…'>.` — never silent, no shadowing.
+- **Why it's a problem:** Both recipes teach a failure mode (silent shadowing) that cannot happen and tell users to defend against the wrong thing; they also directly contradict `docs/troubleshooting/duplicate-type-error.md:3-11`, which correctly documents the raise.
+- **Proposed fix:** Rewrite both sentences: duplicate bound types raise `DuplicateProviderTypeError` at `Container(groups=[...])` time; link to the duplicate-type-error troubleshooting page.
+- **Verified by:** probe output + doc/code diff
+
+#### D-5: multi-group.md promises a `ValueError` on attribute-name collisions; core never looks at attribute names
+- **Severity:** medium
+- **Evidence:** `docs/recipes/multi-group.md:85` — "**Name collisions raise at container creation.** If two groups define an attribute with the same name (`Cache.session` and `Database.session`), you get `ValueError`." Code: `modern_di/group.py:19-32` (`get_providers` collects values; per-class-MRO name dedupe only) and `modern_di/registries/providers_registry.py:48-53` (`add_providers` keys solely on `bound_type`) — no name is ever compared across groups. Probe (`/tmp/audit_probe_collisions.py`): two groups with a same-named `session` attribute but distinct types → `1) name collision: NO error raised; both registered: True True`.
+- **Why it's a problem:** The guarantee belongs to `modern-di-pytest`'s `expose(*groups)` (which does raise `ValueError` on duplicate names), not to `Container(groups=[...])`; users relying on this nonexistent guard get silent acceptance, and if the same-named providers share a type they get `DuplicateProviderTypeError`, not `ValueError`.
+- **Proposed fix:** Correct the pitfall: same-named attributes across groups are fine for `Container` (collisions matter only for type, per D-4) — the `ValueError` applies to `modern-di-pytest`'s `expose` and (as `UserWarning`) to Litestar `autowired_groups`.
+- **Verified by:** probe output + doc/code diff
+
+#### D-6: "Set context on the parent *before* building the child" is documented as the fix on three pages, but parent context never propagates to children at all
+- **Severity:** high
+- **Evidence:** `docs/providers/container.md:61-67` ("Option A: set on the parent first" then `build_child_container`), `docs/troubleshooting/context-not-set.md:27-32` (same Option A), `docs/migration/from-that-depends.md:276` ("Set context **before** building the child"), and the `set_context` docstring itself (`modern_di/container.py:169-176`: "Values set here are not seen by child containers that were *already built*. Either set context before calling build_child_container, or …"). Code: `modern_di/container.py:48,83` — a child's `ContextRegistry` is built from the `context=` argument only; the parent's map is never copied — and `modern_di/providers/context_provider.py:37-39` looks up the registry of the container at the *provider's* scope. Probe (`/tmp/audit_probe_ctx_propagation.py`): REQUEST-scoped `ContextProvider`, value set on the parent BEFORE building the child → `A1 (REQUEST-scoped provider, Option A): FAILED -> ArgumentResolutionError`, `A2 direct resolve of ContextProvider: None`. Conversely the pages' "broken" example (set on parent AFTER child built) works for an APP-scoped provider: `B1 … resolved -> acme`. `C1 child context registry contents: {}`.
+- **Why it's a problem:** The documented fix verifiably does not fix the documented symptom: for per-request context (the case both troubleshooting examples depict — `TenantId` "at scope REQUEST") Option A still fails, and the timing framing ("before vs after building the child") is the wrong mental model entirely — what matters is only which container's registry the provider's scope selects, exactly as the same page correctly states 12 lines later (`context-not-set.md:43-45`), making cause #1 and cause #2 mutually contradictory.
+- **Proposed fix:** On all three pages (and the `set_context` docstring), replace the "set before building the child" advice with the scope rule: set the value on the container at the `ContextProvider`'s scope — for REQUEST-scoped context that means `build_child_container(context={...})` or `set_context` on the request container; setting it on the parent works only for parent-scope providers (and then build order is irrelevant).
+- **Verified by:** probe output (quoted above) + doc/code diff
+
+#### D-7: alias.md override walkthrough fails when its blocks are run in sequence — the earlier alias override still shadows the source override
+- **Severity:** medium
+- **Evidence:** `docs/providers/alias.md:69-90` — one running `container`: the first block overrides `Dependencies.abstract_repo`, then the second ("Override the source provider instead, and both resolution paths see the mock") asserts `container.resolve(Repository) is mock_for_source`. Executed in page order (`/tmp/audit_doc_alias_1.py`): `AssertionError` on that line — `resolve(Repository)` still returns `mock_for_alias` because `modern_di/container.py:102-107` checks the overrides registry before the alias ever delegates. The block passes only in isolation or after `container.reset_override(Dependencies.abstract_repo)` (verified: `/tmp/audit_doc_alias_2_isolated.py` → both variants OK).
+- **Why it's a problem:** A reader following the page top-to-bottom gets a failing assertion, and the page's claim "the alias and its source can be overridden independently" obscures that an alias override takes precedence over a source override for the aliased type.
+- **Proposed fix:** Insert `container.reset_override(Dependencies.abstract_repo)` between the two blocks (or use a fresh container), and add one sentence noting that an active alias override wins over a source override for `resolve(Repository)`.
+- **Verified by:** executed example (failure) + isolated re-run (claim itself holds)
+
+#### D-8: container.md documents `resolve(str)` result as `"Container scope: Scope.APP"`; actual output is `"Container scope: 1"`
+- **Severity:** medium
+- **Evidence:** `docs/providers/container.md:18-26` — creator returns `f"Container scope: {di_container.scope}"` and the page asserts `# result: "Container scope: Scope.APP"`. `modern_di/scope.py:4` — `Scope` is an `enum.IntEnum`, whose `__format__` is `int`'s, so f-string interpolation yields the integer. Executed (`/tmp/audit_doc_container_1.py`): `S1 result: 'Container scope: 1'`, `matches doc comment: False` (on the project's own Python 3.10; 3.11+ additionally makes `str()` behave the same way).
+- **Why it's a problem:** The example's only observable output is wrong, and it mis-teaches how `Scope` members render in logs/messages.
+- **Proposed fix:** Change the creator to `f"Container scope: {di_container.scope.name}"` or update the comment to `# result: "Container scope: 1"`.
+- **Verified by:** executed example (output quoted above)
+
+#### D-9: missing-provider.md quotes a phantom error message; neither real error matches its text
+- **Severity:** medium
+- **Evidence:** `docs/troubleshooting/missing-provider.md:7-10` — "Understanding the error" quotes `RuntimeError: No provider registered for type <class 'SomeType'> while resolving parameter 'some_param' of <function create_something>.` — that string exists nowhere in `modern_di/`. Real messages (probe `/tmp/audit_probe_errmsgs.py`): direct lookup → `ProviderNotRegisteredError: Provider of type <class '…SomeType'> is not registered in providers registry.` (`modern_di/errors.py:18`); parameter failure → `ArgumentResolutionError: Cannot resolve dependency chain:\n  APP  str\n  caused by: Argument some_param of type <class '…SomeType'> cannot be resolved. Trying to build dependency <class 'str'>.` (`modern_di/errors.py:23-25`).
+- **Why it's a problem:** Same failure class as D-2 on a different page: users who paste the real error into search will never land on this page, and users on the page can't match the quote to what their terminal shows.
+- **Proposed fix:** Replace the quoted block with the two real messages (one per failure mode: `resolve()` miss vs creator-parameter miss), including the dependency-chain rendering.
+- **Verified by:** probe output (quoted above) + grep over `modern_di/`
+
+#### D-10: scope-chain.md quotes a phantom error message; the real one is an `InvalidScopeDependencyError` inside `ValidationFailedError`
+- **Severity:** medium
+- **Evidence:** `docs/troubleshooting/scope-chain.md:9-13` quotes `RuntimeError: Provider <APP-scope UserCache> depends on <REQUEST-scope AsyncSession> which has a shorter lifetime. A shorter-lived dependency would be captured by a longer-lived one and become stale across requests.` — not in the codebase. Real (probe): `ValidationFailedError: Container.validate() found 1 issue(s): InvalidScopeDependencyError\n  - Provider UserCache (scope APP) declares parameter 'session' typed as a provider of AsyncSession at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.` (`modern_di/errors.py:38-42`, wrapping at `modern_di/exceptions.py:258-262`).
+- **Why it's a problem:** The page exists to be found by its error text; its quoted text never occurs, and the angle-bracket phrasing suggests a rendering the library doesn't produce.
+- **Proposed fix:** Replace the quote with the real `ValidationFailedError`/`InvalidScopeDependencyError` output shown above.
+- **Verified by:** probe output (quoted above) + grep over `modern_di/`
+
+#### D-11: circular-dependency.md presents the cycle message as a bare top-level `RuntimeError`; via `validate()` it only ever surfaces wrapped in `ValidationFailedError`
+- **Severity:** low
+- **Evidence:** `docs/troubleshooting/circular-dependency.md:9-11` quotes `RuntimeError: Circular dependency detected: ServiceA -> ServiceB -> ServiceA. …` and `:17` tells users to detect it via `validate()`. The message template matches exactly (`modern_di/errors.py:26`), but the only raise path is `container.validate()` aggregation (`modern_di/container.py:111-152`), so the displayed exception is `ValidationFailedError: Container.validate() found 1 issue(s): CircularDependencyError\n  - Circular dependency detected: ServiceA -> ServiceB -> ServiceA. Check your provider graph for unintended cycles.` (probe E3). Unvalidated resolution gives `RecursionError`, which the page does state correctly (`:13`).
+- **Why it's a problem:** Minor findability/accuracy gap: the exception name and first line a user actually sees (`ValidationFailedError: Container.validate() found …`) don't appear on the page.
+- **Proposed fix:** Show the real wrapped output and name `ValidationFailedError`/`CircularDependencyError` explicitly.
+- **Verified by:** probe output (quoted above) + doc/code diff
+
+#### D-12: design-decisions.md claims "mypy --strict and ty clean. No `# type: ignore`, no `typing.cast`" — the codebase has three `typing.cast`s, two `ty: ignore`s, and no mypy configuration at all
+- **Severity:** low
+- **Evidence:** `docs/introduction/design-decisions.md:21` — "The codebase ships with `mypy --strict` and `ty` clean. No `# type: ignore`, no `typing.cast`." Actual: `typing.cast` at `modern_di/types_parser.py:57`, `modern_di/registries/context_registry.py:13`, `modern_di/providers/context_provider.py:35`; suppressions `# ty: ignore[invalid-await]` at `modern_di/registries/cache_registry.py:25` and `# ty: ignore[invalid-return-type]` at `modern_di/container.py:107`; `grep -rn mypy pyproject.toml justfile .github/` → no matches (mypy is neither configured nor run — lint is ruff + ty per `justfile`).
+- **Why it's a problem:** A "maximum type safety" pledge backed by specific, checkable claims that are all false invites distrust of the page's other (accurate) design claims.
+- **Proposed fix:** Reword to what's true: ruff `select=["ALL"]` + `ty` clean, with a handful of localized `typing.cast`/`ty: ignore` escapes; drop the mypy claim or actually add mypy to CI.
+- **Verified by:** grep output + repo config inspection
+
+#### D-13: to-2.x.md recommends `clear_cache=False` for migrated `Resource` providers — which returns the already-finalized instance after close, contradicting factories.md's eviction rationale
+- **Severity:** medium
+- **Evidence:** `docs/migration/to-2.x.md:98-106` (and again `:172-179`) — "Resources can be replaced with Factory with cache_settings with finalizer defined" using `CacheSettings(finalizer=lambda resource: resource.close(), clear_cache=False)`, with no explanation of `clear_cache=False`. Code: `modern_di/registries/cache_registry.py:17-20` — `_clear` skips eviction when `clear_cache` is false. Probe (`/tmp/audit_probe_clear_cache.py`): `same instance after close: True | instance closed: True` — every post-close resolve returns the closed resource forever; with the default, `fresh instance after close: True | new closed: False`. `docs/providers/factories.md:145-147` states the opposite guidance: "clear_cache=True (the default) ensures the closed resource is evicted from cache so it cannot be returned again after close".
+- **Why it's a problem:** Migrating users copy the guide's snippet verbatim; in any lifecycle that closes and reuses a container (tests, CLI runs, Typer's `with container:`) they get a closed engine/session handed out silently — and the two pages give contradictory advice about the same flag.
+- **Proposed fix:** Drop `clear_cache=False` from both to-2.x.md snippets (use the default), or add the sentence explaining when pinning the finalized instance is actually wanted.
+- **Verified by:** probe output (quoted above) + doc/doc cross-check
+
+#### D-14: litestar.md websocket example is a `SyntaxError` — the `async with` body contains only comments
+- **Severity:** low
+- **Evidence:** `docs/integrations/litestar.md:120-129` — `async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:` is followed only by two comment lines and then the dedented `app.register(websocket_handler)`, so the block has no statements (`IndentationError: expected an indented block`). The parallel FastAPI example (`docs/integrations/fastapi.md:101-104`) avoids this with `await websocket.send_text("test")`. The snippet also uses `ALL_GROUPS` undefined. Not executed against Litestar (external dep) — the `modern_di` calls themselves (`build_child_container(scope=Scope.REQUEST)`, plugin takes `Container(groups=...)`) match `modern_di/container.py:63-83`.
+- **Why it's a problem:** Copy-paste of the page's only websocket example fails to parse before any DI behavior is reached.
+- **Proposed fix:** Add a real statement in the block (mirror the FastAPI page's `send_text`) and define or import `ALL_GROUPS`.
+- **Verified by:** doc inspection + static API check (integration not installed)
+
 ### Quality (internals)
 
 #### Q-1: `SignatureItem.is_nullable` is computed and tested but never read by resolution
