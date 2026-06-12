@@ -1,9 +1,10 @@
 import dataclasses
+import functools
 import typing
 
 import pytest
 
-from modern_di import types
+from modern_di import providers, types
 from modern_di.types_parser import SignatureItem, parse_creator
 
 
@@ -167,3 +168,18 @@ class ClassWithWrongAnnotations:
 )
 def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[str, SignatureItem]]) -> None:
     assert parse_creator(creator) == result
+
+
+def _partial_target(x: int, y: int) -> int:
+    return x + y
+
+
+def test_partial_creator_warns_and_skips_instead_of_crashing() -> None:
+    partial = functools.partial(_partial_target, y=1)
+    assert partial(x=2) == _partial_target(x=2, y=1)  # exercise _partial_target body for coverage
+    with pytest.warns(UserWarning, match="skip_creator_parsing"):
+        provider = providers.Factory(
+            creator=partial,
+            bound_type=int,
+        )
+    assert provider is not None

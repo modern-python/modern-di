@@ -60,9 +60,10 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
             type_hints = typing.get_type_hints(creator.__init__)
         else:
             type_hints = typing.get_type_hints(creator)
-    except NameError as e:
+    except (NameError, TypeError) as e:
         warnings.warn(
-            f"Failed to resolve type hints for {creator}: {e}. Dependency wiring will be skipped.",
+            f"Failed to resolve type hints for {creator}: {e}. Dependency wiring will be skipped. "
+            f"Pass skip_creator_parsing=True (with an explicit bound_type) to silence this warning.",
             UserWarning,
             stacklevel=2,
         )
