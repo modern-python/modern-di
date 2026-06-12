@@ -129,7 +129,12 @@ class Container:
             path.append(provider)
             validation_errors.extend(provider.iter_validation_issues(self))
 
-            for dep_name, dep_provider in provider.get_dependencies(self).items():
+            try:
+                dependencies = provider.get_dependencies(self)
+            except exceptions.ResolutionError as exc:
+                validation_errors.append(exc)
+                dependencies = {}
+            for dep_name, dep_provider in dependencies.items():
                 if dep_provider.scope > provider.scope:
                     validation_errors.append(
                         exceptions.InvalidScopeDependencyError(

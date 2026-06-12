@@ -96,14 +96,6 @@ def test_alias_missing_source_raises_on_validate_provider() -> None:
         container.resolve_provider(G.abstract)
 
 
-def test_alias_missing_source_raises_on_container_validate() -> None:
-    class G(Group):
-        abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
-
-    with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository"):
-        Container(groups=[G], validate=True)
-
-
 def test_alias_participates_in_cycle_detection() -> None:
     class Iface: ...
 
@@ -132,3 +124,28 @@ def test_alias_repr() -> None:
     assert repr(alias) == (
         f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r}, scope=<Scope.REQUEST: 3>)"
     )
+
+
+class _NotRegisteredSource: ...
+
+
+class _AliasTarget: ...
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class _NeedsUnregistered:
+    dep: _NotRegisteredSource
+
+
+class _DanglingAliasGroup(Group):
+    dangling = providers.Alias(source_type=_NotRegisteredSource, bound_type=_AliasTarget)
+    broken_factory = providers.Factory(creator=_NeedsUnregistered)
+
+
+def test_validate_aggregates_dangling_alias_into_validation_failed_error() -> None:
+    with pytest.raises(ValidationFailedError) as exc_info:
+        Container(scope=Scope.APP, groups=[_DanglingAliasGroup], validate=True)
+    errors = exc_info.value.errors
+    assert any(isinstance(e, AliasSourceNotRegisteredError) for e in errors)
+    min_expected_errors = 2
+    assert len(errors) >= min_expected_errors, "validate() must aggregate all issues, not stop at the first"
