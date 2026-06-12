@@ -219,7 +219,9 @@ def _generic_param_with_default(x: tuple[str, ...] = ()) -> str:
 def test_parameterized_generic_param_with_default_is_allowed() -> None:
     assert _generic_param_with_default(("a",)) == str(("a",))
     provider = providers.Factory(creator=_generic_param_with_default)
-    assert provider is not None
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(str, provider)
+    assert container.resolve(str) == str(())
 
 
 def _pos_only_creator(x: int, /, y: int) -> int:
