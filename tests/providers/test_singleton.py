@@ -395,3 +395,40 @@ def test_singleton_resolution_is_reentrant() -> None:
     assert len(result) == 1
     assert isinstance(result[0], Outer)
     assert isinstance(result[0].inner, Inner)
+
+
+_awaitable_fin_events: list[str] = []
+
+
+class _AwaitableFinSvc: ...
+
+
+async def _real_cleanup(_: _AwaitableFinSvc) -> None:
+    _awaitable_fin_events.append("cleaned")
+
+
+class _AwaitableFinGroup(Group):
+    svc = providers.Factory(
+        scope=Scope.APP,
+        creator=_AwaitableFinSvc,
+        cache_settings=providers.CacheSettings(finalizer=lambda obj: _real_cleanup(obj)),  # noqa: PLW0108
+    )
+
+
+async def test_sync_finalizer_returning_awaitable_is_awaited_in_async_close() -> None:
+    _awaitable_fin_events.clear()
+    container = Container(scope=Scope.APP, groups=[_AwaitableFinGroup])
+    container.resolve(_AwaitableFinSvc)
+    await container.close_async()
+    assert _awaitable_fin_events == ["cleaned"]
+
+
+async def test_sync_finalizer_returning_awaitable_raises_in_sync_close_then_recovers() -> None:
+    _awaitable_fin_events.clear()
+    container = Container(scope=Scope.APP, groups=[_AwaitableFinGroup])
+    container.resolve(_AwaitableFinSvc)
+    with pytest.raises(FinalizerError):
+        container.close_sync()
+    assert _awaitable_fin_events == []  # nothing silently dropped
+    await container.close_async()  # recovery: async close finalizes the retained cache
+    assert _awaitable_fin_events == ["cleaned"]

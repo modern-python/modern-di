@@ -1,4 +1,5 @@
 import dataclasses
+import inspect
 import typing
 
 from modern_di import exceptions, types
@@ -21,10 +22,9 @@ class CacheItem:
 
     async def close_async(self) -> None:
         if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
-            if self.settings.is_async_finalizer:
-                await self.settings.finalizer(self.cache)  # ty: ignore[invalid-await]
-            else:
-                self.settings.finalizer(self.cache)
+            result = self.settings.finalizer(self.cache)
+            if inspect.isawaitable(result):
+                await result
             self.finalized = True
 
         self._clear()
@@ -33,7 +33,11 @@ class CacheItem:
         if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
                 raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
-            self.settings.finalizer(self.cache)
+            result = self.settings.finalizer(self.cache)
+            if inspect.isawaitable(result):
+                if inspect.iscoroutine(result):
+                    result.close()  # suppress "never awaited" warning
+                raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
             self.finalized = True
 
         self._clear()
