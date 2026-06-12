@@ -150,7 +150,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Verified by:** probe output (quoted above) + doc/code diff
 
 #### D-7: alias.md override walkthrough fails when its blocks are run in sequence — the earlier alias override still shadows the source override
-- **Severity:** medium
+- **Severity:** high (the second block cannot run without the page's shared `container`/`Dependencies` state, so sequential execution is the only literal reading, and it fails on the doc's own assert)
 - **Evidence:** `docs/providers/alias.md:69-90` — one running `container`: the first block overrides `Dependencies.abstract_repo`, then the second ("Override the source provider instead, and both resolution paths see the mock") asserts `container.resolve(Repository) is mock_for_source`. Executed in page order (`/tmp/audit_doc_alias_1.py`): `AssertionError` on that line — `resolve(Repository)` still returns `mock_for_alias` because `modern_di/container.py:102-107` checks the overrides registry before the alias ever delegates. The block passes only in isolation or after `container.reset_override(Dependencies.abstract_repo)` (verified: `/tmp/audit_doc_alias_2_isolated.py` → both variants OK).
 - **Why it's a problem:** A reader following the page top-to-bottom gets a failing assertion, and the page's claim "the alias and its source can be overridden independently" obscures that an alias override takes precedence over a source override for the aliased type.
 - **Proposed fix:** Insert `container.reset_override(Dependencies.abstract_repo)` between the two blocks (or use a fresh container), and add one sentence noting that an active alias override wins over a source override for `resolve(Repository)`.
@@ -160,7 +160,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Severity:** medium
 - **Evidence:** `docs/providers/container.md:18-26` — creator returns `f"Container scope: {di_container.scope}"` and the page asserts `# result: "Container scope: Scope.APP"`. `modern_di/scope.py:4` — `Scope` is an `enum.IntEnum`, whose `__format__` is `int`'s, so f-string interpolation yields the integer. Executed (`/tmp/audit_doc_container_1.py`): `S1 result: 'Container scope: 1'`, `matches doc comment: False` (on the project's own Python 3.10; 3.11+ additionally makes `str()` behave the same way).
 - **Why it's a problem:** The example's only observable output is wrong, and it mis-teaches how `Scope` members render in logs/messages.
-- **Proposed fix:** Change the creator to `f"Container scope: {di_container.scope.name}"` or update the comment to `# result: "Container scope: 1"`.
+- **Proposed fix:** Change the creator to `f"Container scope: {di_container.scope.name}"` (and update the comment to `"Container scope: APP"`), or keep the creator and update the comment to `# result: "Container scope: 1"` — the doc comment changes under either option.
 - **Verified by:** executed example (output quoted above)
 
 #### D-9: missing-provider.md quotes a phantom error message; neither real error matches its text
@@ -200,10 +200,12 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 #### D-14: litestar.md websocket example is a `SyntaxError` — the `async with` body contains only comments
 - **Severity:** low
-- **Evidence:** `docs/integrations/litestar.md:120-129` — `async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:` is followed only by two comment lines and then the dedented `app.register(websocket_handler)`, so the block has no statements (`IndentationError: expected an indented block`). The parallel FastAPI example (`docs/integrations/fastapi.md:101-104`) avoids this with `await websocket.send_text("test")`. The snippet also uses `ALL_GROUPS` undefined. Not executed against Litestar (external dep) — the `modern_di` calls themselves (`build_child_container(scope=Scope.REQUEST)`, plugin takes `Container(groups=...)`) match `modern_di/container.py:63-83`.
+- **Evidence:** `docs/integrations/litestar.md:120-129` — `async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:` is followed only by two comment lines and then the dedented `app.register(websocket_handler)`, so the block has no statements (`IndentationError: expected an indented block`). The parallel FastAPI example (`docs/integrations/fastapi.md:101-104`) avoids this with `await websocket.send_text("test")`. The snippet also references `ALL_GROUPS`, which is defined earlier on the page (lines 50, 84) but missing from this snippet's otherwise self-contained imports. Not executed against Litestar (external dep) — the `modern_di` calls themselves (`build_child_container(scope=Scope.REQUEST)`, plugin takes `Container(groups=...)`) match `modern_di/container.py:63-83`.
 - **Why it's a problem:** Copy-paste of the page's only websocket example fails to parse before any DI behavior is reached.
-- **Proposed fix:** Add a real statement in the block (mirror the FastAPI page's `send_text`) and define or import `ALL_GROUPS`.
+- **Proposed fix:** Add a real statement in the block (mirror the FastAPI page's `send_text`) and include the `ALL_GROUPS` reference in the snippet's imports/context.
 - **Verified by:** doc inspection + static API check (integration not installed)
+
+**Drift-pass coverage ledger:** 31 pages checked (README + 30 docs pages). Executed: index.md, about-di.md, resolving.md, scopes.md, factories.md, container.md, context.md, alias.md, from-that-depends.md (§5 + mappings), to-2.x.md (14 example sections + 5 targeted probes). Statically verified (external deps not installed): integrations/fastapi.md, faststream.md, litestar.md, typer.md, pytest.md; recipes/sqlalchemy.md, request-scoped-engine.md, multi-group.md, testing-overrides.md, async-lifespan.md; providers/lifecycle.md (fragments; behavioral claims covered by D-1/B-7). No Python to execute: README.md, testing/fixtures.md, dev/contributing.md, troubleshooting pages (error texts probe-verified → D-2, D-9, D-10, D-11; duplicate-type-error.md accurate). migration/to-1.x.md: checked — all 8 blocks are historical 0.x/1.x API (`AsyncContainer`, `Singleton`, `sync_resolve`), untraceable against 2.x by design; the page carries no historical-version banner (left as a candidate for the completeness pass).
 
 ### Quality (internals)
 
