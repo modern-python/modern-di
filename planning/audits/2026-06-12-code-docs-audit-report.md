@@ -6,7 +6,7 @@
 
 ## Summary
 
-57 findings across five categories. Every Bug and Drift finding was independently reproduced by an adversarial reviewer with fresh probe scripts; zero findings were refuted.
+57 findings across five categories. Every Bug and Drift finding was independently verified by an adversarial reviewer — with fresh probe scripts where executable, direct doc/config inspection otherwise; zero findings were refuted.
 
 | Category | High | Medium | Low | Total |
 |---|---|---|---|---|
@@ -19,7 +19,7 @@
 
 **Top 5 by impact:**
 
-1. **B-7 + D-1** (high): finalizers run in cache-insertion order, not the documented reverse-resolve (LIFO) order — and the warmup pattern the docs themselves recommend triggers dependency-before-dependent teardown.
+1. **B-7 + D-1** (B-7 high / D-1 medium): finalizers run in cache-insertion order, not the documented reverse-resolve (LIFO) order — and the warmup pattern the docs themselves recommend triggers dependency-before-dependent teardown.
 2. **D-6** (high): the documented fix for missing context ("call `set_context` on the parent before building the child") verifiably does not work — context never propagates parent→child; wrong on three pages and in the `container.py` docstring.
 3. **D-3** (high): the introductory `about-di.md` example crashes with `ScopeNotInitializedError` when run as written — a newcomer's likely first contact with the library fails.
 4. **D-7** (high): the `alias.md` override walkthrough fails on its own assert when its blocks are run in page order — an active alias override silently wins over a source override.
@@ -126,7 +126,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 ### Drift (docs vs code)
 
-(none found in the core-code pass; the providers/registries pass added D-1 below and the spec-review gap-closure pass added D-2 — CLAUDE.md's registry-sharing claim table was cross-checked against `container.py:47-57` and is accurate: ProvidersRegistry shared, CacheRegistry per-container, ContextRegistry per-container, OverridesRegistry shared)
+(D-1 and D-2 came from the code-audit passes; D-3..D-14 from the dedicated docs-drift pass. Verified accurate along the way, no findings: CLAUDE.md's registry-sharing table vs `container.py:47-57` — ProvidersRegistry shared, CacheRegistry per-container, ContextRegistry per-container, OverridesRegistry shared.)
 
 #### D-1: Docs promise "reverse-resolve order" finalization; code finalizes in cache-item insertion order
 - **Severity:** medium
@@ -390,21 +390,21 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Severity:** medium
 - **Evidence:** Probes show four signature shapes that degrade or fail (`list[Svc]` matched by bare origin — B-1; positional-only params — B-3; `functools.partial` — B-2; unannotated params unresolvable by type). `grep -rE "positional-only|functools.partial"` over `docs/` finds no user-facing coverage (only the audit plan file); expected home: `docs/providers/factories.md:13` (introduces `creator` parameter) — no such section exists.
 - **Why it's a problem:** Users cannot predict which creator signatures wire correctly; the failures are discovered at runtime instead of in the docs.
-- **Proposed fix:** Add a "supported creator signatures" subsection to `docs/providers/factories.md` listing what is wired, what is skipped, and what raises — for the docs pass to confirm and place.
+- **Proposed fix:** Add a "supported creator signatures" subsection to `docs/providers/factories.md` listing what is wired, what is skipped, and what raises.
 - **Verified by:** probe script output + docs grep
 
 #### G-2: Container reuse after close is undocumented
 - **Severity:** low
 - **Evidence:** Probe shows `resolve()` after `close_sync()` re-creates and re-caches instances and a later close re-runs finalizers; `grep -rniE "after clos|reuse"` over `docs/` shows no statement either way (closest: `docs/providers/factories.md:146` about cache eviction at close).
 - **Why it's a problem:** Whether a closed container is dead or reusable is core lifecycle semantics; today the behavior (reusable, silently) is discoverable only by experiment.
-- **Proposed fix:** State the reuse-after-close semantics explicitly in the lifecycle docs (ties to X-1 — docs pass to confirm wording once the X-1 decision lands).
+- **Proposed fix:** State the reuse-after-close semantics explicitly in the lifecycle docs (wording depends on the X-1 decision: document reuse as supported, or document the closed state once added).
 - **Verified by:** probe script output + docs grep
 
 #### G-3: Nullable annotation semantics are undocumented (`X | None` never injects None)
 - **Severity:** low
 - **Evidence:** Probe: `def __init__(self, x: Svc | None)` with no provider and no default raises `ArgumentResolutionError`; `None` is injected only via a `= None` default. Docs grep for optional/nullable parameter semantics finds nothing user-facing; expected home: `docs/providers/factories.md:27` (discusses `kwargs` / manual parameter values, closest to optional-resolution semantics) — no such section exists.
 - **Why it's a problem:** Inconsistent with `ContextProvider` returning `None` when unset (documented wont-fix), users may reasonably expect `Optional` params to receive `None`.
-- **Proposed fix:** Document that union annotations resolve by their first registered member and that `None` is never injected without a default (ties to Q-1 — docs pass to confirm).
+- **Proposed fix:** Document that union annotations resolve by their first registered member and that `None` is never injected without a default (ties to the Q-1 decision on `is_nullable`).
 - **Verified by:** probe script output + docs grep
 
 #### G-4: Same-container `set_context` staleness is missing from the context troubleshooting page
