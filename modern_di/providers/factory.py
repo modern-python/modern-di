@@ -237,6 +237,7 @@ class Factory(AbstractProvider[types.T_co]):
 
             instance = self._creator(**resolved_kwargs)
             cache_item.cache = instance
+            container.cache_registry.mark_created(cache_item)
             return instance
         finally:
             if container.lock:

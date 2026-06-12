@@ -323,6 +323,49 @@ def test_singleton_threading_concurrency() -> None:
     assert calls == 1
 
 
+_lifo_events: list[str] = []
+
+
+class _LifoLeaf: ...
+
+
+class _LifoMid:
+    def __init__(self, leaf: _LifoLeaf) -> None:
+        self.leaf = leaf
+
+
+class _LifoTop:
+    def __init__(self, mid: _LifoMid) -> None:
+        self.mid = mid
+
+
+class _LifoGroup(Group):
+    leaf = providers.Factory(
+        scope=Scope.APP,
+        creator=_LifoLeaf,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("leaf")),
+    )
+    mid = providers.Factory(
+        scope=Scope.APP,
+        creator=_LifoMid,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("mid")),
+    )
+    top = providers.Factory(
+        scope=Scope.APP,
+        creator=_LifoTop,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("top")),
+    )
+
+
+def test_finalizers_run_in_reverse_creation_order_even_with_warmup() -> None:
+    _lifo_events.clear()
+    container = Container(scope=Scope.APP, groups=[_LifoGroup])
+    container.resolve(_LifoLeaf)  # the docs-recommended warmup pattern
+    container.resolve(_LifoTop)
+    container.close_sync()
+    assert _lifo_events == ["top", "mid", "leaf"]
+
+
 def test_singleton_resolution_is_reentrant() -> None:
     class Inner:
         pass
