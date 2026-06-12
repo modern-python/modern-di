@@ -55,7 +55,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 #### B-5: `validate()` aborts on a dangling Alias instead of aggregating it into ValidationFailedError
 - **Severity:** medium
-- **Evidence:** `modern_di/container.py:132` — `_visit` calls `provider.get_dependencies(self)` unguarded; `modern_di/providers/alias.py:32` raises `AliasSourceNotRegisteredError` from `_find_source` when the alias source is unregistered. Probe: a group with a dangling `Alias` plus a second broken provider, `Container(..., validate=True)` → raw `AliasSourceNotRegisteredError: Alias source type <class '...NotRegistered'> is not registered...` — no `ValidationFailedError`, and the second issue is never reported.
+- **Evidence:** `modern_di/container.py:132` — `_visit` calls `provider.get_dependencies(self)` unguarded; `modern_di/providers/alias.py:32` raises `AliasSourceNotRegisteredError` from `_find_source` when the alias source is unregistered. Probe: a group with a dangling `Alias` plus a second broken provider, `Container(..., validate=True)` → raw `AliasSourceNotRegisteredError: Alias source type <class '...NotRegistered'> is not registered...` — no `ValidationFailedError`, and the second issue is never reported. Repro precondition: the alias must be bound under a type different from its source (`Alias(source_type=X, bound_type=Y)`); with the default `bound_type` the cycle path aggregates correctly, and with `bound_type=None` the alias is never registered.
 - **Why it's a problem:** Breaks the validate() contract of collecting all issues into one `ValidationFailedError`: callers catching `ValidationFailedError`/`ContainerError` miss this `ResolutionError`, and multi-issue graphs are reported one issue at a time.
 - **Proposed fix:** In `_visit`, wrap the `get_dependencies` call in `try/except ResolutionError` and append to `validation_errors` (or give `Alias` an `iter_validation_issues` that yields the error and make its `get_dependencies` tolerate a missing source).
 - **Verified by:** probe script output (`/tmp/audit_probe_container.py` section 5c, quoted above)
@@ -107,7 +107,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Evidence:** `modern_di/errors.py` holds 11 `*_ERROR` message templates and 4 `SUGGESTION_*` constants (15 total), but five exception classes build their messages inline: `UnknownFactoryKwargError` (`modern_di/exceptions.py:214-223`), `ValidationFailedError` (:257-263), `FinalizerError` (:272-273), `AsyncFinalizerInSyncCloseError` (:283-286), `GroupInstantiationError` (:294).
 - **Why it's a problem:** Half-applied convention: contributors can't tell where a message lives or where new ones belong, and the templates module no longer covers the error surface it implies it does.
 - **Proposed fix:** Move the static parts of the five inline messages into `errors.py` templates (or document in errors.py that multi-line/loop-built messages stay inline).
-- **Verified by:** code-path trace (cross-check of every `raise` in the eight audited files against errors.py; all 12 templates are used, no orphans)
+- **Verified by:** code-path trace (cross-check of every `raise` in the eight audited files against errors.py; all 15 named strings (11 `*_ERROR` + 4 `SUGGESTION_*`) are used, no orphans)
 
 ### DX (public API)
 
