@@ -200,7 +200,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 #### Q-11: Creator raising mid-creation is untested — no test pins "failed instance not cached, deps still finalized, retry succeeds"
 - **Severity:** medium
-- **Evidence:** grep across `tests/` finds no creator that raises (only finalizers raise, `tests/providers/test_singleton.py:156-223`). The contract lives at `modern_di/providers/factory.py:221-222`: if `self._creator(**resolved_kwargs)` raises, `cache_item.cache` stays UNSET. Probe P2: cached `Svc(dep: Dep)` whose creator raises once → `first resolve raised: boom`, `cached_count after failure: 1` (the `Dep` dependency *is* cached, the failed `Svc` is not), `retry succeeded: True`, `finalizer events: ['svc-finalized', 'dep-finalized']` at close.
+- **Evidence:** grep across `tests/` finds no *cached* creator that raises (`tests/providers/test_factory.py:55-60` has an uncached creator raise but asserts only propagation; finalizer raises are at `tests/providers/test_singleton.py:156-223`). The contract lives at `modern_di/providers/factory.py:221-222`: if `self._creator(**resolved_kwargs)` raises, `cache_item.cache` stays UNSET. Probe P2: cached `Svc(dep: Dep)` whose creator raises once → `first resolve raised: boom`, `cached_count after failure: 1` (the `Dep` dependency *is* cached, the failed `Svc` is not), `retry succeeded: True`, `finalizer events: ['svc-finalized', 'dep-finalized']` at close.
 - **Why it's a problem:** Error recovery during startup (flaky DB connect, retry on next resolve) is a core lifecycle contract; a regression that caches a partially-constructed sentinel, leaks the already-created dep, or poisons `kwargs_compiled` would pass the entire suite.
 - **Proposed fix:** Add a test with a cached factory whose creator raises on first call: assert the exception propagates, the failed provider is not cached (dep may be), a second resolve succeeds, and close finalizes both the dep and the retried instance exactly once.
 - **Verified by:** probe (`/tmp/audit_probe_tests.py` P2, output quoted) + grep
@@ -216,7 +216,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Severity:** low
 - **Evidence:** `tests/providers/test_alias.py` — every `Alias.source_type` points at a Factory; no test exercises the recursion `Alias.resolve → container.resolve_provider(another Alias)` (`modern_di/providers/alias.py:38-39`) or `validate()` walking an alias→alias edge. Probe P4: `Impl ← Alias(IfA) ← Alias(IfB)` with `validate=True` constructs cleanly and `resolve(IfB)` returns the cached `Impl` instance.
 - **Why it's a problem:** Two-hop delegation through interface layers is a natural use of Alias; nothing pins that chains resolve, hit the source's cache, or survive validation.
-- **Proposed fix:** Add a test with an alias whose source is another alias: assert resolution returns the source instance and `validate=True` passes.
+- **Proposed fix:** Add a test with an alias whose source is another alias: assert resolution returns the source instance and `validate=True` passes. (Note: the `validate=True` assert silently depends on all alias sources being registered — otherwise B-5's raw-error escape fires; keep that precondition or defer the validate assert until B-5 is resolved.)
 - **Verified by:** probe (`/tmp/audit_probe_tests.py` P4, output quoted)
 
 #### Q-14: Alias resolved from a child container over an APP-cached source is never asserted to return the APP singleton
@@ -274,7 +274,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Severity:** medium
 - **Evidence:** `pyproject.toml:70` — `addopts = "--cov=. --cov-report term-missing --cov-fail-under=100"` applies to every pytest invocation; `CLAUDE.md` documents `just test tests/providers/test_factory.py` (and `-k` selection) as the supported targeted workflow, and the `Justfile` `test` recipe passes args straight through. Probe: `uv run --no-sync pytest tests/test_group.py` → `5 passed` but `FAIL Required test coverage of 100% not reached. Total coverage: 23.31%`, exit code 1.
 - **Why it's a problem:** Every targeted run exits nonzero with a scary FAIL line despite green tests, breaking scripted checks (and agents) that trust the exit code; the workaround (`--no-cov`) is documented nowhere. Q-6 flagged the same gate for `benchmarks/`; this is the far more common everyday path.
-- **Proposed fix:** Move coverage flags out of `addopts` into the `just test`/CI recipes (full-suite only), or document `--no-cov` next to the single-file examples in CLAUDE.md and the Justfile.
+- **Proposed fix:** Move coverage flags out of `addopts` into the `just test`/CI recipes (full-suite only), or document `--no-cov` next to the single-file examples in CLAUDE.md and the Justfile. (Decide together with Q-6: if Q-6 renames benchmarks to `test_bench_*.py`, the gate-in-`addopts` question determines whether targeted benchmark runs still fail; if coverage leaves `addopts` per this fix, Q-6's `testpaths` exclusion is only needed to keep benchmarks out of default collection, not for the gate.)
 - **Verified by:** probe (commands and output quoted above)
 
 ### Docs gaps
