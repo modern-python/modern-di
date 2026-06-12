@@ -64,7 +64,7 @@ pass without asserting what their name claims.
 
 ### 5. Report
 
-Single document at `planning/2026-06-12-audit-findings.md`. Findings grouped by
+Single document at `planning/audits/2026-06-12-code-docs-audit-report.md`. Findings grouped by
 category — **Bug / Drift / Quality / DX / Docs gap** — each with:
 
 - severity (high / medium / low),
