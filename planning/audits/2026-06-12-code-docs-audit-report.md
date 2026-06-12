@@ -59,6 +59,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 - **Why it's a problem:** Breaks the validate() contract of collecting all issues into one `ValidationFailedError`: callers catching `ValidationFailedError`/`ContainerError` miss this `ResolutionError`, and multi-issue graphs are reported one issue at a time.
 - **Proposed fix:** In `_visit`, wrap the `get_dependencies` call in `try/except ResolutionError` and append to `validation_errors` (or give `Alias` an `iter_validation_issues` that yields the error and make its `get_dependencies` tolerate a missing source).
 - **Verified by:** probe script output (`/tmp/audit_probe_container.py` section 5c, quoted above)
+- **Note:** a dependency cycle *through* a ContextProvider is structurally impossible (it has no outgoing edges), so the probe validated a chain through one instead; this is the maximal realizable test for that spec item.
 
 #### B-6: `Container.__init__` accepts a `parent_container` with a non-increasing scope, silently shadowing the parent's scope_map entry
 - **Severity:** medium
@@ -103,7 +104,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 #### Q-5: Error-message centralization is inconsistent between errors.py and exceptions.py
 - **Severity:** low
-- **Evidence:** `modern_di/errors.py` holds 12 message templates, but five exception classes build their messages inline: `UnknownFactoryKwargError` (`modern_di/exceptions.py:214-223`), `ValidationFailedError` (:257-263), `FinalizerError` (:272-273), `AsyncFinalizerInSyncCloseError` (:283-286), `GroupInstantiationError` (:294).
+- **Evidence:** `modern_di/errors.py` holds 11 `*_ERROR` message templates and 4 `SUGGESTION_*` constants (15 total), but five exception classes build their messages inline: `UnknownFactoryKwargError` (`modern_di/exceptions.py:214-223`), `ValidationFailedError` (:257-263), `FinalizerError` (:272-273), `AsyncFinalizerInSyncCloseError` (:283-286), `GroupInstantiationError` (:294).
 - **Why it's a problem:** Half-applied convention: contributors can't tell where a message lives or where new ones belong, and the templates module no longer covers the error surface it implies it does.
 - **Proposed fix:** Move the static parts of the five inline messages into `errors.py` templates (or document in errors.py that multi-line/loop-built messages stay inline).
 - **Verified by:** code-path trace (cross-check of every `raise` in the eight audited files against errors.py; all 12 templates are used, no orphans)
@@ -121,7 +122,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 #### G-1: Creator-signature support matrix is undocumented (generics, positional-only, partial, unannotated params)
 - **Severity:** medium
-- **Evidence:** Probes show four signature shapes that degrade or fail (`list[Svc]` matched by bare origin — B-1; positional-only params — B-3; `functools.partial` — B-2; unannotated params unresolvable by type). `grep -rE "positional-only|functools.partial"` over `docs/` finds no user-facing coverage (only the audit plan file).
+- **Evidence:** Probes show four signature shapes that degrade or fail (`list[Svc]` matched by bare origin — B-1; positional-only params — B-3; `functools.partial` — B-2; unannotated params unresolvable by type). `grep -rE "positional-only|functools.partial"` over `docs/` finds no user-facing coverage (only the audit plan file); expected home: `docs/providers/factories.md:13` (introduces `creator` parameter) — no such section exists.
 - **Why it's a problem:** Users cannot predict which creator signatures wire correctly; the failures are discovered at runtime instead of in the docs.
 - **Proposed fix:** Add a "supported creator signatures" subsection to `docs/providers/factories.md` listing what is wired, what is skipped, and what raises — for the docs pass to confirm and place.
 - **Verified by:** probe script output + docs grep
@@ -135,7 +136,7 @@ IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
 
 #### G-3: Nullable annotation semantics are undocumented (`X | None` never injects None)
 - **Severity:** low
-- **Evidence:** Probe: `def __init__(self, x: Svc | None)` with no provider and no default raises `ArgumentResolutionError`; `None` is injected only via a `= None` default. Docs grep for optional/nullable parameter semantics finds nothing user-facing.
+- **Evidence:** Probe: `def __init__(self, x: Svc | None)` with no provider and no default raises `ArgumentResolutionError`; `None` is injected only via a `= None` default. Docs grep for optional/nullable parameter semantics finds nothing user-facing; expected home: `docs/providers/factories.md:27` (discusses `kwargs` / manual parameter values, closest to optional-resolution semantics) — no such section exists.
 - **Why it's a problem:** Inconsistent with `ContextProvider` returning `None` when unset (documented wont-fix), users may reasonably expect `Optional` params to receive `None`.
 - **Proposed fix:** Document that union annotations resolve by their first registered member and that `None` is never injected without a default (ties to Q-1 — docs pass to confirm).
 - **Verified by:** probe script output + docs grep
