@@ -148,3 +148,24 @@ def test_context_provider_through_closed_owning_container_raises() -> None:
     app.close_sync()
     with pytest.raises(ContainerClosedError):
         child.resolve_provider(MyGroup.context_provider)
+
+
+# Q-12 — ContextProvider reads the registry at its OWN scope
+
+
+class _ScopedCtx: ...
+
+
+class _ScopedCtxGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_ScopedCtx)
+
+
+def test_context_provider_reads_registry_at_its_own_scope_not_resolving_container() -> None:
+    value = _ScopedCtx()
+    app = Container(scope=Scope.APP, groups=[_ScopedCtxGroup])
+    request = app.build_child_container(scope=Scope.REQUEST, context={_ScopedCtx: _ScopedCtx()})
+    # context set on the CHILD must be invisible to an APP-scoped provider
+    assert request.resolve(_ScopedCtx) is None
+    # context set on the container at the provider's scope is what counts
+    app.set_context(_ScopedCtx, value)
+    assert request.resolve(_ScopedCtx) is value

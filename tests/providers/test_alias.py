@@ -149,3 +149,36 @@ def test_validate_aggregates_dangling_alias_into_validation_failed_error() -> No
     assert any(isinstance(e, AliasSourceNotRegisteredError) for e in errors)
     min_expected_errors = 2
     assert len(errors) >= min_expected_errors, "validate() must aggregate all issues, not stop at the first"
+
+
+# Q-13 + Q-14 — alias chains and child→APP-cache identity
+
+
+class _ChainImpl: ...
+
+
+class _ChainIfA: ...
+
+
+class _ChainIfB: ...
+
+
+class _ChainGroup(Group):
+    impl = providers.Factory(scope=Scope.APP, creator=_ChainImpl, cache_settings=providers.CacheSettings())
+    if_a = providers.Alias(source_type=_ChainImpl, bound_type=_ChainIfA)
+    if_b = providers.Alias(source_type=_ChainIfA, bound_type=_ChainIfB)
+
+
+def test_alias_of_alias_resolves_to_source_and_validates() -> None:
+    # all alias sources registered, so B-5 validate aggregation is not in play
+    container = Container(scope=Scope.APP, groups=[_ChainGroup], validate=True)
+    impl = container.resolve(_ChainImpl)
+    assert container.resolve(_ChainIfB) is impl
+    assert container.resolve(_ChainIfA) is impl
+
+
+def test_alias_resolved_from_child_returns_app_cached_singleton() -> None:
+    container = Container(scope=Scope.APP, groups=[_ChainGroup])
+    app_instance = container.resolve(_ChainImpl)
+    request = container.build_child_container(scope=Scope.REQUEST)
+    assert request.resolve(_ChainIfA) is app_instance
