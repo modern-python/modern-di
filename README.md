@@ -25,6 +25,42 @@
 - Integrations with `FastAPI`, `FastStream`, `LiteStar` and `Typer`
 - Pytest integration (`modern-di-pytest`) — turns any DI dependency into a pytest fixture
 
+## Install
+
+```bash
+uv add modern-di      # or: pip install modern-di
+```
+
+## Quick Start
+
+```python
+import dataclasses
+from modern_di import Container, Group, Scope, providers
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    database_url: str = "postgresql+asyncpg://localhost/app"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class UserRepository:
+    settings: Settings  # auto-injected by type
+
+
+class Dependencies(Group):
+    settings = providers.Factory(scope=Scope.APP, creator=Settings)
+    user_repository = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
+
+
+with Container(groups=[Dependencies], validate=True) as container:
+    with container.build_child_container(scope=Scope.REQUEST) as request:
+        repo = request.resolve(UserRepository)
+        print(repo.settings.database_url)
+```
+
+See the [documentation](https://modern-di.modern-python.org) for scopes, lifecycles, finalizers, and framework integrations.
+
 Usage examples:
 
 - with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
