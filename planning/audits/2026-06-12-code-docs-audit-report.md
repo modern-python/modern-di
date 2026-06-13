@@ -1,6 +1,6 @@
 # Code & Docs Audit Report — 2026-06-12
 
-**Spec:** planning/specs/2026-06-12-code-docs-audit-design.md
+**Spec:** planning/changes/archive/2026-06-12.01-code-docs-audit/design.md
 **Baseline:** lint-ci PASS, pytest PASS (100% coverage), at commit 9f07b08
 **Prior audit:** planning/audits/2026-06-05-bug-hunt-audit-report.md
 
