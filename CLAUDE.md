@@ -93,6 +93,23 @@ class MyGroup(Group):
 - `asyncio_mode = "auto"` in pytest config — async test functions work without extra markers
 - Downstream projects can install **`modern-di-pytest`** to expose DI dependencies as pytest fixtures. It ships two callables: `modern_di_fixture(type_or_provider)` for single fixtures and `expose(*groups)` to bulk-generate one fixture per provider across one or more `Group` subclasses (duplicate attribute names raise `ValueError`). The package itself does **not** depend on `modern-di-pytest`; the integration lives in a sibling repository (`modern-python/modern-di-pytest`).
 
+## Workflow
+
+Planning follows a portable two-axis convention (shared with
+`faststream-outbox`); full details in [`planning/README.md`](planning/README.md).
+
+- **`architecture/`** (repo root) is the **truth home** — living capability
+  prose, the promotion target on every ship. The `## Architecture` section
+  above is quick orientation; `architecture/` holds the authoritative,
+  up-to-date account.
+- **`planning/changes/{active,archive}/<YYYY-MM-DD.NN-slug>/`** are change
+  bundles: `design.md` + `plan.md` (full lane), or `change.md` (lightweight).
+  Tiny changes (typo, dep bump, CI tweak) skip bundles entirely.
+- Templates live in [`planning/_templates/`](planning/_templates/).
+- **Shipping a change** hand-edits the affected `architecture/<capability>.md`,
+  then moves the bundle from `active/` to `archive/` with `status: shipped`,
+  `pr:`, and `outcome:` filled.
+
 ## Code Style
 
 - Line length: 120 characters
