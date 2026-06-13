@@ -104,8 +104,9 @@ Entering `with container:` (or `async with`) opens the container; exiting calls
 above) and mark the container closed.
 
 While a container is closed, resolving a dependency — or building a child container —
-raises `ContainerClosedError`. Re-entering `with container:` reopens it, and resolution
-works again:
+raises `ContainerClosedError` (see [Errors and exceptions](errors-and-exceptions.md) for full
+details). Attempting either outside of a re-entered context manager will always raise that error.
+Re-entering `with container:` reopens it, and resolution works again:
 
 ```python
 container = Container(groups=[Dependencies])
