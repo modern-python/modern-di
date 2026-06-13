@@ -140,9 +140,10 @@ class AppModule(Group):
     user_service = providers.Factory(scope=Scope.REQUEST, creator=UserService)
 
 
-# Resolve entire dependency graph
-container = Container(groups=[AppModule])
-user_service = container.resolve(UserService)
+# Build the app-level container, then a request-scoped child for per-request providers
+app_container = Container(scope=Scope.APP, groups=[AppModule])
+with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
+    user_service = request_container.resolve(UserService)
 ```
 
 ## Why Choose modern-di?

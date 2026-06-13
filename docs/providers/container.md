@@ -16,14 +16,14 @@ from modern_di import Container, Group, Scope, providers
 
 def my_creator(di_container: Container) -> str:
     # Access the container's scope or other properties
-    return f"Container scope: {di_container.scope}"
+    return f"Container scope: {di_container.scope.name}"
 
 class Dependencies(Group):
     my_factory = providers.Factory(scope=Scope.APP, creator=my_creator)
 
 container = Container(groups=[Dependencies])
 result = container.resolve(str)
-# result: "Container scope: Scope.APP"
+# result: "Container scope: APP"
 ```
 
 ### Explicit Injection
