@@ -273,7 +273,7 @@ with container.build_child_container(
     repo = request_container.resolve(TenantScopedRepository)
 ```
 
-`ContextProvider` returns the value registered for that type on the current scope's container — there is no global lookup like `fetch_context_item`. Set context **before** building the child, or pass it into `build_child_container(context=...)`; calling `set_context` on a parent after children exist does not propagate.
+`ContextProvider` returns the value registered for that type on the container **at the provider's own scope** — there is no global lookup like `fetch_context_item`. Context never propagates between containers, so build order is irrelevant: setting context on a parent container never reaches a child-scoped provider. For a REQUEST-scoped `ContextProvider`, pass the value to the request container via `build_child_container(context={TenantId: tenant})` or `request_container.set_context(TenantId, tenant)`.
 
 ## 6. Async resources
 

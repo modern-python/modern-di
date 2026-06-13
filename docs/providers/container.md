@@ -47,27 +47,30 @@ class Dependencies(Group):
 
 ## Context Propagation
 
-`ContextRegistry` is **per-container**. Calling `set_context` on a parent container does not propagate to child containers that were already built — each container keeps its own context map.
+Context never propagates between containers. A `ContextProvider` reads the context registry of the container **at the provider's own scope** — build order is irrelevant.
 
-!!! warning "set_context only affects this container"
-    The following does **not** work as written:
+!!! warning "Scope determines which container is read, not timing"
+    Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:
 
     ```python
+    # ❌ Broken: MyContext provider has scope=Scope.REQUEST, so it reads the REQUEST
+    # container's registry. Setting it on the APP parent has no effect.
     app_container = Container()
+    app_container.set_context(MyContext, value)  # ignored for REQUEST-scoped providers
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    app_container.set_context(MyContext, value)  # invisible to request_container
     ```
 
-    Either set context **before** building the child, or pass it via `build_child_container`:
+    For a REQUEST-scoped `ContextProvider`, set the value on the request container:
 
     ```python
-    # Option A: set on the parent first
-    app_container = Container()
-    app_container.set_context(MyContext, value)
-    request_container = app_container.build_child_container(scope=Scope.REQUEST)
-
-    # Option B: pass context directly to the child
+    # Option A: pass context directly when building the child
     request_container = app_container.build_child_container(
         scope=Scope.REQUEST, context={MyContext: value}
     )
+
+    # Option B: set on the request container after building it
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.set_context(MyContext, value)
     ```
+
+    Setting context on the parent only works when the `ContextProvider`'s scope matches the parent's scope.
