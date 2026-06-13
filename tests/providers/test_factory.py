@@ -5,7 +5,7 @@ import warnings
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import ArgumentResolutionError, ScopeNotInitializedError, UnknownFactoryKwargError
 
 
@@ -55,7 +55,8 @@ def test_app_factory() -> None:
 def test_app_factory_skip_creator_parsing() -> None:
     app_container = Container(groups=[MyGroup])
     with pytest.raises(
-        TypeError, match=re.escape("SimpleCreator.__init__() missing 1 required keyword-only argument: 'dep1'")
+        exceptions.CreatorCallError,
+        match=re.escape("SimpleCreator.__init__() missing 1 required keyword-only argument: 'dep1'"),
     ):
         app_container.resolve_provider(MyGroup.app_factory_skip_creator_parsing)
 
@@ -462,3 +463,39 @@ def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
     container.providers_registry.register(_NeedsOptionalCtx, factory)
     obj = container.resolve(_NeedsOptionalCtx)
     assert obj.ctx is None
+
+
+# X-2 — creator-call TypeError (missing required args under skip_creator_parsing) wrapped in DI error
+
+
+def _needs_two_args(a: int, b: int) -> int:
+    return a + b
+
+
+def test_skip_creator_parsing_missing_args_raises_di_error() -> None:
+    factory: providers.Factory[int] = providers.Factory(
+        creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}
+    )
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(int, factory)
+    with pytest.raises(exceptions.CreatorCallError) as exc_info:
+        container.resolve(int)
+    assert "_needs_two_args" in str(exc_info.value)
+    assert isinstance(exc_info.value, exceptions.ResolutionError)
+    assert _needs_two_args(1, 2) == 1 + 2  # exercise helper body
+
+
+def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
+    factory: providers.Factory[int] = providers.Factory(
+        creator=_needs_two_args,
+        bound_type=int,
+        skip_creator_parsing=True,
+        kwargs={"a": 1},
+        cache_settings=providers.CacheSettings(),
+    )
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(int, factory)
+    with pytest.raises(exceptions.CreatorCallError) as exc_info:
+        container.resolve(int)
+    assert "_needs_two_args" in str(exc_info.value)
+    assert isinstance(exc_info.value, exceptions.ResolutionError)

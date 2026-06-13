@@ -50,3 +50,4 @@ CONTAINER_CLOSED_ERROR = (
     "or build child containers. Create a new container."
 )
 FACTORY_UNSUPPORTED_PARAMETER_ERROR = "Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}"
+CREATOR_CALL_ERROR = "Failed to call creator {creator_name}: {error}. Check kwargs and skip_creator_parsing usage."

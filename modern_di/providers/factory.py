@@ -217,6 +217,14 @@ class Factory(AbstractProvider[types.T_co]):
                 member_types=v.args,
             )
 
+    def _call_creator(self, resolved_kwargs: dict[str, typing.Any]) -> types.T_co:
+        try:
+            return self._creator(**resolved_kwargs)
+        except TypeError as exc:
+            error = exceptions.CreatorCallError(creator=self._creator, original_error=exc)
+            error.prepend_step(self._resolution_step())
+            raise error from exc
+
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
         if container.closed:
@@ -236,7 +244,7 @@ class Factory(AbstractProvider[types.T_co]):
             raise
 
         if not self.cache_settings:
-            return self._creator(**resolved_kwargs)
+            return self._call_creator(resolved_kwargs)
 
         if container.lock:
             container.lock.acquire()
@@ -245,7 +253,7 @@ class Factory(AbstractProvider[types.T_co]):
             if cache_item.cache is not types.UNSET:
                 return cache_item.cache
 
-            instance = self._creator(**resolved_kwargs)
+            instance = self._call_creator(resolved_kwargs)
             cache_item.cache = instance
             container.cache_registry.mark_created(cache_item)
             return instance

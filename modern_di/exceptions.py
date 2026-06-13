@@ -189,6 +189,16 @@ class ArgumentResolutionError(ResolutionError):
         super().__init__(message)
 
 
+class CreatorCallError(ResolutionError):
+    __slots__ = ("creator", "original_error")
+
+    def __init__(self, *, creator: typing.Any, original_error: Exception) -> None:  # noqa: ANN401
+        self.creator = creator
+        self.original_error = original_error
+        creator_name = getattr(creator, "__name__", repr(creator))
+        super().__init__(errors.CREATOR_CALL_ERROR.format(creator_name=creator_name, error=original_error))
+
+
 class CircularDependencyError(ResolutionError):
     __slots__ = ("cycle_path",)
 
