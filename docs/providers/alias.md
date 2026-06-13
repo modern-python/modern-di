@@ -79,6 +79,12 @@ assert container.resolve(Repository) is mock_for_alias
 assert container.resolve(PostgresRepository) is not mock_for_alias
 ```
 
+Note: an active override on the alias takes precedence over an override on its source for the aliased type, so reset the alias override first if you want the source override to win.
+
+```python
+container.reset_override(Dependencies.abstract_repo)
+```
+
 Override the source provider instead, and both resolution paths see the mock:
 
 ```python
