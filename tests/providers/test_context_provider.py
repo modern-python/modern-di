@@ -4,7 +4,7 @@ import datetime
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError
+from modern_di.exceptions import ArgumentResolutionError, ContainerClosedError
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -139,3 +139,12 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
     container.set_context(_LateCtx, value)
     second = container.resolve(_NeedsLateCtx)
     assert second.ctx is value
+
+
+def test_context_provider_through_closed_owning_container_raises() -> None:
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app = Container(groups=[MyGroup], context={datetime.datetime: now})
+    child = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+    with pytest.raises(ContainerClosedError):
+        child.resolve_provider(MyGroup.context_provider)

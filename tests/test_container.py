@@ -375,3 +375,30 @@ async def test_closed_container_async_path() -> None:
     await container.close_async()
     with pytest.raises(ContainerClosedError):
         container.resolve(Container)
+
+
+class _PersistentBroker: ...
+
+
+class _AppBrokerGroup(Group):
+    broker = providers.Factory(
+        scope=Scope.APP, creator=_PersistentBroker, cache_settings=providers.CacheSettings(clear_cache=False)
+    )
+
+
+def test_resolving_through_closed_parent_via_open_child_raises() -> None:
+    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
+    child = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+    with pytest.raises(ContainerClosedError):
+        child.resolve(_PersistentBroker)
+
+
+async def test_async_context_manager_reopens() -> None:
+    container = Container(scope=Scope.APP)
+    async with container:
+        pass
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
+    async with container:
+        assert container.resolve(Container) is container

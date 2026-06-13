@@ -214,12 +214,14 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def __enter__(self) -> "typing_extensions.Self":
+        self.closed = False
         return self
 
     def __exit__(self, *_: object) -> None:
         self.close_sync()
 
     async def __aenter__(self) -> "typing_extensions.Self":
+        self.closed = False
         return self
 
     async def __aexit__(self, *_: object) -> None:

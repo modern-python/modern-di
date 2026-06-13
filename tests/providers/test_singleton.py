@@ -434,3 +434,48 @@ async def test_sync_finalizer_returning_awaitable_raises_in_sync_close_then_reco
     assert _awaitable_fin_events == []  # nothing silently dropped
     await container.close_async()  # recovery: async close finalizes the retained cache
     assert _awaitable_fin_events == ["cleaned"]
+
+
+_cycle_events: list[str] = []
+
+
+class _PersistentBroker: ...
+
+
+class _EphemeralSvc: ...
+
+
+class _CycleGroup(Group):
+    broker = providers.Factory(
+        scope=Scope.APP,
+        creator=_PersistentBroker,
+        cache_settings=providers.CacheSettings(
+            clear_cache=False, finalizer=lambda _: _cycle_events.append("broker-finalized")
+        ),
+    )
+    svc = providers.Factory(
+        scope=Scope.APP,
+        creator=_EphemeralSvc,
+        cache_settings=providers.CacheSettings(),  # clear_cache=True default
+    )
+
+
+def test_persistent_provider_survives_close_reopen_cycle() -> None:
+    _cycle_events.clear()
+    container = Container(scope=Scope.APP, groups=[_CycleGroup])
+    with container:
+        broker1 = container.resolve(_PersistentBroker)
+        svc1 = container.resolve(_EphemeralSvc)
+    # exited → closed; finalizer ran once
+    assert _cycle_events == ["broker-finalized"]
+    # resolving while closed raises
+    with pytest.raises(ContainerClosedError):
+        container.resolve(_PersistentBroker)
+    # re-enter → reopen
+    with container:
+        broker2 = container.resolve(_PersistentBroker)
+        svc2 = container.resolve(_EphemeralSvc)
+    assert broker2 is broker1  # persistent: same instance preserved
+    assert svc2 is not svc1  # ephemeral: rebuilt fresh
+    # finalizer did NOT re-fire for the preserved broker
+    assert _cycle_events == ["broker-finalized"]
