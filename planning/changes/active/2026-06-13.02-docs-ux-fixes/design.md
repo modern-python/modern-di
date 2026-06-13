@@ -44,9 +44,12 @@ D-23, D-25, A-3, X-1, X-2, X-3. The 54 Lows are out of scope for this bundle.
 - **Rendering / cross-links** are checked with `mkdocs build --strict` (fails on
   broken internal links) plus HTML inspection for the ordered-list fix.
 - Two findings (O-5 Litestar websocket, O-6 FastAPI `setup_di`/lifespan) depend
-  on behavior that lives in the **sibling integration repos** not present in this
-  workspace; their tasks call this out and require confirming behavior against
-  those repos (or the maintainer) before asserting the mechanic.
+  on behavior in the sibling integration repos (`../modern-di-litestar`,
+  `../modern-di-fastapi`). Both mechanics were **confirmed from source** and the
+  tasks now carry the exact fix: O-5 — `di_container` auto-resolves by name
+  (plugin registers it), so only the undefined `MyService`/`ALL_GROUPS` need
+  fixing; O-6 — `setup_di` merges with any custom lifespan and closes the
+  container itself (so don't also `async with container`).
 
 ## Risk
 

@@ -622,20 +622,81 @@ git commit -m "docs: split Container-Provider page; move advanced API + context 
 
 ---
 
-### Task 12: litestar.md — make the websocket snippet self-contained (O-5) — VERIFY SIBLING REPO FIRST
+### Task 12: litestar.md — make the websocket snippet self-contained (O-5)
 
 **Files:**
-- Modify: `docs/integrations/litestar.md` (Websockets section, lines 111-131)
+- Modify: `docs/integrations/litestar.md` (Websockets section, lines 116-130)
 
-**Context & blocker:** the snippet references `MyService` (defined nowhere) and injects via a bare `di_container: Container` param. The audit could **not** confirm from this repo whether a bare `Container` param auto-resolves in the Litestar websocket plugin without `FromDI`/`autowired_groups`. The Litestar integration lives in the separate `modern-python/modern-di-litestar` repo.
+**Mechanic confirmed** (`modern-di-litestar/modern_di_litestar/main.py:46`): `ModernDIPlugin.on_app_init` registers `app_config.dependencies["di_container"] = Provide(build_di_container)`. So a parameter **named** `di_container` and typed `Container` **does** auto-resolve in any handler (websocket included) — it's a named Litestar dependency, not type-based. The injection in the current snippet is therefore correct; the only defect is that `MyService` and `ALL_GROUPS` are never defined on the page → `NameError` for a copy-paster.
 
-- [ ] **Step 1: Confirm the actual injection mechanic**
+- [ ] **Step 1: Add the missing definitions; keep the (correct) `di_container` injection**
 
-Check the `modern-di-litestar` repo (or ask the maintainer): does the websocket path auto-resolve a bare `Container`-typed parameter, or is a `FromDI` marker / `autowired_groups` required (as on the typer page, `typer.md:105`)?
+Replace the websocket code block (lines 116-130) with a self-contained version:
 
-- [ ] **Step 2: Make the snippet self-contained and correct**
+````markdown
+```python
+import dataclasses
+import litestar
+from modern_di import Container, Group, Scope, providers
+import modern_di_litestar
 
-Define or reuse `MyService` and `ALL_GROUPS` on the page so there's no `NameError`, and align the injection with whatever Step 1 confirmed (use `FromDI`/`autowired_groups` if that's the real mechanic — do **not** assert bare-type auto-resolution unless verified).
+
+@dataclasses.dataclass
+class MyService:
+    async def handle(self, data: str) -> None: ...
+
+
+class Dependencies(Group):
+    my_service = providers.Factory(scope=Scope.REQUEST, creator=MyService)
+
+
+ALL_GROUPS = [Dependencies]
+
+app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS))])
+
+
+@litestar.websocket_listener("/ws")
+async def websocket_handler(
+    data: str,
+    di_container: Container,  # auto-resolved — the plugin registers a "di_container" dependency
+) -> None:
+    # For a websocket, di_container is the SESSION-scoped child; enter REQUEST scope here
+    async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:
+        service = request_container.resolve(MyService)
+        await service.handle(data)
+
+
+app.register(websocket_handler)
+```
+````
+
+Optionally add one sentence: "`di_container` is injected by name — the plugin registers it as a Litestar dependency; you don't need a `FromDI` marker for the container itself."
+
+- [ ] **Step 2: Verify the DI wiring resolves (the framework-agnostic part)**
+
+The Litestar-specific injection is confirmed by source; verify the modern-di wiring runs:
+
+```bash
+uv run python - <<'PY'
+import dataclasses
+from modern_di import Container, Group, Scope, providers
+
+@dataclasses.dataclass
+class MyService:
+    async def handle(self, data: str) -> None: ...
+
+class Dependencies(Group):
+    my_service = providers.Factory(scope=Scope.REQUEST, creator=MyService)
+
+ALL_GROUPS = [Dependencies]
+with Container(groups=ALL_GROUPS, validate=True) as c:
+    with c.build_child_container(scope=Scope.SESSION) as s:
+        with s.build_child_container(scope=Scope.REQUEST) as r:
+            print(type(r.resolve(MyService)).__name__)
+PY
+```
+
+Expected: prints `MyService`, exit 0.
 
 - [ ] **Step 3: Verify build**
 
@@ -647,25 +708,38 @@ uv run mkdocs build --strict 2>&1 | tail -5
 
 ```bash
 git add docs/integrations/litestar.md
-git commit -m "docs(litestar): self-contained websocket snippet, correct injection (audit O-5)"
+git commit -m "docs(litestar): self-contained websocket snippet (audit O-5)"
 ```
 
 ---
 
-### Task 13: from-that-depends.md — reconcile the two FastAPI wiring patterns (O-6) — VERIFY SIBLING REPO FIRST
+### Task 13: from-that-depends.md — reconcile the two FastAPI wiring patterns (O-6)
 
 **Files:**
-- Modify: `docs/migration/from-that-depends.md` (§6 lines 324-332 vs §8 lines 393-407)
+- Modify: `docs/migration/from-that-depends.md` (the §6 custom-`lifespan` example around lines 323-333; cross-references §8 `setup_di` around line 393+)
 
-**Context & blocker:** §6 wires FastAPI with a hand-written `lifespan` (`async with container`), §8 uses `modern_di_fastapi.setup_di(app, container)`; the page never explains how they combine or whether `close_async` runs twice. Whether `setup_di` composes/replaces a custom lifespan lives in the separate `modern-python/modern-di-fastapi` repo.
+**Mechanic confirmed** (`modern-di-fastapi/modern_di_fastapi/main.py:31-39`): `setup_di` does `app.router.lifespan_context = _merge_lifespan_context(old_lifespan_manager, _lifespan_manager)`. So it **composes** with any existing/`lifespan=`-supplied lifespan and **appends** its own that calls `container.close_async()` on shutdown. Conclusion: §6's hand-written `async with container` is the **manual** (no-integration) pattern; §8's `setup_di` closes the container for you. Using both `async with container` *and* `setup_di` would close it twice.
 
-- [ ] **Step 1: Confirm `setup_di` lifespan behavior**
+- [ ] **Step 1: Add a reconciling note to the §6 custom-lifespan example**
 
-Check `modern-di-fastapi` (or ask the maintainer): does `setup_di` install its own lifespan that opens/closes the container? Does it compose with a user-supplied `lifespan` or replace it? Can `close_async` run twice?
+Immediately after the §6 `lifespan` code block (the one with `async with container:` … `aiohttp.ClientSession`), add:
 
-- [ ] **Step 2: Add a reconciling note**
+````markdown
+> This hand-written `lifespan` manages the container yourself (`async with container`
+> runs `close_async` on exit). If you use the [`modern-di-fastapi` integration](../integrations/fastapi.md),
+> `setup_di(app, container)` already appends a lifespan that closes the container — and it
+> **merges** with any `lifespan=` you pass to `FastAPI(...)`. So when combining the integration
+> with a custom async resource, keep the `aiohttp.ClientSession` setup in your `lifespan` but
+> **drop the `async with container` wrapper** to avoid closing the container twice.
+````
 
-Add 1-2 sentences explaining the canonical production pattern based on Step 1, and link `integrations/fastapi.md` as the authoritative wiring. Don't write the exact mechanic until Step 1 confirms it.
+- [ ] **Step 2: Confirm the merge claim against source (sanity)**
+
+```bash
+grep -n "_merge_lifespan_context\|close_async" ../modern-di-fastapi/modern_di_fastapi/main.py
+```
+
+Expected: shows `_merge_lifespan_context(old_lifespan_manager, _lifespan_manager)` and `await container.close_async()` — confirming compose + close.
 
 - [ ] **Step 3: Verify build**
 
@@ -677,7 +751,7 @@ uv run mkdocs build --strict 2>&1 | tail -5
 
 ```bash
 git add docs/migration/from-that-depends.md
-git commit -m "docs(migration): reconcile FastAPI lifespan vs setup_di wiring (audit O-6)"
+git commit -m "docs(migration): reconcile custom lifespan vs setup_di (merges + closes) (audit O-6)"
 ```
 
 ---
@@ -706,4 +780,4 @@ Per `planning/README.md`: hand-edit any affected `architecture/*.md` (already do
 
 - **Spec coverage:** all 16 distinct Mediums mapped to tasks (see Task 14 Step 2). The 54 Lows are explicitly out of scope per design.
 - **Verification realism:** runnable snippets use `uv run python`; rendering uses `mkdocs build --strict`. `architecture/` pages (T6/T7) are outside `docs_dir`, so they're verified by snippet + re-read, noted in those tasks.
-- **Known blockers:** T12 (O-5) and T13 (O-6) depend on sibling-repo behavior not present in this workspace and are gated on confirmation — they may be deferred if the maintainer can't confirm now.
+- **Sibling-repo facts (confirmed, no longer blocked):** T12 (O-5) — Litestar plugin registers `di_container` as a named dependency (`modern-di-litestar/.../main.py:46`), so the injection is correct and only `MyService`/`ALL_GROUPS` need defining. T13 (O-6) — `setup_di` uses `_merge_lifespan_context` and calls `close_async` (`modern-di-fastapi/.../main.py:31-39`), so it composes with a custom lifespan and closes the container itself.
