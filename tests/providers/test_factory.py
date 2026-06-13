@@ -499,3 +499,22 @@ def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
         container.resolve(int)
     assert "_needs_two_args" in str(exc_info.value)
     assert isinstance(exc_info.value, exceptions.ResolutionError)
+
+
+class _InternalTypeErrorService:
+    def __init__(self) -> None:
+        len(5)  # ty: ignore[invalid-argument-type]  # internal bug, not a wiring problem
+
+
+def test_internal_typeerror_from_creator_body_is_not_wrapped() -> None:
+    # A TypeError raised inside the creator body must propagate as the creator's own error,
+    # not be misattributed as a CreatorCallError wiring problem (it ran, then failed internally).
+    factory: providers.Factory[_InternalTypeErrorService] = providers.Factory(
+        creator=_InternalTypeErrorService, bound_type=_InternalTypeErrorService, skip_creator_parsing=True
+    )
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_InternalTypeErrorService, factory)
+    with pytest.raises(TypeError) as exc_info:
+        container.resolve(_InternalTypeErrorService)
+    assert not isinstance(exc_info.value, exceptions.CreatorCallError)
+    assert "len()" in str(exc_info.value)

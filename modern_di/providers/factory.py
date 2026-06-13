@@ -221,6 +221,12 @@ class Factory(AbstractProvider[types.T_co]):
         try:
             return self._creator(**resolved_kwargs)
         except TypeError as exc:
+            # Only argument-binding failures are a DI wiring problem (bad/missing kwargs); those
+            # raise at the call site, before entering the creator, so the traceback has no inner
+            # frame. A TypeError raised inside the creator body is the creator's own error and
+            # must propagate unchanged (consistent with ValueError/RuntimeError creator-failure).
+            if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+                raise
             error = exceptions.CreatorCallError(creator=self._creator, original_error=exc)
             error.prepend_step(self._resolution_step())
             raise error from exc

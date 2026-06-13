@@ -44,6 +44,9 @@ When a parameter is annotated as `X | None` (or `Optional[X]`), the parameter is
 
 This also applies to multi-member optional unions (`A | B | None`): the first registered member is injected, otherwise `None`.
 
+!!! note "Trade-off"
+    This is a convenience, but it removes a safety net: if you *intended* to register a provider for an optional dependency and forgot, neither `resolve()` nor `validate()` will report it — the parameter silently receives `None`. For dependencies that must always be present, prefer a non-optional annotation (`dep: X`), which raises `ArgumentResolutionError` when unregistered and is flagged by `validate()`.
+
 ```python
 import dataclasses
 
