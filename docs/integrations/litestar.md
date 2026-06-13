@@ -4,7 +4,7 @@
 
 ## How to use
 
-1. Install `modern-di-litestar`:
+### 1. Install `modern-di-litestar`
 
 === "uv"
 
@@ -24,7 +24,7 @@
       poetry add modern-di-litestar
       ```
 
-2. Apply this code example to your application:
+### 2. Apply to your application
 ```python
 import datetime
 import typing
@@ -109,10 +109,22 @@ But when websockets are used, `SESSION` scope is used as well:
 `REQUEST` scope must be entered manually:
 
 ```python
+import dataclasses
 import litestar
-from modern_di import Container, Scope
+from modern_di import Container, Group, Scope, providers
 import modern_di_litestar
 
+
+@dataclasses.dataclass
+class MyService:
+    async def handle(self, data: str) -> None: ...
+
+
+class Dependencies(Group):
+    my_service = providers.Factory(scope=Scope.REQUEST, creator=MyService)
+
+
+ALL_GROUPS = [Dependencies]
 
 app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS))])
 
@@ -120,16 +132,18 @@ app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(gro
 @litestar.websocket_listener("/ws")
 async def websocket_handler(
     data: str,
-    di_container: Container
+    di_container: Container,  # auto-resolved — the plugin registers a "di_container" dependency
 ) -> None:
+    # For a websocket, di_container is the SESSION-scoped child; enter REQUEST scope here
     async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:
-        # REQUEST scope is entered here
-        # You can resolve dependencies here
         service = request_container.resolve(MyService)
         await service.handle(data)
 
+
 app.register(websocket_handler)
 ```
+
+`di_container` is injected by name — the plugin registers it as a Litestar dependency, so you don't need a `FromDI` marker for the container itself.
 
 ## Framework Context Objects
 

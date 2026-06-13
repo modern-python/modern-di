@@ -7,7 +7,7 @@ one or more `Group` subclasses.
 
 ## How to use
 
-1. Install `modern-di-pytest`:
+### 1. Install
 
 === "uv"
 
@@ -27,8 +27,10 @@ one or more `Group` subclasses.
       poetry add --group dev modern-di-pytest
       ```
 
-2. Define a `di_container` fixture at the highest pytest scope you want.
-   The plugin never builds the container — you own it:
+### 2. Define a `di_container` fixture
+
+Define it at the highest pytest scope you want. The plugin never builds the
+container — you own it:
 
 ```python
 import typing
@@ -45,8 +47,9 @@ def di_container() -> typing.Iterator[modern_di.Container]:
         yield container
 ```
 
-3. Materialize dependencies as fixtures, either in bulk via `expose` or
-   one-by-one via `modern_di_fixture`:
+### 3. Materialize dependencies as fixtures
+
+Either in bulk via `expose` or one-by-one via `modern_di_fixture`:
 
 ```python
 from modern_di_pytest import expose, modern_di_fixture
@@ -65,7 +68,9 @@ expose(Dependencies, Auth, Billing)
 email_client = modern_di_fixture(EmailClient)
 ```
 
-4. Tests receive resolved dependencies by name:
+### 4. Use the fixtures in tests
+
+Tests receive resolved dependencies by name:
 
 ```python
 from app.services import EmailClient, UserService

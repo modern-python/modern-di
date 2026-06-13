@@ -4,7 +4,7 @@
 
 ## How to use
 
-1. Install `modern-di-fastapi`:
+### 1. Install `modern-di-fastapi`
 
 === "uv"
  
@@ -24,7 +24,7 @@
       poetry add modern-di-fastapi
       ```
 
-2. Apply this code example to your application:
+### 2. Apply to your application
 ```python
 import datetime
 import contextlib
