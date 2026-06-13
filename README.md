@@ -1,5 +1,6 @@
 # modern-di
 
+[![GitHub stars](https://img.shields.io/github/stars/modern-python/modern-di)](https://github.com/modern-python/modern-di/stargazers)
 [![Context7](https://img.shields.io/badge/Context7-docs-blue)](https://context7.com/modern-python/modern-di)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -7,7 +8,6 @@
 
 | Project                                                                         | Badges                                                                                                                                                                                                                                                                   |
 |---------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| common                                                                          | [![GitHub stars](https://img.shields.io/github/stars/modern-python/modern-di)](https://github.com/modern-python/modern-di/stargazers)                                                                                                                                    |
 | modern-di                                                                       | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di.svg)](https://pypi.python.org/pypi/modern-di ) [![downloads](https://img.shields.io/pypi/dm/modern-di.svg)](https://pypistats.org/packages/modern-di)                                            |
 | [modern-di-fastapi](https://github.com/modern-python/modern-di-fastapi)         | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-fastapi.svg)](https://pypi.python.org/pypi/modern-di-fastapi) [![downloads](https://img.shields.io/pypi/dm/modern-di-fastapi.svg)](https://pypistats.org/packages/modern-di-fastapi)             |
 | [modern-di-faststream  ](https://github.com/modern-python/modern-di-faststream) | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-faststream.svg)](https://pypi.python.org/pypi/modern-di-faststream) [![downloads](https://img.shields.io/pypi/dm/modern-di-faststream.svg)](https://pypistats.org/packages/modern-di-faststream) |
