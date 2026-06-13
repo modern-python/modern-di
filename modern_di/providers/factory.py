@@ -28,7 +28,7 @@ class CacheSettings(typing.Generic[types.T_co]):
 
 
 class Factory(AbstractProvider[types.T_co]):
-    __slots__ = [*AbstractProvider.BASE_SLOTS, "_creator", "_kwargs", "_parsed_kwargs", "cache_settings"]
+    __slots__ = ("_creator", "_kwargs", "_parsed_kwargs", "cache_settings")
 
     def __init__(  # noqa: PLR0913
         self,
@@ -131,18 +131,24 @@ class Factory(AbstractProvider[types.T_co]):
                     and isinstance(provider, ContextProvider)
                     and provider._find_context_value(container) is types.UNSET  # noqa: SLF001
                 ):
-                    if v.default is types.UNSET:
-                        raise exceptions.ArgumentResolutionError(
-                            arg_name=k,
-                            arg_type=v.arg_type,
-                            bound_type=self.bound_type or self._creator,
-                            member_types=v.args,
-                        )
-                    continue
+                    if v.default is not types.UNSET:
+                        continue
+                    if v.is_nullable:
+                        result[k] = None
+                        continue
+                    raise exceptions.ArgumentResolutionError(
+                        arg_name=k,
+                        arg_type=v.arg_type,
+                        bound_type=self.bound_type or self._creator,
+                        member_types=v.args,
+                    )
                 result[k] = provider
                 continue
 
             if v.default is types.UNSET and is_kwarg_not_found:
+                if v.is_nullable:
+                    result[k] = None
+                    continue
                 suggestions = (
                     container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
                 )
@@ -200,6 +206,8 @@ class Factory(AbstractProvider[types.T_co]):
                 continue
             if v.default is not types.UNSET:
                 continue
+            if v.is_nullable:
+                continue
             suggestions = container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
             yield exceptions.ArgumentResolutionError(
                 arg_name=k,
@@ -208,6 +216,20 @@ class Factory(AbstractProvider[types.T_co]):
                 suggestions=suggestions,
                 member_types=v.args,
             )
+
+    def _call_creator(self, resolved_kwargs: dict[str, typing.Any]) -> types.T_co:
+        try:
+            return self._creator(**resolved_kwargs)
+        except TypeError as exc:
+            # Only argument-binding failures are a DI wiring problem (bad/missing kwargs); those
+            # raise at the call site, before entering the creator, so the traceback has no inner
+            # frame. A TypeError raised inside the creator body is the creator's own error and
+            # must propagate unchanged (consistent with ValueError/RuntimeError creator-failure).
+            if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+                raise
+            error = exceptions.CreatorCallError(creator=self._creator, original_error=exc)
+            error.prepend_step(self._resolution_step())
+            raise error from exc
 
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
@@ -228,7 +250,7 @@ class Factory(AbstractProvider[types.T_co]):
             raise
 
         if not self.cache_settings:
-            return self._creator(**resolved_kwargs)
+            return self._call_creator(resolved_kwargs)
 
         if container.lock:
             container.lock.acquire()
@@ -237,7 +259,7 @@ class Factory(AbstractProvider[types.T_co]):
             if cache_item.cache is not types.UNSET:
                 return cache_item.cache
 
-            instance = self._creator(**resolved_kwargs)
+            instance = self._call_creator(resolved_kwargs)
             cache_item.cache = instance
             container.cache_registry.mark_created(cache_item)
             return instance

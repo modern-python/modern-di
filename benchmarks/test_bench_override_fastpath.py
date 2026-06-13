@@ -10,7 +10,7 @@ Each scenario has an `optimized` variant (current code) and a `baseline` variant
 (pre-fix behaviour, monkey-patched in).
 
 Run:
-    uv run pytest benchmarks/ --benchmark-only --no-cov -v
+    just bench
 """
 
 import dataclasses

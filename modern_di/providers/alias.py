@@ -11,7 +11,9 @@ if typing.TYPE_CHECKING:
 
 
 class Alias(AbstractProvider[types.T_co]):
-    __slots__ = [*AbstractProvider.BASE_SLOTS, "_source_type"]
+    __slots__ = ("_source_type",)
+
+    enforces_dependency_scope = False
 
     def __init__(
         self,
@@ -32,8 +34,16 @@ class Alias(AbstractProvider[types.T_co]):
             raise exceptions.AliasSourceNotRegisteredError(source_type=self._source_type)
         return source
 
+    def _resolution_step(self) -> "exceptions.ResolutionStep":
+        name = self.bound_type.__name__ if self.bound_type else repr(self)
+        return exceptions.ResolutionStep(scope=self.scope, name=name)
+
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         return {"source": self._find_source(container)}
 
     def resolve(self, container: "Container") -> types.T_co:
-        return container.resolve_provider(self._find_source(container))
+        try:
+            return container.resolve_provider(self._find_source(container))
+        except exceptions.ResolutionError as exc:
+            exc.prepend_step(self._resolution_step())
+            raise

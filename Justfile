@@ -19,8 +19,14 @@ lint-ci:
 test *args:
     uv run --no-sync pytest {{ args }}
 
+test-ci:
+    uv run --no-sync pytest --cov=. --cov-report term-missing --cov-report xml --cov-fail-under=100
+
 test-branch:
-    @just test --cov-branch
+    uv run --no-sync pytest --cov=. --cov-branch --cov-fail-under=100
+
+bench:
+    uv run --no-sync pytest benchmarks/ --benchmark-only
 
 publish:
     rm -rf dist

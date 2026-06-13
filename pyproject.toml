@@ -67,7 +67,8 @@ isort.lines-after-imports = 2
 isort.no-lines-before = ["standard-library", "local-folder"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=. --cov-report term-missing --cov-fail-under=100"
+addopts = ""
+testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"

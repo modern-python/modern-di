@@ -13,7 +13,9 @@ _provider_id_counter = itertools.count()
 
 
 class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
-    BASE_SLOTS: typing.ClassVar[list[str]] = ["scope", "bound_type", "provider_id"]
+    __slots__ = ("bound_type", "provider_id", "scope")
+
+    enforces_dependency_scope: typing.ClassVar[bool] = True
 
     def __init__(
         self,

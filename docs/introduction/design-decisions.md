@@ -10,7 +10,14 @@ This is a permanent choice, not a temporary limitation. There are no plans to re
 
 ## 2. Cached factories are thread-safe
 
-Cached `Factory` providers use a `threading.Lock` so concurrent resolves in multiple threads still produce exactly one instance per cache. Single-threaded apps can disable the lock with `Container(..., use_lock=False)` for a small performance gain; multi-threaded apps must leave it on.
+Cached `Factory` providers use a per-container reentrant lock (`threading.RLock`) so concurrent resolves in multiple threads still produce exactly one instance per cache. Single-threaded apps can disable the lock with `Container(..., use_lock=False)` for a small performance gain; multi-threaded apps must leave it on.
+
+### The thread-safety boundary
+
+- **Cached / singleton creation is locked.** The per-container reentrant lock guards the create-and-store step, so two threads racing to resolve the same cached provider get the same single instance.
+- **Provider registration is safe.** `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently — or while another thread iterates — will not corrupt the registry or raise "dict changed size during iteration".
+- **Intended usage still holds.** Register all providers and groups *before* serving concurrent resolutions. The registry guards keep concurrent registration from corrupting state, but a clean register-then-serve phase ordering is the supported model; resolving a type whose provider is registered mid-flight is racy by nature.
+- **`set_context` and overrides are last-write-wins.** They are not synchronized for ordering across threads — the most recent write wins, with no merge or queueing. Set context and configure overrides during setup (or per-request, on a request-local child container), not from competing threads.
 
 ## 3. No global state
 

@@ -151,7 +151,7 @@ class Container:
                 validation_errors.append(exc)
                 dependencies = {}
             for dep_name, dep_provider in dependencies.items():
-                if dep_provider.scope > provider.scope:
+                if provider.enforces_dependency_scope and dep_provider.scope > provider.scope:
                     validation_errors.append(
                         exceptions.InvalidScopeDependencyError(
                             provider=provider,

@@ -7,7 +7,7 @@ Three scenarios:
   full_resolve      — end-to-end resolve() across a 4-level scope chain
 
 Run:
-    uv run pytest benchmarks/bench_scope_map.py --benchmark-only --no-cov -v
+    just bench
 """
 
 import dataclasses
@@ -31,7 +31,9 @@ def _baseline_find_container(self: Container, scope: Scope) -> Container:
     while container.scope > scope and container.parent_container:
         container = container.parent_container
     if container.scope != scope:
-        raise RuntimeError(errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name))
+        raise RuntimeError(
+            errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name, container_scope=self.scope.name)
+        )
     return container
 
 

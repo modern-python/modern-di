@@ -105,6 +105,5 @@ micro-benchmarks:
 ## Running the benchmarks
 
 ```bash
-uv run pytest benchmarks/bench_override_fastpath.py benchmarks/bench_kwargs_split.py benchmarks/bench_scope_map.py \
-    --benchmark-only --no-cov -v
+just bench
 ```

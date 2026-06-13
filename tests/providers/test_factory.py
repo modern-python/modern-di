@@ -5,7 +5,7 @@ import warnings
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import ArgumentResolutionError, ScopeNotInitializedError, UnknownFactoryKwargError
 
 
@@ -55,7 +55,8 @@ def test_app_factory() -> None:
 def test_app_factory_skip_creator_parsing() -> None:
     app_container = Container(groups=[MyGroup])
     with pytest.raises(
-        TypeError, match=re.escape("SimpleCreator.__init__() missing 1 required keyword-only argument: 'dep1'")
+        exceptions.CreatorCallError,
+        match=re.escape("SimpleCreator.__init__() missing 1 required keyword-only argument: 'dep1'"),
     ):
         app_container.resolve_provider(MyGroup.app_factory_skip_creator_parsing)
 
@@ -380,3 +381,140 @@ def test_creator_raising_mid_creation_caches_nothing_and_retry_succeeds() -> Non
     assert isinstance(retried, _FlakySvc)
     container.close_sync()
     assert _flaky_events == ["svc", "dep"]  # LIFO (B-7): svc created after dep, finalized first
+
+
+def test_provider_instances_have_no_dict() -> None:
+    factory: providers.Factory[object] = providers.Factory(creator=object, scope=Scope.APP)
+    assert not hasattr(factory, "__dict__")
+    with pytest.raises(AttributeError):
+        factory.some_unexpected_attr = 1
+
+
+# Q-1 / G-3 — optional (X | None) params inject None when no provider is registered
+
+
+class _OptionalDep: ...
+
+
+class _OtherDep: ...
+
+
+class _NeedsOptionalSingle:
+    def __init__(self, dep: _OptionalDep | None) -> None:
+        self.dep = dep
+
+
+class _NeedsOptionalUnion:
+    def __init__(self, dep: "_OptionalDep | _OtherDep | None") -> None:
+        self.dep = dep
+
+
+def test_optional_param_injects_none_when_no_provider() -> None:
+    factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    obj = container.resolve(_NeedsOptionalSingle)
+    assert obj.dep is None
+
+
+def test_optional_param_uses_provider_when_present() -> None:
+    dep_factory: providers.Factory[_OptionalDep] = providers.Factory(creator=_OptionalDep, scope=Scope.APP)
+    factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_OptionalDep, dep_factory)
+    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    obj = container.resolve(_NeedsOptionalSingle)
+    assert isinstance(obj.dep, _OptionalDep)
+
+
+def test_optional_multi_member_union_injects_none_when_no_provider() -> None:
+    factory: providers.Factory[_NeedsOptionalUnion] = providers.Factory(creator=_NeedsOptionalUnion, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_NeedsOptionalUnion, factory)
+    obj = container.resolve(_NeedsOptionalUnion)
+    assert obj.dep is None
+
+
+def test_validate_does_not_flag_optional_param_without_provider() -> None:
+    factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    container.validate()  # must not raise
+
+
+# G-3 branch (b) — a ContextProvider is FOUND for the type, value UNSET, param nullable, no default → None
+
+
+class _OptionalCtx: ...
+
+
+class _NeedsOptionalCtx:
+    def __init__(self, ctx: _OptionalCtx | None) -> None:
+        self.ctx = ctx
+
+
+def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
+    ctx_provider: providers.ContextProvider[_OptionalCtx] = providers.ContextProvider(
+        scope=Scope.APP, context_type=_OptionalCtx
+    )
+    factory: providers.Factory[_NeedsOptionalCtx] = providers.Factory(creator=_NeedsOptionalCtx, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_OptionalCtx, ctx_provider)
+    container.providers_registry.register(_NeedsOptionalCtx, factory)
+    obj = container.resolve(_NeedsOptionalCtx)
+    assert obj.ctx is None
+
+
+# X-2 — creator-call TypeError (missing required args under skip_creator_parsing) wrapped in DI error
+
+
+def _needs_two_args(a: int, b: int) -> int:
+    return a + b
+
+
+def test_skip_creator_parsing_missing_args_raises_di_error() -> None:
+    factory: providers.Factory[int] = providers.Factory(
+        creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}
+    )
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(int, factory)
+    with pytest.raises(exceptions.CreatorCallError) as exc_info:
+        container.resolve(int)
+    assert "_needs_two_args" in str(exc_info.value)
+    assert isinstance(exc_info.value, exceptions.ResolutionError)
+    assert _needs_two_args(1, 2) == 1 + 2  # exercise helper body
+
+
+def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
+    factory: providers.Factory[int] = providers.Factory(
+        creator=_needs_two_args,
+        bound_type=int,
+        skip_creator_parsing=True,
+        kwargs={"a": 1},
+        cache_settings=providers.CacheSettings(),
+    )
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(int, factory)
+    with pytest.raises(exceptions.CreatorCallError) as exc_info:
+        container.resolve(int)
+    assert "_needs_two_args" in str(exc_info.value)
+    assert isinstance(exc_info.value, exceptions.ResolutionError)
+
+
+class _InternalTypeErrorService:
+    def __init__(self) -> None:
+        len(5)  # ty: ignore[invalid-argument-type]  # internal bug, not a wiring problem
+
+
+def test_internal_typeerror_from_creator_body_is_not_wrapped() -> None:
+    # A TypeError raised inside the creator body must propagate as the creator's own error,
+    # not be misattributed as a CreatorCallError wiring problem (it ran, then failed internally).
+    factory: providers.Factory[_InternalTypeErrorService] = providers.Factory(
+        creator=_InternalTypeErrorService, bound_type=_InternalTypeErrorService, skip_creator_parsing=True
+    )
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_InternalTypeErrorService, factory)
+    with pytest.raises(TypeError) as exc_info:
+        container.resolve(_InternalTypeErrorService)
+    assert not isinstance(exc_info.value, exceptions.CreatorCallError)
+    assert "len()" in str(exc_info.value)

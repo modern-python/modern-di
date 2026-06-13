@@ -182,16 +182,17 @@ def test_validate_memoizes_diamond() -> None:
         left: Left
         right: Right
 
-    bottom_provider = providers.Factory(creator=Bottom)
     call_count = 0
-    original_get_dependencies = bottom_provider.get_dependencies
 
-    def counting_get_dependencies(container: Container) -> dict[str, AbstractProvider[typing.Any]]:
-        nonlocal call_count
-        call_count += 1
-        return original_get_dependencies(container)
+    class _CountingFactory(providers.Factory[Bottom]):
+        __slots__ = ()
 
-    bottom_provider.get_dependencies = counting_get_dependencies  # ty: ignore[invalid-assignment]
+        def get_dependencies(self, container: Container) -> dict[str, AbstractProvider[typing.Any]]:
+            nonlocal call_count
+            call_count += 1
+            return super().get_dependencies(container)
+
+    bottom_provider = _CountingFactory(creator=Bottom)
 
     class DiamondGroup(Group):
         bottom = bottom_provider

@@ -189,6 +189,16 @@ class ArgumentResolutionError(ResolutionError):
         super().__init__(message)
 
 
+class CreatorCallError(ResolutionError):
+    __slots__ = ("creator", "original_error")
+
+    def __init__(self, *, creator: typing.Any, original_error: Exception) -> None:  # noqa: ANN401
+        self.creator = creator
+        self.original_error = original_error
+        creator_name = getattr(creator, "__name__", repr(creator))
+        super().__init__(errors.CREATOR_CALL_ERROR.format(creator_name=creator_name, error=original_error))
+
+
 class CircularDependencyError(ResolutionError):
     __slots__ = ("cycle_path",)
 
@@ -235,6 +245,7 @@ class UnknownFactoryKwargError(RegistrationError):
                 line += f" (did you mean {sug!r}?)"
             parts.append(line)
         parts.append(f"Known parameters: {known_keys}")
+        # message built dynamically; not templated
         super().__init__("\n".join(parts))
 
 
@@ -285,6 +296,7 @@ class ValidationFailedError(ContainerError):
     def __init__(self, *, errors: list[Exception]) -> None:
         self.errors = errors
         kinds = ", ".join(sorted({type(e).__name__ for e in errors}))
+        # message built dynamically; not templated
         super().__init__(f"Container.validate() found {len(errors)} issue(s): {kinds}")
 
     def __str__(self) -> str:
@@ -300,6 +312,7 @@ class FinalizerError(ModernDIError):
         self.finalizer_errors = finalizer_errors
         self.is_async = is_async
         kind = "async" if is_async else "sync"
+        # message built dynamically; not templated
         super().__init__(f"Errors during {kind} cleanup: {finalizer_errors}")
 
 
@@ -310,10 +323,7 @@ class AsyncFinalizerInSyncCloseError(ModernDIError):
 
     def __init__(self, *, finalizer_type: type) -> None:
         self.finalizer_type = finalizer_type
-        super().__init__(
-            f"Cannot run async finalizer for {finalizer_type.__name__} during sync close. "
-            f"Use `await container.close_async()` (or `async with container:`) instead."
-        )
+        super().__init__(errors.ASYNC_FINALIZER_IN_SYNC_CLOSE_ERROR.format(finalizer_type=finalizer_type.__name__))
 
 
 class GroupInstantiationError(ModernDIError):
@@ -321,4 +331,4 @@ class GroupInstantiationError(ModernDIError):
 
     def __init__(self, *, group_name: str) -> None:
         self.group_name = group_name
-        super().__init__(f"{group_name} cannot be instantiated")
+        super().__init__(errors.GROUP_INSTANTIATION_ERROR.format(group_name=group_name))

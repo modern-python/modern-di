@@ -101,3 +101,10 @@ assert container.resolve(Repository) is mock_for_source
 
 - If `source_type` is not registered, `AliasSourceNotRegisteredError` is raised eagerly.
 - The alias reports the source provider as a dependency, so cycles that pass through an alias are detected and reported via `CircularDependencyError`.
+
+!!! caution "Alias scope is not enforced through `validate()`"
+    Because an alias's scope is decorative, `Container.validate()` does **not** check scope
+    transitively *through* an alias. A shallow-scoped caller that depends on a deeper-scoped source
+    *via* the alias passes validation, then raises `ScopeNotInitializedError` at runtime if it's
+    resolved from a container that is too shallow. Bind the alias's `scope` to match the source's so
+    the convention reflects where the instance actually lives.

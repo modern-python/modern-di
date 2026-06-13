@@ -3,6 +3,8 @@ site_url: https://modern-di.modern-python.org
 repo_url: https://github.com/modern-python/modern-di
 docs_dir: docs
 edit_uri: edit/main/docs/
+exclude_docs: |
+  superpowers/
 nav:
   - Quick-Start: index.md
   - Introduction:
@@ -16,6 +18,7 @@ nav:
       - Context: providers/context.md
       - Container: providers/container.md
       - Alias: providers/alias.md
+      - Errors and exceptions: providers/errors-and-exceptions.md
   - Integrations:
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md

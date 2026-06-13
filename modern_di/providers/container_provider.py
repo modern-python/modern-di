@@ -9,7 +9,7 @@ if typing.TYPE_CHECKING:
 
 
 class _ContainerProvider(AbstractProvider[typing.Any]):
-    __slots__ = AbstractProvider.BASE_SLOTS
+    __slots__ = ()
 
     def __init__(self) -> None:
         super().__init__(scope=Scope.APP, bound_type=None)
