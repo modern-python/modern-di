@@ -251,3 +251,98 @@ def test_alias_null_bound_type_resolution_error_uses_repr_fallback() -> None:
         container.resolve_provider(_NullBoundAliasGroup.iface)
     rendered = str(exc_info.value)
     assert "Alias(" in rendered  # repr fallback appears in the chain
+
+
+class _XfourDeep: ...
+
+
+class _XfourIface: ...
+
+
+@dataclasses.dataclass
+class _XfourCaller:
+    dep: _XfourIface
+
+
+class _XfourGroup(Group):
+    deep = providers.Factory(scope=Scope.REQUEST, creator=_XfourDeep)
+    iface = providers.Alias(source_type=_XfourDeep, bound_type=_XfourIface)
+    caller = providers.Factory(scope=Scope.APP, creator=_XfourCaller)
+
+
+def test_validate_flags_shallow_caller_depending_through_alias_on_deeper_source() -> None:
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        Container(scope=Scope.APP, groups=[_XfourGroup], validate=True)
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
+    assert "REQUEST" in str(exc_info.value)
+
+
+class _OkDeep: ...
+
+
+class _OkIface: ...
+
+
+@dataclasses.dataclass
+class _OkCaller:
+    dep: _OkIface
+
+
+class _OkGroup(Group):
+    deep = providers.Factory(scope=Scope.REQUEST, creator=_OkDeep)
+    iface = providers.Alias(source_type=_OkDeep, bound_type=_OkIface)
+    caller = providers.Factory(scope=Scope.REQUEST, creator=_OkCaller)
+
+
+def test_validate_allows_same_scope_caller_through_alias() -> None:
+    Container(scope=Scope.APP, groups=[_OkGroup], validate=True)  # must not raise
+
+
+class _ChainTerminal: ...
+
+
+class _MidIface: ...
+
+
+class _TopIface: ...
+
+
+@dataclasses.dataclass
+class _ChainCaller:
+    dep: _TopIface
+
+
+class _AliasOfAliasGroup(Group):
+    terminal = providers.Factory(scope=Scope.REQUEST, creator=_ChainTerminal)
+    mid = providers.Alias(source_type=_ChainTerminal, bound_type=_MidIface)
+    top = providers.Alias(source_type=_MidIface, bound_type=_TopIface)
+    caller = providers.Factory(scope=Scope.APP, creator=_ChainCaller)
+
+
+def test_validate_follows_alias_of_alias_to_terminal_scope() -> None:
+    # caller(APP) -> top(alias) -> mid(alias) -> terminal(REQUEST): effective scope follows 2 hops -> flagged
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        Container(scope=Scope.APP, groups=[_AliasOfAliasGroup], validate=True)
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
+    assert "REQUEST" in str(exc_info.value)
+
+
+class _MutualA: ...
+
+
+class _MutualB: ...
+
+
+class _MutualAliasGroup(Group):
+    a = providers.Alias(source_type=_MutualB, bound_type=_MutualA)
+    b = providers.Alias(source_type=_MutualA, bound_type=_MutualB)
+
+
+def test_effective_scope_handles_mutual_alias_cycle() -> None:
+    # Mutual aliases: effective_scope must terminate via the `seen` guard and fall back to self.scope.
+    container = Container(scope=Scope.APP, groups=[_MutualAliasGroup])
+    assert _MutualAliasGroup.a.effective_scope(container) is _MutualAliasGroup.a.scope
+    # validate() also reports the cycle separately.
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        container.validate()
+    assert any(isinstance(e, exceptions.CircularDependencyError) for e in exc_info.value.errors)

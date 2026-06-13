@@ -152,13 +152,16 @@ class Container:
             except exceptions.ResolutionError as exc:
                 validation_errors.append(exc)
                 dependencies = {}
+            provider_scope = provider.effective_scope(self)
             for dep_name, dep_provider in dependencies.items():
-                if provider.enforces_dependency_scope and dep_provider.scope > provider.scope:
+                dep_scope = dep_provider.effective_scope(self)
+                if dep_scope > provider_scope:
                     validation_errors.append(
                         exceptions.InvalidScopeDependencyError(
                             provider=provider,
                             parameter_name=dep_name,
                             dep_provider=dep_provider,
+                            dep_scope=dep_scope,
                         )
                     )
                 _visit(dep_provider)

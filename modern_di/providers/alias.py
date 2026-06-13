@@ -13,8 +13,6 @@ if typing.TYPE_CHECKING:
 class Alias(AbstractProvider[types.T_co]):
     __slots__ = ("_source_type",)
 
-    enforces_dependency_scope = False
-
     def __init__(
         self,
         *,
@@ -40,6 +38,20 @@ class Alias(AbstractProvider[types.T_co]):
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         return {"source": self._find_source(container)}
+
+    def effective_scope(self, container: "Container") -> enum.IntEnum:
+        # Follow the alias chain to its terminal (non-alias) source and report that scope.
+        seen: set[int] = set()
+        provider: AbstractProvider[typing.Any] = self
+        while isinstance(provider, Alias):
+            if provider.provider_id in seen:
+                return self.scope  # alias cycle — reported separately by validate()'s cycle check
+            seen.add(provider.provider_id)
+            try:
+                provider = provider._find_source(container)  # noqa: SLF001
+            except exceptions.AliasSourceNotRegisteredError:
+                return self.scope  # dangling source — reported separately
+        return provider.scope
 
     def resolve(self, container: "Container") -> types.T_co:
         try:
