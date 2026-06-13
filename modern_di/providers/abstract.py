@@ -15,8 +15,6 @@ _provider_id_counter = itertools.count()
 class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
     __slots__ = ("bound_type", "provider_id", "scope")
 
-    enforces_dependency_scope: typing.ClassVar[bool] = True
-
     def __init__(
         self,
         *,
@@ -36,3 +34,11 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:  # noqa: ARG002
         """Yield validation-time issues for this provider. Default: no issues."""
         return iter(())
+
+    def effective_scope(self, container: "Container") -> enum.IntEnum:  # noqa: ARG002
+        """Scope used for validate()'s scope-ordering check.
+
+        Transparent redirects (Alias) override this to report the scope of what they
+        ultimately resolve to, so callers are checked against the real target's scope.
+        """
+        return self.scope

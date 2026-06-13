@@ -1,5 +1,6 @@
 import enum
 import typing
+import warnings
 
 from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
@@ -13,16 +14,26 @@ if typing.TYPE_CHECKING:
 class Alias(AbstractProvider[types.T_co]):
     __slots__ = ("_source_type",)
 
-    enforces_dependency_scope = False
-
     def __init__(
         self,
         *,
         source_type: type[types.T_co],
-        scope: enum.IntEnum = Scope.APP,
+        scope: enum.IntEnum | types.UnsetType = types.UNSET,
         bound_type: type | None | types.UnsetType = types.UNSET,
     ) -> None:
-        super().__init__(scope=scope, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type)
+        if not isinstance(scope, types.UnsetType):
+            warnings.warn(
+                "The `scope` parameter of Alias is deprecated and ignored: an alias's effective "
+                "scope is derived from its source. It will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            stored_scope: enum.IntEnum = scope
+        else:
+            stored_scope = Scope.APP
+        super().__init__(
+            scope=stored_scope, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type
+        )
         self._source_type = source_type
 
     def __repr__(self) -> str:
@@ -40,6 +51,20 @@ class Alias(AbstractProvider[types.T_co]):
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         return {"source": self._find_source(container)}
+
+    def effective_scope(self, container: "Container") -> enum.IntEnum:
+        # Follow the alias chain to its terminal (non-alias) source and report that scope.
+        seen: set[int] = set()
+        provider: AbstractProvider[typing.Any] = self
+        while isinstance(provider, Alias):
+            if provider.provider_id in seen:
+                return self.scope  # alias cycle — reported separately by validate()'s cycle check
+            seen.add(provider.provider_id)
+            try:
+                provider = provider._find_source(container)  # noqa: SLF001
+            except exceptions.AliasSourceNotRegisteredError:
+                return self.scope  # dangling source — reported separately
+        return provider.scope
 
     def resolve(self, container: "Container") -> types.T_co:
         try:

@@ -16,7 +16,7 @@ The type the alias is registered under in the providers registry — i.e. the ty
 
 ### scope
 
-Standard scope parameter; defaults to `Scope.APP`. The alias does not enforce its own scope-based caching — the source provider's scope governs where the actual instance lives — so the practical effect of `scope` on `Alias` is limited. Setting it to match the source's scope is a reasonable convention.
+**Deprecated and ignored.** An alias's effective scope is derived from its source provider — the alias itself holds no instance and applies no caching. Passing `scope=` to `Alias(...)` emits a `DeprecationWarning`; the parameter will be removed in 3.0.
 
 ## Basic Usage
 
@@ -102,9 +102,8 @@ assert container.resolve(Repository) is mock_for_source
 - If `source_type` is not registered, `AliasSourceNotRegisteredError` is raised eagerly.
 - The alias reports the source provider as a dependency, so cycles that pass through an alias are detected and reported via `CircularDependencyError`.
 
-!!! caution "Alias scope is not enforced through `validate()`"
-    Because an alias's scope is decorative, `Container.validate()` does **not** check scope
-    transitively *through* an alias. A shallow-scoped caller that depends on a deeper-scoped source
-    *via* the alias passes validation, then raises `ScopeNotInitializedError` at runtime if it's
-    resolved from a container that is too shallow. Bind the alias's `scope` to match the source's so
-    the convention reflects where the instance actually lives.
+!!! note "Scope is checked transitively through `validate()`"
+    `Container.validate()` checks scope transitively through aliases. A shallow-scoped caller that
+    depends — via an alias — on a deeper-scoped source is flagged with `InvalidScopeDependencyError`
+    at validation time. This catches scope mismatches eagerly instead of letting them surface as
+    `ScopeNotInitializedError` at runtime.

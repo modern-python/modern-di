@@ -273,6 +273,7 @@ class InvalidScopeDependencyError(RegistrationError):
         provider: "AbstractProvider[typing.Any]",
         parameter_name: str,
         dep_provider: "AbstractProvider[typing.Any]",
+        dep_scope: enum.IntEnum | None = None,
     ) -> None:
         self.provider = provider
         self.parameter_name = parameter_name
@@ -285,7 +286,7 @@ class InvalidScopeDependencyError(RegistrationError):
                 provider_scope=provider.scope.name,
                 parameter_name=parameter_name,
                 dep_name=dep_name,
-                dep_scope=dep_provider.scope.name,
+                dep_scope=(dep_scope or dep_provider.scope).name,
             )
         )
 
