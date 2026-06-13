@@ -8,6 +8,8 @@
 
 57 findings across five categories. Every Bug and Drift finding was independently verified by an adversarial reviewer — with fresh probe scripts where executable, direct doc/config inspection otherwise; zero findings were refuted.
 
+**Status (2026-06-13):** Fixed on branch `audit-fixes-2026-06-12`: all bugs **B-1…B-11**; **X-1** (resolve/build on a closed container raises; refined so re-entering the context manager reopens and `clear_cache=False` instances persist across the close→reopen cycle); dead code **Q-2, Q-3, Q-4**; pinning tests **Q-10…Q-15**; doc drift **D-1** (closed by the B-7 LIFO fix), **D-3, D-6, D-7, D-8, D-9, D-10, D-11, D-12, D-13, D-14**. **G-4** is resolved by the B-9 fix (the same-container `set_context` staleness it documented no longer occurs). Deferred (not selected this round): **Q-1, Q-5, Q-6, Q-7, Q-8, Q-9, X-2, X-3, X-4, X-5, X-6, D-2, D-4, D-5, G-1, G-2, G-3, G-5…G-11**. Design rulings recorded during the fix: B-1 → declaration-time error for parameterized-generic params (kwargs/default escape hatch); D-6 → context never propagates between containers (docs + docstring only). A maintainer follow-up was noted for **`clear_cache=False`** semantics (now precisely defined as persist-across-reopen; see lifecycle docs).
+
 | Category | High | Medium | Low | Total |
 |---|---|---|---|---|
 | Bugs (B) | 1 | 7 | 3 | 11 |
