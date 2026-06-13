@@ -6,23 +6,29 @@
 APP = 1  →  SESSION = 2  →  REQUEST = 3  →  ACTION = 4  →  STEP = 5
 ```
 
-Higher integer values represent deeper (more short-lived) scopes. The ordering is significant: the integer value determines both the scope hierarchy and the validity rules for provider resolution.
+Higher integer values represent deeper (more short-lived) scopes. The ordering is significant: the integer value
+determines both the scope hierarchy and the validity rules for provider resolution.
 
 ## Resolution rule
 
 Every provider is bound to a scope at declaration time. The rule is:
 
-> A provider bound to scope **S** may only be resolved from a container whose scope is **S or deeper** (i.e., `container.scope >= provider.scope`).
+> A provider bound to scope **S** may only be resolved from a container whose scope is **S or deeper**
+> (i.e., `container.scope >= provider.scope`).
 
-Attempting to resolve a provider from a container whose scope is shallower than the provider's scope raises one of two exceptions, depending on what went wrong:
+Attempting to resolve a provider from a container whose scope is shallower than the provider's scope raises one of
+two exceptions, depending on what went wrong:
 
-- **`ScopeNotInitializedError`** — raised when the required scope is deeper than the resolving container's scope (the child container for that scope has not been built yet). Message shape:
+- **`ScopeNotInitializedError`** — raised when the required scope is deeper than the resolving container's scope
+  (the child container for that scope has not been built yet). Message shape:
 
   ```
   Provider of scope {provider_scope} cannot be resolved in container of scope {container_scope}.
   ```
 
-- **`ScopeSkippedError`** — raised when the required scope is shallower than the resolving container's scope but is not present anywhere in the ancestor chain (i.e., the chain was started at a scope that skipped it). Message shape:
+- **`ScopeSkippedError`** — raised when the required scope is shallower than the resolving container's scope but
+  is not present anywhere in the ancestor chain (i.e., the chain was started at a scope that skipped it). Message
+  shape:
 
   ```
   No {provider_scope}-scope container exists in this chain; this chain starts at {container_scope}.
@@ -33,7 +39,8 @@ Both exceptions inherit from `ContainerError → ModernDIError → RuntimeError`
 
 ## How the container locates the right-scope container
 
-Each `Container` maintains a `scope_map: dict[IntEnum, Container]`. When a root container is created, the map is `{scope: self}`. Each child container extends the map: `{**parent.scope_map, child_scope: child}`.
+Each `Container` maintains a `scope_map: dict[IntEnum, Container]`. When a root container is created, the map is
+`{scope: self}`. Each child container extends the map: `{**parent.scope_map, child_scope: child}`.
 
 `Container.find_container(scope)` performs the lookup:
 
@@ -43,11 +50,14 @@ Each `Container` maintains a `scope_map: dict[IntEnum, Container]`. When a root 
 3. If `scope` is not in `scope_map` and `scope <= self.scope`, raise `ScopeSkippedError` (the scope was
    never present in this chain).
 
-The `scope_map` is built incrementally at construction time, so lookups are O(1). There is no runtime parent-chain traversal during resolution.
+The `scope_map` is built incrementally at construction time, so lookups are O(1). There is no runtime
+parent-chain traversal during resolution.
 
 ## Custom scopes
 
-`Scope` is a convenience enum, but `Container` accepts any `enum.IntEnum` member as its scope. Teams that need more levels (or different names) can define their own `IntEnum` and use it throughout. The same integer-ordering rules apply. Passing a non-`IntEnum` value raises `InvalidScopeTypeError`.
+`Scope` is a convenience enum, but `Container` accepts any `enum.IntEnum` member as its scope. Teams that need
+more levels (or different names) can define their own `IntEnum` and use it throughout. The same integer-ordering
+rules apply. Passing a non-`IntEnum` value raises `InvalidScopeTypeError`.
 
 ## Worked example
 
@@ -83,7 +93,8 @@ user = request_container.resolve(UserFromRequest)
 pool_again = request_container.resolve(DatabasePool)
 ```
 
-`build_child_container` enforces that the child scope is strictly deeper than the parent scope. Passing a scope with a lower or equal integer value raises `InvalidChildScopeError`:
+`build_child_container` enforces that the child scope is strictly deeper than the parent scope. Passing a scope
+with a lower or equal integer value raises `InvalidChildScopeError`:
 
 ```
 Scope of child container cannot be {child_scope} if parent scope is {parent_scope}
@@ -91,4 +102,5 @@ Scope of child container cannot be {child_scope} if parent scope is {parent_scop
 Possible scopes are {allowed_scopes}.
 ```
 
-Calling `build_child_container()` with no `scope` argument auto-increments to the next integer in the same `IntEnum` class. If the parent is already at the maximum defined value, `MaxScopeReachedError` is raised.
+Calling `build_child_container()` with no `scope` argument auto-increments to the next integer in the same
+`IntEnum` class. If the parent is already at the maximum defined value, `MaxScopeReachedError` is raised.
