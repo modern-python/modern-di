@@ -1,9 +1,9 @@
 ---
-status: draft
+status: shipped
 date: 2026-06-13
 slug: portable-planning-convention
 spec: design.md
-pr: null
+pr: "#210"
 ---
 
 # Portable planning convention — implementation plan

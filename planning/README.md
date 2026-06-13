@@ -70,12 +70,13 @@ carry **no** frontmatter — living prose, dated by git.
 
 ### Active
 
-- **[portable-planning-convention](changes/active/2026-06-13.03-portable-planning-convention/design.md)**
-  (2026-06-13) — Adopt the two-axis convention: `architecture/` truth +
-  `changes/` bundles + portable README, copied from faststream-outbox.
+_None._
 
 ### Archived (shipped)
 
+- **[portable-planning-convention](changes/archive/2026-06-13.03-portable-planning-convention/design.md)**
+  (#210, 2026-06-13) — Adopt the two-axis convention: `architecture/` truth +
+  `changes/` bundles + portable README, copied from faststream-outbox.
 - **[alias-scope-transparency](changes/archive/2026-06-13.02-alias-scope-transparency/plan.md)**
   (#207, 2026-06-13) — Deprecate decorative `Alias(scope=...)`; `validate()`
   checks scope transitively via `effective_scope` (X-4). Plan-only; spec = the
