@@ -35,6 +35,38 @@ Configuration for caching instances. Only applicable for cached factories. Use `
 
 When a parameter is annotated with a union type (e.g. `dep: A | B`), Modern-DI resolves the **first registered type** that matches. The order is determined by how types appear in the union left-to-right. If you rely on a specific type being injected, prefer a concrete type annotation over a union.
 
+### Optional parameters
+
+When a parameter is annotated as `X | None` (or `Optional[X]`), the parameter is treated as optional:
+
+- If a provider for `X` is registered, that provider is resolved and injected as usual.
+- If no provider for `X` is registered and the parameter has no default, `None` is injected — no error is raised, and `container.validate()` will not flag the parameter.
+
+This also applies to multi-member optional unions (`A | B | None`): the first registered member is injected, otherwise `None`.
+
+```python
+import dataclasses
+
+from modern_di import Group, Container, Scope, providers
+
+
+class Cache: ...
+
+
+@dataclasses.dataclass
+class Service:
+    cache: Cache | None  # injected if a Cache provider exists, else None
+
+
+class Dependencies(Group):
+    service = providers.Factory(scope=Scope.APP, creator=Service)
+
+
+container = Container(groups=[Dependencies])
+service = container.resolve(Service)
+assert service.cache is None  # no Cache provider registered -> None injected
+```
+
 ### skip_creator_parsing
 
 Disables automatic dependency resolution. When `True`:

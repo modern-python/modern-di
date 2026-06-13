@@ -387,3 +387,78 @@ def test_provider_instances_have_no_dict() -> None:
     assert not hasattr(factory, "__dict__")
     with pytest.raises(AttributeError):
         factory.some_unexpected_attr = 1
+
+
+# Q-1 / G-3 — optional (X | None) params inject None when no provider is registered
+
+
+class _OptionalDep: ...
+
+
+class _OtherDep: ...
+
+
+class _NeedsOptionalSingle:
+    def __init__(self, dep: _OptionalDep | None) -> None:
+        self.dep = dep
+
+
+class _NeedsOptionalUnion:
+    def __init__(self, dep: "_OptionalDep | _OtherDep | None") -> None:
+        self.dep = dep
+
+
+def test_optional_param_injects_none_when_no_provider() -> None:
+    factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    obj = container.resolve(_NeedsOptionalSingle)
+    assert obj.dep is None
+
+
+def test_optional_param_uses_provider_when_present() -> None:
+    dep_factory: providers.Factory[_OptionalDep] = providers.Factory(creator=_OptionalDep, scope=Scope.APP)
+    factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_OptionalDep, dep_factory)
+    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    obj = container.resolve(_NeedsOptionalSingle)
+    assert isinstance(obj.dep, _OptionalDep)
+
+
+def test_optional_multi_member_union_injects_none_when_no_provider() -> None:
+    factory: providers.Factory[_NeedsOptionalUnion] = providers.Factory(creator=_NeedsOptionalUnion, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_NeedsOptionalUnion, factory)
+    obj = container.resolve(_NeedsOptionalUnion)
+    assert obj.dep is None
+
+
+def test_validate_does_not_flag_optional_param_without_provider() -> None:
+    factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    container.validate()  # must not raise
+
+
+# G-3 branch (b) — a ContextProvider is FOUND for the type, value UNSET, param nullable, no default → None
+
+
+class _OptionalCtx: ...
+
+
+class _NeedsOptionalCtx:
+    def __init__(self, ctx: _OptionalCtx | None) -> None:
+        self.ctx = ctx
+
+
+def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
+    ctx_provider: providers.ContextProvider[_OptionalCtx] = providers.ContextProvider(
+        scope=Scope.APP, context_type=_OptionalCtx
+    )
+    factory: providers.Factory[_NeedsOptionalCtx] = providers.Factory(creator=_NeedsOptionalCtx, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_OptionalCtx, ctx_provider)
+    container.providers_registry.register(_NeedsOptionalCtx, factory)
+    obj = container.resolve(_NeedsOptionalCtx)
+    assert obj.ctx is None

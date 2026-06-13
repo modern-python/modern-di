@@ -131,18 +131,24 @@ class Factory(AbstractProvider[types.T_co]):
                     and isinstance(provider, ContextProvider)
                     and provider._find_context_value(container) is types.UNSET  # noqa: SLF001
                 ):
-                    if v.default is types.UNSET:
-                        raise exceptions.ArgumentResolutionError(
-                            arg_name=k,
-                            arg_type=v.arg_type,
-                            bound_type=self.bound_type or self._creator,
-                            member_types=v.args,
-                        )
-                    continue
+                    if v.default is not types.UNSET:
+                        continue
+                    if v.is_nullable:
+                        result[k] = None
+                        continue
+                    raise exceptions.ArgumentResolutionError(
+                        arg_name=k,
+                        arg_type=v.arg_type,
+                        bound_type=self.bound_type or self._creator,
+                        member_types=v.args,
+                    )
                 result[k] = provider
                 continue
 
             if v.default is types.UNSET and is_kwarg_not_found:
+                if v.is_nullable:
+                    result[k] = None
+                    continue
                 suggestions = (
                     container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
                 )
@@ -199,6 +205,8 @@ class Factory(AbstractProvider[types.T_co]):
             if self._find_dep_provider(container, v) is not None:
                 continue
             if v.default is not types.UNSET:
+                continue
+            if v.is_nullable:
                 continue
             suggestions = container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
             yield exceptions.ArgumentResolutionError(
