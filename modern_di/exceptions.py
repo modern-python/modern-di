@@ -92,6 +92,14 @@ class InvalidScopeTypeError(ContainerError):
         )
 
 
+class ContainerClosedError(ContainerError):
+    __slots__ = ("container_scope",)
+
+    def __init__(self, *, container_scope: enum.IntEnum) -> None:
+        self.container_scope = container_scope
+        super().__init__(errors.CONTAINER_CLOSED_ERROR.format(container_scope=container_scope.name))
+
+
 class ResolutionError(ModernDIError):
     """Base class for errors raised while resolving a provider.
 
@@ -159,16 +167,23 @@ class ArgumentResolutionError(ResolutionError):
         arg_type: typing.Any,  # noqa: ANN401
         bound_type: typing.Any,  # noqa: ANN401
         suggestions: list[str] | None = None,
+        member_types: list[type] | None = None,
     ) -> None:
         self.arg_name = arg_name
         self.arg_type = arg_type
         self.bound_type = bound_type
         self.suggestions = suggestions or []
-        message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
-            arg_name=arg_name,
-            arg_type=arg_type,
-            bound_type=bound_type,
-        )
+        if arg_type is not None:
+            message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
+                arg_name=arg_name, arg_type=arg_type, bound_type=bound_type
+            )
+        elif member_types:
+            joined = " | ".join(getattr(t, "__name__", str(t)) for t in member_types)
+            message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
+                arg_name=arg_name, arg_type=joined, bound_type=bound_type
+            )
+        else:
+            message = errors.FACTORY_ARGUMENT_UNANNOTATED_ERROR.format(arg_name=arg_name, bound_type=bound_type)
         if self.suggestions:
             message += "\n" + errors.SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
         super().__init__(message)
@@ -221,6 +236,21 @@ class UnknownFactoryKwargError(RegistrationError):
             parts.append(line)
         parts.append(f"Known parameters: {known_keys}")
         super().__init__("\n".join(parts))
+
+
+class UnsupportedCreatorParameterError(RegistrationError):
+    __slots__ = ("creator", "parameter_name", "reason")
+
+    def __init__(self, *, creator: typing.Any, parameter_name: str, reason: str) -> None:  # noqa: ANN401
+        self.creator = creator
+        self.parameter_name = parameter_name
+        self.reason = reason
+        creator_name = getattr(creator, "__name__", repr(creator))
+        super().__init__(
+            errors.FACTORY_UNSUPPORTED_PARAMETER_ERROR.format(
+                parameter_name=parameter_name, creator_name=creator_name, reason=reason
+            )
+        )
 
 
 class InvalidScopeDependencyError(RegistrationError):

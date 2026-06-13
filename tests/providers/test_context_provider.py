@@ -4,7 +4,7 @@ import datetime
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError
+from modern_di.exceptions import ArgumentResolutionError, ContainerClosedError
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -116,3 +116,56 @@ def test_factory_uses_default_when_context_provider_value_unset() -> None:
     app_container = Container(groups=[TsGroup])
     instance = app_container.resolve(TsHolder)
     assert instance.ts == default
+
+
+class _LateCtx: ...
+
+
+class _NeedsLateCtx:
+    def __init__(self, ctx: _LateCtx | None = None) -> None:
+        self.ctx = ctx
+
+
+class _LateCtxGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_LateCtx)
+    svc = providers.Factory(scope=Scope.APP, creator=_NeedsLateCtx)
+
+
+def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
+    container = Container(scope=Scope.APP, groups=[_LateCtxGroup])
+    first = container.resolve(_NeedsLateCtx)
+    assert first.ctx is None  # context unset, default applied
+    value = _LateCtx()
+    container.set_context(_LateCtx, value)
+    second = container.resolve(_NeedsLateCtx)
+    assert second.ctx is value
+
+
+def test_context_provider_through_closed_owning_container_raises() -> None:
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app = Container(groups=[MyGroup], context={datetime.datetime: now})
+    child = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+    with pytest.raises(ContainerClosedError):
+        child.resolve_provider(MyGroup.context_provider)
+
+
+# Q-12 — ContextProvider reads the registry at its OWN scope
+
+
+class _ScopedCtx: ...
+
+
+class _ScopedCtxGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_ScopedCtx)
+
+
+def test_context_provider_reads_registry_at_its_own_scope_not_resolving_container() -> None:
+    value = _ScopedCtx()
+    app = Container(scope=Scope.APP, groups=[_ScopedCtxGroup])
+    request = app.build_child_container(scope=Scope.REQUEST, context={_ScopedCtx: _ScopedCtx()})
+    # context set on the CHILD must be invisible to an APP-scoped provider
+    assert request.resolve(_ScopedCtx) is None
+    # context set on the container at the provider's scope is what counts
+    app.set_context(_ScopedCtx, value)
+    assert request.resolve(_ScopedCtx) is value

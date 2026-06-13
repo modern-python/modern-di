@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import AsyncFinalizerInSyncCloseError, FinalizerError
+from modern_di.exceptions import AsyncFinalizerInSyncCloseError, ContainerClosedError, FinalizerError
 from modern_di.types import UNSET
 
 
@@ -55,8 +55,8 @@ async def test_app_singleton() -> None:
     assert cache_item.cache is not UNSET
     assert sync_calls == [singleton1]
 
-    singleton3 = app_container.resolve_provider(LocalGroup.singleton)
-    assert singleton3 is singleton1
+    with pytest.raises(ContainerClosedError):
+        app_container.resolve_provider(LocalGroup.singleton)
 
     await app_container.close_async()
     assert sync_calls == [singleton1]
@@ -80,7 +80,7 @@ def test_close_does_not_re_finalize_with_clear_cache_false() -> None:
     assert calls == ["r"]
 
 
-def test_close_re_finalizes_after_re_resolve_with_clear_cache_true() -> None:
+def test_closed_container_refuses_re_resolve_with_clear_cache_true() -> None:
     calls: list[str] = []
 
     class G(Group):
@@ -93,9 +93,11 @@ def test_close_re_finalizes_after_re_resolve_with_clear_cache_true() -> None:
     container = Container(groups=[G])
     container.resolve(str)
     container.close_sync()
-    container.resolve(str)
-    container.close_sync()
-    assert calls == ["r", "r"]
+    assert calls == ["r"]
+    with pytest.raises(ContainerClosedError):
+        container.resolve(str)
+    container.close_sync()  # close stays idempotent and never re-runs finalizers
+    assert calls == ["r"]
 
 
 async def test_close_async_runs_sync_finalizer() -> None:
@@ -323,6 +325,49 @@ def test_singleton_threading_concurrency() -> None:
     assert calls == 1
 
 
+_lifo_events: list[str] = []
+
+
+class _LifoLeaf: ...
+
+
+class _LifoMid:
+    def __init__(self, leaf: _LifoLeaf) -> None:
+        self.leaf = leaf
+
+
+class _LifoTop:
+    def __init__(self, mid: _LifoMid) -> None:
+        self.mid = mid
+
+
+class _LifoGroup(Group):
+    leaf = providers.Factory(
+        scope=Scope.APP,
+        creator=_LifoLeaf,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("leaf")),
+    )
+    mid = providers.Factory(
+        scope=Scope.APP,
+        creator=_LifoMid,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("mid")),
+    )
+    top = providers.Factory(
+        scope=Scope.APP,
+        creator=_LifoTop,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("top")),
+    )
+
+
+def test_finalizers_run_in_reverse_creation_order_even_with_warmup() -> None:
+    _lifo_events.clear()
+    container = Container(scope=Scope.APP, groups=[_LifoGroup])
+    container.resolve(_LifoLeaf)  # the docs-recommended warmup pattern
+    container.resolve(_LifoTop)
+    container.close_sync()
+    assert _lifo_events == ["top", "mid", "leaf"]
+
+
 def test_singleton_resolution_is_reentrant() -> None:
     class Inner:
         pass
@@ -352,3 +397,85 @@ def test_singleton_resolution_is_reentrant() -> None:
     assert len(result) == 1
     assert isinstance(result[0], Outer)
     assert isinstance(result[0].inner, Inner)
+
+
+_awaitable_fin_events: list[str] = []
+
+
+class _AwaitableFinSvc: ...
+
+
+async def _real_cleanup(_: _AwaitableFinSvc) -> None:
+    _awaitable_fin_events.append("cleaned")
+
+
+class _AwaitableFinGroup(Group):
+    svc = providers.Factory(
+        scope=Scope.APP,
+        creator=_AwaitableFinSvc,
+        cache_settings=providers.CacheSettings(finalizer=lambda obj: _real_cleanup(obj)),  # noqa: PLW0108
+    )
+
+
+async def test_sync_finalizer_returning_awaitable_is_awaited_in_async_close() -> None:
+    _awaitable_fin_events.clear()
+    container = Container(scope=Scope.APP, groups=[_AwaitableFinGroup])
+    container.resolve(_AwaitableFinSvc)
+    await container.close_async()
+    assert _awaitable_fin_events == ["cleaned"]
+
+
+async def test_sync_finalizer_returning_awaitable_raises_in_sync_close_then_recovers() -> None:
+    _awaitable_fin_events.clear()
+    container = Container(scope=Scope.APP, groups=[_AwaitableFinGroup])
+    container.resolve(_AwaitableFinSvc)
+    with pytest.raises(FinalizerError):
+        container.close_sync()
+    assert _awaitable_fin_events == []  # nothing silently dropped
+    await container.close_async()  # recovery: async close finalizes the retained cache
+    assert _awaitable_fin_events == ["cleaned"]
+
+
+_cycle_events: list[str] = []
+
+
+class _PersistentBroker: ...
+
+
+class _EphemeralSvc: ...
+
+
+class _CycleGroup(Group):
+    broker = providers.Factory(
+        scope=Scope.APP,
+        creator=_PersistentBroker,
+        cache_settings=providers.CacheSettings(
+            clear_cache=False, finalizer=lambda _: _cycle_events.append("broker-finalized")
+        ),
+    )
+    svc = providers.Factory(
+        scope=Scope.APP,
+        creator=_EphemeralSvc,
+        cache_settings=providers.CacheSettings(),  # clear_cache=True default
+    )
+
+
+def test_persistent_provider_survives_close_reopen_cycle() -> None:
+    _cycle_events.clear()
+    container = Container(scope=Scope.APP, groups=[_CycleGroup])
+    with container:
+        broker1 = container.resolve(_PersistentBroker)
+        svc1 = container.resolve(_EphemeralSvc)
+    # exited → closed; finalizer ran once
+    assert _cycle_events == ["broker-finalized"]
+    # resolving while closed raises
+    with pytest.raises(ContainerClosedError):
+        container.resolve(_PersistentBroker)
+    # re-enter → reopen
+    with container:
+        broker2 = container.resolve(_PersistentBroker)
+        svc2 = container.resolve(_EphemeralSvc)
+    assert broker2 is broker1  # persistent: same instance preserved
+    assert svc2 is not svc1  # ephemeral: rebuilt fresh
+    # finalizer did NOT re-fire for the preserved broker
+    assert _cycle_events == ["broker-finalized"]

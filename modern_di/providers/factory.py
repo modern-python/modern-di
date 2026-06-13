@@ -55,6 +55,18 @@ class Factory(AbstractProvider[types.T_co]):
             parsed_type = return_sig.arg_type
             if kwargs:
                 self._validate_kwargs_against_signature(creator, kwargs, parsed_kwargs)
+            for param_name, item in parsed_kwargs.items():
+                if item.raw_annotation is None or item.default is not types.UNSET or (kwargs and param_name in kwargs):
+                    continue
+                raise exceptions.UnsupportedCreatorParameterError(
+                    creator=creator,
+                    parameter_name=param_name,
+                    reason=(
+                        f"parameterized generic annotation {item.raw_annotation!r} cannot be resolved by type; "
+                        f"pass the value via the kwargs parameter, give the parameter a default, "
+                        f"or use skip_creator_parsing=True"
+                    ),
+                )
         self._parsed_kwargs = parsed_kwargs
         super().__init__(scope=scope, bound_type=parsed_type if isinstance(bound_type, types.UnsetType) else bound_type)
         self._creator = creator
@@ -121,7 +133,10 @@ class Factory(AbstractProvider[types.T_co]):
                 ):
                     if v.default is types.UNSET:
                         raise exceptions.ArgumentResolutionError(
-                            arg_name=k, arg_type=v.arg_type, bound_type=self.bound_type or self._creator
+                            arg_name=k,
+                            arg_type=v.arg_type,
+                            bound_type=self.bound_type or self._creator,
+                            member_types=v.args,
                         )
                     continue
                 result[k] = provider
@@ -136,6 +151,7 @@ class Factory(AbstractProvider[types.T_co]):
                     arg_type=v.arg_type,
                     bound_type=self.bound_type or self._creator,
                     suggestions=suggestions,
+                    member_types=v.args,
                 )
 
         if self._kwargs:
@@ -190,10 +206,13 @@ class Factory(AbstractProvider[types.T_co]):
                 arg_type=v.arg_type,
                 bound_type=self.bound_type or self._creator,
                 suggestions=suggestions,
+                member_types=v.args,
             )
 
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
+        if container.closed:
+            raise exceptions.ContainerClosedError(container_scope=container.scope)
         cache_item = container.cache_registry.fetch_cache_item(self)
 
         if self.cache_settings and cache_item.cache is not types.UNSET:
@@ -220,6 +239,7 @@ class Factory(AbstractProvider[types.T_co]):
 
             instance = self._creator(**resolved_kwargs)
             cache_item.cache = instance
+            container.cache_registry.mark_created(cache_item)
             return instance
         finally:
             if container.lock:

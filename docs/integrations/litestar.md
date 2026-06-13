@@ -125,6 +125,8 @@ async def websocket_handler(
     async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:
         # REQUEST scope is entered here
         # You can resolve dependencies here
+        service = request_container.resolve(MyService)
+        await service.handle(data)
 
 app.register(websocket_handler)
 ```

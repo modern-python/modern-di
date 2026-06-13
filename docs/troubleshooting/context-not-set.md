@@ -14,28 +14,29 @@ The provider has nothing to resolve to because nothing was set for that type on 
 
 ## Common causes
 
-### 1. `set_context` was called on the parent, after the child was built
+### 1. `set_context` was called on the wrong container (scope mismatch)
 
-Context does not propagate from parent to child after the fact. Each container has its own context registry.
+Context never propagates between containers. A `ContextProvider` reads the context registry of the container **at the provider's own scope**. For a REQUEST-scoped provider, only the request container's registry is ever consulted — setting the value on the parent has no effect, regardless of build order.
 
 ```python
-# ❌ Broken: child was built before set_context
+# ❌ Broken: TenantId provider has scope=Scope.REQUEST, so it reads the REQUEST
+# container's registry. Setting it on the APP parent does nothing.
+app_container.set_context(TenantId, TenantId("acme"))     # ignored for REQUEST-scoped providers
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
-app_container.set_context(TenantId, TenantId("acme"))     # invisible to request_container
 ```
 
-Fix: set context **before** building the child, or pass the values in via `build_child_container`:
+Fix: set the value on the container whose scope matches the provider's scope:
 
 ```python
-# Option A: set on the parent first
-app_container.set_context(TenantId, TenantId("acme"))
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-
-# Option B: pass directly to the child
+# Option A: pass directly to the child when building it
 request_container = app_container.build_child_container(
     scope=Scope.REQUEST,
     context={TenantId: TenantId("acme")},
 )
+
+# Option B: set on the request container after building it
+request_container = app_container.build_child_container(scope=Scope.REQUEST)
+request_container.set_context(TenantId, TenantId("acme"))
 ```
 
 ### 2. The `ContextProvider`'s scope doesn't match where you set the context
@@ -53,5 +54,5 @@ Fix: only depend on framework-injected context inside the framework's request ha
 ## See also
 
 - [Context Provider](../providers/context.md) — the full `ContextProvider` and `set_context` API.
-- [Scopes](../providers/scopes.md) — per-container context registries, why propagation is one-shot.
+- [Scopes](../providers/scopes.md) — per-container context registries, why context never propagates between containers.
 - [Async resources via lifespan](../recipes/async-lifespan.md) — the canonical "construct in lifespan, inject as context" pattern.

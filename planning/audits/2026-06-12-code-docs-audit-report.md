@@ -1,0 +1,469 @@
+# Code & Docs Audit Report — 2026-06-12
+
+**Spec:** docs/superpowers/specs/2026-06-12-code-docs-audit-design.md
+**Baseline:** lint-ci PASS, pytest PASS (100% coverage), at commit 9f07b08
+**Prior audit:** planning/audits/2026-06-05-bug-hunt-audit-report.md
+
+## Summary
+
+57 findings across five categories. Every Bug and Drift finding was independently verified by an adversarial reviewer — with fresh probe scripts where executable, direct doc/config inspection otherwise; zero findings were refuted.
+
+**Status (2026-06-13):** Fixed on branch `audit-fixes-2026-06-12`: all bugs **B-1…B-11**; **X-1** (resolve/build on a closed container raises; refined so re-entering the context manager reopens and `clear_cache=False` instances persist across the close→reopen cycle); dead code **Q-2, Q-3, Q-4**; pinning tests **Q-10…Q-15**; doc drift **D-1** (closed by the B-7 LIFO fix), **D-3, D-6, D-7, D-8, D-9, D-10, D-11, D-12, D-13, D-14**. **G-4** is resolved by the B-9 fix (the same-container `set_context` staleness it documented no longer occurs). Deferred (not selected this round): **Q-1, Q-5, Q-6, Q-7, Q-8, Q-9, X-2, X-3, X-4, X-5, X-6, D-2, D-4, D-5, G-1, G-2, G-3, G-5…G-11**. Design rulings recorded during the fix: B-1 → declaration-time error for parameterized-generic params (kwargs/default escape hatch); D-6 → context never propagates between containers (docs + docstring only). A maintainer follow-up was noted for **`clear_cache=False`** semantics (now precisely defined as persist-across-reopen; see lifecycle docs).
+
+| Category | High | Medium | Low | Total |
+|---|---|---|---|---|
+| Bugs (B) | 1 | 7 | 3 | 11 |
+| Drift (D) | 3 | 8 | 3 | 14 |
+| Quality (Q) | 0 | 4 | 11 | 15 |
+| DX (X) | 0 | 2 | 4 | 6 |
+| Docs gaps (G) | 0 | 4 | 7 | 11 |
+| **Total** | **4** | **25** | **28** | **57** |
+
+**Top 5 by impact:**
+
+1. **B-7 + D-1** (B-7 high / D-1 medium): finalizers run in cache-insertion order, not the documented reverse-resolve (LIFO) order — and the warmup pattern the docs themselves recommend triggers dependency-before-dependent teardown.
+2. **D-6** (high): the documented fix for missing context ("call `set_context` on the parent before building the child") verifiably does not work — context never propagates parent→child; wrong on three pages and in the `container.py` docstring.
+3. **D-3** (high): the introductory `about-di.md` example crashes with `ScopeNotInitializedError` when run as written — a newcomer's likely first contact with the library fails.
+4. **D-7** (high): the `alias.md` override walkthrough fails on its own assert when its blocks are run in page order — an active alias override silently wins over a source override.
+5. **B-9** (medium): `set_context` on the same container is silently ignored once a dependent factory's kwargs were compiled — the staleness is invisible and its symptom page (`context-not-set.md`) doesn't list this cause (G-4).
+
+Honorable mention: **B-1** (medium) — parameterized generics like `list[Svc]` silently degrade to their origin type, allowing wrong-type injection when a bare `list` provider exists.
+
+**Cross-finding decisions to make together:** Q-6 + X-6 (benchmark collection and the 100%-coverage gate in `addopts`); B-9 + G-4 (fix the staleness or document it); B-5 + Q-13 (validate's alias escape constrains the proposed alias-chain test); D-1 + B-7 (one is the doc side, one the code side — fixing either closes both).
+
+## Finding format
+
+Every finding uses:
+
+#### <ID>: <one-line title>
+- **Severity:** high | medium | low
+- **Evidence:** `file.py:NN` — what the code/doc actually says/does
+- **Why it's a problem:** one or two sentences
+- **Proposed fix:** concrete change, one or two sentences
+- **Verified by:** probe script output | code-path trace | doc/code diff
+
+IDs: B-n Bugs, D-n Drift, Q-n Quality, X-n DX, G-n Docs gaps.
+
+## Findings
+
+### Bugs
+
+#### B-1: Parameterized generic annotations are silently degraded to their origin type
+- **Severity:** medium
+- **Evidence:** `modern_di/types_parser.py:43-45` — for a generic annotation, `SignatureItem` stores only `typing.get_origin(type_)` as `arg_type` (`list[Svc]` → `list`); `modern_di/providers/factory.py:99-101` then looks up a provider for the bare origin. Probe: with a `Svc` provider registered, `def __init__(self, x: list[Svc])` fails with `Argument x of type <class 'list'> cannot be resolved` — the error names `list`, not the `list[Svc]` the user wrote. Worse, registering any provider with `bound_type=list` silently satisfies `list[Svc]` (and would satisfy `list[Anything]`): probe printed `NeedsList.x == ['sentinel']  (annotation was list[Svc]!)`.
+- **Why it's a problem:** The error message points at a type the user never wrote, and the origin-only match can silently inject a value of the wrong element type with no warning.
+- **Proposed fix:** Keep the original annotation on `SignatureItem` and use it in `ArgumentResolutionError` messages; either match the full parameterized type in the registry or raise a clear declaration-time error that parameterized generics are not resolvable.
+- **Verified by:** probe script output (`/tmp/audit_probe_parser.py` sections 3, 3b, 3c, quoted above)
+
+#### B-2: `functools.partial` creator crashes at declaration with an uncaught `TypeError` from `get_type_hints`
+- **Severity:** medium
+- **Evidence:** `modern_di/types_parser.py:64-65` — `typing.get_type_hints(creator)` is wrapped in `except NameError` only. For a `functools.partial` creator, `inspect.signature` succeeds but `get_type_hints` raises `TypeError`. Probe: `providers.Factory(creator=functools.partial(partial_target, y=1))` → `TypeError: functools.partial(<function partial_target ...>, y=1) is not a module, class, method, or function.`
+- **Why it's a problem:** A plausible creator pattern fails at declaration with a raw `typing` internals message that never mentions modern-di, the Factory, or the `skip_creator_parsing=True` escape hatch.
+- **Proposed fix:** Catch `TypeError` alongside `NameError` (warn-and-skip the same way), or resolve hints from `creator.func` for partials; the warning should mention `skip_creator_parsing=True`/`bound_type` as the workaround.
+- **Verified by:** probe script output (`/tmp/audit_probe_parser.py` section 8, quoted above)
+
+#### B-3: Positional-only creator parameters are parsed and resolved, then fail at resolve time with a raw `TypeError`
+- **Severity:** medium
+- **Evidence:** `modern_di/types_parser.py:75` skips only `VAR_POSITIONAL`/`VAR_KEYWORD`, so `POSITIONAL_ONLY` params land in `param_hints`; `modern_di/providers/factory.py:212/221` always calls `self._creator(**resolved_kwargs)`. Probe: `def pos_only_creator(x: Svc, /, y: Svc2)` with both deps registered → `TypeError: pos_only_creator() got some positional-only arguments passed as keyword arguments: 'x'`.
+- **Why it's a problem:** Declaration succeeds silently and dependencies are actually resolved (side effects included) before the call blows up with a non-DI error lacking the dependency-chain context every other resolution failure gets.
+- **Proposed fix:** Detect `POSITIONAL_ONLY` parameters in `parse_creator` and raise a clear declaration-time error (or pass them positionally in declaration order in `Factory.resolve`).
+- **Verified by:** probe script output (`/tmp/audit_probe_parser.py` section 4b, quoted above)
+
+#### B-4: Unannotated parameter failure reports "Argument x of type None"
+- **Severity:** low
+- **Evidence:** `modern_di/errors.py:23-25` (`FACTORY_ARGUMENT_RESOLUTION_ERROR`) is formatted with `arg_type=None` when the parameter has no annotation (`modern_di/providers/factory.py:128-135`). Probe: `def unannotated_creator(x) -> Svc` → `Argument x of type None cannot be resolved.` Same for `lambda x: Svc()`.
+- **Why it's a problem:** "of type None" reads as if the parameter were annotated `None`/`NoneType`; the actual problem — a missing annotation, which type-based wiring can never satisfy — is not stated.
+- **Proposed fix:** When `arg_type is None` and `args` is empty, render a dedicated message, e.g. "Argument {arg_name} has no type annotation, so it cannot be resolved by type; pass it via kwargs or add an annotation."
+- **Verified by:** probe script output (`/tmp/audit_probe_parser.py` sections 6 and 8b, quoted above)
+
+#### B-5: `validate()` aborts on a dangling Alias instead of aggregating it into ValidationFailedError
+- **Severity:** medium
+- **Evidence:** `modern_di/container.py:132` — `_visit` calls `provider.get_dependencies(self)` unguarded; `modern_di/providers/alias.py:32` raises `AliasSourceNotRegisteredError` from `_find_source` when the alias source is unregistered. Probe: a group with a dangling `Alias` plus a second broken provider, `Container(..., validate=True)` → raw `AliasSourceNotRegisteredError: Alias source type <class '...NotRegistered'> is not registered...` — no `ValidationFailedError`, and the second issue is never reported. Repro precondition: the alias must be bound under a type different from its source (`Alias(source_type=X, bound_type=Y)`); with the default `bound_type` the cycle path aggregates correctly, and with `bound_type=None` the alias is never registered.
+- **Why it's a problem:** Breaks the validate() contract of collecting all issues into one `ValidationFailedError`: callers catching `ValidationFailedError`/`ContainerError` miss this `ResolutionError`, and multi-issue graphs are reported one issue at a time.
+- **Proposed fix:** In `_visit`, wrap the `get_dependencies` call in `try/except ResolutionError` and append to `validation_errors` (or give `Alias` an `iter_validation_issues` that yields the error and make its `get_dependencies` tolerate a missing source).
+- **Verified by:** probe script output (`/tmp/audit_probe_container.py` section 5c, quoted above)
+- **Note:** a dependency cycle *through* a ContextProvider is structurally impossible (it has no outgoing edges), so the probe validated a chain through one instead; this is the maximal realizable test for that spec item.
+
+#### B-6: `Container.__init__` accepts a `parent_container` with a non-increasing scope, silently shadowing the parent's scope_map entry
+- **Severity:** medium
+- **Evidence:** `modern_di/container.py:30-46` — `__init__` takes the public `parent_container` kwarg with no scope-ordering check (the check exists only in `build_child_container`, `container.py:70-75`); `scope_map = {**parent_container.scope_map, scope: self}` overwrites the parent's entry for the same scope. Probe: `Container(scope=Scope.APP, parent_container=app_root)` is accepted; an APP-scoped singleton then resolves to a second, different instance through the shadow container (`a is not b` → True).
+- **Why it's a problem:** A public constructor parameter bypasses the scope-hierarchy invariant with no error, silently duplicating "singletons" — exactly the failure `InvalidChildScopeError` exists to prevent.
+- **Proposed fix:** In `__init__`, when `parent_container` is given, raise `InvalidChildScopeError` if `scope <= parent_container.scope` (same check as `build_child_container`).
+- **Verified by:** probe script output (`/tmp/audit_probe_container.py` section 8, quoted above)
+
+#### B-7: Finalizers run in cache-item insertion order, not the documented reverse-resolve (LIFO) order
+- **Severity:** high
+- **Evidence:** `modern_di/registries/cache_registry.py:54,64` — `close_async`/`close_sync` iterate `self._items.values()` in dict insertion order; an item is inserted when `fetch_cache_item` is first called (`modern_di/providers/factory.py:197`), i.e. when a provider's resolve *starts*, before its dependencies are fetched. Within a single resolve chain this happens to give dependent-first teardown (probe S1: `['svc', 'dep', 'leaf']`), but if a dependency is resolved directly before its dependent, it is finalized first: probe S1b printed `teardown order (leaf resolved first): ['leaf', 'svc', 'dep']` — the leaf (dependency) finalized before `svc` (its dependent). `docs/providers/lifecycle.md:64` promises "Closing a container runs its finalizers in reverse-resolve order", and `docs/providers/lifecycle.md:12-17` *recommends* the exact trigger pattern (warm low-level resources at startup via `container.resolve(AsyncEngine)` before dependents are resolved).
+- **Why it's a problem:** A dependent's finalizer (e.g. `session.close()`) can run after its dependency (e.g. the engine) was already disposed — exactly what reverse-order teardown exists to prevent — and the docs-recommended warmup pattern is what triggers it.
+- **Proposed fix:** Record creation-completion order (e.g. append the CacheItem to an ordered list when `cache_item.cache` is set in `Factory.resolve`) and finalize in reverse of that order, or finalize `reversed(self._items.values())` after moving item insertion to creation time.
+- **Verified by:** probe script output (`/tmp/audit_probe_factory.py` sections S1/S1b, quoted above)
+
+#### B-8: Finalizer that is a sync callable returning an awaitable is called but never awaited — silent resource leak
+- **Severity:** medium
+- **Evidence:** `modern_di/providers/factory.py:23` types `finalizer` as `Callable[[T_co], None | typing.Awaitable[None]]` — explicitly admitting sync callables that *return* an awaitable — but `factory.py:27` sets `is_async_finalizer` solely via `inspect.iscoroutinefunction(self.finalizer)`. For `finalizer=lambda obj: real_async_cleanup(obj)`, `is_async_finalizer` is `False`, so `cache_registry.py:27` (close_async) and `:36` (close_sync) call it and discard the returned coroutine. Probe S2b: `events: []`, `warnings: ["coroutine 'real_async_cleanup' was never awaited"]`, `is_async_finalizer flag: False` — cleanup never ran, yet `finalized` was set to `True`.
+- **Why it's a problem:** The cleanup silently never executes (resource leak) while the registry marks the item finalized; the only symptom is a `RuntimeWarning` that is easy to miss.
+- **Proposed fix:** In `close_async`, after calling a non-coroutine-function finalizer, `await` the result if `inspect.isawaitable(result)`; in `close_sync`, raise `AsyncFinalizerInSyncCloseError` in that case instead of marking finalized. Alternatively narrow the type hint and reject awaitable-returning sync callables at `CacheSettings` construction.
+- **Verified by:** probe script output (`/tmp/audit_probe_factory.py` section S2b, quoted above)
+
+#### B-9: `set_context` on the same container is silently ignored after a dependent factory's kwargs were compiled
+- **Severity:** medium
+- **Evidence:** `modern_di/providers/factory.py:115-126` — at kwargs-compile time, a ContextProvider dep whose value is UNSET and whose parameter has a default is *dropped* from the compiled kwargs (`continue` at line 126); `factory.py:145-160` caches that decision per container via `cache_item.kwargs_compiled`, so it is never revisited. Probe S7: resolve a factory with `ctx: ReqCtx | None = None` (prints `ctx = None`), then `c.set_context(ReqCtx, ReqCtx(name="late"))`, resolve again on the *same* container → still `ctx = None`; a fresh container with the context at init prints `ReqCtx(name='early')`. The `set_context` docstring (`modern_di/container.py:169-177`) warns only about already-built *child* containers, not about the same container.
+- **Why it's a problem:** The documented API for late context registration silently does nothing once any dependent factory has resolved on that container — values are dropped with no error and no docs warning for this case.
+- **Proposed fix:** Invalidate compiled kwargs on `set_context` (e.g. bump a context-generation counter checked in `_ensure_kwargs_cached`), or defer the optional-ContextProvider decision to resolve time instead of compile time.
+- **Verified by:** probe script output (`/tmp/audit_probe_factory.py` section S7, quoted above)
+
+#### B-10: Failed group registration on a child container permanently pollutes the shared providers registry
+- **Severity:** low
+- **Evidence:** `modern_di/container.py:58-60` — groups are registered into `self.providers_registry`, which for a child is the parent's shared registry; `modern_di/registries/providers_registry.py:48-53` — `add_providers` registers one provider at a time with no rollback, raising `DuplicateProviderTypeError` mid-loop. Probe R1: `Container(scope=Scope.SESSION, parent_container=app, groups=[GR1child])` raised `DuplicateProviderTypeError` (group had `Extra` then a duplicate `Impl`), yet afterwards `app.providers_registry.find_provider(Extra) is not None` → `True`.
+- **Why it's a problem:** A constructor that raises should not leave shared state mutated; the parent container silently gains providers from a child that was never created, and re-attempting registration of the same group then fails on `Extra` instead.
+- **Proposed fix:** Validate the whole batch against the registry (and against itself) before registering, or roll back providers added in the failed `add_providers` call.
+- **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section R1, quoted above)
+
+#### B-11: Shared ProvidersRegistry mutation (child container with `groups=`) races concurrent readers — `RuntimeError` in `validate()`/suggestions and a bypassable duplicate guard
+- **Severity:** low (real race at the code level, but no documented usage pattern registers groups post-startup or on child containers concurrently with resolution; 0 hits at the default switch interval)
+- **Evidence:** `modern_di/registries/providers_registry.py:42-46` — `register` is unsynchronized check-then-act; `providers_registry.py:62` — `build_suggestions` iterates `self._providers.values()`; `providers_registry.py:36-37` — `__iter__` feeds `Container.validate` (`modern_di/container.py:147`); and `container.py:58-60` lets `Container(parent_container=..., groups=[...])` mutate this *shared* registry post-construction from any thread. Probe (with `sys.setswitchinterval(1e-6)` to widen windows): thread A builds child containers with new groups while thread B calls `validate()` / resolves an unregistered type → 180 crashes in the first failing trial: `validate path: RuntimeError: dictionary changed size during iteration` and `resolve-miss path: RuntimeError: dictionary changed size during iteration` (probe T5). Two threads concurrently registering the *same* group: `BOTH succeeded (guard bypassed): 3` of 200 trials — no `DuplicateProviderTypeError` raised for either (probe T4). At the default switch interval with a smaller registry the same probes showed 0 hits (0/60 and 0/200), so the windows are narrow but real.
+- **Why it's a problem:** A reader thread doing the documented safety operations (`validate()`, or a `resolve` miss that renders suggestions) crashes with a raw `RuntimeError` carrying no DI context, and the registry's one integrity invariant (`DuplicateProviderTypeError`) is not enforced under the same concurrency; `Container.lock` guards only singleton creation, not the registry. The prior wont-fixes cover different structures ("OverridesRegistry shared across siblings" — design; "Factory kwargs compilation writes to shared CacheItem without lock" — benign identical writes); neither covers ProvidersRegistry, and these symptoms are crashes/lost errors, not last-write-wins.
+- **Proposed fix:** Snapshot before iterating (`list(self._providers.values())` in `__iter__`/`build_suggestions`) and make `register` atomic under a small registry lock — or document that all group registration must complete before any concurrent resolution/validation begins.
+- **Verified by:** probe script output (`/tmp/audit_probe_registry_threads.py` sections T4/T5, quoted above)
+
+### Drift (docs vs code)
+
+(D-1 and D-2 came from the code-audit passes; D-3..D-14 from the dedicated docs-drift pass. Verified accurate along the way, no findings: CLAUDE.md's registry-sharing table vs `container.py:47-57` — ProvidersRegistry shared, CacheRegistry per-container, ContextRegistry per-container, OverridesRegistry shared.)
+
+#### D-1: Docs promise "reverse-resolve order" finalization; code finalizes in cache-item insertion order
+- **Severity:** medium
+- **Evidence:** `docs/providers/lifecycle.md:64` — "Closing a container runs its finalizers in reverse-resolve order"; `docs/migration/from-that-depends.md:238` — "exiting it runs finalizers in reverse order". Actual behavior (`modern_di/registries/cache_registry.py:54,64`) is first-fetch insertion order, which differs from reverse-resolve order whenever a dependency is resolved directly before its dependent (probe S1b: `['leaf', 'svc', 'dep']`).
+- **Why it's a problem:** Users design finalizers (close session before disposing engine) around the documented guarantee, which the code does not provide.
+- **Proposed fix:** Fix the code per B-7; if B-7 is instead ruled intentional, rewrite both doc sentences to state the real insertion-order rule and its warmup caveat.
+- **Verified by:** probe script output (`/tmp/audit_probe_factory.py` section S1b) + doc/code diff
+
+#### D-2: Context troubleshooting page quotes a `RuntimeError` the library never raises; the real unset-context failure never mentions context
+- **Severity:** medium
+- **Evidence:** `docs/troubleshooting/context-not-set.md:7-11` presents, under "Understanding the error", the message `RuntimeError: ContextProvider for <class 'TenantId'> has no value in container at scope REQUEST. Call \`container.set_context(TenantId, value)\` before resolving, or pass it via \`build_child_container(context={TenantId: value})\`.` — `grep -rn "has no value in container" modern_di/` finds nothing (probe C4: exit=1). Actual behavior (probe C1): `ContextProvider(scope=Scope.REQUEST, context_type=ReqCtx)` plus a Factory whose creator requires `t: ReqCtx` with no default, REQUEST child built without context → `modern_di.exceptions.ArgumentResolutionError` with chain rendering, message `Argument t of type <class 'ReqCtx'> cannot be resolved. Trying to build dependency <class 'NeedsCtx'>.` — `mentions 'set_context': False`, `mentions 'context': False` (the `factory.py:122-125` raise passes no suggestions). Direct `resolve_provider` of the ContextProvider returns `None` (probe C2).
+- **Why it's a problem:** Users hitting the real error can't reach the troubleshooting page by searching its quoted (nonexistent) message, and the real message misdirects toward a missing provider registration when a ContextProvider *is* registered — the actual fix (`set_context` / `build_child_container(context=...)`) appears nowhere in the error. The required-param raise itself is sound DI behavior (prior 2026-06-05 wont-fix "ContextProvider silently returns None when unset" explicitly endorses the factory-path raise for required params; the new angle here is the phantom documented error text and the raise's missing context hint, which that wont-fix did not address).
+- **Proposed fix:** In `Factory._compile_kwargs`, when the failing dep provider is a ContextProvider with an UNSET value, raise a context-specific error (or pass suggestions naming `set_context`/`build_child_container(context=...)`); update the doc snippet at `docs/troubleshooting/context-not-set.md:7-11` to show the real error text.
+- **Verified by:** probe script output (`/tmp/audit_probe_ctx_required.py` sections C1/C2/C4, quoted above)
+
+#### D-3: about-di.md "Using modern-di" example crashes — REQUEST-scoped provider resolved from the APP container
+- **Severity:** high
+- **Evidence:** `docs/introduction/about-di.md:139-145` — the example declares `db` and `user_service` at `scope=Scope.REQUEST`, then runs `container = Container(groups=[AppModule])` / `user_service = container.resolve(UserService)` with the comment "Resolve entire dependency graph". `modern_di/container.py:88` raises for this: executed verbatim (`/tmp/audit_doc_about_di_1.py`) → `modern_di.exceptions.ScopeNotInitializedError: Provider of scope REQUEST cannot be resolved in container of scope APP.`
+- **Why it's a problem:** This is the page's flagship "Manual DI vs modern-di" comparison; a new user copying it hits an exception on the very first resolve, on the page meant to sell the framework.
+- **Proposed fix:** Either build a REQUEST child (`with container.build_child_container(scope=Scope.REQUEST) as request: request.resolve(UserService)`) or drop `scope=Scope.REQUEST` from the two providers in this intro example.
+- **Verified by:** executed example (output quoted above)
+
+#### D-4: Two pages claim duplicate bound types "silently shadow"; registration actually raises `DuplicateProviderTypeError`
+- **Severity:** medium
+- **Evidence:** `docs/recipes/multi-group.md:86` — "**Type collisions are silent.** If two groups both register providers for `AsyncSession` … the second registration wins." and `:87` — "It only matters for the silent-shadow case above."; `docs/recipes/request-scoped-engine.md:76` — "Without them, both would register under `AsyncEngine` and the second one would shadow the first." Code: `modern_di/registries/providers_registry.py:42-45` — `register` raises `DuplicateProviderTypeError` on any duplicate type. Probe (`/tmp/audit_probe_collisions.py`): both scenarios → `DuplicateProviderTypeError: Provider is duplicated by type <class '…'>.` — never silent, no shadowing.
+- **Why it's a problem:** Both recipes teach a failure mode (silent shadowing) that cannot happen and tell users to defend against the wrong thing; they also directly contradict `docs/troubleshooting/duplicate-type-error.md:3-11`, which correctly documents the raise.
+- **Proposed fix:** Rewrite both sentences: duplicate bound types raise `DuplicateProviderTypeError` at `Container(groups=[...])` time; link to the duplicate-type-error troubleshooting page.
+- **Verified by:** probe output + doc/code diff
+
+#### D-5: multi-group.md promises a `ValueError` on attribute-name collisions; core never looks at attribute names
+- **Severity:** medium
+- **Evidence:** `docs/recipes/multi-group.md:85` — "**Name collisions raise at container creation.** If two groups define an attribute with the same name (`Cache.session` and `Database.session`), you get `ValueError`." Code: `modern_di/group.py:19-32` (`get_providers` collects values; per-class-MRO name dedupe only) and `modern_di/registries/providers_registry.py:48-53` (`add_providers` keys solely on `bound_type`) — no name is ever compared across groups. Probe (`/tmp/audit_probe_collisions.py`): two groups with a same-named `session` attribute but distinct types → `1) name collision: NO error raised; both registered: True True`.
+- **Why it's a problem:** The guarantee belongs to `modern-di-pytest`'s `expose(*groups)` (which does raise `ValueError` on duplicate names), not to `Container(groups=[...])`; users relying on this nonexistent guard get silent acceptance, and if the same-named providers share a type they get `DuplicateProviderTypeError`, not `ValueError`.
+- **Proposed fix:** Correct the pitfall: same-named attributes across groups are fine for `Container` (collisions matter only for type, per D-4) — the `ValueError` applies to `modern-di-pytest`'s `expose` and (as `UserWarning`) to Litestar `autowired_groups`.
+- **Verified by:** probe output + doc/code diff
+
+#### D-6: "Set context on the parent *before* building the child" is documented as the fix on three pages, but parent context never propagates to children at all
+- **Severity:** high
+- **Evidence:** `docs/providers/container.md:61-67` ("Option A: set on the parent first" then `build_child_container`), `docs/troubleshooting/context-not-set.md:27-32` (same Option A), `docs/migration/from-that-depends.md:276` ("Set context **before** building the child"), and the `set_context` docstring itself (`modern_di/container.py:169-176`: "Values set here are not seen by child containers that were *already built*. Either set context before calling build_child_container, or …"). Code: `modern_di/container.py:48,83` — a child's `ContextRegistry` is built from the `context=` argument only; the parent's map is never copied — and `modern_di/providers/context_provider.py:37-39` looks up the registry of the container at the *provider's* scope. Probe (`/tmp/audit_probe_ctx_propagation.py`): REQUEST-scoped `ContextProvider`, value set on the parent BEFORE building the child → `A1 (REQUEST-scoped provider, Option A): FAILED -> ArgumentResolutionError`, `A2 direct resolve of ContextProvider: None`. Conversely the pages' "broken" example (set on parent AFTER child built) works for an APP-scoped provider: `B1 … resolved -> acme`. `C1 child context registry contents: {}`.
+- **Why it's a problem:** The documented fix verifiably does not fix the documented symptom: for per-request context (the case both troubleshooting examples depict — `TenantId` "at scope REQUEST") Option A still fails, and the timing framing ("before vs after building the child") is the wrong mental model entirely — what matters is only which container's registry the provider's scope selects, exactly as the same page correctly states 12 lines later (`context-not-set.md:43-45`), making cause #1 and cause #2 mutually contradictory.
+- **Proposed fix:** On all three pages (and the `set_context` docstring), replace the "set before building the child" advice with the scope rule: set the value on the container at the `ContextProvider`'s scope — for REQUEST-scoped context that means `build_child_container(context={...})` or `set_context` on the request container; setting it on the parent works only for parent-scope providers (and then build order is irrelevant).
+- **Verified by:** probe output (quoted above) + doc/code diff
+- **Maintainer ruling (2026-06-12):** context must NOT propagate parent→child — a `ContextProvider` watches only the context registry of its own scope, by design. The fix is docs + docstring only; no code change.
+
+#### D-7: alias.md override walkthrough fails when its blocks are run in sequence — the earlier alias override still shadows the source override
+- **Severity:** high (the second block cannot run without the page's shared `container`/`Dependencies` state, so sequential execution is the only literal reading, and it fails on the doc's own assert)
+- **Evidence:** `docs/providers/alias.md:69-90` — one running `container`: the first block overrides `Dependencies.abstract_repo`, then the second ("Override the source provider instead, and both resolution paths see the mock") asserts `container.resolve(Repository) is mock_for_source`. Executed in page order (`/tmp/audit_doc_alias_1.py`): `AssertionError` on that line — `resolve(Repository)` still returns `mock_for_alias` because `modern_di/container.py:102-107` checks the overrides registry before the alias ever delegates. The block passes only in isolation or after `container.reset_override(Dependencies.abstract_repo)` (verified: `/tmp/audit_doc_alias_2_isolated.py` → both variants OK).
+- **Why it's a problem:** A reader following the page top-to-bottom gets a failing assertion, and the page's claim "the alias and its source can be overridden independently" obscures that an alias override takes precedence over a source override for the aliased type.
+- **Proposed fix:** Insert `container.reset_override(Dependencies.abstract_repo)` between the two blocks (or use a fresh container), and add one sentence noting that an active alias override wins over a source override for `resolve(Repository)`.
+- **Verified by:** executed example (failure) + isolated re-run (claim itself holds)
+
+#### D-8: container.md documents `resolve(str)` result as `"Container scope: Scope.APP"`; actual output is `"Container scope: 1"`
+- **Severity:** medium
+- **Evidence:** `docs/providers/container.md:18-26` — creator returns `f"Container scope: {di_container.scope}"` and the page asserts `# result: "Container scope: Scope.APP"`. `modern_di/scope.py:4` — `Scope` is an `enum.IntEnum`, whose `__format__` is `int`'s, so f-string interpolation yields the integer. Executed (`/tmp/audit_doc_container_1.py`): `S1 result: 'Container scope: 1'`, `matches doc comment: False` (on the project's own Python 3.10; 3.11+ additionally makes `str()` behave the same way).
+- **Why it's a problem:** The example's only observable output is wrong, and it mis-teaches how `Scope` members render in logs/messages.
+- **Proposed fix:** Change the creator to `f"Container scope: {di_container.scope.name}"` (and update the comment to `"Container scope: APP"`), or keep the creator and update the comment to `# result: "Container scope: 1"` — the doc comment changes under either option.
+- **Verified by:** executed example (output quoted above)
+
+#### D-9: missing-provider.md quotes a phantom error message; neither real error matches its text
+- **Severity:** medium
+- **Evidence:** `docs/troubleshooting/missing-provider.md:7-10` — "Understanding the error" quotes `RuntimeError: No provider registered for type <class 'SomeType'> while resolving parameter 'some_param' of <function create_something>.` — that string exists nowhere in `modern_di/`. Real messages (probe `/tmp/audit_probe_errmsgs.py`): direct lookup → `ProviderNotRegisteredError: Provider of type <class '…SomeType'> is not registered in providers registry.` (`modern_di/errors.py:18`); parameter failure → `ArgumentResolutionError: Cannot resolve dependency chain:\n  APP  str\n  caused by: Argument some_param of type <class '…SomeType'> cannot be resolved. Trying to build dependency <class 'str'>.` (`modern_di/errors.py:23-25`).
+- **Why it's a problem:** Same failure class as D-2 on a different page: users who paste the real error into search will never land on this page, and users on the page can't match the quote to what their terminal shows.
+- **Proposed fix:** Replace the quoted block with the two real messages (one per failure mode: `resolve()` miss vs creator-parameter miss), including the dependency-chain rendering.
+- **Verified by:** probe output (quoted above) + grep over `modern_di/`
+
+#### D-10: scope-chain.md quotes a phantom error message; the real one is an `InvalidScopeDependencyError` inside `ValidationFailedError`
+- **Severity:** medium
+- **Evidence:** `docs/troubleshooting/scope-chain.md:9-13` quotes `RuntimeError: Provider <APP-scope UserCache> depends on <REQUEST-scope AsyncSession> which has a shorter lifetime. A shorter-lived dependency would be captured by a longer-lived one and become stale across requests.` — not in the codebase. Real (probe): `ValidationFailedError: Container.validate() found 1 issue(s): InvalidScopeDependencyError\n  - Provider UserCache (scope APP) declares parameter 'session' typed as a provider of AsyncSession at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.` (`modern_di/errors.py:38-42`, wrapping at `modern_di/exceptions.py:258-262`).
+- **Why it's a problem:** The page exists to be found by its error text; its quoted text never occurs, and the angle-bracket phrasing suggests a rendering the library doesn't produce.
+- **Proposed fix:** Replace the quote with the real `ValidationFailedError`/`InvalidScopeDependencyError` output shown above.
+- **Verified by:** probe output (quoted above) + grep over `modern_di/`
+
+#### D-11: circular-dependency.md presents the cycle message as a bare top-level `RuntimeError`; via `validate()` it only ever surfaces wrapped in `ValidationFailedError`
+- **Severity:** low
+- **Evidence:** `docs/troubleshooting/circular-dependency.md:9-11` quotes `RuntimeError: Circular dependency detected: ServiceA -> ServiceB -> ServiceA. …` and `:17` tells users to detect it via `validate()`. The message template matches exactly (`modern_di/errors.py:26`), but the only raise path is `container.validate()` aggregation (`modern_di/container.py:111-152`), so the displayed exception is `ValidationFailedError: Container.validate() found 1 issue(s): CircularDependencyError\n  - Circular dependency detected: ServiceA -> ServiceB -> ServiceA. Check your provider graph for unintended cycles.` (probe E3). Unvalidated resolution gives `RecursionError`, which the page does state correctly (`:13`).
+- **Why it's a problem:** Minor findability/accuracy gap: the exception name and first line a user actually sees (`ValidationFailedError: Container.validate() found …`) don't appear on the page.
+- **Proposed fix:** Show the real wrapped output and name `ValidationFailedError`/`CircularDependencyError` explicitly.
+- **Verified by:** probe output (quoted above) + doc/code diff
+
+#### D-12: design-decisions.md claims "mypy --strict and ty clean. No `# type: ignore`, no `typing.cast`" — the codebase has three `typing.cast`s, two `ty: ignore`s, and no mypy configuration at all
+- **Severity:** low
+- **Evidence:** `docs/introduction/design-decisions.md:21` — "The codebase ships with `mypy --strict` and `ty` clean. No `# type: ignore`, no `typing.cast`." Actual: `typing.cast` at `modern_di/types_parser.py:57`, `modern_di/registries/context_registry.py:13`, `modern_di/providers/context_provider.py:35`; suppressions `# ty: ignore[invalid-await]` at `modern_di/registries/cache_registry.py:25` and `# ty: ignore[invalid-return-type]` at `modern_di/container.py:107`; `grep -rn mypy pyproject.toml justfile .github/` → no matches (mypy is neither configured nor run — lint is ruff + ty per `justfile`).
+- **Why it's a problem:** A "maximum type safety" pledge backed by specific, checkable claims that are all false invites distrust of the page's other (accurate) design claims.
+- **Proposed fix:** Reword to what's true: ruff `select=["ALL"]` + `ty` clean, with a handful of localized `typing.cast`/`ty: ignore` escapes; drop the mypy claim or actually add mypy to CI.
+- **Verified by:** grep output + repo config inspection
+
+#### D-13: to-2.x.md recommends `clear_cache=False` for migrated `Resource` providers — which returns the already-finalized instance after close, contradicting factories.md's eviction rationale
+- **Severity:** medium
+- **Evidence:** `docs/migration/to-2.x.md:98-106` (and again `:172-179`) — "Resources can be replaced with Factory with cache_settings with finalizer defined" using `CacheSettings(finalizer=lambda resource: resource.close(), clear_cache=False)`, with no explanation of `clear_cache=False`. Code: `modern_di/registries/cache_registry.py:17-20` — `_clear` skips eviction when `clear_cache` is false. Probe (`/tmp/audit_probe_clear_cache.py`): `same instance after close: True | instance closed: True` — every post-close resolve returns the closed resource forever; with the default, `fresh instance after close: True | new closed: False`. `docs/providers/factories.md:145-147` states the opposite guidance: "clear_cache=True (the default) ensures the closed resource is evicted from cache so it cannot be returned again after close".
+- **Why it's a problem:** Migrating users copy the guide's snippet verbatim; in any lifecycle that closes and reuses a container (tests, CLI runs, Typer's `with container:`) they get a closed engine/session handed out silently — and the two pages give contradictory advice about the same flag.
+- **Proposed fix:** Drop `clear_cache=False` from both to-2.x.md snippets (use the default), or add the sentence explaining when pinning the finalized instance is actually wanted.
+- **Verified by:** probe output (quoted above) + doc/doc cross-check
+
+#### D-14: litestar.md websocket example is a `SyntaxError` — the `async with` body contains only comments
+- **Severity:** low
+- **Evidence:** `docs/integrations/litestar.md:120-129` — `async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:` is followed only by two comment lines and then the dedented `app.register(websocket_handler)`, so the block has no statements (`IndentationError: expected an indented block`). The parallel FastAPI example (`docs/integrations/fastapi.md:101-104`) avoids this with `await websocket.send_text("test")`. The snippet also references `ALL_GROUPS`, which is defined earlier on the page (lines 50, 84) but missing from this snippet's otherwise self-contained imports. Not executed against Litestar (external dep) — the `modern_di` calls themselves (`build_child_container(scope=Scope.REQUEST)`, plugin takes `Container(groups=...)`) match `modern_di/container.py:63-83`.
+- **Why it's a problem:** Copy-paste of the page's only websocket example fails to parse before any DI behavior is reached.
+- **Proposed fix:** Add a real statement in the block (mirror the FastAPI page's `send_text`) and include the `ALL_GROUPS` reference in the snippet's imports/context.
+- **Verified by:** doc inspection + static API check (integration not installed)
+
+**Drift-pass coverage ledger:** 31 pages checked (README + 30 docs pages). Executed: index.md, about-di.md, resolving.md, scopes.md, factories.md, container.md, context.md, alias.md, from-that-depends.md (§5 + mappings), to-2.x.md (14 example sections + 5 targeted probes). Statically verified (external deps not installed): integrations/fastapi.md, faststream.md, litestar.md, typer.md, pytest.md; recipes/sqlalchemy.md, request-scoped-engine.md, multi-group.md, testing-overrides.md, async-lifespan.md; providers/lifecycle.md (fragments; behavioral claims covered by D-1/B-7). No Python to execute: README.md, testing/fixtures.md, dev/contributing.md, troubleshooting pages (error texts probe-verified → D-2, D-9, D-10, D-11; duplicate-type-error.md accurate). migration/to-1.x.md: checked — all 8 blocks are historical 0.x/1.x API (`AsyncContainer`, `Singleton`, `sync_resolve`), untraceable against 2.x by design; the page carries a "Historical guide" banner (lines 3-5), so no finding is warranted (confirmed by the completeness pass).
+
+### Quality (internals)
+
+#### Q-1: `SignatureItem.is_nullable` is computed and tested but never read by resolution
+- **Severity:** low
+- **Evidence:** `modern_di/types_parser.py:14,32` — `is_nullable` is set for `X | None`/`Optional[X]`; grep shows the only other references are assertions in `tests/test_types_parser.py`. `Factory._compile_kwargs` (`modern_di/providers/factory.py:112-141`) never consults it: probe shows `def __init__(self, x: Svc | None)` with no `Svc` provider and no default raises `ArgumentResolutionError` instead of injecting `None`.
+- **Why it's a problem:** Dead data that suggests nullable-aware behavior which doesn't exist; a user who annotated `Svc | None` has explicitly accepted `None`, yet resolution errors out.
+- **Proposed fix:** Either use the flag (inject `None` for nullable params when no provider matches and no default exists) or delete the field and its tests, and document that nullability is ignored.
+- **Verified by:** probe script output (`/tmp/audit_probe_parser.py` section 2) + grep (no reads outside tests)
+
+#### Q-2: Unused module-level `T`/`P` type variables in group.py
+- **Severity:** low
+- **Evidence:** `modern_di/group.py:11-12` — `T = typing.TypeVar("T")` and `P = typing.ParamSpec("P")` are defined but referenced nowhere in the module, and no other module imports them (grep across `modern_di/` and `tests/`).
+- **Why it's a problem:** Dead code; readers look for a generic protocol in `Group` that doesn't exist.
+- **Proposed fix:** Delete both lines.
+- **Verified by:** code-path trace (grep: no usages)
+
+#### Q-3: Unused `T_co` and `_UNSET` in overrides_registry.py (adjacent file, found during cross-check)
+- **Severity:** low
+- **Evidence:** `modern_di/registries/overrides_registry.py:7,9` — `T_co = typing.TypeVar("T_co", covariant=True)` and `_UNSET = object()` are defined but unused; `fetch_override` uses `types.UNSET` instead.
+- **Why it's a problem:** `_UNSET` is a leftover from before the shared `types.UNSET` sentinel; a future edit could accidentally compare against the wrong sentinel.
+- **Proposed fix:** Delete both lines.
+- **Verified by:** code-path trace (grep within the file)
+
+#### Q-4: Redundant second `get_origin` pass in union parsing
+- **Severity:** low
+- **Evidence:** `modern_di/types_parser.py:30` already maps every union member through `typing.get_origin(x) or x`; line 35 re-applies the identical transform to the already-normalized list, which is a no-op.
+- **Why it's a problem:** Dead transform that obscures the actual normalization step and invites "why twice?" confusion during maintenance.
+- **Proposed fix:** Delete line 35.
+- **Verified by:** code-path trace (`get_origin` of a non-generic origin/class returns `None`, so the second pass keeps every element unchanged)
+
+#### Q-5: Error-message centralization is inconsistent between errors.py and exceptions.py
+- **Severity:** low
+- **Evidence:** `modern_di/errors.py` holds 11 `*_ERROR` message templates and 4 `SUGGESTION_*` constants (15 total), but five exception classes build their messages inline: `UnknownFactoryKwargError` (`modern_di/exceptions.py:214-223`), `ValidationFailedError` (:257-263), `FinalizerError` (:272-273), `AsyncFinalizerInSyncCloseError` (:283-286), `GroupInstantiationError` (:294).
+- **Why it's a problem:** Half-applied convention: contributors can't tell where a message lives or where new ones belong, and the templates module no longer covers the error surface it implies it does.
+- **Proposed fix:** Move the static parts of the five inline messages into `errors.py` templates (or document in errors.py that multi-line/loop-built messages stay inline).
+- **Verified by:** code-path trace (cross-check of every `raise` in the eight audited files against errors.py; all 15 named strings (11 `*_ERROR` + 4 `SUGGESTION_*`) are used, no orphans)
+
+#### Q-6: `pytest benchmarks/` collects zero tests — the run command documented inside the benchmark files silently runs nothing
+- **Severity:** medium
+- **Evidence:** Benchmark files are named `bench_*.py`, which does not match pytest's default `python_files = test_*.py` (no override in `pyproject.toml:69-73`). `uv run pytest benchmarks/ --collect-only -q --no-cov` → `no tests collected`; passing the three files explicitly collects 22 tests and all pass with `--benchmark-disable`. Yet `benchmarks/bench_override_fastpath.py:13` documents exactly the broken form: `uv run pytest benchmarks/ --benchmark-only --no-cov -v`. The `Justfile` offers no benchmark recipe either (its recipes are default/install/lint/lint-ci/test/test-branch/publish/docs-deploy, `Justfile:1-34`), and its `test` recipe is plain `uv run --no-sync pytest {{ args }}` inheriting the pyproject addopts `--cov=. --cov-report term-missing --cov-fail-under=100` (`pyproject.toml:70`) — so `just test benchmarks/` both collects zero tests and fails the coverage gate. Verified: `uv run --no-sync pytest benchmarks/` → `no tests ran in 1.06s` plus `FAIL Required test coverage of 100% not reached. Total coverage: 0.00%`.
+- **Why it's a problem:** Anyone following the in-file instructions gets "no tests ran" (exit 5) and may conclude the benchmarks are gone; regressions in the measured fast paths go unbenchmarked.
+- **Proposed fix:** Rename the files `test_bench_*.py` and exclude `benchmarks/` from default collection via `testpaths`. (Adding `bench_*.py` to `python_files` is NOT safe: pytest-benchmark runs full benchmarking even without `--benchmark-*` flags — verified, 6.2s for 6 tests — so that variant would drag slow benchmarks into every `just test` and perturb the coverage gate.)
+- **Verified by:** probe commands (collect-only outputs quoted above; 22 tests pass with `--benchmark-disable`)
+
+#### Q-7: bench_scope_map.py baseline formats an error template with a missing field — latent `KeyError`
+- **Severity:** low
+- **Evidence:** `benchmarks/bench_scope_map.py:34` — `errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name)`, but the template (`modern_di/errors.py:13-17`) now also requires `{container_scope}` (and mentions `{provider_scope}` twice). The baseline `_baseline_find_container` would raise `KeyError: 'container_scope'` instead of the simulated error if its skipped-scope branch were ever hit; current scenarios never hit it.
+- **Why it's a problem:** The "pre-fix baseline" no longer reproduces pre-fix behavior; the first person to extend the benchmark into an error path gets a confusing `KeyError`.
+- **Proposed fix:** Format with both fields, or replace the simulated raise with a plain `RuntimeError("skipped scope")` since the message text is irrelevant to the measurement.
+- **Verified by:** code-path trace (template fields vs `format` kwargs)
+
+#### Q-8: bench_kwargs_split.py dead container setup and wrong-variable isinstance in the micro-benchmark
+- **Severity:** low
+- **Evidence:** `benchmarks/bench_kwargs_split.py:98-116` — `test_singleton_optimized` builds a full container with a dynamically created `type("G", (Group,), {...})` group, then immediately rebuilds `container` from `SGroup` at line 125, discarding the first (dead code that still registers three providers). `benchmarks/bench_kwargs_split.py:183` — the "unified" micro-benchmark dict-comp reads `k if isinstance(k, AbstractProvider) else v`, testing the *key* (always `str`) instead of the value `v` it intends to simulate.
+- **Why it's a problem:** The dead setup wastes provider ids and confuses readers about which group is measured; the wrong-variable isinstance means the micro-benchmark measures `isinstance(str, ...)` rather than the value-side check it documents.
+- **Proposed fix:** Delete lines 98-116; change line 183 to `v if isinstance(v, AbstractProvider) else v` (or mirror the real pre-fix expression on `v`).
+- **Verified by:** code-path trace (first `container` binding never used; comprehension variable inspection)
+
+#### Q-9: `AbstractProvider` defines no `__slots__`, so every provider instance carries a `__dict__` and all subclass `__slots__` are defeated
+- **Severity:** low
+- **Evidence:** `modern_di/providers/abstract.py:15-16` — the class declares `BASE_SLOTS` (a ClassVar consumed by subclasses) but no `__slots__` of its own, so it contributes `__dict__` to every instance. Probe R2: `Factory instance has __dict__: True`, and assigning an arbitrary attribute (`f.totally_new_attribute = 1`) succeeds despite `Factory.__slots__`.
+- **Why it's a problem:** The memory/typo-protection benefits the five subclasses' `__slots__` declarations are written to provide are silently nullified; misspelled attribute writes on providers go undetected.
+- **Proposed fix:** Add `__slots__ = ("scope", "bound_type", "provider_id")` (i.e. the BASE_SLOTS) on `AbstractProvider` and drop `BASE_SLOTS` from subclass slot lists (keeping each subclass declaring only its own fields).
+- **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section R2, quoted above)
+
+**Negative results (thread-safety lens):** probed via `/tmp/audit_probe_registry_threads.py` (the same run that produced B-11):
+- Two threads hammering `override`/`reset_override` on the shared OverridesRegistry while a third resolves: no exceptions, no sentinel leaks — last-write-wins as covered by the 2026-06-05 wont-fix "OverridesRegistry is shared across siblings" (probe T1).
+- Four threads each doing 200 × `build_child_container` + resolve: the APP singleton stayed one instance across 800 child resolves (double-checked lock held) and per-child CacheRegistries produced 800/800 distinct REQUEST instances, no errors (probe T2).
+- Two threads racing `set_context` on the same container while a third resolves the ContextProvider: plain last-write-wins, both values observed, no torn or vanished reads (probe T3).
+
+#### Q-10: Static-kwargs precedence over a type-matched provider is documented but untested
+- **Severity:** medium
+- **Evidence:** `tests/providers/test_factory.py:36` — `app_factory` supplies `dep1` via `kwargs={"dep1": "original"}`, but no `str` provider is registered anywhere in that suite, so the conflict never occurs; `tests/providers/test_factory.py:179` (`test_factory_self_reference`) passes a provider *object* in kwargs, which is indistinguishable from type-resolution. The precedence branch (`modern_di/providers/factory.py:141-142` — `result.update(self._kwargs)` overwriting a provider already placed at `factory.py:127`) is executed but its winner is never asserted. Probe: registered `str` provider returning `"from-provider"` plus `kwargs={"name": "static-wins"}` → `P1 static kwargs precedence: static-wins`.
+- **Why it's a problem:** `docs/providers/factories.md:25-28` documents that static kwargs win over type resolution; flipping the order of `result[k] = provider` and `result.update(self._kwargs)` would silently invert the documented contract with the whole suite green.
+- **Proposed fix:** Add a test registering a provider for a param's type *and* a static kwarg for the same param with a distinguishable value; assert the static value is injected.
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P1, output quoted) + grep (no test registers a provider for a kwargs-supplied param's type)
+
+#### Q-11: Creator raising mid-creation is untested — no test pins "failed instance not cached, deps still finalized, retry succeeds"
+- **Severity:** medium
+- **Evidence:** grep across `tests/` finds no *cached* creator that raises (`tests/providers/test_factory.py:55-60` has an uncached creator raise but asserts only propagation; finalizer raises are at `tests/providers/test_singleton.py:156-223`). The contract lives at `modern_di/providers/factory.py:221-222`: if `self._creator(**resolved_kwargs)` raises, `cache_item.cache` stays UNSET. Probe P2: cached `Svc(dep: Dep)` whose creator raises once → `first resolve raised: boom`, `cached_count after failure: 1` (the `Dep` dependency *is* cached, the failed `Svc` is not), `retry succeeded: True`, `finalizer events: ['svc-finalized', 'dep-finalized']` at close.
+- **Why it's a problem:** Error recovery during startup (flaky DB connect, retry on next resolve) is a core lifecycle contract; a regression that caches a partially-constructed sentinel, leaks the already-created dep, or poisons `kwargs_compiled` would pass the entire suite.
+- **Proposed fix:** Add a test with a cached factory whose creator raises on first call: assert the exception propagates, the failed provider is not cached (dep may be), a second resolve succeeds, and close finalizes both the dep and the retried instance exactly once.
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P2, output quoted) + grep
+
+#### Q-12: ContextProvider scope-selects-registry semantics only tested in matching configurations — replacing `find_container(self.scope)` with the current container would pass the whole suite
+- **Severity:** medium
+- **Evidence:** `tests/providers/test_context_provider.py:23-37` (APP provider, context on the APP container, resolved from it), `:55-61` (REQUEST provider, context on the REQUEST child, resolved from it) — in every test the container holding the context *is* the container resolved from, so `modern_di/providers/context_provider.py:38` (`container.find_container(self.scope)`) is never distinguished from plain `container`. No test resolves an APP-scoped ContextProvider *from a child*, nor asserts the documented mismatch behavior (`docs/troubleshooting/context-not-set.md:43-45`). Probe P3: APP-scoped provider, context passed to the REQUEST child → resolves to `None`.
+- **Why it's a problem:** The provider's-scope-picks-the-registry rule is documented core semantics (and a documented troubleshooting cause); a regression to current-container lookup would silently change which context wins in parent/child setups while staying green.
+- **Proposed fix:** Add two tests: (1) APP-scoped ContextProvider with context set at APP resolves correctly from a REQUEST child; (2) APP-scoped ContextProvider with context passed only to the REQUEST child returns `None` (scope mismatch).
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P3, output quoted) + code-path trace
+
+#### Q-13: Alias-of-alias chains are untested (resolve and validate)
+- **Severity:** low
+- **Evidence:** `tests/providers/test_alias.py` — every `Alias.source_type` points at a Factory; no test exercises the recursion `Alias.resolve → container.resolve_provider(another Alias)` (`modern_di/providers/alias.py:38-39`) or `validate()` walking an alias→alias edge. Probe P4: `Impl ← Alias(IfA) ← Alias(IfB)` with `validate=True` constructs cleanly and `resolve(IfB)` returns the cached `Impl` instance.
+- **Why it's a problem:** Two-hop delegation through interface layers is a natural use of Alias; nothing pins that chains resolve, hit the source's cache, or survive validation.
+- **Proposed fix:** Add a test with an alias whose source is another alias: assert resolution returns the source instance and `validate=True` passes. (Note: the `validate=True` assert silently depends on all alias sources being registered — otherwise B-5's raw-error escape fires; keep that precondition or defer the validate assert until B-5 is resolved.)
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P4, output quoted)
+
+#### Q-14: Alias resolved from a child container over an APP-cached source is never asserted to return the APP singleton
+- **Severity:** low
+- **Evidence:** `tests/providers/test_alias.py:27-32` (`test_alias_delegates_to_source`) asserts identity only on the APP container itself; `:48-59` (`test_alias_respects_source_scope`) resolves from a child but over an *uncached deeper-scoped* source and asserts only `isinstance`. No test asserts `request_container.resolve(AbstractRepository) is app_cached_instance`. Probe P5: alias resolved from a REQUEST child returned the APP-cached singleton (`True`).
+- **Why it's a problem:** The cross-container delegation path (child → alias → APP cache) is the common production shape (interface injected into request handlers); a regression caching a second instance per child would pass all current alias tests.
+- **Proposed fix:** Extend `test_alias_delegates_to_source` (or add a test) to resolve the alias from a REQUEST child and assert identity with the instance cached at APP.
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P5, output quoted)
+
+#### Q-15: Duplicate bound type across two groups at `Container(groups=[...])` is untested — only the bare-registry double-add is pinned
+- **Severity:** low
+- **Evidence:** `tests/registries/test_providers_registry.py:13-21` re-adds the *same provider object* directly to a standalone `ProvidersRegistry`; no test constructs `Container(groups=[G1, G2])` with two *distinct* providers binding the same type — the user-facing path through `modern_di/container.py:58-60` (also the surface where B-10's partial-registration pollution lives). Probe P6: `Container(groups=[GA, GB])` with two `str`-bound factories raised `DuplicateProviderTypeError: Provider is duplicated by type <class 'str'>...`.
+- **Why it's a problem:** The realistic collision (two teams' groups both binding the same type) goes through group registration at container construction; the existing test would survive a regression that, e.g., deduplicated by provider identity instead of bound type.
+- **Proposed fix:** Add a test asserting `Container(groups=[GA, GB])` with distinct same-type providers raises `DuplicateProviderTypeError` (and, once B-10 is decided, assert the registry's post-failure state).
+- **Verified by:** probe (`/tmp/audit_probe_tests.py` P6, output quoted)
+
+### DX (public API)
+
+#### X-1: Resolving from a closed container silently succeeds and re-creates singletons
+- **Severity:** low
+- **Evidence:** `modern_di/container.py:158-161` — `close_sync` runs finalizers and clears caches but sets no closed flag; nothing in `resolve`/`resolve_provider` checks one. Probe: after `close_sync()` (finalizer ran), `resolve(Svc)` returns a fresh instance (`same instance as before close: False`), and a second `close_sync()` runs the finalizer again.
+- **Why it's a problem:** A use-after-close bug in application code (e.g. resolving from an APP container after shutdown) is invisible: resources are silently re-created after their finalizers ran, and may never be finalized if no further close happens.
+- **Proposed fix:** Either document container reuse after close as a supported pattern, or track a closed state and raise a clear `ContainerError` on resolve-after-close (re-arming via context-manager re-entry if reuse is desired).
+- **Verified by:** probe script output (`/tmp/audit_probe_container.py` section 1, quoted above)
+
+#### X-2: `skip_creator_parsing=True` with missing required arguments fails at resolve time with a raw `TypeError`
+- **Severity:** low
+- **Evidence:** `modern_di/providers/factory.py:43-52` — with `skip_creator_parsing=True`, `_parsed_kwargs` is empty and kwargs validation is skipped entirely, so nothing checks that `kwargs` covers the creator's required parameters; `factory.py:212` then calls the creator. Probe S5: `resolve raised: TypeError: needs_args() missing 2 required positional arguments: 'x' and 'y'` — no DI exception type, no dependency-chain rendering, no hint that the fix is the Factory's `kwargs`.
+- **Why it's a problem:** Every other resolution failure raises a `ResolutionError` with chain context; this one surfaces as a bare `TypeError` pointing at the creator, with the misconfiguration (incomplete `kwargs` on the provider) nowhere in the message.
+- **Proposed fix:** When `skip_creator_parsing=True`, still call `inspect.signature` best-effort at declaration time and raise a registration error for required params absent from `kwargs`; or wrap the creator call's `TypeError` in an `ArgumentResolutionError` naming the provider.
+- **Verified by:** probe script output (`/tmp/audit_probe_factory.py` section S5, quoted above)
+
+#### X-3: An `AbstractProvider` instance passed as a static `kwargs` value is silently resolved instead of passed through
+- **Severity:** low
+- **Evidence:** `modern_di/providers/factory.py:141-142` merges `self._kwargs` into the compiled kwargs, and `factory.py:152-156` classifies every merged value by `isinstance(v, AbstractProvider)` — so a provider object given as a *value* lands in `provider_kwargs` and is resolved at each resolve. Probe S4b: `Factory(creator=Holder, kwargs={"leaf": side_provider})` injected a `Leaf` instance, not the provider object. (Static kwargs winning over type-resolution for the same param name is correct and documented — `docs/providers/factories.md:25-28`; probe S4 confirmed.)
+- **Why it's a problem:** "Manual values for creator parameters" (the documented contract of `kwargs`) is violated for one value type, invisibly; whether this is an intentional explicit-wiring feature or an accident of the isinstance split is undocumented either way.
+- **Proposed fix:** Decide and document: either support it explicitly ("a provider passed in kwargs is resolved — use this for manual wiring") in `docs/providers/factories.md`, or treat `kwargs` values as opaque (skip the isinstance reclassification for keys originating from `self._kwargs`).
+- **Verified by:** probe script output (`/tmp/audit_probe_factory.py` sections S4/S4b, quoted above)
+
+#### X-4: `validate()` rejects a working graph when an Alias's decorative scope is shallower than its source's scope
+- **Severity:** medium
+- **Evidence:** `modern_di/providers/alias.py:20` — `Alias` defaults to `scope=Scope.APP` and its `resolve` (`alias.py:38-39`) never consults `self.scope`; resolution works regardless. But `Container.validate` (`modern_di/container.py:133-140`) applies the `dep_provider.scope > provider.scope` check to the alias's `source` edge. Probe A3: `Alias(source_type=Impl, bound_type=IfaceA)` over a REQUEST-scoped `Impl` — `req.resolve(IfaceA)` returns `Impl`, yet `validate()` raises `ValidationFailedError: ... InvalidScopeDependencyError: Provider IfaceA (scope APP) declares parameter 'source' ... at deeper scope REQUEST`. (prior wont-fix, new angle: "Alias scope is decorative" was accepted for resolution, but `validate()` treats that decorative scope as load-bearing, producing a false positive that forces users to either annotate redundant scopes on aliases or abandon `validate=True`.)
+- **Why it's a problem:** The library's recommended safety net (`docs/providers/lifecycle.md:93` — "Turn it on") fails on graphs that work, training users to disable validation.
+- **Proposed fix:** Have `validate()` skip the scope check for `Alias` edges (or make `Alias` inherit its source's scope at validation time), consistent with the wont-fix decision that alias scope is decorative.
+- **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section A3, quoted above)
+
+#### X-5: Mutual alias cycle on an unvalidated container surfaces as a raw `RecursionError` (prior wont-fix, new angle: alias hops get no `ResolutionStep` context, unlike Factory edges)
+- **Severity:** low
+- **Evidence:** `modern_di/providers/alias.py:38-39` — `Alias.resolve` recurses into `container.resolve_provider(source)` with no cycle guard. Probe A2: two aliases pointing at each other — `validate=True` correctly raises `ValidationFailedError` with `CircularDependencyError: IfaceA -> IfaceB -> IfaceA`, but plain `resolve(IfaceA)` raises a bare `RecursionError` with no DI context (alias chains also get no `ResolutionStep` in dependency-chain rendering, unlike Factory edges — `factory.py:207-209`).
+- **Why it's a problem:** Without opt-in validation, a two-line alias typo produces a thousand-frame `RecursionError` instead of the rich cycle error the library can already produce.
+- **Proposed fix:** Track a small per-resolve visited set for alias hops (alias chains are short), or at minimum have `Alias.resolve` prepend a `ResolutionStep` so the recursion is attributable; document `validate=True` as the cycle guard in `docs/providers/alias.md`.
+- **Verified by:** probe script output (`/tmp/audit_probe_alias_ctx.py` section A2, quoted above)
+
+#### X-6: The documented single-file test invocation fails on the 100% coverage gate even when all tests pass
+- **Severity:** medium
+- **Evidence:** `pyproject.toml:70` — `addopts = "--cov=. --cov-report term-missing --cov-fail-under=100"` applies to every pytest invocation; `CLAUDE.md` documents `just test tests/providers/test_factory.py` (and `-k` selection) as the supported targeted workflow, and the `Justfile` `test` recipe passes args straight through. Probe: `uv run --no-sync pytest tests/test_group.py` → `5 passed` but `FAIL Required test coverage of 100% not reached. Total coverage: 23.31%`, exit code 1.
+- **Why it's a problem:** Every targeted run exits nonzero with a scary FAIL line despite green tests, breaking scripted checks (and agents) that trust the exit code; the workaround (`--no-cov`) is documented nowhere. Q-6 flagged the same gate for `benchmarks/`; this is the far more common everyday path.
+- **Proposed fix:** Move coverage flags out of `addopts` into the `just test`/CI recipes (full-suite only), or document `--no-cov` next to the single-file examples in CLAUDE.md and the Justfile. (Decide together with Q-6: if Q-6 renames benchmarks to `test_bench_*.py`, the gate-in-`addopts` question determines whether targeted benchmark runs still fail; if coverage leaves `addopts` per this fix, Q-6's `testpaths` exclusion is only needed to keep benchmarks out of default collection, not for the gate.)
+- **Verified by:** probe (commands and output quoted above)
+
+### Docs gaps
+
+#### G-1: Creator-signature support matrix is undocumented (generics, positional-only, partial, unannotated params)
+- **Severity:** medium
+- **Evidence:** Probes show four signature shapes that degrade or fail (`list[Svc]` matched by bare origin — B-1; positional-only params — B-3; `functools.partial` — B-2; unannotated params unresolvable by type). `grep -rE "positional-only|functools.partial"` over `docs/` finds no user-facing coverage (only the audit plan file); expected home: `docs/providers/factories.md:13` (introduces `creator` parameter) — no such section exists.
+- **Why it's a problem:** Users cannot predict which creator signatures wire correctly; the failures are discovered at runtime instead of in the docs.
+- **Proposed fix:** Add a "supported creator signatures" subsection to `docs/providers/factories.md` listing what is wired, what is skipped, and what raises.
+- **Verified by:** probe script output + docs grep
+
+#### G-2: Container reuse after close is undocumented
+- **Severity:** low
+- **Evidence:** Probe shows `resolve()` after `close_sync()` re-creates and re-caches instances and a later close re-runs finalizers; `grep -rniE "after clos|reuse"` over `docs/` shows no statement either way (closest: `docs/providers/factories.md:146` about cache eviction at close).
+- **Why it's a problem:** Whether a closed container is dead or reusable is core lifecycle semantics; today the behavior (reusable, silently) is discoverable only by experiment.
+- **Proposed fix:** State the reuse-after-close semantics explicitly in the lifecycle docs (wording depends on the X-1 decision: document reuse as supported, or document the closed state once added).
+- **Verified by:** probe script output + docs grep
+
+#### G-3: Nullable annotation semantics are undocumented (`X | None` never injects None)
+- **Severity:** low
+- **Evidence:** Probe: `def __init__(self, x: Svc | None)` with no provider and no default raises `ArgumentResolutionError`; `None` is injected only via a `= None` default. Docs grep for optional/nullable parameter semantics finds nothing user-facing; expected home: `docs/providers/factories.md:27` (discusses `kwargs` / manual parameter values, closest to optional-resolution semantics) — no such section exists.
+- **Why it's a problem:** Inconsistent with `ContextProvider` returning `None` when unset (documented wont-fix), users may reasonably expect `Optional` params to receive `None`.
+- **Proposed fix:** Document that union annotations resolve by their first registered member and that `None` is never injected without a default (ties to the Q-1 decision on `is_nullable`).
+- **Verified by:** probe script output + docs grep
+
+#### G-4: Same-container `set_context` staleness is missing from the context troubleshooting page
+- **Severity:** medium
+- **Evidence:** `docs/troubleshooting/context-not-set.md:17-45` documents two failure modes ("set_context on the parent after the child was built", "scope mismatch between provider and registry"), and `docs/recipes/async-lifespan.md:52-53` warns about ordering vs children — but no page mentions that `set_context` on the *same* container is ignored once a dependent factory has resolved (B-9, probe S7: ctx stays `None` after `set_context` on the very container being resolved from). The ContextProvider scope-selects-registry semantics themselves are documented (`docs/troubleshooting/context-not-set.md:43-45`, confirmed accurate by probe C2) — no gap there.
+- **Why it's a problem:** This is precisely the "context not set" symptom that page exists to triage, and this cause is absent from the causes it lists; users following the page's existing fixes won't find this one.
+- **Proposed fix:** If B-9 is fixed, no doc change needed; if it is ruled intentional, add an additional numbered cause to `docs/troubleshooting/context-not-set.md` ("set_context after the dependent factory already resolved on this container") with the fresh-container workaround.
+- **Verified by:** probe script output (`/tmp/audit_probe_factory.py` section S7) + docs grep
+
+#### G-5: The exception taxonomy is undocumented — 19 of 21 public names in `modern_di/exceptions.py` appear nowhere in the docs, and no page says what to catch
+- **Severity:** medium
+- **Evidence:** `modern_di/exceptions.py:12-294` defines 21 public names (`ResolutionStep`, `ModernDIError`, `ContainerError`, `InvalidChildScopeError`, `MaxScopeReachedError`, `ScopeNotInitializedError`, `ScopeSkippedError`, `InvalidScopeTypeError`, `ResolutionError` with public `dependency_path`/`prepend_step`, `ProviderNotRegisteredError`, `AliasSourceNotRegisteredError`, `ArgumentResolutionError`, `CircularDependencyError`, `RegistrationError`, `DuplicateProviderTypeError`, `UnknownFactoryKwargError`, `InvalidScopeDependencyError`, `ValidationFailedError`, `FinalizerError`, `AsyncFinalizerInSyncCloseError`, `GroupInstantiationError`). Per-name `grep -rl <Name> docs README.md --exclude-dir=superpowers`: only `AliasSourceNotRegisteredError` (alias.md) and `CircularDependencyError` (lifecycle.md, alias.md) hit; the other 19 — including the `ModernDIError` base and the three branch bases — appear on no page. The troubleshooting pages instead attribute everything to bare `RuntimeError` (the wrong-text aspect is D-2/D-9/D-10/D-11; the absence here is the hierarchy itself).
+- **Why it's a problem:** Users cannot write a correct `except` clause (e.g. catch `ResolutionError` for resolve-time failures vs `RegistrationError` at startup) without reading the source; the deliberate design of a catchable hierarchy rooted in `RuntimeError` is invisible.
+- **Proposed fix:** Add a short "Exceptions" section (troubleshooting index or a dedicated page) showing the four-level hierarchy (`ModernDIError(RuntimeError)` → `ContainerError`/`ResolutionError`/`RegistrationError` → concrete classes) and one sentence on when each branch fires; have the troubleshooting pages name the concrete class they describe (aligns with the D-2/D-9/D-10/D-11 fixes).
+- **Verified by:** code reading (`modern_di/exceptions.py`) + per-name docs grep (commands and hits stated above)
+
+#### G-6: What happens when close goes wrong is undocumented — `FinalizerError` aggregation, `close_sync` vs async finalizers, and the recovery path
+- **Severity:** medium
+- **Evidence:** Code: `modern_di/registries/cache_registry.py:32-39` — `close_sync` on an item with an async finalizer raises `AsyncFinalizerInSyncCloseError` (message tells the user to `await container.close_async()`); `cache_registry.py:62-70` — the registry-level close wraps each item in try/except, finalizes the remaining items, then raises one `FinalizerError` aggregating all failures (same for `close_async`, `:52-60`); on a raise, `finalized` stays `False` and `_clear` is not reached, so the cache is retained and a later `close_async()` successfully finalizes the skipped items. Docs: `grep -rn "FinalizerError\|AsyncFinalizerInSyncCloseError" docs/` → 0 hits; `docs/providers/lifecycle.md:46-62` presents `close_sync()` and sync `with container:` as interchangeable options with "cleanup runs even on exceptions" and no caveat, while `docs/recipes/async-lifespan.md` and `docs/migration/from-that-depends.md:284` call sync-creator-plus-async-finalizer "the most common shape" — combining the two documented recommendations raises the undocumented exception. Nothing documents that finalization continues past a raising finalizer or that the errors are aggregated.
+- **Why it's a problem:** A user following the docs' own preferred patterns (`with container:` + async finalizer) hits an exception no page mentions; and operators cannot know that one bad finalizer does not abort the others, nor that `close_async` after a failed `close_sync` recovers the skipped resources.
+- **Proposed fix:** Add a "When close fails" subsection to `docs/providers/lifecycle.md` covering: sync close + async finalizer raises (use `close_async`/`async with`), per-item continuation with `FinalizerError` aggregation, and cache retention enabling a follow-up `close_async()`; add a one-line warning next to the `with container:` example that async finalizers require the async form.
+- **Verified by:** code reading (`cache_registry.py`, behavior previously probe-confirmed in the providers pass) + docs grep
+
+#### G-7: Which container `container_provider` injects in a parent/child tree is undocumented
+- **Severity:** low
+- **Evidence:** `modern_di/providers/container_provider.py:18-19` — `resolve` returns the *calling* container (no `find_container` walk, despite the provider's declared `Scope.APP`), so a REQUEST-scoped creator annotated `di_container: Container` receives the REQUEST child (probe-confirmed in the providers pass). `docs/providers/container.md` (the dedicated page) shows both injection forms and even suggests "Use the container to manually resolve dependencies", but never states which container of the tree arrives — `grep -rn "child\|request" docs/providers/container.md` matches only the unrelated Context Propagation section.
+- **Why it's a problem:** Whether the injected container can resolve REQUEST-scoped providers depends entirely on this rule; the provider's APP scope plausibly suggests the opposite (the root), so users can't predict what the manual-resolve pattern the page recommends is allowed to do.
+- **Proposed fix:** Add one sentence to `docs/providers/container.md`: the injected container is the one the resolution was started from (e.g. the REQUEST child inside a request), not the APP root, so it can resolve anything that container can.
+- **Verified by:** code reading (`container_provider.py:18-19`, `container.py:109`) + docs grep
+
+#### G-8: Thread-safety boundary is undocumented — docs state the cached-factory guarantee but never what is *not* covered
+- **Severity:** low
+- **Evidence:** `docs/introduction/design-decisions.md:11-13` and `docs/providers/factories.md:89-97` document the guarantee (one instance per cached factory under `threading.RLock`, `use_lock=False` opt-out). Nothing documents the boundary: `Container.lock` guards only singleton creation (`modern_di/providers/factory.py:214-226`), while `ProvidersRegistry` mutation via `Container(parent_container=..., groups=[...])` is unsynchronized check-then-act shared state (B-11, `modern_di/registries/providers_registry.py:42-46`) and `set_context`/overrides are last-write-wins. `grep -rni "thread\|concurren" docs/` shows no sentence about registration timing or non-guarantees.
+- **Why it's a problem:** "Thread-safe" without a stated boundary reads as a blanket claim; a user registering groups on child containers from worker threads (the B-11 crash path) has no documented rule telling them registration must complete before concurrent resolution/validation begins.
+- **Proposed fix:** Extend the thread-safety paragraph in `docs/introduction/design-decisions.md` with the boundary: guaranteed — cached-factory creation under the lock; not guaranteed — concurrent group registration after resolution starts (complete all registration at startup), and overrides/context writes are last-write-wins. (Pairs with the B-11 decision: if B-11 is fixed in code, only the registration-timing sentence is needed.)
+- **Verified by:** code reading + docs grep (B-11 probe established the underlying behavior)
+
+#### G-9: Creator-failure semantics are undocumented (nothing cached on raise, retry works, resolved deps still finalized)
+- **Severity:** low
+- **Evidence:** `modern_di/providers/factory.py:217-226` — if the creator raises, `cache_item.cache` is never assigned, so nothing is cached and the next resolve retries; dependencies already resolved before the failure stay cached and are finalized at close (probe-confirmed under Q-11: `cached_count after failure: 1`, `retry succeeded: True`, both finalizers ran at close). `grep -rni "retry\|creation fail\|creator raise\|partially" docs/` → no user-facing hits.
+- **Why it's a problem:** Startup error recovery (flaky DB connect → retry on next resolve) is a lifecycle contract users must currently discover by experiment; whether a failed creation poisons the cache or leaks its already-created dependencies is exactly what an operator needs to know when wrapping resolves in retry logic.
+- **Proposed fix:** Add two sentences to `docs/providers/lifecycle.md` (Caching and finalizers section): a creator that raises caches nothing and is retried on the next resolve; dependencies resolved before the failure remain cached and are finalized at close as usual.
+- **Verified by:** code reading + probe output (Q-11's P2) + docs grep
+
+#### G-10: Advanced/extension surface is undocumented: `find_container`, `parent_container`, `scope_map`, `lock`, `Group.get_providers`, the `AbstractProvider` contract, `CacheSettings.is_async_finalizer`
+- **Severity:** low
+- **Evidence:** Per-name `grep -rl` over `docs/` + README (excluding superpowers): `find_container` (`modern_di/container.py:85-90`) — 0 hits; `parent_container` (both the public constructor kwarg, `container.py:33`, and the attribute) — 0 hits; `scope_map` (`container.py:44`) — 0 hits; the `lock` attribute — 0 hits (`use_lock` *is* documented); `Group.get_providers` (`modern_di/group.py:18-31`, the documented-by-docstring extension point integrations use) — 0 hits; `AbstractProvider`'s subclassing contract (`modern_di/providers/abstract.py:15-36`: `resolve` abstract, `get_dependencies`/`iter_validation_issues` hooks consumed by `validate()`, `provider_id`, `BASE_SLOTS`) — the class is *named* once (`docs/introduction/design-decisions.md:25` counts it among "five providers") but no page documents how to implement one; `CacheSettings.is_async_finalizer` (`factory.py:24`) — 0 hits.
+- **Why it's a problem:** The class is advertised as part of the core provider set yet the contract for writing a custom provider is source-only; and `parent_container` as an undocumented public constructor kwarg is the exact surface B-6 shows is hazardous to use directly (no scope check) — silence neither blesses nor warns.
+- **Proposed fix:** One short "Advanced" subsection on `docs/providers/container.md` (tree introspection: `parent_container`, `scope_map`, `find_container`; note that child containers should be created via `build_child_container`, not the `parent_container` kwarg — align with the B-6 decision) and one on `docs/providers/alias.md` or a new extension page for the `AbstractProvider`/`get_providers` contract; `is_async_finalizer` needs at most a one-line mention as derived/read-only.
+- **Verified by:** code reading + per-name docs grep
+
+#### G-11: `docs/superpowers/` planning artifacts live inside the mkdocs `docs_dir` and are built as orphan pages
+- **Severity:** low
+- **Evidence:** `mkdocs.yml:4` sets `docs_dir: docs`; `mkdocs.yml:6-44` nav lists 30 pages — all 30 files exist and all 30 non-superpowers `docs/**/*.md` files are in the nav (verified both directions), but `docs/superpowers/plans/2026-06-12-code-docs-audit.md` and `docs/superpowers/specs/*.md` (3 files) are inside `docs_dir` without nav entries, so mkdocs builds them as orphan pages reachable by URL (and `navigation.instant` search indexes them) on the published site.
+- **Why it's a problem:** Internal audit plans/specs get published to https://modern-di.modern-python.org as unlisted but indexable pages.
+- **Proposed fix:** Move `docs/superpowers/` out of `docs_dir` (e.g. into `planning/`, where the audit reports already live) or add an `exclude` (mkdocs `not_in_nav`/plugin) entry.
+- **Verified by:** mkdocs.yml inspection + two-way nav/file diff
+
+**Completeness-pass coverage ledger:** ~80 public names checked against the docs (10 `__init__` exports, 26 Container kwargs/methods/attrs, 8 Factory/CacheSettings, 6 ContextProvider/Alias, 7 Group/AbstractProvider/container_provider, 21 exceptions-module names). Covered (negative results, no finding): all 10 top-level exports have dedicated coverage; every `Factory` constructor kwarg incl. `skip_creator_parsing` (factories.md) and `CacheSettings.clear_cache`/`finalizer`; every `Container` ctor kwarg except `parent_container` (→ G-10); all lifecycle/override/context methods and both context-manager forms; the four registry attributes' sharing semantics (scopes.md:37, matches code). Behavior checks already adequately covered: `validate()`'s three issue classes are enumerated accurately (`docs/providers/lifecycle.md:87-92`; alias-source escape is B-5's domain); duplicate type across groups → `docs/troubleshooting/duplicate-type-error.md` documents the error and fixes (cross-group recipe wording is D-4); alias-override precedence → D-7's proposed sentence suffices; same-container `set_context` staleness → already G-4; `migration/to-1.x.md` now carries a "Historical guide" banner (lines 3-5) — the drift-ledger candidate is already resolved, no finding. Nav check: 30/30 nav entries resolve, 0 real docs pages orphaned (superpowers artifacts → G-11), all in-page relative links resolve (scripted `](`-target check over every page).

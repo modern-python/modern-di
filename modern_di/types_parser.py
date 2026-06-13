@@ -4,6 +4,7 @@ import types
 import typing
 import warnings
 
+from modern_di import exceptions
 from modern_di.types import UNSET
 
 
@@ -13,6 +14,7 @@ class SignatureItem:
     args: list[type] = dataclasses.field(default_factory=list)
     is_nullable: bool = False
     default: object = UNSET
+    raw_annotation: object = None
 
     @classmethod
     def from_type(cls, type_: type, default: object = UNSET) -> "SignatureItem":
@@ -32,22 +34,46 @@ class SignatureItem:
                 result["is_nullable"] = True
                 args.remove(types.NoneType)
 
-            args = [typing.get_origin(arg) or arg for arg in args]
-
             if len(args) > 1:
                 result["args"] = args
             elif args:
                 result["arg_type"] = args[0]
 
-        # generic
+        # generic — parameterized generics are not resolvable by type
         elif typing.get_origin(type_) is not None:
-            result["arg_type"] = typing.get_origin(type_)
-            result["args"] = list(typing.get_args(type_))
+            result["raw_annotation"] = type_
 
         elif isinstance(type_, type):
             result["arg_type"] = type_
 
         return cls(**result)
+
+
+def _parse_parameter(
+    creator: typing.Callable[..., typing.Any],
+    param_name: str,
+    param: inspect.Parameter,
+    type_hints: dict[str, typing.Any],
+) -> SignatureItem | None:
+    if param.kind is inspect.Parameter.POSITIONAL_ONLY:
+        if param.default is not param.empty:
+            return None  # cannot be passed by keyword; the default applies
+        raise exceptions.UnsupportedCreatorParameterError(
+            creator=creator,
+            parameter_name=param_name,
+            reason=(
+                "positional-only parameters cannot be passed by keyword; "
+                "give the parameter a default or use skip_creator_parsing=True"
+            ),
+        )
+
+    default = UNSET
+    if param.default is not param.empty:
+        default = param.default
+
+    if param_name in type_hints:
+        return SignatureItem.from_type(type_hints[param_name], default=default)
+    return SignatureItem(default=default)
 
 
 def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureItem, dict[str, SignatureItem]]:
@@ -62,9 +88,10 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
             type_hints = typing.get_type_hints(creator.__init__)
         else:
             type_hints = typing.get_type_hints(creator)
-    except NameError as e:
+    except (NameError, TypeError) as e:
         warnings.warn(
-            f"Failed to resolve type hints for {creator}: {e}. Dependency wiring will be skipped.",
+            f"Failed to resolve type hints for {creator}: {e}. Dependency wiring will be skipped. "
+            f"Pass skip_creator_parsing=True (with an explicit bound_type) to silence this warning.",
             UserWarning,
             stacklevel=2,
         )
@@ -74,20 +101,17 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
     for param_name, param in sig.parameters.items():
         if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
             continue
-
-        default = UNSET
-        if param.default is not param.empty:
-            default = param.default
-
-        if param_name in type_hints:
-            param_hints[param_name] = SignatureItem.from_type(type_hints[param_name], default=default)
-        else:
-            param_hints[param_name] = SignatureItem(default=default)
+        item = _parse_parameter(creator, param_name, param, type_hints)
+        if item is not None:
+            param_hints[param_name] = item
 
     if is_class:
         return_sig = SignatureItem.from_type(creator)
     elif "return" in type_hints:
         return_sig = SignatureItem.from_type(type_hints["return"])
+        if return_sig.raw_annotation is not None:
+            # a parameterized generic return type degrades to its origin for bound_type
+            return_sig = SignatureItem(arg_type=typing.get_origin(return_sig.raw_annotation))
     else:
         return_sig = SignatureItem()
 

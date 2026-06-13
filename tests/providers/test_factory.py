@@ -80,7 +80,7 @@ def test_func_with_broken_annotation() -> None:
 
     app_container = Container()
     app_container.providers_registry.add_providers(factory)
-    with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type None cannot be resolved"):
+    with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         app_container.resolve_provider(factory)
 
 
@@ -268,3 +268,115 @@ def test_factory_default_value_compared_with_is_not_eq() -> None:
     container.providers_registry.add_providers(factory)
     result = container.resolve(str)
     assert result == repr(unittest.mock.ANY)
+
+
+def _unannotated_creator(x):  # noqa: ANN001, ANN202
+    return x
+
+
+class _UnannotatedGroup(Group):
+    svc = providers.Factory(creator=_unannotated_creator, bound_type=object, scope=Scope.APP)
+
+
+def test_unannotated_param_error_explains_missing_annotation() -> None:
+    sentinel = object()
+    assert _unannotated_creator(sentinel) is sentinel  # exercise body for coverage
+    container = Container(scope=Scope.APP, groups=[_UnannotatedGroup])
+    with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
+        container.resolve(object)
+
+
+class _UnionDep1: ...
+
+
+class _UnionDep2: ...
+
+
+def _union_creator(x: _UnionDep1 | _UnionDep2) -> str:
+    return str(x)
+
+
+class _UnionGroup(Group):
+    svc = providers.Factory(creator=_union_creator, scope=Scope.APP)
+
+
+def test_union_param_error_names_the_union_members() -> None:
+    dep = _UnionDep1()
+    assert _union_creator(dep) == str(dep)  # exercise body for coverage
+    container = Container(scope=Scope.APP, groups=[_UnionGroup])
+    with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2"):
+        container.resolve(str)
+
+
+# Q-10 — static kwargs beat a type-matched provider
+
+
+class _PrecedenceDep:
+    def __init__(self, label: str = "from-provider") -> None:
+        self.label = label
+
+
+class _PrecedenceSvc:
+    def __init__(self, dep: _PrecedenceDep) -> None:
+        self.dep = dep
+
+
+_static_dep = _PrecedenceDep(label="from-kwargs")
+
+
+class _PrecedenceGroup(Group):
+    dep = providers.Factory(scope=Scope.APP, creator=_PrecedenceDep)
+    svc = providers.Factory(scope=Scope.APP, creator=_PrecedenceSvc, kwargs={"dep": _static_dep})
+
+
+def test_static_kwargs_win_over_type_matched_provider() -> None:
+    container = Container(scope=Scope.APP, groups=[_PrecedenceGroup])
+    svc = container.resolve(_PrecedenceSvc)
+    assert svc.dep is _static_dep
+    assert svc.dep.label == "from-kwargs"
+
+
+# Q-11 — creator raising mid-creation: nothing cached, retry succeeds, deps finalized LIFO
+
+
+_flaky_state = {"raised": False}
+_flaky_events: list[str] = []
+
+
+class _FlakyDep: ...
+
+
+class _FlakySvc:
+    def __init__(self, dep: _FlakyDep) -> None:
+        if not _flaky_state["raised"]:
+            _flaky_state["raised"] = True
+            msg = "boom"
+            raise RuntimeError(msg)
+        self.dep = dep
+
+
+class _FlakyGroup(Group):
+    dep = providers.Factory(
+        scope=Scope.APP,
+        creator=_FlakyDep,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("dep")),
+    )
+    svc = providers.Factory(
+        scope=Scope.APP,
+        creator=_FlakySvc,
+        cache_settings=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("svc")),
+    )
+
+
+def test_creator_raising_mid_creation_caches_nothing_and_retry_succeeds() -> None:
+    _flaky_state["raised"] = False
+    _flaky_events.clear()
+    container = Container(scope=Scope.APP, groups=[_FlakyGroup])
+    with pytest.raises(RuntimeError, match="boom"):
+        container.resolve(_FlakySvc)
+    expected_cached_after_failure = 1  # only the dep cached; failed svc not cached
+    assert container.cache_registry.cached_count() == expected_cached_after_failure
+    retried = container.resolve(_FlakySvc)
+    assert isinstance(retried, _FlakySvc)
+    container.close_sync()
+    assert _flaky_events == ["svc", "dep"]  # LIFO (B-7): svc created after dep, finalized first

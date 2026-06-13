@@ -1,5 +1,6 @@
 import difflib
 import inspect
+import threading
 import typing
 
 from modern_di import errors, exceptions, types
@@ -25,32 +26,41 @@ def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]
 
 
 class ProvidersRegistry:
-    __slots__ = ("_providers",)
+    __slots__ = ("_lock", "_providers")
 
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
 
     def __len__(self) -> int:
         return len(self._providers)
 
     def __iter__(self) -> typing.Iterator[AbstractProvider[typing.Any]]:
-        return iter(self._providers.values())
+        return iter(list(self._providers.values()))
 
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
-        if provider_type in self._providers:
-            raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
-
-        self._providers[provider_type] = provider
+        with self._lock:
+            if provider_type in self._providers:
+                raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
+            self._providers[provider_type] = provider
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
+        new_providers: dict[type, AbstractProvider[typing.Any]] = {}
         for provider in args:
             if not provider.bound_type:
                 continue
+            if provider.bound_type in new_providers:
+                raise exceptions.DuplicateProviderTypeError(provider_type=provider.bound_type)
+            new_providers[provider.bound_type] = provider
 
-            self.register(provider.bound_type, provider)
+        with self._lock:
+            for provider_type in new_providers:
+                if provider_type in self._providers:
+                    raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
+            self._providers.update(new_providers)
 
     def build_suggestions(self, requested_type: type) -> list[str]:
         requested_is_class = inspect.isclass(requested_type)
@@ -59,7 +69,7 @@ class ProvidersRegistry:
         hierarchy_hints: list[str] = []
         name_to_provider: dict[str, AbstractProvider[typing.Any]] = {}
 
-        for provider in self._providers.values():
+        for provider in list(self._providers.values()):
             registered = provider.bound_type
             if registered is None or registered is requested_type:
                 continue

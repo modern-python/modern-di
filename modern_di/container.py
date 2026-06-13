@@ -18,6 +18,7 @@ from modern_di.scope import Scope
 class Container:
     __slots__ = (
         "cache_registry",
+        "closed",
         "context_registry",
         "lock",
         "overrides_registry",
@@ -38,7 +39,14 @@ class Container:
     ) -> None:
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
+        if parent_container is not None and scope <= parent_container.scope:
+            raise exceptions.InvalidChildScopeError(
+                parent_scope=parent_container.scope,
+                child_scope=scope,
+                allowed_scopes=[x.name for x in type(parent_container.scope) if x > parent_container.scope],
+            )
         self.lock = threading.RLock() if use_lock else None
+        self.closed = False
         self.scope = scope
         self.parent_container = parent_container
         self.scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
@@ -56,8 +64,10 @@ class Container:
             self.providers_registry.register(Container, container_provider)
             self.overrides_registry = OverridesRegistry()
         if groups:
+            all_providers: list[AbstractProvider[typing.Any]] = []
             for one_group in groups:
-                self.providers_registry.add_providers(*one_group.get_providers())
+                all_providers.extend(one_group.get_providers())
+            self.providers_registry.add_providers(*all_providers)
         if validate:
             self.validate()
 
@@ -67,6 +77,9 @@ class Container:
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
+        if self.closed:
+            raise exceptions.ContainerClosedError(container_scope=self.scope)
+
         if scope is not None and scope <= self.scope:
             raise exceptions.InvalidChildScopeError(
                 parent_scope=self.scope,
@@ -100,6 +113,9 @@ class Container:
         return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
+        if self.closed:
+            raise exceptions.ContainerClosedError(container_scope=self.scope)
+
         if (
             self.overrides_registry.overrides
             and (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET
@@ -129,7 +145,12 @@ class Container:
             path.append(provider)
             validation_errors.extend(provider.iter_validation_issues(self))
 
-            for dep_name, dep_provider in provider.get_dependencies(self).items():
+            try:
+                dependencies = provider.get_dependencies(self)
+            except exceptions.ResolutionError as exc:
+                validation_errors.append(exc)
+                dependencies = {}
+            for dep_name, dep_provider in dependencies.items():
                 if dep_provider.scope > provider.scope:
                     validation_errors.append(
                         exceptions.InvalidScopeDependencyError(
@@ -153,12 +174,18 @@ class Container:
     async def close_async(self) -> None:
         if not self.parent_container:
             self.overrides_registry.reset_override()
-        await self.cache_registry.close_async()
+        try:
+            await self.cache_registry.close_async()
+        finally:
+            self.closed = True
 
     def close_sync(self) -> None:
         if not self.parent_container:
             self.overrides_registry.reset_override()
-        self.cache_registry.close_sync()
+        try:
+            self.cache_registry.close_sync()
+        finally:
+            self.closed = True
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> None:
         self.overrides_registry.override(provider.provider_id, override_object)
@@ -167,14 +194,18 @@ class Container:
         self.overrides_registry.reset_override(provider.provider_id if provider else None)
 
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
-        """Register a runtime context value on *this* container only.
+        """Register a runtime context value on *this* container.
 
-        ``ContextRegistry`` is per-container. Values set here are not seen by
-        child containers that were already built. Either set context before
-        calling :meth:`build_child_container`, or pass ``context={...}`` to
-        :meth:`build_child_container` directly.
+        A ``ContextProvider`` reads the context registry of the container at the
+        provider's own scope — context never propagates between parent and child
+        containers. Set the value on the container whose scope matches the
+        ``ContextProvider`` (for request-scoped context, pass ``context={...}``
+        to :meth:`build_child_container` or call ``set_context`` on the request
+        container). Values set after a dependent factory has already resolved
+        are picked up by subsequent resolves.
         """
         self.context_registry.set_context(context_type, obj)
+        self.cache_registry.invalidate_compiled_kwargs()
 
     def __repr__(self) -> str:
         n_providers = len(self.providers_registry)
@@ -183,12 +214,14 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def __enter__(self) -> "typing_extensions.Self":
+        self.closed = False
         return self
 
     def __exit__(self, *_: object) -> None:
         self.close_sync()
 
     async def __aenter__(self) -> "typing_extensions.Self":
+        self.closed = False
         return self
 
     async def __aexit__(self, *_: object) -> None:

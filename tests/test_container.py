@@ -8,6 +8,7 @@ from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
     CircularDependencyError,
+    ContainerClosedError,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
     InvalidScopeTypeError,
@@ -79,10 +80,9 @@ def test_container_sync_context_manager() -> None:
     with Container(groups=[G]) as container:
         assert container.scope == Scope.APP
         assert container.resolve(str) == "r"
+        with container.build_child_container(scope=Scope.REQUEST) as request_container:
+            assert request_container.scope == Scope.REQUEST
     assert cleaned_up == ["r"]
-
-    with container.build_child_container(scope=Scope.REQUEST) as request_container:
-        assert request_container.scope == Scope.REQUEST
 
 
 async def test_container_async_context_manager() -> None:
@@ -101,10 +101,9 @@ async def test_container_async_context_manager() -> None:
     async with Container(groups=[G]) as container:
         assert container.scope == Scope.APP
         assert container.resolve(str) == "r"
+        async with container.build_child_container(scope=Scope.REQUEST) as request_container:
+            assert request_container.scope == Scope.REQUEST
     assert cleaned_up == ["r"]
-
-    async with container.build_child_container(scope=Scope.REQUEST) as request_container:
-        assert request_container.scope == Scope.REQUEST
 
 
 def test_container_repr() -> None:
@@ -351,3 +350,55 @@ def test_container_rejects_non_intenum_scope_at_init() -> None:
     with pytest.raises(InvalidScopeTypeError) as exc:
         Container(scope=99)  # ty: ignore[invalid-argument-type]
     assert "99" in str(exc.value)
+
+
+def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
+    app = Container(scope=Scope.APP)
+    with pytest.raises(InvalidChildScopeError):
+        Container(scope=Scope.APP, parent_container=app)
+    request = app.build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(InvalidChildScopeError):
+        Container(scope=Scope.APP, parent_container=request)
+
+
+def test_closed_container_refuses_resolve_and_child_building() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
+    with pytest.raises(ContainerClosedError):
+        container.build_child_container(scope=Scope.REQUEST)
+
+
+async def test_closed_container_async_path() -> None:
+    container = Container(scope=Scope.APP)
+    await container.close_async()
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
+
+
+class _PersistentBroker: ...
+
+
+class _AppBrokerGroup(Group):
+    broker = providers.Factory(
+        scope=Scope.APP, creator=_PersistentBroker, cache_settings=providers.CacheSettings(clear_cache=False)
+    )
+
+
+def test_resolving_through_closed_parent_via_open_child_raises() -> None:
+    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
+    child = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+    with pytest.raises(ContainerClosedError):
+        child.resolve(_PersistentBroker)
+
+
+async def test_async_context_manager_reopens() -> None:
+    container = Container(scope=Scope.APP)
+    async with container:
+        pass
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
+    async with container:
+        assert container.resolve(Container) is container

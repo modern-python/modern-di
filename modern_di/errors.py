@@ -23,6 +23,10 @@ SUGGESTION_SIMILAR = "  - {type_name} (similar name, scope={scope})"
 FACTORY_ARGUMENT_RESOLUTION_ERROR = (
     "Argument {arg_name} of type {arg_type} cannot be resolved. Trying to build dependency {bound_type}."
 )
+FACTORY_ARGUMENT_UNANNOTATED_ERROR = (
+    "Argument {arg_name} has no usable type annotation, so it cannot be resolved by type. "
+    "Pass it via the kwargs parameter or add a type annotation. Trying to build dependency {bound_type}."
+)
 CYCLE_DEPENDENCY_ERROR = "Circular dependency detected: {cycle_path}. Check your provider graph for unintended cycles."
 PROVIDER_DUPLICATE_TYPE_ERROR = (
     "Provider is duplicated by type {provider_type}. "
@@ -41,3 +45,8 @@ INVALID_SCOPE_DEPENDENCY_ERROR = (
     "{dep_scope}. A provider cannot depend on a deeper-scoped provider."
 )
 INVALID_SCOPE_TYPE_ERROR = "Container scope must be an enum.IntEnum member; got {scope_repr} ({scope_type})."
+CONTAINER_CLOSED_ERROR = (
+    "Container (scope {container_scope}) is closed and can no longer resolve dependencies "
+    "or build child containers. Create a new container."
+)
+FACTORY_UNSUPPORTED_PARAMETER_ERROR = "Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}"
