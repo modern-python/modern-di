@@ -5,12 +5,12 @@ A `ContextProvider(context_type=SomeType)` resolves by looking up `SomeType` in 
 ## Understanding the error
 
 ```
-RuntimeError: ContextProvider for <class 'TenantId'> has no value in container at scope REQUEST.
-Call `container.set_context(TenantId, value)` before resolving, or pass it via
-`build_child_container(context={TenantId: value})`.
+Cannot resolve dependency chain:
+  REQUEST  MyService
+  caused by: Argument tenant of type <class 'TenantId'> cannot be resolved. Trying to build dependency <class 'MyService'>.
 ```
 
-The provider has nothing to resolve to because nothing was set for that type on this container.
+The error is an `ArgumentResolutionError` rendered as a chain: the top frame shows which provider failed, and the `caused by` line names the specific parameter that could not be wired. The parameter cannot be resolved because the `ContextProvider` for `TenantId` has no value in this container's context registry — nothing was set for that type on this container.
 
 ## Common causes
 

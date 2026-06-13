@@ -73,7 +73,7 @@ class Dependencies(Group):
     )
 ```
 
-Why the `PrimaryEngine` / `ReplicaEngine` subclasses: type-based resolution needs distinct types for the two factories. Without them, both would register under `AsyncEngine` and the second one would shadow the first.
+Why the `PrimaryEngine` / `ReplicaEngine` subclasses: type-based resolution needs distinct types for the two factories. Without them, both would register under `AsyncEngine` and `Container(groups=[...])` would raise `DuplicateProviderTypeError` at startup. See [Duplicate provider type](../troubleshooting/duplicate-type-error.md).
 
 ## Pitfalls
 
