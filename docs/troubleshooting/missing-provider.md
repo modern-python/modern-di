@@ -4,12 +4,21 @@ This error fires when a creator parameter is typed `Foo` and the container has n
 
 ## Understanding the error
 
+**Direct miss** — resolving an unregistered type directly:
+
 ```
-RuntimeError: No provider registered for type <class 'SomeType'> while resolving
-parameter 'some_param' of <function create_something>.
+ProviderNotRegisteredError: Provider of type <class 'SomeType'> is not registered in providers registry.
 ```
 
-The resolver walked the creator's signature, found a parameter typed `SomeType`, and looked it up in the providers registry — nothing was there.
+**Nested miss** — a registered factory whose creator depends on an unregistered type:
+
+```
+ArgumentResolutionError: Cannot resolve dependency chain:
+  APP  MyService
+  caused by: Argument dep of type <class 'MissingDep'> cannot be resolved. Trying to build dependency <class 'MyService'>.
+```
+
+The resolver walked the creator's signature, found a parameter typed `MissingDep`, and looked it up in the providers registry — nothing was there. The "dependency chain" header shows where in the resolution graph the miss occurred.
 
 ## Common causes
 

@@ -7,9 +7,8 @@ This error fires when a provider depends on another provider with a *shorter* li
 You'll see something like:
 
 ```
-RuntimeError: Provider <APP-scope UserCache> depends on <REQUEST-scope AsyncSession>
-which has a shorter lifetime. A shorter-lived dependency would be captured by a
-longer-lived one and become stale across requests.
+ValidationFailedError: Container.validate() found 1 issue(s): InvalidScopeDependencyError
+  - Provider UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
 ```
 
 The fix is always to make the depender's scope equal to or shorter than the dependee's. In the example above, `UserCache` should be REQUEST-scoped, not APP-scoped.
