@@ -63,6 +63,40 @@ async with container:
 
 Closing a container runs its finalizers in reverse-resolve order, then clears the cache.
 
+## Close-failure semantics
+
+Closing keeps going when a finalizer fails — it never stops at the first error.
+
+**A finalizer that raises does not abort the others.** Every finalizer runs; the exceptions are
+collected and re-raised together as a single `FinalizerError` once cleanup finishes. Its
+`.finalizer_errors` attribute holds the list of underlying exceptions, and `.is_async` records
+whether `close_sync()` or `close_async()` raised it. So a broken finalizer can't leak a resource
+that a later finalizer would have closed.
+
+**Calling `close_sync()` on a cached resource with an async finalizer is recoverable.** `close_sync()`
+cannot await, so when it reaches such a resource it produces an `AsyncFinalizerInSyncCloseError` —
+delivered *wrapped inside* the aggregated `FinalizerError` (as an entry in `.finalizer_errors`), since
+sync close aggregates like any other failure. Crucially, the resource's cache entry is **retained**
+rather than discarded, so the resource is not lost: a later `await container.close_async()` finalizes
+it correctly and completes the cleanup.
+
+```python
+# Resource with an async finalizer, resolved into the cache.
+container.resolve(AsyncResource)
+
+try:
+    container.close_sync()
+except exceptions.FinalizerError as exc:
+    # exc.finalizer_errors contains an AsyncFinalizerInSyncCloseError;
+    # the cache was kept, nothing was finalized yet.
+    ...
+
+await container.close_async()  # recovers — runs the async finalizer now
+```
+
+Prefer `async with container:` (or `await close_async()`) whenever any provider has an async
+finalizer; the sync path is only a safety net.
+
 ## Closing and reopening
 
 Entering `with container:` (or `async with`) opens the container; exiting calls

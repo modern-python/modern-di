@@ -45,6 +45,24 @@ class Dependencies(Group):
     )
 ```
 
+## Which container you get
+
+Resolving `Container` returns the **calling container** — the deepest, most-specific container in
+the active chain, not the `APP` root. The `container_provider` simply hands back whichever container
+ran the resolve, so a `REQUEST` child resolves `Container` to *itself*:
+
+```python
+app_container = Container(scope=Scope.APP)
+request_container = app_container.build_child_container(scope=Scope.REQUEST)
+
+assert app_container.resolve(Container) is app_container
+assert request_container.resolve(Container) is request_container  # the child, not the APP root
+```
+
+The same holds for type-based injection: a creator with a `Container` parameter receives the
+container that is resolving it. This means request-scoped code reaches the request container (and its
+context/cache), while app-scoped code reaches the app container.
+
 ## Context Propagation
 
 Context never propagates between containers. A `ContextProvider` reads the context registry of the container **at the provider's own scope** — build order is irrelevant.
