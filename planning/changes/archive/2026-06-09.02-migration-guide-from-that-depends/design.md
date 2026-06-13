@@ -1,3 +1,13 @@
+---
+status: shipped
+date: 2026-06-09
+slug: migration-guide-from-that-depends
+supersedes: null
+superseded_by: null
+pr: null
+outcome: docs/migration/from-that-depends.md published.
+---
+
 # Spec: Rewrite `from-that-depends.md` migration guide
 
 **Date:** 2026-06-09

@@ -1,3 +1,13 @@
+---
+status: shipped
+date: 2026-06-05
+slug: bug-hunt-audit
+supersedes: null
+superseded_by: null
+pr: null
+outcome: Four-dimension bug-hunt audit harness; report in audits/2026-06-05-bug-hunt-audit-report.md; 18 findings actioned in 2.15.0 (#188–#197).
+---
+
 # Bug-Hunt Audit — Design
 
 **Date:** 2026-06-05

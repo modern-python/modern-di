@@ -1,3 +1,13 @@
+---
+status: shipped
+date: 2026-06-12
+slug: code-docs-audit
+supersedes: null
+superseded_by: null
+pr: null
+outcome: Full code+docs audit harness; produced the 57-finding report in audits/2026-06-12-code-docs-audit-report.md.
+---
+
 # Code & Docs Audit — Design
 
 **Date:** 2026-06-12

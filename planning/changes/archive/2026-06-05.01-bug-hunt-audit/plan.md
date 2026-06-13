@@ -1,3 +1,11 @@
+---
+status: shipped
+date: 2026-06-05
+slug: bug-hunt-audit
+spec: design.md
+pr: null
+---
+
 # Bug-Hunt Audit Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

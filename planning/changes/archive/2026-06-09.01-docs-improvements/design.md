@@ -1,3 +1,13 @@
+---
+status: shipped
+date: 2026-06-09
+slug: docs-improvements
+supersedes: null
+superseded_by: null
+pr: null
+outcome: Docs-site improvements shipped.
+---
+
 # Spec: Docs improvements — recipes + concept pages
 
 **Date:** 2026-06-09

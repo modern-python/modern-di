@@ -1,3 +1,11 @@
+---
+status: shipped
+date: 2026-06-13
+slug: alias-scope-transparency
+spec: ../../../audits/2026-06-12-code-docs-audit-report.md
+pr: "#207"
+---
+
 # Alias Scope Transparency (X-4) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

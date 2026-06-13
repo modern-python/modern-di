@@ -1,3 +1,13 @@
+---
+status: shipped
+date: 2026-06-05
+slug: singleton-rlock
+supersedes: null
+superseded_by: null
+pr: null
+outcome: RLock guards singleton creation; shipped in 2.15.0.
+---
+
 # Singleton Re-Entrant Lock Fix — Design
 
 **Date:** 2026-06-05
