@@ -1,3 +1,13 @@
+---
+status: shipped
+date: 2026-06-05
+slug: validate-rework
+supersedes: null
+superseded_by: null
+pr: null
+outcome: validate() reworked for transitive cycle/scope checks; shipped in 2.15.0.
+---
+
 # `Container.validate()` Rework — Design
 
 **Date:** 2026-06-05

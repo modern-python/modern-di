@@ -32,6 +32,8 @@ uv run pytest
 
 ## Architecture
 
+> Quick orientation. The authoritative, code-current account of each capability lives in [`architecture/`](architecture/).
+
 ### Scope hierarchy
 
 `Scope` is an `IntEnum` with five levels: `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. Providers are bound to a scope; a provider can only be resolved from a container of the same or deeper (higher int) scope. Trying to resolve a REQUEST-scoped provider from an APP container raises a clear error.
@@ -40,7 +42,7 @@ uv run pytest
 
 `Container` is the central object. A root container is created with `Container(scope=Scope.APP, groups=[MyGroup])`. Child containers are created via `container.build_child_container(scope=Scope.REQUEST, context={...})`. Child containers share the parent's `providers_registry` and `overrides_registry` but have their own `cache_registry` and `context_registry`.
 
-Pass `validate=True` to run cycle detection on the provider graph at container creation time (zero cost when disabled). Can also be called explicitly via `container.validate()`.
+Pass `validate=True` to check the provider graph at container creation time — cycle detection plus transitive scope validation through aliases (via `effective_scope`); zero cost when disabled. Can also be called explicitly via `container.validate()`.
 
 ### Group and Provider declaration
 
@@ -59,7 +61,7 @@ class MyGroup(Group):
 
 1. `container.resolve(SomeType)` → looks up type in `providers_registry` → calls `resolve_provider(provider)`
 2. `resolve_provider` checks `overrides_registry` first (returns override immediately if found)
-3. Finds the container at the correct scope via `find_container(scope)` walking the parent chain
+3. Finds the container at the correct scope via `find_container(scope)`, an O(1) lookup in the precomputed `scope_map`
 4. Checks `cache_registry`; if cached, returns immediately
 5. Compiles kwargs: for each parsed parameter, finds a matching provider by type and resolves it recursively
 6. Calls the creator, stores result in cache if `cache_settings` configured
@@ -82,7 +84,8 @@ class MyGroup(Group):
 - `modern_di/types_parser.py` — Signature introspection engine (parses type hints for DI wiring)
 - `modern_di/scope.py` — Scope enum
 - `modern_di/group.py` — Group base class for provider namespaces
-- `modern_di/errors.py` — Error message templates
+- `modern_di/exceptions.py` — exception class hierarchy (`ModernDIError` → `ContainerError`/`ResolutionError`/`RegistrationError` subclasses)
+- `modern_di/errors.py` — error message-template strings used by those exceptions
 
 ### Testing patterns
 
@@ -92,6 +95,23 @@ class MyGroup(Group):
 - For scope chain tests: `app_container.build_child_container(scope=Scope.REQUEST)`
 - `asyncio_mode = "auto"` in pytest config — async test functions work without extra markers
 - Downstream projects can install **`modern-di-pytest`** to expose DI dependencies as pytest fixtures. It ships two callables: `modern_di_fixture(type_or_provider)` for single fixtures and `expose(*groups)` to bulk-generate one fixture per provider across one or more `Group` subclasses (duplicate attribute names raise `ValueError`). The package itself does **not** depend on `modern-di-pytest`; the integration lives in a sibling repository (`modern-python/modern-di-pytest`).
+
+## Workflow
+
+Planning follows a portable two-axis convention (shared with
+`faststream-outbox`); full details in [`planning/README.md`](planning/README.md).
+
+- **`architecture/`** (repo root) is the **truth home** — living capability
+  prose, the promotion target on every ship. The `## Architecture` section
+  above is quick orientation; `architecture/` holds the authoritative,
+  up-to-date account.
+- **`planning/changes/{active,archive}/<YYYY-MM-DD.NN-slug>/`** are change
+  bundles: `design.md` + `plan.md` (full lane), or `change.md` (lightweight).
+  Tiny changes (typo, dep bump, CI tweak) skip bundles entirely.
+- Templates live in [`planning/_templates/`](planning/_templates/).
+- **Shipping a change** hand-edits the affected `architecture/<capability>.md`,
+  then moves the bundle from `active/` to `archive/` with `status: shipped`,
+  `pr:`, and `outcome:` filled.
 
 ## Code Style
 

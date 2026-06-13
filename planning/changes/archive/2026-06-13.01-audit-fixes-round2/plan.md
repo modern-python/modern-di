@@ -1,3 +1,11 @@
+---
+status: shipped
+date: 2026-06-13
+slug: audit-fixes-round2
+spec: ../../../audits/2026-06-12-code-docs-audit-report.md
+pr: "#203"
+---
+
 # Audit Fixes — Round 2 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

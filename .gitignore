@@ -19,5 +19,5 @@ dist/
 .python-version
 .venv
 uv.lock
-plan.md
+/plan.md
 site/
