@@ -63,6 +63,43 @@ async with container:
 
 Closing a container runs its finalizers in reverse-resolve order, then clears the cache.
 
+## Closing and reopening
+
+Entering `with container:` (or `async with`) opens the container; exiting calls
+`close_sync()` / `close_async()`, which run the finalizers (in reverse-creation order, as
+above) and mark the container closed.
+
+While a container is closed, resolving a dependency — or building a child container —
+raises `ContainerClosedError`. Re-entering `with container:` reopens it, and resolution
+works again:
+
+```python
+container = Container(groups=[Dependencies])
+
+with container:
+    container.resolve(Settings)
+# closed here — finalizers ran
+
+# container.resolve(Settings)  -> raises ContainerClosedError
+
+with container:                 # reopened
+    container.resolve(Settings)
+```
+
+How a cached instance survives this cycle depends on its `CacheSettings`:
+
+- With the default `clear_cache=True`, the instance is finalized at close and rebuilt on
+  the next resolve after reopen.
+- With `clear_cache=False`, the cached instance survives close→reopen and is returned
+  again — the *same object* (its finalizer runs once, at the first close, and is not
+  re-run on later closes). Use this for a shared resource whose identity must stay stable
+  across restarts.
+
+!!! caution "The context manager is not reference-counted"
+    Nesting `with container:` on the **same** object closes it on the inner `with` exit,
+    not the outer one. Use one `with` block per container, or build a child container for
+    the inner scope.
+
 ## Per-scope finalization
 
 Each container has its own finalizers — the ones for the providers it cached. When a child container exits its `with` block, only the child's finalizers run; the parent's stay alive for as long as the parent does.

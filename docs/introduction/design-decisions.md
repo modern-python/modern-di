@@ -18,7 +18,7 @@ All state — resolved instances, context values, overrides — lives in contain
 
 ## 4. Maximum type safety
 
-The codebase ships with `mypy --strict` and `ty` clean. No `# type: ignore`, no `typing.cast`. Provider types parameterize on the resolved type, so type checkers infer the right thing without help.
+The codebase is type-checked with `ty` and linted with ruff's full rule set (`select = ["ALL"]`). Escape hatches (`typing.cast`, `ty: ignore`) are rare and localized — a handful across the whole library. Provider types parameterize on the resolved type, so type checkers infer the right thing without help.
 
 ## 5. Conservative feature set
 

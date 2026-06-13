@@ -101,10 +101,17 @@ resource = providers.Factory(
     creator=create_resource,
     cache_settings=providers.CacheSettings(
         finalizer=lambda resource: resource.close(),
-        clear_cache=False
     )
 )
 ```
+
+`clear_cache` defaults to `True`, which matches the old `Resource` semantics: the
+finalizer runs when the container is closed and the instance is rebuilt on the next
+resolve. Set `clear_cache=False` only for an instance whose identity must survive a
+close→reopen cycle — the cached instance is kept, so the *same object* is returned again
+after the container is re-entered (its finalizer runs once and is not re-run on later
+closes). Reach for that only when a single shared resource must stay stable across
+restarts; for ordinary per-scope resources keep the default.
 
 #### Dict and List Providers
 
@@ -174,10 +181,13 @@ cached_with_cleanup = providers.Factory(
     creator=create_resource,
     cache_settings=providers.CacheSettings(
         finalizer=lambda resource: resource.close(),
-        clear_cache=False
     )
 )
 ```
+
+With the default `clear_cache=True`, the cached instance is finalized when the container
+closes and rebuilt on the next resolve. Use `clear_cache=False` only when the same object
+must persist across a close→reopen cycle.
 
 ### 5. Container Building and Scoping
 
