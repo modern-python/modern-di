@@ -28,7 +28,7 @@ class CacheSettings(typing.Generic[types.T_co]):
 
 
 class Factory(AbstractProvider[types.T_co]):
-    __slots__ = [*AbstractProvider.BASE_SLOTS, "_creator", "_kwargs", "_parsed_kwargs", "cache_settings"]
+    __slots__ = ("_creator", "_kwargs", "_parsed_kwargs", "cache_settings")
 
     def __init__(  # noqa: PLR0913
         self,

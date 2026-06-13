@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
 
 
 class Alias(AbstractProvider[types.T_co]):
-    __slots__ = [*AbstractProvider.BASE_SLOTS, "_source_type"]
+    __slots__ = ("_source_type",)
 
     def __init__(
         self,

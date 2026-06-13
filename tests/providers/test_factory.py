@@ -380,3 +380,10 @@ def test_creator_raising_mid_creation_caches_nothing_and_retry_succeeds() -> Non
     assert isinstance(retried, _FlakySvc)
     container.close_sync()
     assert _flaky_events == ["svc", "dep"]  # LIFO (B-7): svc created after dep, finalized first
+
+
+def test_provider_instances_have_no_dict() -> None:
+    factory: providers.Factory[object] = providers.Factory(creator=object, scope=Scope.APP)
+    assert not hasattr(factory, "__dict__")
+    with pytest.raises(AttributeError):
+        factory.some_unexpected_attr = 1
