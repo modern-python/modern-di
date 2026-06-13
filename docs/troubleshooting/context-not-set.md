@@ -54,5 +54,5 @@ Fix: only depend on framework-injected context inside the framework's request ha
 ## See also
 
 - [Context Provider](../providers/context.md) — the full `ContextProvider` and `set_context` API.
-- [Scopes](../providers/scopes.md) — per-container context registries, why propagation is one-shot.
+- [Scopes](../providers/scopes.md) — per-container context registries, why context never propagates between containers.
 - [Async resources via lifespan](../recipes/async-lifespan.md) — the canonical "construct in lifespan, inject as context" pattern.
