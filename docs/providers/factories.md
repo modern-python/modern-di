@@ -74,6 +74,104 @@ Disables automatic dependency resolution. When `True`:
 - All parameters must be provided via the `kwargs` parameter
 - The `bound_type` will not be automatically inferred from the creator's return type; unless `bound_type` is explicitly provided, it defaults to `None`
 
+### Creator-signature support matrix
+
+The table below summarises how Modern-DI handles each parameter shape during **declaration** (when the `Factory` object is constructed) and **resolution** (when `container.resolve` is called). "Escapes" means the parameter is silently excluded from automatic wiring and must be covered by `kwargs` or a default.
+
+| Parameter shape | Behaviour | When it fails |
+|---|---|---|
+| `param: SomeClass` — plain type annotation with a registered provider | Resolved and injected automatically. | `ArgumentResolutionError` at resolve if no provider is registered and there is no default. |
+| `param: X \| None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails — see [Optional parameters](#optional-parameters). |
+| `param: A \| B` — union without `None` | First registered type from the union is injected. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
+| `param: list[X]` / any parameterized generic | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default value or is covered by `kwargs`. | Raised at `Factory(...)` call time. |
+| Positional-only param (`def f(x: T, /)`) | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default (in which case it is silently skipped). | Raised at `Factory(...)` call time. |
+| Unannotated param (`def f(x)`) | Parsed but unresolvable by type. | `ArgumentResolutionError` at resolve unless covered by `kwargs`. |
+| Signature whose hints `get_type_hints` cannot resolve (e.g. a forward reference to an undefined name, or — on Python < 3.14 — `functools.partial`) | `UserWarning` is emitted and dependency wiring is skipped entirely (equivalent to `skip_creator_parsing=True`). Silence by passing `skip_creator_parsing=True` and an explicit `bound_type`. | Creator called with no auto-wired args; `CreatorCallError` at resolve if required args are missing. |
+| `skip_creator_parsing=True` | No wiring at all — every required argument must be supplied via `kwargs`. | `CreatorCallError` at resolve for any missing required argument. |
+
+**Escaping problem shapes** — if a parameter shape would raise at declaration, there are three escape routes, in order of preference:
+
+1. Give the parameter a default value (`def f(items: list[X] = None)`).
+2. Supply the value via `kwargs={"items": []}` at `Factory` declaration time.
+3. Pass `skip_creator_parsing=True` (and supply all required args via `kwargs`).
+
+### Provider passed as a kwargs value (X-3)
+
+Passing an `AbstractProvider` instance directly as a value in the `kwargs` dict is treated as **explicit wiring**: Modern-DI resolves the provider and injects the resolved value — the provider object itself is never seen by the creator.
+
+```python
+from modern_di import Container, Group, Scope, providers
+
+
+class Backend:
+    pass
+
+
+def make_service(dep: object) -> object:
+    ...
+
+
+class Dependencies(Group):
+    backend = providers.Factory(scope=Scope.APP, creator=Backend)
+    service = providers.Factory(
+        scope=Scope.APP,
+        creator=make_service,
+        skip_creator_parsing=True,
+        bound_type=None,
+        kwargs={"dep": backend},  # provider object — resolved at resolve-time
+    )
+
+
+container = Container(groups=[Dependencies])
+# make_service receives a Backend instance, not the Factory provider
+```
+
+This is useful when `skip_creator_parsing=True` is in effect but you still want dependency injection for some arguments rather than hard-coding concrete values.
+
+### Creator-failure semantics
+
+If a creator raises an exception during resolution:
+
+- **Nothing is cached.** The failed instance is never stored in the cache registry, even if `cache_settings` is set.
+- **The next `resolve` call retries.** Subsequent resolves call the creator again from scratch, so a transiently-failing creator will eventually succeed once the underlying condition is fixed.
+- **Already-resolved dependencies are not rolled back.** Dependencies that were successfully resolved before the creator raised are still held in their respective containers and will be finalized normally when those containers are closed.
+
+```python
+import dataclasses
+
+from modern_di import Container, Group, Scope, providers
+
+
+attempt = 0
+
+
+def flaky_creator() -> object:
+    global attempt
+    attempt += 1
+    if attempt == 1:
+        raise RuntimeError("transient failure")
+    return object()
+
+
+class Dependencies(Group):
+    svc = providers.Factory(
+        scope=Scope.APP,
+        creator=flaky_creator,
+        cache_settings=providers.CacheSettings(),
+    )
+
+
+container = Container(groups=[Dependencies])
+
+try:
+    container.resolve(object)
+except RuntimeError:
+    pass  # first call fails — nothing is cached
+
+result = container.resolve(object)  # retry succeeds
+assert result is container.resolve(object)  # now cached
+```
+
 ## Types of factories 
 There are two types of factories:
 
