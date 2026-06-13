@@ -7,8 +7,10 @@ This error occurs when two or more providers are registered with the same `bound
 When you see this error:
 
 ```
-RuntimeError: Provider is duplicated by type <class 'SomeType'>.
+DuplicateProviderTypeError: Provider is duplicated by type <class 'SomeType'>.
 ```
+
+It descends from `RegistrationError` → `ModernDIError` → `RuntimeError`, so `except DuplicateProviderTypeError`, `except RegistrationError`, and `except RuntimeError` all catch it. See [Errors and exceptions](../providers/errors-and-exceptions.md).
 
 It means you have multiple providers that can provide the same type. This typically happens when:
 
