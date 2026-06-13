@@ -1,5 +1,9 @@
-"Modern-DI"
-==
+# modern-di
+
+[![Context7](https://img.shields.io/badge/Context7-docs-blue)](https://context7.com/modern-python/modern-di)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
 
 | Project                                                                         | Badges                                                                                                                                                                                                                                                                   |
 |---------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -26,14 +30,13 @@ Usage examples:
 - with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
 - with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
 
+## 📚 [Documentation](https://modern-di.modern-python.org)
+
+## 📦 [PyPI](https://pypi.org/project/modern-di)
+
+## 📝 [License](LICENSE)
+
 ## Part of `modern-python`
 
 Browse the full list of templates and libraries in
-[`modern-python`](https://github.com/modern-python) — see the org profile for the
-categorized index.
-
-## 📚 [Documentation](https://modern-di.modern-python.org)
-
-## 📦 [PyPi](https://pypi.org/project/modern-di)
-
-## 📝 [License](LICENSE)
+[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
