@@ -51,3 +51,8 @@ CONTAINER_CLOSED_ERROR = (
 )
 FACTORY_UNSUPPORTED_PARAMETER_ERROR = "Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}"
 CREATOR_CALL_ERROR = "Failed to call creator {creator_name}: {error}. Check kwargs and skip_creator_parsing usage."
+ASYNC_FINALIZER_IN_SYNC_CLOSE_ERROR = (
+    "Cannot run async finalizer for {finalizer_type} during sync close. "
+    "Use `await container.close_async()` (or `async with container:`) instead."
+)
+GROUP_INSTANTIATION_ERROR = "{group_name} cannot be instantiated"
