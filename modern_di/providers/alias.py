@@ -13,6 +13,8 @@ if typing.TYPE_CHECKING:
 class Alias(AbstractProvider[types.T_co]):
     __slots__ = ("_source_type",)
 
+    enforces_dependency_scope = False
+
     def __init__(
         self,
         *,

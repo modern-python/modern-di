@@ -182,3 +182,24 @@ def test_alias_resolved_from_child_returns_app_cached_singleton() -> None:
     app_instance = container.resolve(_ChainImpl)
     request = container.build_child_container(scope=Scope.REQUEST)
     assert request.resolve(_ChainIfA) is app_instance
+
+
+# X-4 — Alias.scope is decorative; validate() must not flag alias->source on scope ordering
+
+
+class _DeepImpl: ...
+
+
+class _ShallowIface: ...
+
+
+class _AliasScopeGroup(Group):
+    impl = providers.Factory(scope=Scope.REQUEST, creator=_DeepImpl)
+    iface = providers.Alias(source_type=_DeepImpl, bound_type=_ShallowIface)  # default APP scope, shallower than source
+
+
+def test_validate_does_not_flag_alias_whose_scope_is_shallower_than_source() -> None:
+    app = Container(scope=Scope.APP, groups=[_AliasScopeGroup])
+    app.validate()  # must NOT raise for the alias->impl edge
+    request = app.build_child_container(scope=Scope.REQUEST)
+    assert isinstance(request.resolve(_ShallowIface), _DeepImpl)  # resolution works
