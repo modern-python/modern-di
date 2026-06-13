@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 import typing
+import warnings
 
 import pytest
 
@@ -180,14 +181,30 @@ def _partial_target(x: int, y: int) -> int:
     return x + y
 
 
-def test_partial_creator_warns_and_skips_instead_of_crashing() -> None:
+def test_get_type_hints_typeerror_is_warn_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    # B-2: a TypeError from get_type_hints (e.g. functools.partial on <=3.13, or any object
+    # it rejects) must be warn-skipped, not crash. Injected directly because the real trigger
+    # is version-dependent: 3.14 made functools.partial introspectable (returns {} instead of
+    # raising), so a real partial no longer exercises this branch on every interpreter.
+    def _raise_type_error(*_args: object, **_kwargs: object) -> dict[str, object]:
+        msg = "synthetic: not a module, class, method, or function"
+        raise TypeError(msg)
+
+    monkeypatch.setattr(typing, "get_type_hints", _raise_type_error)
+    with pytest.warns(UserWarning, match="skip_creator_parsing"):
+        provider = providers.Factory(creator=_partial_target, bound_type=int)
+    assert provider is not None
+
+
+def test_partial_creator_does_not_crash() -> None:
+    # B-2 motivating case: declaring a Factory from a functools.partial must not crash on any
+    # supported Python. On <=3.13 get_type_hints raises TypeError (warn-skipped); on 3.14+ it
+    # returns {} (parsed cleanly). Either way construction succeeds.
     partial = functools.partial(_partial_target, y=1)
     assert partial(x=2) == _partial_target(x=2, y=1)  # exercise _partial_target body for coverage
-    with pytest.warns(UserWarning, match="skip_creator_parsing"):
-        provider = providers.Factory(
-            creator=partial,
-            bound_type=int,
-        )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        provider = providers.Factory(creator=partial, bound_type=int)
     assert provider is not None
 
 
