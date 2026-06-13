@@ -138,9 +138,10 @@ class AuthService:
     token: str
     expiry: int
 
-# Define providers for UserService and AuthService first
-user_service_provider = providers.Factory(creator=UserService)
-auth_service_provider = providers.Factory(creator=AuthService)
+# Define providers for UserService and AuthService first.
+# Primitive fields (str/int) have no provider — supply them via kwargs.
+user_service_provider = providers.Factory(creator=UserService, kwargs={"name": "admin", "age": 30})
+auth_service_provider = providers.Factory(creator=AuthService, kwargs={"token": "secret", "expiry": 3600})
 
 # For dictionaries
 def create_services_dict(user_service: UserService, auth_service: AuthService) -> dict[str, object]:
@@ -243,6 +244,26 @@ instance = container.resolve(SomeType)
 
 !!! note "Async finalizers are still supported"
     Only *resolution* became sync-only in 2.x. Async *finalizers* (cleanup functions) are still fully supported via `CacheSettings(finalizer=async_cleanup_fn)` and `await container.close_async()`. The distinction: you cannot `await` during dependency resolution, but you can use async functions to clean up resources when a container is closed.
+
+### 7. Migrating `.cast`
+
+In 1.x, `.cast` wired one provider into another's dependency, e.g.
+`UserService(db_engine=database_engine.cast)`. There is no `.cast` in 2.x — wiring is by type.
+Map each 1.x usage:
+
+| 1.x | 2.x |
+|---|---|
+| `dep=other_provider.cast` (a provider dependency) | Drop the argument — annotate the creator parameter with the dependency's type; it's resolved by type automatically. |
+| `value=settings.host` (a static/literal value) | Pass it in `kwargs={"value": ...}`. |
+| a request/context value | Register a `ContextProvider` for that type (see [Context](../providers/context.md)). |
+
+```python
+# 1.x
+service = providers.Factory(MyService, db_engine=database_engine.cast)
+
+# 2.x — MyService.__init__(self, db_engine: DBEngine); db_engine resolved by type
+service = providers.Factory(scope=Scope.APP, creator=MyService)
+```
 
 ## Migration Steps
 
