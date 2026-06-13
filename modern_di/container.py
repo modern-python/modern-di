@@ -2,8 +2,6 @@ import enum
 import threading
 import typing
 
-import typing_extensions
-
 from modern_di import exceptions, types
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
@@ -13,6 +11,10 @@ from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
+
+
+if typing.TYPE_CHECKING:
+    import typing_extensions
 
 
 class Container:
