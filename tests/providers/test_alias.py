@@ -1,4 +1,5 @@
 import dataclasses
+import warnings
 
 import pytest
 
@@ -120,7 +121,8 @@ def test_alias_default_bound_type_is_source_type() -> None:
 
 
 def test_alias_repr() -> None:
-    alias = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository, scope=Scope.REQUEST)
+    with pytest.warns(DeprecationWarning, match="scope"):
+        alias = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository, scope=Scope.REQUEST)
     assert repr(alias) == (
         f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r}, scope=<Scope.REQUEST: 3>)"
     )
@@ -346,3 +348,18 @@ def test_effective_scope_handles_mutual_alias_cycle() -> None:
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
     assert any(isinstance(e, exceptions.CircularDependencyError) for e in exc_info.value.errors)
+
+
+class _DepSrc: ...
+
+
+def test_alias_scope_parameter_is_deprecated() -> None:
+    with pytest.warns(DeprecationWarning, match="scope"):
+        providers.Alias(source_type=_DepSrc, bound_type=object, scope=Scope.REQUEST)
+
+
+def test_alias_without_scope_emits_no_deprecation_warning() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        alias = providers.Alias(source_type=_DepSrc, bound_type=object)
+    assert alias is not None
