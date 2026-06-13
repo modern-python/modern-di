@@ -17,6 +17,7 @@ nav:
       - Container: providers/container.md
       - Alias: providers/alias.md
       - Errors and exceptions: providers/errors-and-exceptions.md
+      - Advanced / low-level API: providers/advanced-api.md
   - Integrations:
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
