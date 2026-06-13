@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import (
     AliasSourceNotRegisteredError,
     CircularDependencyError,
@@ -203,3 +203,51 @@ def test_validate_does_not_flag_alias_whose_scope_is_shallower_than_source() -> 
     app.validate()  # must NOT raise for the alias->impl edge
     request = app.build_child_container(scope=Scope.REQUEST)
     assert isinstance(request.resolve(_ShallowIface), _DeepImpl)  # resolution works
+
+
+# X-5 — Alias prepends a resolution step so alias type appears in error chains
+
+
+class _MissingForAlias: ...
+
+
+class _AliasTargetIface: ...
+
+
+@dataclasses.dataclass
+class _NeedsMissing:
+    x: _MissingForAlias
+
+
+class _AliasChainErrGroup(Group):
+    impl = providers.Factory(scope=Scope.APP, creator=_NeedsMissing)  # _MissingForAlias NOT registered
+    iface = providers.Alias(source_type=_NeedsMissing, bound_type=_AliasTargetIface)
+
+
+def test_alias_appears_in_resolution_error_chain() -> None:
+    container = Container(scope=Scope.APP, groups=[_AliasChainErrGroup])
+    with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
+        container.resolve(_AliasTargetIface)
+    rendered = str(exc_info.value)
+    assert "_AliasTargetIface" in rendered  # the alias hop appears in the chain
+
+
+class _MissingForNullAlias: ...
+
+
+@dataclasses.dataclass
+class _NeedsForNullAlias:
+    x: _MissingForNullAlias
+
+
+class _NullBoundAliasGroup(Group):
+    impl = providers.Factory(scope=Scope.APP, creator=_NeedsForNullAlias)  # _MissingForNullAlias NOT registered
+    iface = providers.Alias(source_type=_NeedsForNullAlias, bound_type=None)  # bound_type=None branch
+
+
+def test_alias_null_bound_type_resolution_error_uses_repr_fallback() -> None:
+    container = Container(scope=Scope.APP, groups=[_NullBoundAliasGroup])
+    with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
+        container.resolve_provider(_NullBoundAliasGroup.iface)
+    rendered = str(exc_info.value)
+    assert "Alias(" in rendered  # repr fallback appears in the chain
