@@ -8,7 +8,7 @@ Measured on a 3-level dependency chain (Step → Dep → Leaf) so the kwargs loo
 runs multiple times per top-level resolve and the difference accumulates.
 
 Run:
-    uv run pytest benchmarks/bench_kwargs_split.py --benchmark-only --no-cov -v
+    just bench
 """
 
 import dataclasses
@@ -95,25 +95,6 @@ def test_uncached_baseline(benchmark):
 
 def test_singleton_optimized(benchmark):
     """Cached provider: current code resolves deps via split dicts."""
-    container = Container(
-        scope=Scope.APP,
-        groups=[
-            type(
-                "G",
-                (Group,),
-                {
-                    "leaf": providers.Factory(scope=Scope.APP, creator=Leaf, cache_settings=providers.CacheSettings()),
-                    "dep": providers.Factory(scope=Scope.APP, creator=Dep, cache_settings=providers.CacheSettings()),
-                    "svc": providers.Factory(
-                        scope=Scope.APP,
-                        creator=Service,
-                        kwargs={"tag": "bench"},
-                        cache_settings=providers.CacheSettings(),
-                    ),
-                },
-            )
-        ],
-    )
 
     class SGroup(Group):
         leaf = providers.Factory(scope=Scope.APP, creator=Leaf, cache_settings=providers.CacheSettings())
@@ -158,7 +139,7 @@ def test_singleton_baseline(benchmark):
 # ---------------------------------------------------------------------------
 
 _STATIC = {"a": 1, "b": "hello", "c": 3.14}
-_sentinel = object()
+_RESOLVED = object()
 
 
 def test_kwargs_loop_split(benchmark):
@@ -180,6 +161,6 @@ def test_kwargs_loop_unified(benchmark):
     unified = {**_STATIC}
 
     def _loop():
-        return {k: k if isinstance(k, AbstractProvider) else v for k, v in unified.items()}
+        return {k: _RESOLVED if isinstance(v, AbstractProvider) else v for k, v in unified.items()}
 
     benchmark(_loop)
