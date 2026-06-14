@@ -1,0 +1,220 @@
+---
+status: draft
+date: 2026-06-14
+slug: set-context-cross-scope-staleness
+supersedes: null
+superseded_by: null
+pr: null
+outcome: null
+---
+
+# Design: Resolve context values live so late `set_context` always propagates
+
+## Summary
+
+A `Factory` parameter backed by a `ContextProvider` whose value is **unset at
+first resolve** silently latches that absence (the parameter is dropped to its
+default, set to `None`, or — for required params — raises) into the per-container
+compiled-kwargs memo. A later `set_context` only invalidates the *calling*
+container's memo, so a deeper-scoped factory (e.g. a `REQUEST` service reading
+`APP` context) keeps serving the stale value forever — with no error. This
+change makes `ContextProvider`-backed parameters resolve **live on every
+resolve**: the expensive type→provider matching stays memoized, but the
+context-value lookup (and the unset→default/`None`/raise decision) moves to
+resolve time. That removes the bug for non-cached factories across all scopes
+and lets us **delete** the now-unnecessary `invalidate_compiled_kwargs`
+machinery. The one case that genuinely cannot be fixed — a cached (singleton)
+factory whose instance is built once — is documented rather than papered over.
+
+## Motivation
+
+From the 2026-06-14 deep audit (the only ship-blocker finding; high confidence,
+reproduced):
+
+- `Container.set_context` (`container.py:230-231`) calls
+  `self.cache_registry.invalidate_compiled_kwargs()` — **only on the container it
+  is called on**.
+- A `Factory` bound to scope S caches its compiled kwargs in the container at
+  scope S (`Factory.resolve` does `find_container(self.scope)` before
+  `fetch_cache_item`). So a `REQUEST`-scoped factory's memo lives in the
+  **request child's** `cache_registry`.
+- When such a factory first resolves while an `APP`-scoped `ContextProvider`
+  dependency is `UNSET`, `_compile_kwargs` bakes the absence in
+  (`factory.py:134-137`: `continue` for a defaulted param, `result[k] = None`
+  for a nullable one) and latches `kwargs_compiled = True` on the child memo.
+- `app.set_context(Ctx, value)` invalidates only the **app** container's memo;
+  the child memo is never touched → the factory keeps returning the stale value.
+
+Reproduced: `APP ContextProvider` + `REQUEST Factory(ctx: Ctx | None = None)` →
+first `req.resolve(Svc)` yields `ctx=None`; `app.set_context(Ctx, Ctx(42))`;
+second `req.resolve(Svc)` **still** yields `None`. This is the canonical web
+shape (app-wide config/context consumed by request-scoped services), the failure
+is silent, and `validate()` does not catch it (the dependency is *shallower*,
+which is legal). The `set_context` docstring (`container.py:227-228`) promises
+the opposite: *"Values set after a dependent factory has already resolved are
+picked up by subsequent resolves."*
+
+The key insight: the asymmetry is the bug, not a missing feature. When the
+context value is **present** at compile time, `_compile_kwargs` stores the
+provider itself (`factory.py:145`) and it is resolved live every resolve — so
+changing an already-set context already propagates today. Only the *absence*
+gets frozen. Making context params consistently late-bound fixes the bug **and**
+removes machinery: `invalidate_compiled_kwargs` exists solely to support late
+`set_context` (its only caller is `set_context`), so once context lookups are
+live it becomes dead code.
+
+## Non-goals
+
+- Making cached (singleton) factories pick up late context. A `Factory(
+  cache_settings=...)` builds its instance once; late `set_context` cannot
+  retroactively rebuild it. This is correct caching semantics — documented, not
+  changed.
+- Reworking the `Factory` → `ContextProvider._find_context_value` abstraction
+  leak (audit finding: replace the `isinstance` + private-method probe with a
+  public `AbstractProvider` method). It complements this change but is a
+  separate refactor; this bundle keeps using the existing accessor.
+- Cross-scope context *propagation* between parent and child registries.
+  Context still lives at each `ContextProvider`'s own scope; this change only
+  fixes *when* that value is read, not *where* it is stored.
+
+## Design
+
+### 1. Route `ContextProvider`-backed parameters into a live bucket
+
+Today `_compile_kwargs` returns a flat dict that `_ensure_kwargs_cached`
+partitions into two memoized buckets on the `CacheItem`:
+
+- `provider_kwargs: dict[str, AbstractProvider]` — resolved live each resolve.
+- `static_kwargs: dict[str, Any]` — literal values (param defaults baked to
+  `None`, plus `self._kwargs`).
+
+Add a third memoized bucket:
+
+- `context_kwargs: dict[str, tuple[AbstractProvider, SignatureItem]]` — every
+  parameter whose resolved dependency is a `ContextProvider` (and that is not
+  shadowed by a static `self._kwargs` entry). We store the provider plus the
+  parsed `SignatureItem` (which already carries `default` and `is_nullable`), so
+  no new type is needed.
+
+Compilation changes (the expensive, memoized part):
+
+- For a parameter whose `_find_dep_provider` result **is a `ContextProvider`**
+  and `is_kwarg_not_found`: put it in `context_kwargs`. Do **not** read the
+  context value, do **not** bake `None`/skip/raise.
+- For a parameter whose provider is a **non-context** provider: `provider_kwargs`
+  (unchanged).
+- For a parameter with **no registered provider**: the existing compile-time
+  default/`None`/raise logic stays — these are static graph facts (the registry
+  is fixed after build), so they are correct to decide once.
+
+### 2. Resolve `context_kwargs` live, preserving every existing semantic
+
+In `Factory.resolve`, after copying `static_kwargs` and resolving
+`provider_kwargs`, iterate `context_kwargs` and apply, per parameter, the same
+decision that used to run at compile time — now against the **live** context
+value:
+
+```python
+for name, (provider, item) in context_kwargs.items():
+    # honor overrides, exactly as resolve_provider does for the present-value path today
+    if container.overrides_registry.overrides:
+        override = container.overrides_registry.fetch_override(provider.provider_id)
+        if override is not types.UNSET:
+            resolved_kwargs[name] = override
+            continue
+    value = provider._find_context_value(container)   # raises ContainerClosedError if that scope is closed
+    if value is not types.UNSET:
+        resolved_kwargs[name] = value
+    elif item.default is not types.UNSET:
+        continue                                       # omit → creator default applies
+    elif item.is_nullable:
+        resolved_kwargs[name] = None
+    else:
+        raise exceptions.ArgumentResolutionError(...)  # same args as today's compile-time raise
+```
+
+This preserves all four current outcomes (inject value / use default / inject
+`None` / raise) and keeps override support for context providers. It also makes
+two currently-latched behaviors correct as a side effect: a required context
+param raises *until* the value is set and then resolves (instead of permanently
+raising), and an override applied after first resolve now takes effect.
+
+The `ArgumentResolutionError` construction is identical to the existing one in
+`_compile_kwargs`; factor it into one small helper so the compile-time
+(non-context) and resolve-time (context) raise sites share a single definition.
+
+### 3. Delete `invalidate_compiled_kwargs`
+
+With context lookups live, the compiled memo never goes stale: the
+type→provider matching depends only on the providers registry (fixed after
+build), overrides are checked live, and context values are read live. So:
+
+- Remove `CacheRegistry.invalidate_compiled_kwargs` (`cache_registry.py:61-65`).
+- `Container.set_context` (`container.py:219-231`) becomes just
+  `self.context_registry.set_context(context_type, obj)`.
+- `kwargs_compiled` is retained — it still memoizes the one-time partition; it
+  simply is never reset anymore.
+
+### 4. Tighten the cached-factory contract (documentation)
+
+Rewrite the `set_context` docstring to scope the guarantee: late context is
+picked up by subsequent resolves of **non-cached** providers; a cached
+(singleton) provider's instance is fixed at first build and is **not** rebuilt
+by a later `set_context`. Update the `ContextProvider` docstring similarly if
+needed.
+
+## Operations
+
+None — library-internal behavior + docs.
+
+## Out of scope
+
+See Non-goals. The `_find_context_value` abstraction-leak refactor and the other
+low-severity audit findings are tracked separately (report stays in chat / can be
+filed under `planning/audits/` on request).
+
+## Testing
+
+All new tests in `tests/providers/test_context_provider.py` (or
+`test_factory.py` where factory-shaped):
+
+1. **Core regression (defaulted, cross-scope):** `APP ContextProvider` +
+   `REQUEST Factory(ctx: Ctx | None = None)`; build request child; resolve →
+   `None`; `app.set_context(Ctx, value)`; resolve again from the **same child**
+   → sees `value`. (Fails on current `main`.)
+2. **Nullable, cross-scope:** same shape with an explicitly nullable param →
+   `None` then `value` after late set.
+3. **Required (non-nullable, no default), cross-scope:** first resolve raises
+   `ArgumentResolutionError`; after `set_context`, resolve returns the value.
+   (Locks in live raise + recovery.)
+4. **Cached limitation (documented):** `Factory(cache_settings=...)` reading a
+   `ContextProvider`; resolve (gets `None`/first value), `set_context`, resolve
+   again → **unchanged** (asserts the singleton is not retroactively rebuilt).
+5. **Override of a context-backed param** still works (resolve-time override
+   path), including when set after first resolve.
+6. **Same-scope regression unchanged:** the existing
+   `test_set_context_after_first_resolve_is_seen_by_later_resolves` must still
+   pass (now via live lookup rather than invalidation).
+
+Full suite green (`just test`), 100% coverage maintained, `just lint-ci` clean.
+On ship, promote into `architecture/containers.md` (drop the
+`invalidate_compiled_kwargs` description; restate the compiled-memo as
+matching-only) and `architecture/resolution.md` (context values resolved live).
+
+## Risk
+
+- **Per-resolve cost for context params** — *low likelihood / low impact.* Each
+  context-backed param now does one `find_container` + dict lookup + override
+  check per resolve instead of once. This is intrinsic to live binding, affects
+  only context params, and is offset by removing the O(n) `invalidate_compiled_
+  kwargs` scan over every `CacheItem` on each `set_context`.
+- **Behavior change for present→absent transitions** — *low.* The present-value
+  path is already live today, so we only *add* correct propagation for the
+  absent→set transition and the required-param recover-after-set case. No
+  documented behavior is removed (relying on a frozen stale value was never
+  promised). The full suite is the guard; any test asserting the old latched
+  behavior is itself a bug and gets updated.
+- **Missed invalidation source** — *low.* `invalidate_compiled_kwargs` has a
+  single caller (`set_context`); the compiled memo depends only on the fixed
+  registry + live overrides + live context, so removal is safe. The test suite
+  plus the same-scope regression test confirm.

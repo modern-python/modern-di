@@ -70,7 +70,11 @@ carry **no** frontmatter — living prose, dated by git.
 
 ### Active
 
-_None._
+- **[set-context-cross-scope-staleness](changes/active/2026-06-14.02-set-context-cross-scope-staleness/design.md)**
+  (2026-06-14) — Resolve `ContextProvider` params live so a late `set_context`
+  always propagates (cross-scope, non-cached); delete dead
+  `invalidate_compiled_kwargs`; document the cached-factory limitation. From the
+  2026-06-14 deep audit (sole ship-blocker). Full lane.
 
 ### Archived (shipped)
 
