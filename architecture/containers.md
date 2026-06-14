@@ -140,7 +140,10 @@ creation time, or call `container.validate()` explicitly at any point. It raises
 container.set_context(MyRequest, request_obj)
 ```
 
-Registers a runtime value directly into the container's `ContextRegistry`. Also invalidates all
-compiled kwargs in the container's `CacheRegistry` (resets `kwargs_compiled`, `provider_kwargs`,
-and `static_kwargs` on every `CacheItem`) so that subsequent resolutions pick up the new context
-value rather than using a stale compiled-kwargs snapshot.
+Registers a runtime value directly into the container's `ContextRegistry`. Context values are
+resolved **live** on every resolve (see [resolution](resolution.md)), so a value set here is
+picked up by subsequent resolves of **non-cached** providers — including factories in deeper-scoped
+child containers that read this container's context — with no cache invalidation needed.
+
+A **cached** provider (`Factory(cache_settings=...)`) is built once and its instance is *not*
+rebuilt by a later `set_context`; set the context before its first resolve.
