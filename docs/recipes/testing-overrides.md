@@ -63,7 +63,7 @@ async def db_connection(engine: sa_async.AsyncEngine) -> sa_async.AsyncConnectio
             await transaction.rollback()
 ```
 
-Tests that pull a session through DI (`container.resolve(AsyncSession)`) get one bound to the test connection, and everything they write rolls back at the end.
+Tests that pull a session through DI (`container.resolve(sa_async.AsyncSession)`) get one bound to the test connection, and everything they write rolls back at the end.
 
 ## Pattern 3: `modern-di-pytest` fixtures
 

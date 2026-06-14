@@ -10,6 +10,8 @@ When you see this error:
 DuplicateProviderTypeError: Provider is duplicated by type <class 'SomeType'>.
 ```
 
+The full runtime message also embeds the numbered resolution steps (set `bound_type=None` on one of the providers, or pass dependencies via `kwargs`) and a `See https://...` backlink to this page.
+
 It descends from `RegistrationError` → `ModernDIError` → `RuntimeError`, so `except DuplicateProviderTypeError`, `except RegistrationError`, and `except RuntimeError` all catch it. See [Errors and exceptions](../providers/errors-and-exceptions.md).
 
 It means you have multiple providers that can provide the same type. This typically happens when:
@@ -70,3 +72,11 @@ class MyGroup(Group):
         kwargs={"db_config": secondary_db_config}  # <-- Step 2: Explicit dependency
     )
 ```
+
+## See also
+
+- [Factories](../providers/factories.md#bound_type) — the `bound_type` section.
+- [Errors and exceptions](../providers/errors-and-exceptions.md)
+- [Missing provider](../troubleshooting/missing-provider.md)
+
+For binding an abstract type to a concrete implementation, `Alias` is preferred over duplicate factories.

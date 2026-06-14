@@ -16,7 +16,9 @@ cd modern-di
 Run all checks by command `just lint`
 
 ## Running tests
-Run all tests by command `just test`
+Run all tests by command `just test`. Run a subset with `just test <PATH> -k <NAME>`.
+
+CI runs the coverage-enforcing recipe `just test-ci` along with `just lint-ci`.
 
 ## Submitting changes
 1. Fork the repo and branch off `main`.

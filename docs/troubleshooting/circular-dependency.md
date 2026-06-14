@@ -33,3 +33,8 @@ container.validate()
 1. **Break the cycle with an interface/protocol** - introduce an abstraction that one side depends on instead of the concrete type
 2. **Use `kwargs` to inject one dependency manually** - pass a factory or value via `kwargs` instead of relying on automatic resolution
 3. **Restructure your dependencies** - extract shared logic into a third provider that both can depend on without forming a cycle
+
+## See also
+
+- [Errors and exceptions](../providers/errors-and-exceptions.md)
+- [Lifecycle](../providers/lifecycle.md) — the validation section.
