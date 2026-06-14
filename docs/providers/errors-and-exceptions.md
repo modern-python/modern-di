@@ -118,3 +118,12 @@ These don't fit the register/resolve/validate grouping:
   later `await close_async()` can finalize it. See [Lifecycle](lifecycle.md#close-failure-semantics).
 - **`GroupInstantiationError`** — raised when a `Group` subclass is instantiated. Groups are
   namespaces and must never be created as objects.
+
+## Security note
+
+`modern-di` exception messages are intended for developers (logs, tracebacks during wiring). A
+`CreatorCallError` embeds the wrapped exception's text, and a `FinalizerError` embeds the repr of every
+finalizer exception — so if a creator or finalizer raises an error whose message contains sensitive
+runtime data, that text becomes part of the `modern-di` message. The DI-specific errors themselves are
+conservative (type names and provider reprs only; context values are keyed by type and never repr'd).
+Applications must not echo raw exception strings to untrusted clients.

@@ -40,6 +40,11 @@ During the DFS, a provider encountered a second time while it is still on the ac
 type names showing the loop (e.g., `["A", "B", "A"]`). The recursive walk does **not** continue into the cycle,
 but the rest of the graph continues to be checked.
 
+> **Runtime resolution has no cycle guard.** Cycle detection lives only here. To keep the resolve hot path free of
+> per-resolve bookkeeping, `resolve()` does not track in-flight providers — a circular graph that is never validated
+> raises a raw `RecursionError` on first resolve. Run with `validate=True` (or call `container.validate()`) in
+> development to surface cycles as a clear `CircularDependencyError` instead.
+
 ### Inverted scope dependencies
 
 For every dependency edge `provider → dep`, `validate()` compares their **effective scopes** (see below). If

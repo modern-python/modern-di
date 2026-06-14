@@ -76,6 +76,11 @@ sorts each parameter into one of three buckets stored on the `CacheItem`:
    excluded. A matching `ContextProvider` goes to `context_kwargs` (resolved live, see Step 5); any other provider goes
    to `provider_kwargs`.
 
+   > **Union vs. single parameterized generics.** A bare parameterized generic (e.g. `list[str]`) is *rejected at
+   > declaration* — it cannot be resolved by type. Inside a union, however, each member degrades to its origin for
+   > matching, so `int | list[str]` matches a provider registered for plain `list`. The element type is not enforced
+   > (Python ignores it at runtime); this asymmetry is intentional, not a wiring guarantee.
+
 3. **No provider found** — this is a static graph fact, decided once here:
    - If the parameter has a default, it is omitted (the creator's own default applies).
    - If `SignatureItem.is_nullable` is `True` (the annotation included `None`, e.g. `X | None` or `Optional[X]`), it is
