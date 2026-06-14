@@ -70,14 +70,15 @@ carry **no** frontmatter — living prose, dated by git.
 
 ### Active
 
-- **[set-context-cross-scope-staleness](changes/active/2026-06-14.02-set-context-cross-scope-staleness/design.md)**
-  (2026-06-14) — Resolve `ContextProvider` params live so a late `set_context`
-  always propagates (cross-scope, non-cached); delete dead
-  `invalidate_compiled_kwargs`; document the cached-factory limitation. From the
-  2026-06-14 deep audit (sole ship-blocker). Full lane.
+_None._
 
 ### Archived (shipped)
 
+- **[set-context-cross-scope-staleness](changes/archive/2026-06-14.02-set-context-cross-scope-staleness/design.md)**
+  (#216, 2026-06-14) — Resolve `ContextProvider` params live so a late
+  `set_context` always propagates (cross-scope, non-cached); delete dead
+  `invalidate_compiled_kwargs`; document the cached-factory limitation. From the
+  2026-06-14 deep audit (sole ship-blocker). Full lane.
 - **[portable-planning-convention](changes/archive/2026-06-13.03-portable-planning-convention/design.md)**
   (#210, 2026-06-13) — Adopt the two-axis convention: `architecture/` truth +
   `changes/` bundles + portable README, copied from faststream-outbox.
