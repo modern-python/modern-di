@@ -26,7 +26,7 @@ respecting inheritance order and de-duplicating by name.
 
 ## `Factory` — the universal provider
 
-`Factory` is the main building block. Every provider that calls a constructor or factory function is a `Factory`.
+`Factory` is the main building block. Every provider that calls a creator callable (a constructor or factory function passed as `creator=`) is a `Factory`.
 
 ### Signature
 
@@ -64,9 +64,10 @@ a matching provider by type in the registry and recurses into `container.resolve
 Resolution errors are annotated with a breadcrumb describing the current factory, so the full chain appears in the
 exception.
 
-### Static kwargs — `kwargs={}`
+### Static kwargs
 
-Pass `kwargs` to supply static (non-DI-resolved) arguments that bypass type-based resolution. These are merged
+Pass `kwargs` to supply static (non-DI-resolved) arguments that bypass type-based resolution — for
+example `kwargs={"timeout": 30}` to pin a creator's `timeout` parameter. These are merged
 last, overriding any provider-resolved value for the same key. Supplying a key that does not appear in the
 creator's signature (and whose creator has no `**kwargs`) raises `UnknownFactoryKwargError` at declaration time.
 
@@ -117,6 +118,8 @@ value was supplied (the key is absent), `resolve` returns `None`. `Factory._comp
 absent-context case explicitly: if the dependent parameter has a default or is nullable it is silently satisfied;
 otherwise an `ArgumentResolutionError` is raised.
 
+`ContextProvider` also accepts an optional `bound_type` that overrides the inferred bound type.
+
 ---
 
 ## `Alias` — re-exporting a type under a different name
@@ -130,6 +133,8 @@ providers.Alias(source_type=ConcreteDatabase, bound_type=DatabaseProtocol)
 This lets code that depends on `DatabaseProtocol` receive the `ConcreteDatabase` instance without the registry
 needing a separate `Factory` for the protocol. `Alias.resolve` calls `container.resolve_provider(source_provider)`,
 so caching and lifecycle are fully governed by the source.
+
+`Alias` also accepts an optional `bound_type` that overrides the inferred bound type.
 
 `Alias.effective_scope` follows alias chains transitively to the terminal non-alias provider and returns that
 provider's scope. This is what `Container.validate()` and scope-error reporting use — the alias's own `scope`
