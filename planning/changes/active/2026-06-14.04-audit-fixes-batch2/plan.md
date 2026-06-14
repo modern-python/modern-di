@@ -46,11 +46,14 @@ member `> self.scope` instead.
 - Modify: `modern_di/registries/cache_registry.py`
 
 `setdefault(id, CacheItem(...))` evaluates the default eagerly, so every cache hit (every
-resolve after the first) constructs and discards a `CacheItem` (+2 dicts). Behavior-identical
-`get`-then-set removes the throwaway allocation. No new test (pure optimization; existing
-suite + 100% coverage exercise both miss and hit paths).
+resolve after the first) constructs and discards a `CacheItem` (+2 dicts). Add a `get` fast
+path that returns an existing item with no allocation, but **keep `setdefault` on the creation
+path**: fetch runs outside the container lock, and `setdefault`'s atomicity is load-bearing —
+concurrent first-resolvers of a singleton must share one `CacheItem` (the cache and its
+double-checked lock live on that object). A plain `get`-then-set would break that. No new test
+(behavior-identical; existing suite + 100% coverage exercise both paths).
 
-- [x] **Step 1:** Replace `setdefault` with `get`-then-assign.
+- [x] **Step 1:** Add a `get` fast path; retain atomic `setdefault` for creation.
 
 ### Task 3: Verify and ship
 
