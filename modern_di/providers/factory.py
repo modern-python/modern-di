@@ -174,6 +174,10 @@ class Factory(AbstractProvider[types.T_co]):
     def _ensure_kwargs_cached(
         self, container: "Container", cache_item: "CacheItem"
     ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any], dict[str, typing.Any]]:
+        # Compilation runs outside the container lock (the lock guards only singleton creation).
+        # Under the GIL this is safe: the buckets are a deterministic function of the fixed providers
+        # registry, so concurrent compiles produce identical results and at worst recompute once.
+        # (Free-threaded/nogil caveat tracked in planning/deferred.md.)
         if not cache_item.kwargs_compiled:
             provider_kwargs, static_kwargs, context_kwargs = self._compile_kwargs(container)
             cache_item.provider_kwargs = provider_kwargs

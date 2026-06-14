@@ -161,6 +161,19 @@ def test_factory_overridden_request_scope() -> None:
     assert instance3 is not instance1
 
 
+def test_override_bypasses_scope_check_from_shallower_container() -> None:
+    # Documented intentional: an override is returned before the scope check, so a
+    # deeper-scoped provider can be resolved from a shallower container — see
+    # architecture/testing-and-overrides.md "Scope behaviour under overrides".
+    app_container = Container(groups=[MyGroup])
+    with pytest.raises(ScopeNotInitializedError):
+        app_container.resolve_provider(MyGroup.request_factory)
+
+    override = DependentCreator(dep1=SimpleCreator(dep1="override"))
+    app_container.override(MyGroup.request_factory, override)
+    assert app_container.resolve_provider(MyGroup.request_factory) is override
+
+
 def test_factory_scope_is_not_initialized() -> None:
     app_container = Container(groups=[MyGroup])
     with pytest.raises(
