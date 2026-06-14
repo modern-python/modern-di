@@ -202,6 +202,25 @@ def test_factory_self_reference_in_union_falls_through_to_default() -> None:
     assert result.x == 1
 
 
+def test_factory_self_reference_by_type_falls_through_to_default() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class SelfRefByType:
+        nested: "SelfRefByType | None" = None
+
+    def make(nested: SelfRefByType = SelfRefByType()) -> SelfRefByType:  # noqa: B008
+        return nested
+
+    factory = providers.Factory(creator=make)
+    app_container = Container()
+    app_container.providers_registry.add_providers(factory)
+
+    # `nested` is typed as the factory's own bound type: it must not wire to itself,
+    # and with no other provider it falls through to the creator default.
+    result = app_container.resolve(SelfRefByType)
+    assert isinstance(result, SelfRefByType)
+    assert result.nested is None
+
+
 def test_factory_repr() -> None:
     provider = providers.Factory(creator=str, scope=Scope.APP)
     assert repr(provider) == "Factory(creator=<class 'str'>, scope=<Scope.APP: 1>, cached=False)"

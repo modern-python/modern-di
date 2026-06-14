@@ -228,7 +228,6 @@ class Container:
         are picked up by subsequent resolves.
         """
         self.context_registry.set_context(context_type, obj)
-        self.cache_registry.invalidate_compiled_kwargs()
 
     def __repr__(self) -> str:
         n_providers = len(self.providers_registry)
