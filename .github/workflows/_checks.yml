@@ -36,3 +36,14 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
       - run: just install
       - run: just test-ci
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - run: just docs-build
