@@ -1,9 +1,9 @@
 ---
-status: draft
+status: shipped
 date: 2026-06-14
 slug: audit-fixes-batch4-5
 spec: ../../../audits/2026-06-14-deep-audit-report.md
-pr: null
+pr: 220
 ---
 
 # audit-fixes-batch4-5 — implementation plan

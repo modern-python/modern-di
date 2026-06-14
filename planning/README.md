@@ -74,6 +74,11 @@ _None._
 
 ### Archived (shipped)
 
+- **[audit-fixes-batch4-5](changes/archive/2026-06-14.06-audit-fixes-batch4-5/plan.md)**
+  (#220, 2026-06-14) — Final audit cleanup: test hardening (P-6 compile-once pin,
+  R-3 behavioral singleton assert, X-2 structured suggestion/path asserts) + DX/docs
+  (X-3 exception docstrings, X-4 `exceptions` export, X-5 `ResolutionStep` docs).
+  Closes every actionable finding. Plan-only; spec = audit report.
 - **[audit-fixes-batch3](changes/archive/2026-06-14.05-audit-fixes-batch3/plan.md)**
   (#219, 2026-06-14) — R-1 (`AbstractProvider.display_name` dedupes the
   bound-type-or-repr idiom across ~5 sites) + R-2 minimal (public

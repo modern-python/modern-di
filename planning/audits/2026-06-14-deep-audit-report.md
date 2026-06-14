@@ -38,11 +38,20 @@ its atomicity is load-bearing for concurrent singleton first-resolve). See
 **Status (2026-06-14, batch 3):** the refactor batch shipped in **#219** — **R-1**
 (`AbstractProvider.display_name` dedupes the bound-type-or-repr idiom across ~5 sites) and **R-2**
 (minimal: public `fetch_context_value`, drop the `SLF001` reach-in; `isinstance` routing kept by
-design). See [bundle](../changes/archive/2026-06-14.05-audit-fixes-batch3/plan.md). Still **open**:
-**P-2**, **P-6**, **X-2**, **X-3**, **X-4**, **X-5** (a test-hardening batch + a DX/docs batch);
-**R-4**/**R-5**/**R-6** recommended **won't-fix** (marginal; R-5 cannot be cleanly unified);
-**S-1**/**S-2** code follow-ups (if ever); **A-1** nogil follow-up (deferred). P-3/P-4/P-5 are
-verified non-issues; **RF-1** refuted.
+design). See [bundle](../changes/archive/2026-06-14.05-audit-fixes-batch3/plan.md).
+
+**Status (2026-06-14, batches 4–5 — audit closed):** the final cleanup shipped in **#220** —
+test hardening (**P-6** compile-once pin, **R-3** behavioral singleton assert, **X-2** structured
+suggestion/dependency-path asserts) and DX/docs (**X-3** exception docstrings, **X-4** `exceptions`
+export, **X-5** `ResolutionStep` docs). See
+[bundle](../changes/archive/2026-06-14.06-audit-fixes-batch4-5/plan.md).
+
+**No actionable findings remain.** Closed as **won't-fix** (marginal, by design): **P-2** (a
+negligible same-scope `find_container` short-circuit), **R-4** (extract `validate()`'s DFS closure),
+**R-5** (single `_classify_param` — the compile vs. validate predicates genuinely diverge, so it
+cannot be cleanly unified), **R-6** (split `CacheItem`'s dual role). **Deferred** with a revisit
+trigger in [`deferred.md`](../deferred.md): **A-1** free-threading/nogil follow-up. P-3/P-4/P-5 are
+verified non-issues; **S-1**/**S-2** were documented in batch 1; **RF-1** refuted.
 
 | Category | High | Medium | Low | None/Clean | Refuted | Total |
 |---|---|---|---|---|---|---|
