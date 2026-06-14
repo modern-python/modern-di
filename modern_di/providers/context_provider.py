@@ -38,12 +38,12 @@ class ContextProvider(AbstractProvider[types.T_co]):
         return f"ContextProvider(context_type={self._context_type!r}, scope={self.scope!r})"
 
     def resolve(self, container: "Container") -> types.T_co | None:
-        value = self._find_context_value(container)
+        value = self.fetch_context_value(container)
         if value is types.UNSET:
             return None
         return typing.cast(types.T_co, value)
 
-    def _find_context_value(self, container: "Container") -> types.T_co | object:
+    def fetch_context_value(self, container: "Container") -> types.T_co | object:
         container = container.find_container(self.scope)
         if container.closed:
             raise exceptions.ContainerClosedError(container_scope=container.scope)

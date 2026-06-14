@@ -278,8 +278,8 @@ class InvalidScopeDependencyError(RegistrationError):
         self.provider = provider
         self.parameter_name = parameter_name
         self.dep_provider = dep_provider
-        provider_name = provider.bound_type.__name__ if provider.bound_type else repr(provider)
-        dep_name = dep_provider.bound_type.__name__ if dep_provider.bound_type else repr(dep_provider)
+        provider_name = provider.display_name
+        dep_name = dep_provider.display_name
         super().__init__(
             errors.INVALID_SCOPE_DEPENDENCY_ERROR.format(
                 provider_name=provider_name,

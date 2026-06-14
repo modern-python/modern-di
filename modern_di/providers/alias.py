@@ -46,8 +46,7 @@ class Alias(AbstractProvider[types.T_co]):
         return source
 
     def _resolution_step(self) -> "exceptions.ResolutionStep":
-        name = self.bound_type.__name__ if self.bound_type else repr(self)
-        return exceptions.ResolutionStep(scope=self.scope, name=name)
+        return exceptions.ResolutionStep(scope=self.scope, name=self.display_name)
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         return {"source": self._find_source(container)}

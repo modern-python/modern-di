@@ -158,7 +158,7 @@ class Container:
                 return
             if pid in visiting:
                 cycle_start = next(i for i, p in enumerate(path) if p.provider_id == pid)
-                cycle_names = [p.bound_type.__name__ if p.bound_type else repr(p) for p in path[cycle_start:]]
+                cycle_names = [p.display_name for p in path[cycle_start:]]
                 cycle_names.append(cycle_names[0])
                 validation_errors.append(exceptions.CircularDependencyError(cycle_path=cycle_names))
                 return

@@ -104,9 +104,14 @@ class Factory(AbstractProvider[types.T_co]):
     def __repr__(self) -> str:
         return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"
 
+    @property
+    def display_name(self) -> str:
+        if self.bound_type:
+            return self.bound_type.__name__
+        return getattr(self._creator, "__name__", repr(self._creator))
+
     def _resolution_step(self) -> exceptions.ResolutionStep:
-        name = self.bound_type.__name__ if self.bound_type else getattr(self._creator, "__name__", repr(self._creator))
-        return exceptions.ResolutionStep(scope=self.scope, name=name)
+        return exceptions.ResolutionStep(scope=self.scope, name=self.display_name)
 
     def _find_dep_provider(self, container: "Container", v: SignatureItem) -> "AbstractProvider[typing.Any] | None":
         if v.arg_type:
@@ -199,7 +204,7 @@ class Factory(AbstractProvider[types.T_co]):
             override = container.overrides_registry.fetch_override(provider.provider_id)
             if override is not types.UNSET:
                 return override
-        value = provider._find_context_value(container)  # noqa: SLF001
+        value = provider.fetch_context_value(container)
         if value is not types.UNSET:
             return value
         if item.default is not types.UNSET:
