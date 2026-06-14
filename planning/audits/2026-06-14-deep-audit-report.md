@@ -27,9 +27,15 @@ fix extracted a shared `_argument_resolution_error` helper).
 **Status (2026-06-14, batch 1):** the approved doc/test/comment-only rulings shipped in **#217** —
 **B-4** (pinning test), **B-5**/**S-1**/**S-2** (doc notes), **A-1** (GIL-benign comment + nogil
 caveat in [`deferred.md`](../deferred.md)); **A-2** closed (already documented intentional). See
-[bundle](../changes/archive/2026-06-14.03-audit-doc-rulings-batch1/plan.md). Still **open**: **B-3**,
-**P-1**, **P-2**, **P-6**, **X-2**, **X-3**, **X-4**, **X-5**, **R-1**–**R-6**, **S-1**/**S-2** code
-follow-ups (if ever), **A-1** nogil follow-up. P-3/P-4/P-5 are verified non-issues; **RF-1** refuted.
+[bundle](../changes/archive/2026-06-14.03-audit-doc-rulings-batch1/plan.md).
+
+**Status (2026-06-14, batch 2):** the real low-risk code fixes shipped in **#218** — **B-3**
+(gapped custom-enum child-scope derivation) and **P-1** (drop the per-resolve throwaway
+`CacheItem` alloc via a `get` fast path, retaining atomic `setdefault` on the creation path —
+its atomicity is load-bearing for concurrent singleton first-resolve). See
+[bundle](../changes/archive/2026-06-14.04-audit-fixes-batch2/plan.md). Still **open**: **P-2**,
+**P-6**, **X-2**, **X-3**, **X-4**, **X-5**, **R-1**–**R-6**, **S-1**/**S-2** code follow-ups
+(if ever), **A-1** nogil follow-up. P-3/P-4/P-5 are verified non-issues; **RF-1** refuted.
 
 | Category | High | Medium | Low | None/Clean | Refuted | Total |
 |---|---|---|---|---|---|---|

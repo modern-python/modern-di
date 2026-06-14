@@ -74,6 +74,10 @@ _None._
 
 ### Archived (shipped)
 
+- **[audit-fixes-batch2](changes/archive/2026-06-14.04-audit-fixes-batch2/plan.md)**
+  (#218, 2026-06-14) — B-3 (gapped custom-enum child-scope derivation) + P-1
+  (drop the per-resolve throwaway `CacheItem` alloc via a `get` fast path,
+  keeping atomic `setdefault` on creation). Plan-only; spec = the audit report.
 - **[audit-doc-rulings-batch1](changes/archive/2026-06-14.03-audit-doc-rulings-batch1/plan.md)**
   (#217, 2026-06-14) — Action batch-1 rulings from the 2026-06-14 deep audit
   (B-4 pin, B-5/S-1/S-2 doc notes, A-1 comment + nogil caveat; A-2 closed).
