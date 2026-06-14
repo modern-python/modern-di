@@ -1,11 +1,11 @@
 ---
-status: active
+status: shipped
 date: 2026-06-14
 slug: docs-ux-lows
 supersedes: null
 superseded_by: null
-pr: null
-outcome: null
+pr: 213
+outcome: All 53 Low findings fixed and merged in PR #213 (b81c23f). mkdocs --strict green, lint clean, 199 tests / 100% coverage. D-10 was already resolved by X-3 (#212); R-2/D-24 already satisfied there. Executed via parallel file-scoped subagents + central verification.
 ---
 
 # Change: Docs UX audit — fix the 53 Low findings
