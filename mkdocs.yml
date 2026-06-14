@@ -91,6 +91,8 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  - admonition
+  - pymdownx.details
   - def_list
   - codehilite:
       use_pygments: true
