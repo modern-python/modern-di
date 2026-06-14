@@ -33,9 +33,16 @@ caveat in [`deferred.md`](../deferred.md)); **A-2** closed (already documented i
 (gapped custom-enum child-scope derivation) and **P-1** (drop the per-resolve throwaway
 `CacheItem` alloc via a `get` fast path, retaining atomic `setdefault` on the creation path —
 its atomicity is load-bearing for concurrent singleton first-resolve). See
-[bundle](../changes/archive/2026-06-14.04-audit-fixes-batch2/plan.md). Still **open**: **P-2**,
-**P-6**, **X-2**, **X-3**, **X-4**, **X-5**, **R-1**–**R-6**, **S-1**/**S-2** code follow-ups
-(if ever), **A-1** nogil follow-up. P-3/P-4/P-5 are verified non-issues; **RF-1** refuted.
+[bundle](../changes/archive/2026-06-14.04-audit-fixes-batch2/plan.md).
+
+**Status (2026-06-14, batch 3):** the refactor batch shipped in **#219** — **R-1**
+(`AbstractProvider.display_name` dedupes the bound-type-or-repr idiom across ~5 sites) and **R-2**
+(minimal: public `fetch_context_value`, drop the `SLF001` reach-in; `isinstance` routing kept by
+design). See [bundle](../changes/archive/2026-06-14.05-audit-fixes-batch3/plan.md). Still **open**:
+**P-2**, **P-6**, **X-2**, **X-3**, **X-4**, **X-5** (a test-hardening batch + a DX/docs batch);
+**R-4**/**R-5**/**R-6** recommended **won't-fix** (marginal; R-5 cannot be cleanly unified);
+**S-1**/**S-2** code follow-ups (if ever); **A-1** nogil follow-up (deferred). P-3/P-4/P-5 are
+verified non-issues; **RF-1** refuted.
 
 | Category | High | Medium | Low | None/Clean | Refuted | Total |
 |---|---|---|---|---|---|---|

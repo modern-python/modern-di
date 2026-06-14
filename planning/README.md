@@ -74,6 +74,10 @@ _None._
 
 ### Archived (shipped)
 
+- **[audit-fixes-batch3](changes/archive/2026-06-14.05-audit-fixes-batch3/plan.md)**
+  (#219, 2026-06-14) — R-1 (`AbstractProvider.display_name` dedupes the
+  bound-type-or-repr idiom across ~5 sites) + R-2 minimal (public
+  `fetch_context_value`, drop the `SLF001` reach-in). Plan-only; spec = audit report.
 - **[audit-fixes-batch2](changes/archive/2026-06-14.04-audit-fixes-batch2/plan.md)**
   (#218, 2026-06-14) — B-3 (gapped custom-enum child-scope derivation) + P-1
   (drop the per-resolve throwaway `CacheItem` alloc via a `get` fast path,
