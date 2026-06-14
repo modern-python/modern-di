@@ -16,7 +16,7 @@ The type the alias is registered under in the providers registry — i.e. the ty
 
 ### scope
 
-**Deprecated and ignored.** An alias's effective scope is derived from its source provider — the alias itself holds no instance and applies no caching. Passing `scope=` to `Alias(...)` emits a `DeprecationWarning`; the parameter will be removed in 3.0.
+**Deprecated and ignored.** An alias's effective scope is derived from its source provider — the alias itself holds no instance and applies no caching. Passing `scope=` to `Alias(...)` emits a `DeprecationWarning`; the parameter will be removed in a future release.
 
 ## Basic Usage
 
@@ -68,7 +68,7 @@ With an uncached source `Factory`, each resolution still goes through the source
 
 ## Overrides
 
-Overrides are keyed by `provider_id`, so the alias and its source can be overridden independently:
+Overrides are keyed by `provider_id`, so the alias and its source can be overridden independently. See [Testing with overrides](../recipes/testing-overrides.md) for the `container.override` / `reset_override` primitives.
 
 ```python
 mock_for_alias = PostgresRepository(dsn="alias-mock")

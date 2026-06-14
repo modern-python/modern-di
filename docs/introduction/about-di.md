@@ -65,28 +65,31 @@ service = UserService(cache=MockCache())     # Testing
 
 ## Lifetime Management in DI
 
-Objects can have different lifetime cycles (singleton, scoped, transient). `modern-di` expresses this with [Scopes](../providers/scopes.md) — APP for process-wide singletons, REQUEST for per-request resources, and so on. Here are examples:
+Objects can have different lifetime cycles (singleton, scoped, transient). `modern-di` expresses this with [Scopes](../providers/scopes.md) — APP for process-wide singletons, REQUEST for per-request resources, and so on. In modern-di's own terms: a provider's scope (APP/SESSION/REQUEST/…) decides how long an instance lives, and the presence of `cache_settings` means one shared instance is reused while its absence means a fresh instance is created on each resolve. Here are examples:
 
 ```python
 
+import uuid
+
 from modern_di import Group, Scope, providers
 
-class AppModule(Group):
-    # Singleton: one instance for entire app
+class AppGroup(Group):
+    # Cached for the whole app: one shared instance.
+    # CacheSettings() makes the provider a cached singleton (see the Factories page).
     config = providers.Factory(
         scope=Scope.APP,
         creator=AppConfig,
         cache_settings=providers.CacheSettings()
     )
 
-    # Scoped: one instance per request
+    # Cached per request: one shared instance per request
     db_session = providers.Factory(
         scope=Scope.REQUEST,
         creator=DatabaseSession,
         cache_settings=providers.CacheSettings()
     )
 
-    # Transient: new instance each time
+    # No cache_settings: a fresh instance each resolve
     request_id = providers.Factory(
         scope=Scope.REQUEST,
         creator=lambda: str(uuid.uuid4())
@@ -130,7 +133,7 @@ class UserService:
 
 
 # Declare dependencies
-class AppModule(Group):
+class AppGroup(Group):
     config = providers.Factory(
         scope=Scope.APP,
         creator=AppConfig,
@@ -141,7 +144,7 @@ class AppModule(Group):
 
 
 # Build the app-level container, then a request-scoped child for per-request providers
-app_container = Container(scope=Scope.APP, groups=[AppModule])
+app_container = Container(scope=Scope.APP, groups=[AppGroup])
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     user_service = request_container.resolve(UserService)
 ```
@@ -157,7 +160,7 @@ Type annotations auto-wire dependencies - no manual registration needed.
 Hierarchical containers with automatic inheritance:
 
 ```python
-app_container = Container(groups=[AppModule], scope=Scope.APP)
+app_container = Container(groups=[AppGroup], scope=Scope.APP)
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 
 # Resolves from correct scope automatically
@@ -172,8 +175,8 @@ Override any dependency:
 ```python
 @pytest.fixture
 def test_container() -> Container:
-    container = Container(groups=[AppModule])
-    container.override(AppModule.db, Mock(spec=DatabaseConnection))
+    container = Container(groups=[AppGroup])
+    container.override(AppGroup.db, Mock(spec=DatabaseConnection))
     return container
 ```
 
@@ -182,7 +185,7 @@ def test_container() -> Container:
 Define finalizers for automatic cleanup:
 
 ```python
-class AppModule(Group):
+class AppGroup(Group):
     db_session = providers.Factory(
         scope=Scope.REQUEST,
         creator=DatabaseSession,

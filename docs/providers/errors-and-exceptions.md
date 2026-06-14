@@ -54,9 +54,10 @@ Catch `ContainerError` for any container/scope failure.
   parent is already at the deepest scope (`STEP`), so there is no next level to advance to.
 - **`ScopeNotInitializedError`** — raised during resolution when a provider needs a scope *deeper*
   than the current container's, and no container at that scope exists in the chain (e.g. resolving a
-  `REQUEST`-scoped provider from the `APP` container).
+  `REQUEST`-scoped provider from the `APP` container). See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
 - **`ScopeSkippedError`** — raised during resolution when the target scope is *shallower* than the
   current container but is missing from the scope chain (a level was skipped when building children).
+  See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
 - **`InvalidScopeTypeError`** — raised by the `Container` constructor when `scope` is not an
   `enum.IntEnum`.
 - **`ContainerClosedError`** — raised when you resolve from, or build a child of, a container that
@@ -74,13 +75,16 @@ accumulated as the error propagates, so the message shows the full chain from th
 down to the failing dependency.
 
 - **`ProviderNotRegisteredError`** — raised by `resolve(SomeType)` when no provider is registered for
-  the type. The message includes "did you mean…" suggestions when a close match exists.
+  the type. The message includes "did you mean…" suggestions when a close match exists. See
+  [Troubleshooting: Missing provider](../troubleshooting/missing-provider.md).
 - **`AliasSourceNotRegisteredError`** — raised when an `Alias` points at a `source_type` that has no
   registered provider (eagerly during `validate()`, or at resolution time).
 - **`ArgumentResolutionError`** — raised when a creator parameter cannot be resolved: no provider
-  matches its annotated type, or the parameter is unannotated.
+  matches its annotated type, or the parameter is unannotated. See
+  [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
 - **`CircularDependencyError`** — raised when the provider graph contains a cycle (A → B → A),
-  detected during `validate()` or at resolution; the message shows the cycle path.
+  detected during `validate()` or at resolution; the message shows the cycle path. See
+  [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md).
 - **`CreatorCallError`** — raised when a creator's dependencies all resolved but the creator itself
   raised while being called. The original exception is preserved on `.original_error` (and as the
   `__cause__`).
@@ -90,7 +94,8 @@ down to the failing dependency.
 Catch `RegistrationError` for declaration- and registration-time problems.
 
 - **`DuplicateProviderTypeError`** — raised when two providers are registered for the same bound type
-  (within one group, across groups passed together, or against an already-registered type).
+  (within one group, across groups passed together, or against an already-registered type). See
+  [Troubleshooting: Duplicate type](../troubleshooting/duplicate-type-error.md).
 - **`UnknownFactoryKwargError`** — raised when `Factory(kwargs={...})` contains a key that is not a
   parameter of the creator's signature; lists the known parameters and "did you mean" hints.
 - **`UnsupportedCreatorParameterError`** — raised when a creator's signature has a parameter

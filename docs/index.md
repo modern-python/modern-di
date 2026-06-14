@@ -4,7 +4,7 @@ Welcome to the `modern-di` documentation!
 
 `modern-di` is a Python dependency injection framework which supports the following:
 
-- Automatic dependencies graph based on type annotations
+- Automatic dependency graph based on type annotations
 - Also, explicit dependencies are allowed where needed
 - Scopes and context management
 - Python 3.10+ support
@@ -86,7 +86,11 @@ class Dependencies(Group):
     )
 ```
 
-## 4.1. Integrate with your framework
+## 4. Wire it up
+
+Pick **one** of the two mutually-exclusive options below.
+
+### Option A — integrate with your framework
 
 Pick the integration you need:
 
@@ -98,7 +102,7 @@ Pick the integration you need:
 
 The integration package builds the per-request child container automatically and closes the APP container at shutdown.
 
-## 4.2. Or use `modern-di` directly
+### Option B — use modern-di directly
 
 ```python
 from modern_di import Container, Scope
@@ -114,7 +118,7 @@ with Container(groups=[Dependencies], validate=True) as container:
         repo = request.resolve(UserRepository)
         user = repo.find(42)
 
-    # Request-scope finalizers ran on `with` exit
+    # Request-scope finalizers (teardown hooks such as closing a DB connection) ran on `with` exit
 # App-scope finalizers ran on the outer `with` exit
 ```
 
@@ -123,6 +127,8 @@ provider registers an **async** finalizer — see [Lifecycle](providers/lifecycl
 
 ## Where to next
 
+- [Resolving](introduction/resolving.md) — how type-based auto-injection works.
+- [Factories](providers/factories.md) — the provider you just used.
 - [Scopes](providers/scopes.md) — the APP → REQUEST lifetime model in one page.
 - [Lifecycle](providers/lifecycle.md) — finalizers, `close_async()`, validation.
 - [Recipes](recipes/sqlalchemy.md) — async SQLAlchemy, lifespan-managed resources, testing with overrides.
