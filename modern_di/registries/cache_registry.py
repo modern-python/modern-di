@@ -53,6 +53,14 @@ class CacheRegistry:
         return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
 
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
+        # Fast path: return an existing item without building a throwaway CacheItem (plain
+        # setdefault eagerly constructs one on every hit). The creation path still uses
+        # setdefault so it stays atomic under the GIL — fetch runs outside the container lock,
+        # and concurrent first-resolvers must share one CacheItem because the singleton cache
+        # and its double-checked lock live on that object.
+        item = self._items.get(provider.provider_id)
+        if item is not None:
+            return item
         return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
 
     def mark_created(self, cache_item: CacheItem) -> None:

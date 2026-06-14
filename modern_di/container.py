@@ -106,10 +106,12 @@ class Container:
             )
 
         if scope is None:
-            try:
-                scope = self.scope.__class__(self.scope.value + 1)
-            except ValueError as exc:
-                raise exceptions.MaxScopeReachedError(parent_scope=self.scope) from exc
+            # Derive the next scope as the smallest member deeper than the current one, so
+            # non-contiguous custom enums (e.g. TENANT=6, JOB=10) work, not just `value + 1`.
+            deeper_scopes = [member for member in type(self.scope) if member > self.scope]
+            if not deeper_scopes:
+                raise exceptions.MaxScopeReachedError(parent_scope=self.scope)
+            scope = min(deeper_scopes)
 
         return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self.lock is not None)
 

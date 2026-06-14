@@ -6,6 +6,7 @@ import pytest
 from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
     InvalidChildScopeError,
+    MaxScopeReachedError,
     ScopeNotInitializedError,
     ScopeSkippedError,
 )
@@ -108,6 +109,25 @@ def test_auto_derive_within_custom_enum() -> None:
     tenant_container = Container(scope=MyScope.TENANT)
     bg_container = tenant_container.build_child_container()
     assert bg_container.scope is MyScope.BACKGROUND_JOB
+
+
+class GappedScope(enum.IntEnum):
+    TENANT = 6
+    BACKGROUND_JOB = 10
+
+
+def test_auto_derive_with_gapped_custom_enum() -> None:
+    # Non-contiguous values: the next scope is the smallest member greater than the
+    # current one, not current.value + 1 (which would not be a valid member).
+    tenant_container = Container(scope=GappedScope.TENANT)
+    bg_container = tenant_container.build_child_container()
+    assert bg_container.scope is GappedScope.BACKGROUND_JOB
+
+
+def test_auto_derive_at_deepest_gapped_scope_raises_max() -> None:
+    bg_container = Container(scope=GappedScope.BACKGROUND_JOB)
+    with pytest.raises(MaxScopeReachedError):
+        bg_container.build_child_container()
 
 
 def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
