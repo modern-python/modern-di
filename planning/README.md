@@ -116,7 +116,7 @@ _None._
   capability truth (scopes, containers, providers, resolution, validation,
   testing & overrides). This is the promotion target on every ship.
 - **[audits/](audits/)** — findings reports (2026-06-05 bug-hunt, 2026-06-12
-  code+docs).
+  code+docs, 2026-06-13 docs-ux, 2026-06-14 deep audit).
 - **[deferred.md](deferred.md)** — real-but-unscheduled items with revisit
   triggers.
 - **[scripts/bug-hunt-audit.workflow.mjs](scripts/bug-hunt-audit.workflow.mjs)**
