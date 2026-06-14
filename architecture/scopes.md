@@ -62,12 +62,13 @@ rules apply. Passing a non-`IntEnum` value raises `InvalidScopeTypeError`.
 ## Worked example
 
 ```python
-from modern_di import Container, Scope
+from modern_di import Container, Group, Scope
 from modern_di import providers
 
+# DatabasePool and UserFromRequest are your own classes.
 class AppGroup(Group):
     # Resolved once and cached for the lifetime of the app container.
-    db_pool = providers.Factory(scope=Scope.APP, creator=DatabasePool, cache_settings=CacheSettings())
+    db_pool = providers.Factory(scope=Scope.APP, creator=DatabasePool, cache_settings=providers.CacheSettings())
 
     # Resolved once per request container.
     current_user = providers.Factory(scope=Scope.REQUEST, creator=UserFromRequest)

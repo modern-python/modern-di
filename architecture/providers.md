@@ -52,6 +52,11 @@ time each parameter is matched against the container's `providers_registry` by i
 If `bound_type` is supplied explicitly it overrides the inferred return type (useful when the creator returns a
 protocol or base class narrower than the concrete type).
 
+A creator parameter that cannot be resolved by type raises `UnsupportedCreatorParameterError` at **declaration
+time**. This fires when a parameter is a parameterized generic (e.g. `list[int]`, `dict[str, Foo]`) or
+positional-only, has no default, and is not supplied via `kwargs`. The three escape hatches are: pass the value
+via `kwargs={...}`, give the parameter a default, or set `skip_creator_parsing=True`.
+
 ### Recursive resolution
 
 When a `Factory` is resolved, `_compile_kwargs` iterates the parsed parameter map. For each parameter it looks up

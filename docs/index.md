@@ -104,20 +104,22 @@ The integration package builds the per-request child container automatically and
 from modern_di import Container, Scope
 
 
-async def main() -> None:
-    # Pass validate=True to detect cycles and scope-chain errors at startup
-    async with Container(groups=[Dependencies], validate=True) as container:
-        # APP-scoped providers resolve straight from the container
-        settings = container.resolve(Settings)
+# Pass validate=True to detect cycles and scope-chain errors at startup
+with Container(groups=[Dependencies], validate=True) as container:
+    # APP-scoped providers resolve straight from the container
+    settings = container.resolve(Settings)
 
-        # REQUEST-scoped providers need a REQUEST child container
-        async with container.build_child_container(scope=Scope.REQUEST) as request:
-            repo = request.resolve(UserRepository)
-            user = repo.find(42)
+    # REQUEST-scoped providers need a REQUEST child container
+    with container.build_child_container(scope=Scope.REQUEST) as request:
+        repo = request.resolve(UserRepository)
+        user = repo.find(42)
 
-        # Request-scope finalizers ran on `async with` exit
-    # App-scope finalizers ran on the outer `async with` exit
+    # Request-scope finalizers ran on `with` exit
+# App-scope finalizers ran on the outer `with` exit
 ```
+
+Resolution is always synchronous. Use `async with` (on both the container and the child) only when a
+provider registers an **async** finalizer — see [Lifecycle](providers/lifecycle.md).
 
 ## Where to next
 

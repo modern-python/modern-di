@@ -2,7 +2,7 @@
 
 ## How to use
 
-1. Install `modern-di-faststream`:
+### 1. Install `modern-di-faststream`
 
 === "uv"
 
@@ -22,7 +22,7 @@
       poetry add modern-di-faststream
       ```
 
-2. Apply this code example to your application:
+### 2. Apply to your application
 
 ```python
 import dataclasses

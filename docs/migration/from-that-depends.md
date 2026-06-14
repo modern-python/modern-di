@@ -332,6 +332,13 @@ async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
 app = fastapi.FastAPI(lifespan=lifespan)
 ```
 
+> This hand-written `lifespan` manages the container yourself (`async with container` runs
+> `close_async` on exit). If you use the [`modern-di-fastapi` integration](../integrations/fastapi.md),
+> `setup_di(app, container)` already appends a lifespan that closes the container — and it **merges**
+> with any `lifespan=` you pass to `FastAPI(...)`. So when combining the integration with a custom
+> async resource, keep the `aiohttp.ClientSession` setup in your `lifespan` but **drop the
+> `async with container` wrapper** to avoid closing the container twice.
+
 Downstream factories declare `client: aiohttp.ClientSession` as a parameter and get the live instance via type-based resolution. Use this pattern for `aiohttp.ClientSession`, `asyncpg.create_pool`, or any resource whose constructor genuinely requires `await` or a running event loop. Resources that *look* async but construct synchronously (`redis.asyncio.Redis.from_url`, `sqlalchemy.ext.asyncio.create_async_engine`, `httpx.AsyncClient`) are better expressed as the previous case — sync creator with an async finalizer.
 
 ### Per-request async construction
