@@ -62,28 +62,29 @@ If no cached instance is returned, `Factory` compiles the keyword arguments need
 once per container per provider via `_ensure_kwargs_cached`, which stores the split result on `CacheItem` so subsequent
 calls (within the same container lifetime) skip recompilation.
 
-`_compile_kwargs` iterates over `_parsed_kwargs` — the `SignatureItem` map produced at provider-declaration time by
-`types_parser.parse_creator`. For each parameter:
+Compilation is **type matching only** — it decides *which* provider (if any) backs each parameter, not what value that
+provider currently holds. It therefore never goes stale and is never invalidated. `_compile_kwargs` iterates over
+`_parsed_kwargs` — the `SignatureItem` map produced at provider-declaration time by `types_parser.parse_creator` — and
+sorts each parameter into one of three buckets stored on the `CacheItem`:
 
-1. **Provider lookup** — `_find_dep_provider` searches `providers_registry` for a provider matching the parameter's
-   resolved type (`arg_type`) or, for union types, any of the union members (`args`). Self-references are excluded.
+1. **Static kwarg shadows** — if the parameter was supplied via the provider's declaration-time `kwargs`, it is taken
+   from there. Provider-valued static kwargs go to `provider_kwargs`; plain values go to `static_kwargs`. These bypass
+   type-based wiring.
 
-2. **Context provider with missing value** — if the found provider is a `ContextProvider` and it has no value set in
-   the current context registry, the parameter falls through to the nullable/default logic below rather than resolving
-   the provider.
+2. **Provider lookup** — otherwise `_find_dep_provider` searches `providers_registry` for a provider matching the
+   parameter's resolved type (`arg_type`) or, for union types, any of the union members (`args`); self-references are
+   excluded. A matching `ContextProvider` goes to `context_kwargs` (resolved live, see Step 5); any other provider goes
+   to `provider_kwargs`.
 
-3. **No provider found / missing context value** — resolution falls back in this order:
-   - If the parameter has a default, it is omitted from the compiled kwargs (the creator's own default applies).
-   - If `SignatureItem.is_nullable` is `True` (the annotation included `None` in a union, e.g. `X | None` or
-     `Optional[X]`), the parameter is set to `None`.
+3. **No provider found** — this is a static graph fact, decided once here:
+   - If the parameter has a default, it is omitted (the creator's own default applies).
+   - If `SignatureItem.is_nullable` is `True` (the annotation included `None`, e.g. `X | None` or `Optional[X]`), it is
+     set to `None` in `static_kwargs`.
    - Otherwise, `ArgumentResolutionError` is raised.
 
-4. **Static kwargs override** — after the loop, `result.update(self._kwargs)` applies any static kwargs supplied at
-   provider-declaration time. These are written last, so they overwrite any provider resolved for the same key. This
-   is the mechanism for supplying literal values that bypass type-based wiring.
-
-The compiled result is split into `provider_kwargs` (values that are `AbstractProvider` instances, to be resolved
-recursively) and `static_kwargs` (plain values including `None` injected for nullable parameters).
+The three buckets — `provider_kwargs` (regular providers, resolved recursively), `static_kwargs` (plain values), and
+`context_kwargs` (`ContextProvider` + its `SignatureItem`, resolved live) — are memoized so subsequent resolves within
+the same container lifetime skip recompilation.
 
 ## Step 5 — Recursive resolution
 
@@ -93,10 +94,21 @@ With compiled kwargs in hand:
 resolved_kwargs = dict(static_kwargs)
 for k, v in provider_kwargs.items():
     resolved_kwargs[k] = container.resolve_provider(v)
+for k, (context_provider, item) in context_kwargs.items():
+    value = self._resolve_context_value(container, k, context_provider, item)
+    if value is not types.UNSET:
+        resolved_kwargs[k] = value
 ```
 
-Each dependency provider is resolved by calling back into `container.resolve_provider`, which re-enters this same
-sequence from Step 1 — override check, then `provider.resolve(container)`. The recursion bottoms out at providers with
+Regular dependency providers are resolved by calling back into `container.resolve_provider`, which re-enters this same
+sequence from Step 1 — override check, then `provider.resolve(container)`.
+
+Context-backed parameters are resolved **live on every resolve**, so a `set_context` after a factory has already
+resolved is always picked up (across scopes, for non-cached factories). `_resolve_context_value` mirrors
+`resolve_provider`'s override check, then reads the live context value; when the value is absent it applies the same
+fallback as Step 4's no-provider case — omit (default applies), `None` (nullable), or raise `ArgumentResolutionError`.
+
+The recursion bottoms out at providers with
 no dependencies or at already-cached instances.
 
 ## Step 6 — Creator call and caching

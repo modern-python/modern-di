@@ -14,6 +14,7 @@ class CacheItem:
     finalized: bool = False
     provider_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
     static_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+    context_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:
@@ -57,12 +58,6 @@ class CacheRegistry:
     def mark_created(self, cache_item: CacheItem) -> None:
         """Record creation completion; close finalizes in reverse of this order (LIFO)."""
         self._creation_order.append(cache_item)
-
-    def invalidate_compiled_kwargs(self) -> None:
-        for cache_item in self._items.values():
-            cache_item.kwargs_compiled = False
-            cache_item.provider_kwargs = {}
-            cache_item.static_kwargs = {}
 
     async def close_async(self) -> None:
         finalizer_errors: list[BaseException] = []

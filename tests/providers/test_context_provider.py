@@ -169,3 +169,103 @@ def test_context_provider_reads_registry_at_its_own_scope_not_resolving_containe
     # context set on the container at the provider's scope is what counts
     app.set_context(_ScopedCtx, value)
     assert request.resolve(_ScopedCtx) is value
+
+
+# --- set_context cross-scope staleness (2026-06-14 deep audit) ---
+#
+# An APP-scoped ContextProvider consumed by a deeper (REQUEST) scoped Factory:
+# the factory's compiled kwargs live in the request child's cache_registry, so a
+# late app.set_context must still be picked up by subsequent resolves from that
+# child. Context values are resolved live, not baked in at first resolve.
+
+
+class _CrossCtx: ...
+
+
+class _CrossDefaultSvc:
+    def __init__(self, ctx: _CrossCtx | None = None) -> None:
+        self.ctx = ctx
+
+
+class _CrossNullableSvc:
+    def __init__(self, ctx: _CrossCtx | None) -> None:
+        self.ctx = ctx
+
+
+class _CrossRequiredSvc:
+    def __init__(self, ctx: _CrossCtx) -> None:
+        self.ctx = ctx
+
+
+class _CrossDefaultGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_CrossCtx)
+    svc = providers.Factory(scope=Scope.REQUEST, creator=_CrossDefaultSvc)
+
+
+class _CrossNullableGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_CrossCtx)
+    svc = providers.Factory(scope=Scope.REQUEST, creator=_CrossNullableSvc)
+
+
+class _CrossRequiredGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_CrossCtx)
+    svc = providers.Factory(scope=Scope.REQUEST, creator=_CrossRequiredSvc)
+
+
+def test_late_app_context_seen_by_request_factory_defaulted_param() -> None:
+    app = Container(scope=Scope.APP, groups=[_CrossDefaultGroup])
+    request = app.build_child_container(scope=Scope.REQUEST)
+    assert request.resolve(_CrossDefaultSvc).ctx is None  # context unset at first resolve
+    value = _CrossCtx()
+    app.set_context(_CrossCtx, value)
+    assert request.resolve(_CrossDefaultSvc).ctx is value  # picked up live across scopes
+
+
+def test_late_app_context_seen_by_request_factory_nullable_param() -> None:
+    app = Container(scope=Scope.APP, groups=[_CrossNullableGroup])
+    request = app.build_child_container(scope=Scope.REQUEST)
+    assert request.resolve(_CrossNullableSvc).ctx is None
+    value = _CrossCtx()
+    app.set_context(_CrossCtx, value)
+    assert request.resolve(_CrossNullableSvc).ctx is value
+
+
+def test_late_app_context_required_param_raises_then_resolves_across_scopes() -> None:
+    app = Container(scope=Scope.APP, groups=[_CrossRequiredGroup])
+    request = app.build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(ArgumentResolutionError):
+        request.resolve(_CrossRequiredSvc)
+    value = _CrossCtx()
+    app.set_context(_CrossCtx, value)
+    assert request.resolve(_CrossRequiredSvc).ctx is value
+
+
+def test_override_of_context_param_applies_after_first_resolve_across_scopes() -> None:
+    app = Container(scope=Scope.APP, groups=[_CrossDefaultGroup])
+    request = app.build_child_container(scope=Scope.REQUEST)
+    assert request.resolve(_CrossDefaultSvc).ctx is None
+    override_value = _CrossCtx()
+    app.override(_CrossDefaultGroup.ctx, override_value)
+    assert request.resolve(_CrossDefaultSvc).ctx is override_value
+
+
+class _CachedCtxSvc:
+    def __init__(self, ctx: _CrossCtx | None = None) -> None:
+        self.ctx = ctx
+
+
+class _CachedCtxGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=_CrossCtx)
+    svc = providers.Factory(scope=Scope.APP, creator=_CachedCtxSvc, cache_settings=providers.CacheSettings())
+
+
+def test_late_context_does_not_rebuild_cached_singleton() -> None:
+    # Documented limitation: a cached factory's instance is fixed at first build;
+    # a later set_context does not retroactively rebuild it.
+    app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
+    first = app.resolve(_CachedCtxSvc)
+    assert first.ctx is None
+    app.set_context(_CrossCtx, _CrossCtx())
+    second = app.resolve(_CachedCtxSvc)
+    assert second is first
+    assert second.ctx is None
