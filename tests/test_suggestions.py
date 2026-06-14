@@ -64,13 +64,14 @@ def test_typo_suggestion() -> None:
     with pytest.raises(ProviderNotRegisteredError) as exc_info:
         container.resolve(Repostory)
 
-    assert str(exc_info.value) == (
-        "Provider of type "
-        "<class 'tests.test_suggestions.test_typo_suggestion.<locals>.Repostory'> "
-        "is not registered in providers registry.\n"
-        "Did you mean:\n"
-        "  - Repository (similar name, scope=APP)"
-    )
+    # Assert the structured suggestion + message essence rather than the full rendered string,
+    # which would otherwise embed the brittle `<locals>.Repostory` repr (couples to this test's name).
+    exc = exc_info.value
+    assert exc.provider_type is Repostory
+    assert exc.suggestions == ["  - Repository (similar name, scope=APP)"]
+    rendered = str(exc)
+    assert "is not registered in providers registry" in rendered
+    assert "Did you mean:" in rendered
 
 
 def test_suggestion_includes_provider_scope() -> None:

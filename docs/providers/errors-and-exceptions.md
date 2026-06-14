@@ -72,7 +72,9 @@ Catch `ContainerError` for any container/scope failure.
 
 Catch `ResolutionError` for any resolution failure. These carry a `dependency_path` that is
 accumulated as the error propagates, so the message shows the full chain from the requested type
-down to the failing dependency.
+down to the failing dependency. `dependency_path` is a `list[ResolutionStep]`, where each
+`ResolutionStep` (importable from `modern_di.exceptions`) has a `.scope` and a `.name` — inspect it
+to render the chain programmatically.
 
 - **`ProviderNotRegisteredError`** — raised by `resolve(SomeType)` when no provider is registered for
   the type. The message includes "did you mean…" suggestions when a close match exists. See

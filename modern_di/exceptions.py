@@ -11,6 +11,14 @@ if typing.TYPE_CHECKING:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ResolutionStep:
+    """One entry in a :class:`ResolutionError`'s ``dependency_path``.
+
+    Attributes:
+        scope: the scope of the provider at this step of the resolution chain.
+        name: the provider's display name (bound type or creator name).
+
+    """
+
     scope: enum.IntEnum
     name: str
 
@@ -28,6 +36,8 @@ class ContainerError(ModernDIError):
 
 
 class InvalidChildScopeError(ContainerError):
+    """Child scope is not deeper than the parent. Inspect ``.parent_scope``, ``.child_scope``, ``.allowed_scopes``."""
+
     __slots__ = ("allowed_scopes", "child_scope", "parent_scope")
 
     def __init__(self, *, parent_scope: enum.IntEnum, child_scope: enum.IntEnum, allowed_scopes: list[str]) -> None:
@@ -44,6 +54,8 @@ class InvalidChildScopeError(ContainerError):
 
 
 class MaxScopeReachedError(ContainerError):
+    """No scope deeper than ``.parent_scope`` exists, so no child scope can be auto-derived."""
+
     __slots__ = ("parent_scope",)
 
     def __init__(self, *, parent_scope: enum.IntEnum) -> None:
@@ -52,6 +64,8 @@ class MaxScopeReachedError(ContainerError):
 
 
 class ScopeNotInitializedError(ContainerError):
+    """Provider's scope is deeper than any active container. Inspect ``.provider_scope``, ``.container_scope``."""
+
     __slots__ = ("container_scope", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
@@ -66,6 +80,8 @@ class ScopeNotInitializedError(ContainerError):
 
 
 class ScopeSkippedError(ContainerError):
+    """Provider's scope was skipped in the container chain. Attrs: ``provider_scope``, ``container_scope``."""
+
     __slots__ = ("container_scope", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
@@ -80,6 +96,8 @@ class ScopeSkippedError(ContainerError):
 
 
 class InvalidScopeTypeError(ContainerError):
+    """A non-``IntEnum`` value was passed as a scope. Inspect ``.scope_value``."""
+
     __slots__ = ("scope_value",)
 
     def __init__(self, *, scope_value: typing.Any) -> None:  # noqa: ANN401
@@ -93,6 +111,8 @@ class InvalidScopeTypeError(ContainerError):
 
 
 class ContainerClosedError(ContainerError):
+    """Operation attempted on a closed container. Attr: ``container_scope``; re-enter the ``with`` block to reopen."""
+
     __slots__ = ("container_scope",)
 
     def __init__(self, *, container_scope: enum.IntEnum) -> None:
@@ -133,6 +153,8 @@ class ResolutionError(ModernDIError):
 
 
 class ProviderNotRegisteredError(ResolutionError):
+    """No provider registered for the requested type. Inspect ``.provider_type`` and ``.suggestions``."""
+
     __slots__ = ("provider_type", "suggestions")
 
     def __init__(
@@ -150,6 +172,8 @@ class ProviderNotRegisteredError(ResolutionError):
 
 
 class AliasSourceNotRegisteredError(ResolutionError):
+    """An ``Alias`` points at a ``.source_type`` that has no registered provider."""
+
     __slots__ = ("source_type",)
 
     def __init__(self, *, source_type: type) -> None:
@@ -158,6 +182,8 @@ class AliasSourceNotRegisteredError(ResolutionError):
 
 
 class ArgumentResolutionError(ResolutionError):
+    """Creator parameter could not be wired. Attrs: ``arg_name``, ``arg_type``, ``bound_type``, ``suggestions``."""
+
     __slots__ = ("arg_name", "arg_type", "bound_type", "suggestions")
 
     def __init__(
@@ -190,6 +216,8 @@ class ArgumentResolutionError(ResolutionError):
 
 
 class CreatorCallError(ResolutionError):
+    """A creator's dependencies resolved but the creator itself raised. Inspect ``.creator`` and ``.original_error``."""
+
     __slots__ = ("creator", "original_error")
 
     def __init__(self, *, creator: typing.Any, original_error: Exception) -> None:  # noqa: ANN401
@@ -200,6 +228,8 @@ class CreatorCallError(ResolutionError):
 
 
 class CircularDependencyError(ResolutionError):
+    """A dependency cycle was detected by ``validate()``. Inspect ``.cycle_path`` (the loop as type names)."""
+
     __slots__ = ("cycle_path",)
 
     def __init__(self, *, cycle_path: list[str]) -> None:
@@ -214,6 +244,8 @@ class RegistrationError(ModernDIError):
 
 
 class DuplicateProviderTypeError(RegistrationError):
+    """Two providers were registered for the same ``.provider_type``."""
+
     __slots__ = ("provider_type",)
 
     def __init__(self, *, provider_type: type) -> None:
@@ -222,6 +254,8 @@ class DuplicateProviderTypeError(RegistrationError):
 
 
 class UnknownFactoryKwargError(RegistrationError):
+    """Factory kwargs had unknown keys. Attrs: ``creator``, ``unknown_keys``, ``known_keys``, ``suggestions``."""
+
     __slots__ = ("creator", "known_keys", "suggestions", "unknown_keys")
 
     def __init__(
@@ -250,6 +284,8 @@ class UnknownFactoryKwargError(RegistrationError):
 
 
 class UnsupportedCreatorParameterError(RegistrationError):
+    """A creator parameter cannot be wired by type. Inspect ``.creator``, ``.parameter_name``, ``.reason``."""
+
     __slots__ = ("creator", "parameter_name", "reason")
 
     def __init__(self, *, creator: typing.Any, parameter_name: str, reason: str) -> None:  # noqa: ANN401
@@ -265,6 +301,8 @@ class UnsupportedCreatorParameterError(RegistrationError):
 
 
 class InvalidScopeDependencyError(RegistrationError):
+    """A provider depends on a deeper-scoped one. Inspect ``.provider``, ``.parameter_name``, ``.dep_provider``."""
+
     __slots__ = ("dep_provider", "parameter_name", "provider")
 
     def __init__(
@@ -292,6 +330,8 @@ class InvalidScopeDependencyError(RegistrationError):
 
 
 class ValidationFailedError(ContainerError):
+    """``validate()`` found one or more issues. Inspect ``.errors`` (the list of underlying exceptions)."""
+
     __slots__ = ("errors",)
 
     def __init__(self, *, errors: list[Exception]) -> None:
@@ -307,6 +347,8 @@ class ValidationFailedError(ContainerError):
 
 
 class FinalizerError(ModernDIError):
+    """One or more finalizers raised during close. Inspect ``.finalizer_errors`` and ``.is_async``."""
+
     __slots__ = ("finalizer_errors", "is_async")
 
     def __init__(self, *, finalizer_errors: list[BaseException], is_async: bool) -> None:
@@ -328,6 +370,8 @@ class AsyncFinalizerInSyncCloseError(ModernDIError):
 
 
 class GroupInstantiationError(ModernDIError):
+    """A ``Group`` subclass was instantiated. Inspect ``.group_name``; groups are namespaces, never objects."""
+
     __slots__ = ("group_name",)
 
     def __init__(self, *, group_name: str) -> None:

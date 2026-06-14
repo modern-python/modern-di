@@ -32,17 +32,17 @@ def test_chain_appears_when_arg_unresolvable() -> None:
         container.resolve(MyService)
 
     exc = exc_info.value
+    # The structured path is the stable contract; the rendered string is checked via substrings
+    # rather than exact whitespace so cosmetic formatting can evolve without churning this test.
     assert exc.dependency_path == [
         ResolutionStep(scope=Scope.APP, name="MyService"),
         ResolutionStep(scope=Scope.APP, name="Repository"),
     ]
-    assert str(exc) == (
-        "Cannot resolve dependency chain:\n"
-        "  APP  MyService\n"
-        "  APP  └─> Repository\n"
-        "  caused by: Argument db of type <class 'tests.test_dependency_path.Database'> "
-        "cannot be resolved. Trying to build dependency <class 'tests.test_dependency_path.Repository'>."
-    )
+    rendered = str(exc)
+    assert rendered.startswith("Cannot resolve dependency chain:")
+    assert "MyService" in rendered
+    assert "└─> Repository" in rendered
+    assert "caused by: Argument db" in rendered
 
 
 def test_no_chain_when_top_level_provider_missing() -> None:
