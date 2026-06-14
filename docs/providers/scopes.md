@@ -34,6 +34,8 @@ with app_container.build_child_container(scope=Scope.REQUEST) as request_contain
     ...
 ```
 
+`Dependencies` here is a `Group` subclass holding the provider definitions — see the [Quick Start](../index.md) or [Resolving dependencies](../introduction/resolving.md) for how it's declared.
+
 Children share their parent's `providers_registry` (provider definitions) and `overrides_registry` (test overrides) but have their own `cache_registry` (resolved instances) and `context_registry` (runtime context values). That's why a REQUEST-scoped factory produces one instance per request — the cache lives on the request container, not the app container.
 
 ## The scope dependency rule
@@ -68,6 +70,8 @@ async with app_container.build_child_container(scope=Scope.REQUEST) as request_c
 # async finalizers ran here
 ```
 
+Use `async with` only when the scope holds providers with async finalizers; otherwise plain `with` is enough. Resolution itself is always synchronous.
+
 **Framework-managed.** Integration packages (`modern-di-fastapi`, `modern-di-litestar`, `modern-di-faststream`) build the REQUEST child container for each request and tear it down at the end. You only declare `scope=Scope.REQUEST` on the providers that need it.
 
 ## Resolving across scopes
@@ -80,7 +84,7 @@ engine: AsyncEngine = request_container.resolve(AsyncEngine)  # walks up to APP
 session: AsyncSession = request_container.resolve(AsyncSession)  # local to REQUEST
 ```
 
-Trying to resolve a REQUEST-scoped provider from an APP container raises a clear error — the request container hasn't been built yet, so there's nothing to resolve into.
+Trying to resolve a REQUEST-scoped provider from an APP container raises [`ScopeNotInitializedError`](errors-and-exceptions.md) — the request container hasn't been built yet, so there's nothing to resolve into.
 
 ## Custom scopes
 
@@ -88,7 +92,7 @@ For non-standard lifecycles (per-tenant containers, background-job runs, anythin
 
 ```python
 from enum import IntEnum
-from modern_di import Container, providers
+from modern_di import Container, Group, providers
 
 
 class MyScope(IntEnum):
@@ -96,11 +100,17 @@ class MyScope(IntEnum):
     BACKGROUND_JOB = 7
 
 
-tenant_provider = providers.Factory(scope=MyScope.TENANT, creator=...)
+class TenantContext:
+    pass
+
+
+class MyGroup(Group):
+    tenant_provider = providers.Factory(scope=MyScope.TENANT, creator=TenantContext)
+
 
 container = Container(groups=[MyGroup])
 with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
-    ...
+    tenant = tenant_container.resolve(TenantContext)
 ```
 
 The child scope's integer value must be strictly greater than its parent's. When `scope=` is omitted from `build_child_container`, the auto-derived next scope only advances within the parent's own enum class — to cross enum boundaries (e.g. jump from a built-in `Scope` to `MyScope.TENANT`), pass `scope=` explicitly.

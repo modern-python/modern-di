@@ -29,7 +29,7 @@ The codebase is type-checked with `ty` and linted with ruff's full rule set (`se
 
 ## 5. Conservative feature set
 
-New features get added only when existing primitives genuinely cannot solve the task. The core has five providers (`Factory`, `Alias`, `ContextProvider`, `container_provider`, `AbstractProvider`) — most other DI frameworks have two to three times that. This is deliberate: a small, composable core is easier to learn, easier to test, and easier to keep correct.
+New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton — most other DI frameworks have two to three times that. This is deliberate: a small, composable core is easier to learn, easier to test, and easier to keep correct.
 
 ## See also
 

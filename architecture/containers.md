@@ -6,8 +6,7 @@ providers — resolution, scoping, overriding — flows through a `Container`.
 ## Creating a root container
 
 ```python
-from modern_di import Container, Scope
-from modern_di.group import Group
+from modern_di import Container, Scope, Group
 
 class MyGroup(Group):
     ...
@@ -73,6 +72,17 @@ dependency.
 under `Container` rather than inferred from a type annotation).
 
 ## Lifecycle: close and reopen
+
+The idiomatic happy path is the `with` statement: it builds the container, runs finalizers in
+LIFO order on the way out, and guarantees close even if the body raises. Most code never needs to
+call `close_sync()`/`close_async()` directly.
+
+```python
+with Container(scope=Scope.APP, groups=[MyGroup]) as container:
+    ...  # resolve providers here; finalizers run on exit
+```
+
+The rest of this section documents what that close performs and how reopen works.
 
 ### Closing
 

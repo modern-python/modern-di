@@ -27,7 +27,6 @@
 ### 2. Apply to your application
 ```python
 import datetime
-import typing
 
 from litestar import Litestar, get
 import modern_di_litestar

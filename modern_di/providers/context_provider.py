@@ -11,6 +11,15 @@ if typing.TYPE_CHECKING:
 
 
 class ContextProvider(AbstractProvider[types.T_co]):
+    """Provider for a runtime value supplied at container-build time.
+
+    The value is passed via ``build_child_container(context={SomeType: value})``
+    and looked up from the context registry at this provider's bound scope.
+    Resolving it directly when no value is set returns ``None``; injecting it into
+    a non-nullable, no-default ``Factory`` parameter instead raises
+    ``ArgumentResolutionError``.
+    """
+
     __slots__ = ("_context_type",)
 
     def __init__(

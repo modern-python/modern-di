@@ -18,6 +18,14 @@ if typing.TYPE_CHECKING:
 
 
 class Container:
+    """DI container — the central object that resolves providers within a scope.
+
+    A root container is created with ``Container(scope=Scope.APP, groups=[...])``;
+    child containers come from :meth:`build_child_container`. A child shares the
+    parent's ``providers_registry`` and ``overrides_registry`` but owns its own
+    ``cache_registry`` and ``context_registry``.
+    """
+
     __slots__ = (
         "cache_registry",
         "closed",
@@ -39,6 +47,14 @@ class Container:
         use_lock: bool = True,
         validate: bool = False,
     ) -> None:
+        """Build a container at ``scope``.
+
+        ``validate=True`` checks the provider graph (cycles plus scope ordering)
+        at construction time. ``context`` seeds this container's context registry.
+        A root container owns fresh registries; a child (with ``parent_container``
+        set) shares the parent's providers/overrides registries and inherits its
+        scope map.
+        """
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
@@ -105,6 +121,7 @@ class Container:
         return self.scope_map[scope]
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
+        """Resolve a dependency by its type."""
         provider = self.providers_registry.find_provider(dependency_type)
         if not provider:
             raise exceptions.ProviderNotRegisteredError(
@@ -115,6 +132,7 @@ class Container:
         return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
+        """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
         if self.closed:
             raise exceptions.ContainerClosedError(container_scope=self.scope)
 

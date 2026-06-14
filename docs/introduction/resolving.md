@@ -30,10 +30,11 @@ class DatabaseConnection:
 
 class Dependencies(Group):
     db_config = providers.Factory(
+        scope=Scope.APP,
         creator=DatabaseConfig,
         kwargs={"host": "localhost", "port": 5432},
     )
-    db_connection = providers.Factory(creator=DatabaseConnection)
+    db_connection = providers.Factory(scope=Scope.APP, creator=DatabaseConnection)
 
 
 container = Container(groups=[Dependencies], validate=True)
@@ -43,7 +44,7 @@ assert connection.config.host == "localhost"
 assert connection.timeout == 30
 ```
 
-For union-typed parameters (`dep: A | B`), the resolver picks the *first* type in the union that has a registered provider. If you need a specific one, use a concrete annotation or pass the value explicitly via `kwargs`.
+For union-typed parameters (`dep: A | B`), the resolver picks the *first* type in the union that has a registered provider. If you need a specific one, use a concrete annotation or pass the value explicitly via `kwargs`. A parameter typed `X | None` with no matching provider and no default value receives `None` rather than raising (see [Factories: Optional parameters](../providers/factories.md)).
 
 ## See also
 

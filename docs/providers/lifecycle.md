@@ -2,6 +2,12 @@
 
 How instances are created, cached, and cleaned up.
 
+The code blocks below assume the following import, and `Dependencies` is a user-defined `Group`:
+
+```python
+from modern_di import Container, Scope, providers, exceptions
+```
+
 ## Lazy initialization
 
 `modern-di` creates instances on first resolve. There is no `init_resources()` or "eager startup" call — if a provider is never resolved, its creator never runs.
@@ -61,7 +67,7 @@ async with container:
     ...
 ```
 
-Closing a container runs its finalizers in reverse-resolve order, then clears the cache.
+Closing a container runs its finalizers in reverse-creation order (creation order equals first-resolve order, since creation is lazy), then clears the cache.
 
 ## Close-failure semantics
 

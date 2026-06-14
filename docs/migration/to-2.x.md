@@ -209,10 +209,10 @@ with container.build_child_container(context=context, scope=Scope.REQUEST) as re
 ```python
 # Same context-manager form continues to work
 with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
-    # Use request_container
+    service = request_container.resolve(MyService)
 
 async with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
-    # Use request_container
+    service = request_container.resolve(MyService)
 
 # If you need manual lifecycle control, call close_sync() or await close_async() yourself
 request_container = container.build_child_container(context=context, scope=Scope.REQUEST)

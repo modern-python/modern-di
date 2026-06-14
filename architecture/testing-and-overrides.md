@@ -61,12 +61,12 @@ cached instance. After `reset_override`, the original cache entry (if any) is st
 Define a `Group` subclass with providers as class-level attributes and pass it to `Container`:
 
 ```python
-from modern_di import Container, Scope, providers
-from modern_di.group import Group
+from modern_di import Container, Scope, providers, Group
 
 class MyGroup(Group):
-    service = providers.Factory(scope=Scope.APP, creator=MyService)
-    repo    = providers.Factory(scope=Scope.APP, creator=MyRepo)
+    service               = providers.Factory(scope=Scope.APP, creator=MyService)
+    repo                  = providers.Factory(scope=Scope.APP, creator=MyRepo)
+    request_scoped_service = providers.Factory(scope=Scope.REQUEST, creator=RequestScopedService)
 
 container = Container(scope=Scope.APP, groups=[MyGroup])
 ```
