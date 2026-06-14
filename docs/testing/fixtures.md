@@ -4,7 +4,7 @@ Two ways to wire `modern-di` into tests:
 
 1. **Recommended — `modern-di-pytest`.** Generates pytest fixtures from your providers. One line per dependency, or one line for the whole `Group`. See the [pytest integration page](../integrations/pytest.md) for the full setup including `expose(...)`, `modern_di_fixture(...)`, child-container fixtures, and overrides.
 
-2. **Plain `modern-di` (without the helper package).** Define `di_container` as a session-scoped pytest fixture using `Container(...)` as a context manager; build a request-container fixture from it; resolve dependencies inside tests with `container.resolve(...)`. See the same pytest integration page for a worked example.
+2. **Plain `modern-di` (without the helper package).** Define `di_container` as a session-scoped pytest fixture using `Container(...)` as a context manager; build a request-container fixture from it; resolve dependencies inside tests with `container.resolve(...)`. See the [testing-with-overrides recipe](../recipes/testing-overrides.md) for a worked example.
 
 For replacing dependencies in tests (mocks, transactional database sessions, etc.), see the [testing-with-overrides recipe](../recipes/testing-overrides.md).
 

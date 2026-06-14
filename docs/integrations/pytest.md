@@ -63,6 +63,8 @@ from app.services import EmailClient
 # duplicate names across groups raise ValueError. Non-Provider attributes
 # are skipped.
 expose(Dependencies, Auth, Billing)
+# e.g. user_service is the attribute name on the Dependencies group,
+# so it becomes the user_service fixture used in the tests below.
 
 # Manual: a single type or Provider as a named fixture.
 email_client = modern_di_fixture(EmailClient)
@@ -159,3 +161,5 @@ def mock_user_repo(di_container: modern_di.Container) -> typing.Iterator[None]:
     yield
     di_container.reset_override(Dependencies.user_repo)
 ```
+
+For deeper patterns (transactional DB sessions, resetting all overrides) see the [testing-with-overrides recipe](../recipes/testing-overrides.md).

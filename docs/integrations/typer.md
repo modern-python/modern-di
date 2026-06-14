@@ -28,7 +28,6 @@
 import dataclasses
 import typing
 
-import modern_di
 import modern_di_typer
 import typer
 from modern_di import Container, Group, Scope, providers
@@ -88,6 +87,8 @@ To resolve `Scope.ACTION` dependencies, inject `modern_di.Container` — `@injec
 `REQUEST`-scoped container it creates per invocation. Call `build_child_container()` on it to enter
 `ACTION` scope:
 
+Building on the first example's `app` and `container`:
+
 ```python
 import modern_di
 import modern_di_typer
@@ -95,8 +96,12 @@ import typing
 from modern_di import Group, Scope, providers
 
 
+class Job:
+    def run(self) -> None: ...
+
+
 class AppGroup(Group):
-    job = providers.Factory(scope=Scope.ACTION, creator=..., bound_type=None)
+    job = providers.Factory(scope=Scope.ACTION, creator=Job, bound_type=None)
 
 
 @app.command()

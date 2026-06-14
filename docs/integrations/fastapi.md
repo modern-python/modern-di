@@ -54,7 +54,7 @@ class AppGroup(Group):
 ALL_GROUPS = [AppGroup]
 
 # Setup DI with your groups
-modern_di_fastapi.setup_di(app, Container(groups=ALL_GROUPS))
+modern_di_fastapi.setup_di(app, Container(groups=ALL_GROUPS, validate=True))
 
 
 @app.get("/")
@@ -166,3 +166,13 @@ class AppGroup(Group):
         kwargs={"request": modern_di_fastapi.fastapi_request_provider}
     )
 ```
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `setup_di(app, container)` | Registers the container on the FastAPI app and appends a lifespan that closes it on shutdown (merges with any existing `lifespan=`); returns the container. |
+| `FromDI(dependency, *, use_cache=True)` | A `fastapi.Depends` wrapper that resolves a provider (or type) from the per-request child container. |
+| `build_di_container(connection)` | A `fastapi.Depends` callable that yields the per-request child container — REQUEST scope for an HTTP request, SESSION scope for a WebSocket. |
+| `fastapi_request_provider` | `ContextProvider` for `fastapi.Request` (REQUEST scope), auto-registered. |
+| `fastapi_websocket_provider` | `ContextProvider` for `fastapi.WebSocket` (SESSION scope), auto-registered. |
