@@ -74,6 +74,10 @@ _None._
 
 ### Archived (shipped)
 
+- **[audit-doc-rulings-batch1](changes/archive/2026-06-14.03-audit-doc-rulings-batch1/plan.md)**
+  (#217, 2026-06-14) — Action batch-1 rulings from the 2026-06-14 deep audit
+  (B-4 pin, B-5/S-1/S-2 doc notes, A-1 comment + nogil caveat; A-2 closed).
+  Doc/test/comment-only. Plan-only; spec = the audit report.
 - **[set-context-cross-scope-staleness](changes/archive/2026-06-14.02-set-context-cross-scope-staleness/design.md)**
   (#216, 2026-06-14) — Resolve `ContextProvider` params live so a late
   `set_context` always propagates (cross-scope, non-cached); delete dead

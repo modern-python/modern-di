@@ -20,10 +20,16 @@ shipped in **#216** (`ContextProvider` values now resolve live on every resolve;
 `invalidate_compiled_kwargs` deleted; docstring + `architecture/` updated; regression
 tests added). See
 [bundle](../changes/archive/2026-06-14.02-set-context-cross-scope-staleness/design.md).
-All other findings are **open** (none cleared the bar for a change bundle). Two of them
-shifted slightly post-#216: **R-2** is now *more* relevant (the fix added a second
+Two findings shifted slightly post-#216: **R-2** is now *more* relevant (the fix added a second
 `ContextProvider._find_context_value` reach-in), and **R-5** is *partially* addressed (the
 fix extracted a shared `_argument_resolution_error` helper).
+
+**Status (2026-06-14, batch 1):** the approved doc/test/comment-only rulings shipped in **#217** —
+**B-4** (pinning test), **B-5**/**S-1**/**S-2** (doc notes), **A-1** (GIL-benign comment + nogil
+caveat in [`deferred.md`](../deferred.md)); **A-2** closed (already documented intentional). See
+[bundle](../changes/archive/2026-06-14.03-audit-doc-rulings-batch1/plan.md). Still **open**: **B-3**,
+**P-1**, **P-2**, **P-6**, **X-2**, **X-3**, **X-4**, **X-5**, **R-1**–**R-6**, **S-1**/**S-2** code
+follow-ups (if ever), **A-1** nogil follow-up. P-3/P-4/P-5 are verified non-issues; **RF-1** refuted.
 
 | Category | High | Medium | Low | None/Clean | Refuted | Total |
 |---|---|---|---|---|---|---|
