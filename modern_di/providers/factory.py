@@ -120,66 +120,89 @@ class Factory(AbstractProvider[types.T_co]):
                 return provider
         return None
 
-    def _compile_kwargs(self, container: "Container") -> dict[str, typing.Any]:
-        result: dict[str, typing.Any] = {}
+    def _argument_resolution_error(
+        self, arg_name: str, item: SignatureItem, suggestions: list[str]
+    ) -> exceptions.ArgumentResolutionError:
+        return exceptions.ArgumentResolutionError(
+            arg_name=arg_name,
+            arg_type=item.arg_type,
+            bound_type=self.bound_type or self._creator,
+            suggestions=suggestions,
+            member_types=item.args,
+        )
+
+    def _compile_kwargs(
+        self, container: "Container"
+    ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any], dict[str, typing.Any]]:
+        """Partition parameters into live providers, static values, and live context lookups.
+
+        ``context_kwargs`` holds parameters backed by a ``ContextProvider``; their value is
+        looked up on every resolve (so a late ``set_context`` is always picked up) and the
+        value-absent decision (default / None / raise) is deferred to resolve time. A
+        parameter with no registered provider is a static graph fact, decided once here.
+        """
+        provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
+        static_kwargs: dict[str, typing.Any] = {}
+        context_kwargs: dict[str, typing.Any] = {}
         for k, v in self._parsed_kwargs.items():
+            if self._kwargs and k in self._kwargs:
+                continue  # supplied as a static kwarg below
             provider = self._find_dep_provider(container, v)
-            is_kwarg_not_found = not self._kwargs or k not in self._kwargs
-            if provider:
-                if (
-                    is_kwarg_not_found
-                    and isinstance(provider, ContextProvider)
-                    and provider._find_context_value(container) is types.UNSET  # noqa: SLF001
-                ):
-                    if v.default is not types.UNSET:
-                        continue
-                    if v.is_nullable:
-                        result[k] = None
-                        continue
-                    raise exceptions.ArgumentResolutionError(
-                        arg_name=k,
-                        arg_type=v.arg_type,
-                        bound_type=self.bound_type or self._creator,
-                        member_types=v.args,
-                    )
-                result[k] = provider
+            if provider is not None:
+                if isinstance(provider, ContextProvider):
+                    context_kwargs[k] = (provider, v)
+                else:
+                    provider_kwargs[k] = provider
                 continue
 
-            if v.default is types.UNSET and is_kwarg_not_found:
-                if v.is_nullable:
-                    result[k] = None
-                    continue
-                suggestions = (
-                    container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
-                )
-                raise exceptions.ArgumentResolutionError(
-                    arg_name=k,
-                    arg_type=v.arg_type,
-                    bound_type=self.bound_type or self._creator,
-                    suggestions=suggestions,
-                    member_types=v.args,
-                )
+            if v.default is not types.UNSET:
+                continue
+            if v.is_nullable:
+                static_kwargs[k] = None
+                continue
+            suggestions = container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
+            raise self._argument_resolution_error(k, v, suggestions)
 
         if self._kwargs:
-            result.update(self._kwargs)
-        return result
+            for k, static_value in self._kwargs.items():
+                if isinstance(static_value, AbstractProvider):
+                    provider_kwargs[k] = static_value
+                else:
+                    static_kwargs[k] = static_value
+        return provider_kwargs, static_kwargs, context_kwargs
 
     def _ensure_kwargs_cached(
         self, container: "Container", cache_item: "CacheItem"
-    ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any]]:
+    ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any], dict[str, typing.Any]]:
         if not cache_item.kwargs_compiled:
-            kwargs = self._compile_kwargs(container)
-            provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
-            static_kwargs: dict[str, typing.Any] = {}
-            for k, v in kwargs.items():
-                if isinstance(v, AbstractProvider):
-                    provider_kwargs[k] = v
-                else:
-                    static_kwargs[k] = v
+            provider_kwargs, static_kwargs, context_kwargs = self._compile_kwargs(container)
             cache_item.provider_kwargs = provider_kwargs
             cache_item.static_kwargs = static_kwargs
+            cache_item.context_kwargs = context_kwargs
             cache_item.kwargs_compiled = True
-        return cache_item.provider_kwargs, cache_item.static_kwargs
+        return cache_item.provider_kwargs, cache_item.static_kwargs, cache_item.context_kwargs
+
+    def _resolve_context_value(
+        self, container: "Container", arg_name: str, provider: ContextProvider[typing.Any], item: SignatureItem
+    ) -> typing.Any:  # noqa: ANN401
+        """Resolve a context-backed parameter live. Returns ``types.UNSET`` to omit the kwarg.
+
+        Mirrors ``Container.resolve_provider``'s override handling, then reads the live context
+        value; an absent value falls back to the creator default (omit), ``None`` (nullable),
+        or raises ``ArgumentResolutionError`` (required).
+        """
+        if container.overrides_registry.overrides:
+            override = container.overrides_registry.fetch_override(provider.provider_id)
+            if override is not types.UNSET:
+                return override
+        value = provider._find_context_value(container)  # noqa: SLF001
+        if value is not types.UNSET:
+            return value
+        if item.default is not types.UNSET:
+            return types.UNSET
+        if item.is_nullable:
+            return None
+        raise self._argument_resolution_error(arg_name, item, [])
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter-name → dependency-provider mapping using only the providers registry.
@@ -231,6 +254,17 @@ class Factory(AbstractProvider[types.T_co]):
             error.prepend_step(self._resolution_step())
             raise error from exc
 
+    def _resolve_kwargs(self, container: "Container", cache_item: "CacheItem") -> dict[str, typing.Any]:
+        provider_kwargs, static_kwargs, context_kwargs = self._ensure_kwargs_cached(container, cache_item)
+        resolved_kwargs = dict(static_kwargs)
+        for k, v in provider_kwargs.items():
+            resolved_kwargs[k] = container.resolve_provider(v)
+        for k, (context_provider, item) in context_kwargs.items():
+            value = self._resolve_context_value(container, k, context_provider, item)
+            if value is not types.UNSET:
+                resolved_kwargs[k] = value
+        return resolved_kwargs
+
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
         if container.closed:
@@ -241,10 +275,7 @@ class Factory(AbstractProvider[types.T_co]):
             return cache_item.cache
 
         try:
-            provider_kwargs, static_kwargs = self._ensure_kwargs_cached(container, cache_item)
-            resolved_kwargs = dict(static_kwargs)
-            for k, v in provider_kwargs.items():
-                resolved_kwargs[k] = container.resolve_provider(v)
+            resolved_kwargs = self._resolve_kwargs(container, cache_item)
         except exceptions.ResolutionError as exc:
             exc.prepend_step(self._resolution_step())
             raise

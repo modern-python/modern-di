@@ -14,6 +14,7 @@ class CacheItem:
     finalized: bool = False
     provider_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
     static_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+    context_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:
