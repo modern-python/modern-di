@@ -53,7 +53,12 @@ class CacheRegistry:
         return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
 
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
-        return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
+        # get-then-set rather than setdefault: setdefault would construct (and discard) a
+        # throwaway CacheItem on every cache hit, since its default arg is evaluated eagerly.
+        item = self._items.get(provider.provider_id)
+        if item is None:
+            item = self._items[provider.provider_id] = CacheItem(settings=provider.cache_settings)
+        return item
 
     def mark_created(self, cache_item: CacheItem) -> None:
         """Record creation completion; close finalizes in reverse of this order (LIFO)."""
