@@ -51,12 +51,15 @@ async def test_app_singleton() -> None:
     assert singleton1 is singleton2
 
     app_container.close_sync()
-    cache_item = app_container.cache_registry.fetch_cache_item(LocalGroup.singleton)
-    assert cache_item.cache is not UNSET
-    assert sync_calls == [singleton1]
+    assert sync_calls == [singleton1]  # finalizer ran once on close
 
     with pytest.raises(ContainerClosedError):
         app_container.resolve_provider(LocalGroup.singleton)
+
+    # clear_cache=False: the instance survives the close and is returned again after reopen,
+    # without re-running the creator or finalizer (behavioral check, not cache_registry inspection).
+    with app_container:
+        assert app_container.resolve_provider(LocalGroup.singleton) is singleton1
 
     await app_container.close_async()
     assert sync_calls == [singleton1]

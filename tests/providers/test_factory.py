@@ -422,6 +422,26 @@ def test_provider_instances_have_no_dict() -> None:
         factory.some_unexpected_attr = 1
 
 
+def test_compile_kwargs_is_memoized_across_resolves() -> None:
+    # Pins the compile-once invariant: kwargs compilation (type lookups + partitioning) runs
+    # exactly once per provider per container, not on every resolve. A regression that moved it
+    # back onto the per-resolve path would leave correctness tests green but silently slow.
+    class _MemoGroup(Group):
+        leaf = providers.Factory(scope=Scope.APP, creator=SimpleCreator, kwargs={"dep1": "x"})
+        svc = providers.Factory(scope=Scope.APP, creator=DependentCreator)
+
+    container = Container(groups=[_MemoGroup])
+    real_compile = providers.Factory._compile_kwargs  # noqa: SLF001 — spying on the memoization internal
+    with unittest.mock.patch.object(
+        providers.Factory, "_compile_kwargs", autospec=True, side_effect=real_compile
+    ) as compile_spy:
+        container.resolve(DependentCreator)
+        container.resolve(DependentCreator)
+    # svc + leaf each compile once on the first resolve; the second reuses the memo (else this is 4).
+    expected_compile_calls = 2
+    assert compile_spy.call_count == expected_compile_calls
+
+
 # Q-1 / G-3 — optional (X | None) params inject None when no provider is registered
 
 
