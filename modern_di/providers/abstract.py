@@ -25,6 +25,15 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         self.bound_type = bound_type
         self.provider_id: typing.Final = next(_provider_id_counter)
 
+    @property
+    def display_name(self) -> str:
+        """Human-readable name for error messages and resolution steps.
+
+        The bound type's name when known, else the provider's repr. ``Factory`` overrides
+        this to fall back to the creator's name.
+        """
+        return self.bound_type.__name__ if self.bound_type else repr(self)
+
     @abc.abstractmethod
     def resolve(self, container: "Container") -> typing.Any: ...  # noqa: ANN401
 
