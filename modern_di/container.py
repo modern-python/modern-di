@@ -224,8 +224,14 @@ class Container:
         containers. Set the value on the container whose scope matches the
         ``ContextProvider`` (for request-scoped context, pass ``context={...}``
         to :meth:`build_child_container` or call ``set_context`` on the request
-        container). Values set after a dependent factory has already resolved
-        are picked up by subsequent resolves.
+        container).
+
+        Context values are resolved live, so a value set here is picked up by
+        subsequent resolves of **non-cached** providers — including factories in
+        deeper-scoped child containers that read this container's context. A
+        **cached** provider (``Factory(cache_settings=...)``) is built once and
+        its instance is *not* rebuilt by a later ``set_context``; set the context
+        before its first resolve.
         """
         self.context_registry.set_context(context_type, obj)
 
