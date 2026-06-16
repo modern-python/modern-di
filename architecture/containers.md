@@ -117,14 +117,20 @@ finalization; the item is simply marked finalized.
 `Container` implements both sync (`__enter__` / `__exit__`) and async (`__aenter__` / `__aexit__`)
 context managers.
 
-- `__enter__` / `__aenter__` set `self.closed = False` and return `self`. No other state is reset;
-  `cache_registry` and `context_registry` are left as-is.
+- `open()` sets `self.closed = False`. No other state is reset; `cache_registry` and
+  `context_registry` are left as-is. Reopening an already-open container is a no-op.
+- `__enter__` / `__aenter__` call `open()` and return `self`.
 - `__exit__` calls `close_sync()`; `__aexit__` calls `close_async()`.
 
 Concretely: using the same container object as a context manager a second time reopens it (clears
 `closed`), resolves providers fresh if `clear_cache=True` was set on their `CacheSettings` (since
 close removed those cached values), and then closes it again on exit. Providers whose
 `CacheSettings.clear_cache` is `False` retain their cached instances across reopen cycles.
+
+Prefer the `with` form. `open()` is exposed as a public method for callback-style lifecycles that
+cannot wrap the container in a `with` block — for example a framework startup hook that must reopen
+the long-lived root container before serving the next request. The FastStream integration uses
+exactly this: `app.on_startup(container.open)` paired with `app.after_shutdown(container.close_async)`.
 
 ## `validate()`
 

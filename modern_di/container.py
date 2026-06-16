@@ -243,15 +243,25 @@ class Container:
         parent = self.parent_container.scope.name if self.parent_container else None
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
-    def __enter__(self) -> "typing_extensions.Self":
+    def open(self) -> None:
+        """Reopen a closed container so it can resolve and build children again.
+
+        Called by ``__enter__``/``__aenter__`` to reopen on re-entry. Use it
+        directly when a callback-style lifecycle (e.g. a startup hook) cannot
+        wrap the container in a ``with`` block. Reopening an already-open
+        container is a no-op.
+        """
         self.closed = False
+
+    def __enter__(self) -> "typing_extensions.Self":
+        self.open()
         return self
 
     def __exit__(self, *_: object) -> None:
         self.close_sync()
 
     async def __aenter__(self) -> "typing_extensions.Self":
-        self.closed = False
+        self.open()
         return self
 
     async def __aexit__(self, *_: object) -> None:

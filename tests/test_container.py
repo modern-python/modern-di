@@ -403,3 +403,20 @@ async def test_async_context_manager_reopens() -> None:
         container.resolve(Container)
     async with container:
         assert container.resolve(Container) is container
+
+
+def test_open_reopens_closed_container() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
+    container.open()
+    assert container.resolve(Container) is container
+    assert container.build_child_container(scope=Scope.REQUEST).scope is Scope.REQUEST
+
+
+def test_open_on_open_container_is_noop() -> None:
+    container = Container(scope=Scope.APP)
+    container.open()
+    assert container.closed is False
+    assert container.resolve(Container) is container
