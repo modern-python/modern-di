@@ -47,6 +47,8 @@ nav:
 
 theme:
   name: material
+  logo: assets/modern-python-white.svg
+  favicon: assets/modern-python-mark.svg
   features:
     - content.code.copy
     - content.code.annotate
@@ -66,15 +68,15 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: black
-      accent: pink
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: black
-      accent: pink
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
@@ -101,6 +103,7 @@ markdown_extensions:
 
 extra_css:
   - css/code.css
+  - css/brand.css
 
 extra:
   social:
