@@ -37,8 +37,3 @@ publish:
 # Build the docs site, failing on broken links / nav warnings; CI runs this on every PR.
 docs-build:
     uvx --with-requirements docs/requirements.txt mkdocs build --strict
-
-# Force-pushes built site to gh-pages; CI runs this on push to main.
-# Manual invocation from a stale checkout will roll the live site back.
-docs-deploy:
-    uvx --with-requirements docs/requirements.txt mkdocs gh-deploy --force
