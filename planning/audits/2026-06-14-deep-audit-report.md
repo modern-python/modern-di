@@ -19,7 +19,7 @@ security pass came back effectively clean — the two "security" items are a sel
 shipped in **#216** (`ContextProvider` values now resolve live on every resolve;
 `invalidate_compiled_kwargs` deleted; docstring + `architecture/` updated; regression
 tests added). See
-[bundle](../changes/archive/2026-06-14.02-set-context-cross-scope-staleness/design.md).
+[bundle](../changes/2026-06-14.02-set-context-cross-scope-staleness/design.md).
 Two findings shifted slightly post-#216: **R-2** is now *more* relevant (the fix added a second
 `ContextProvider._find_context_value` reach-in), and **R-5** is *partially* addressed (the
 fix extracted a shared `_argument_resolution_error` helper).
@@ -27,24 +27,24 @@ fix extracted a shared `_argument_resolution_error` helper).
 **Status (2026-06-14, batch 1):** the approved doc/test/comment-only rulings shipped in **#217** —
 **B-4** (pinning test), **B-5**/**S-1**/**S-2** (doc notes), **A-1** (GIL-benign comment + nogil
 caveat in [`deferred.md`](../deferred.md)); **A-2** closed (already documented intentional). See
-[bundle](../changes/archive/2026-06-14.03-audit-doc-rulings-batch1/plan.md).
+[bundle](../changes/2026-06-14.03-audit-doc-rulings-batch1/change.md).
 
 **Status (2026-06-14, batch 2):** the real low-risk code fixes shipped in **#218** — **B-3**
 (gapped custom-enum child-scope derivation) and **P-1** (drop the per-resolve throwaway
 `CacheItem` alloc via a `get` fast path, retaining atomic `setdefault` on the creation path —
 its atomicity is load-bearing for concurrent singleton first-resolve). See
-[bundle](../changes/archive/2026-06-14.04-audit-fixes-batch2/plan.md).
+[bundle](../changes/2026-06-14.04-audit-fixes-batch2/change.md).
 
 **Status (2026-06-14, batch 3):** the refactor batch shipped in **#219** — **R-1**
 (`AbstractProvider.display_name` dedupes the bound-type-or-repr idiom across ~5 sites) and **R-2**
 (minimal: public `fetch_context_value`, drop the `SLF001` reach-in; `isinstance` routing kept by
-design). See [bundle](../changes/archive/2026-06-14.05-audit-fixes-batch3/plan.md).
+design). See [bundle](../changes/2026-06-14.05-audit-fixes-batch3/change.md).
 
 **Status (2026-06-14, batches 4–5 — audit closed):** the final cleanup shipped in **#220** —
 test hardening (**P-6** compile-once pin, **R-3** behavioral singleton assert, **X-2** structured
 suggestion/dependency-path asserts) and DX/docs (**X-3** exception docstrings, **X-4** `exceptions`
 export, **X-5** `ResolutionStep` docs). See
-[bundle](../changes/archive/2026-06-14.06-audit-fixes-batch4-5/plan.md).
+[bundle](../changes/2026-06-14.06-audit-fixes-batch4-5/change.md).
 
 **No actionable findings remain.** Closed as **won't-fix** (marginal, by design): **P-2** (a
 negligible same-scope `find_container` short-circuit), **R-4** (extract `validate()`'s DFS closure),
