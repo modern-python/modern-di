@@ -2,8 +2,9 @@
 status: shipped
 date: 2026-06-13
 slug: audit-fixes-round2
+summary: Round-2 fixes for the 21 deferred code+docs audit findings. Plan-only; spec = the audit report.
 spec: ../../../audits/2026-06-12-code-docs-audit-report.md
-pr: "#203"
+pr: "203"
 ---
 
 # Audit Fixes — Round 2 Implementation Plan

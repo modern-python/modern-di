@@ -47,6 +47,8 @@ def load_bundles() -> list[dict[str, str]]:
         if not spec.exists():
             spec = bundle / "change.md"
         if not spec.exists():
+            spec = bundle / "plan.md"  # plan-only bundles (e.g. audit-fix batches)
+        if not spec.exists():
             continue
         fields = parse_frontmatter(spec.read_text(encoding="utf-8"))
         fields["path"] = f"changes/{bundle.name}/{spec.name}"

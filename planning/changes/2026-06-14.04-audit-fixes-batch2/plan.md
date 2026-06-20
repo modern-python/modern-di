@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-14
 slug: audit-fixes-batch2
+summary: B-3 (gapped custom-enum child-scope derivation) + P-1 (drop the per-resolve throwaway `CacheItem` alloc via a `get` fast path, keeping atomic `setdefault` on creation). Plan-only; spec = the audit report.
 spec: ../../../audits/2026-06-14-deep-audit-report.md
 pr: 218
 ---

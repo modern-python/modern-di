@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-14
 slug: audit-fixes-batch4-5
+summary: Final audit cleanup: test hardening (P-6 compile-once pin, R-3 behavioral singleton assert, X-2 structured suggestion/path asserts) + DX/docs (X-3 exception docstrings, X-4 `exceptions` export, X-5 `ResolutionStep` docs). Closes every actionable finding. Plan-only; spec = audit report.
 spec: ../../../audits/2026-06-14-deep-audit-report.md
 pr: 220
 ---

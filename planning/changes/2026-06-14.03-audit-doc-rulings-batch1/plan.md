@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-14
 slug: audit-doc-rulings-batch1
+summary: Action batch-1 rulings from the 2026-06-14 deep audit (B-4 pin, B-5/S-1/S-2 doc notes, A-1 comment + nogil caveat; A-2 closed). Doc/test/comment-only. Plan-only; spec = the audit report.
 spec: ../../../audits/2026-06-14-deep-audit-report.md
 pr: 217
 ---

@@ -2,8 +2,9 @@
 status: shipped
 date: 2026-06-12
 slug: audit-fixes
+summary: First batch of code+docs audit fixes. Plan-only; spec = the audit report.
 spec: ../../../audits/2026-06-12-code-docs-audit-report.md
-pr: "#202"
+pr: "202"
 ---
 
 # Audit Fixes Implementation Plan
