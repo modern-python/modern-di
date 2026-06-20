@@ -1,12 +1,14 @@
 [project]
 name = "modern-di"
-description = "Dependency Injection framework with IOC-container and scopes"
+description = "Powerful dependency-injection framework with IoC container and scopes"
 authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
 requires-python = ">=3.10,<4"
 license = "MIT"
 readme = "README.md"
-keywords = ["DI", "dependency injector", "ioc-container", "mocks", "python"]
+keywords = ["dependency-injection", "di", "ioc-container", "scopes", "mocks", "python"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -26,8 +28,11 @@ module-name = "modern_di"
 module-root = ""
 
 [project.urls]
-repository = "https://github.com/modern-python/modern-di"
-docs = "https://modern-di.modern-python.org"
+Homepage = "https://modern-di.modern-python.org"
+Documentation = "https://modern-di.modern-python.org"
+Repository = "https://github.com/modern-python/modern-di"
+Issues = "https://github.com/modern-python/modern-di/issues"
+Changelog = "https://github.com/modern-python/modern-di/releases"
 
 [dependency-groups]
 dev = [
