@@ -105,13 +105,14 @@ Planning follows a portable two-axis convention (shared with
   prose, the promotion target on every ship. The `## Architecture` section
   above is quick orientation; `architecture/` holds the authoritative,
   up-to-date account.
-- **`planning/changes/{active,archive}/<YYYY-MM-DD.NN-slug>/`** are change
+- **`planning/changes/<YYYY-MM-DD.NN-slug>/`** are change
   bundles: `design.md` + `plan.md` (full lane), or `change.md` (lightweight).
   Tiny changes (typo, dep bump, CI tweak) skip bundles entirely.
 - Templates live in [`planning/_templates/`](planning/_templates/).
-- **Shipping a change** hand-edits the affected `architecture/<capability>.md`,
-  then moves the bundle from `active/` to `archive/` with `status: shipped`,
-  `pr:`, and `outcome:` filled.
+- **Shipping a change** hand-edits the affected
+  `architecture/<capability>.md` and sets `status: shipped` + `pr:` +
+  `outcome:` **in the implementing PR** — there is no folder move. The
+  change listing is generated: run `just index`.
 
 ## Code Style
 

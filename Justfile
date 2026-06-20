@@ -37,3 +37,7 @@ publish:
 # Build the docs site, failing on broken links / nav warnings; CI runs this on every PR.
 docs-build:
     uvx --with-requirements docs/requirements.txt mkdocs build --strict
+
+# Print the planning change index (grouped by status) to stdout.
+index:
+    uv run python planning/index.py

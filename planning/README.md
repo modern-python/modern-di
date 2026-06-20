@@ -7,33 +7,35 @@ root; this directory records *how it got there*.
 ## Conventions
 
 > This section is the portable convention — identical across the
-> modern-python repos. The Index below is repo-specific. To adopt elsewhere,
+> modern-python repos. The generated change listing (`just index`) and the `## Other` pointers below are repo-local. To adopt elsewhere,
 > copy this section plus [`_templates/`](_templates/) and point that repo's
 > `CLAUDE.md` Workflow + truth home at it.
 
 ### Two axes, never mixed
 
 - **`architecture/` (repo root) — the present.** One file per capability,
-  living prose, updated whenever a change ships. The truth home.
+  living prose, updated in the same PR that ships the change. The truth home.
 - **`planning/changes/` — the past-and-pending.** One folder per change,
-  frozen once shipped.
+  kept in place after ship.
 
-Shipping a change **promotes** its conclusions into the affected
-`architecture/<capability>.md` by hand, then archives the bundle. That
-hand-edit is what keeps `architecture/` true; the archived bundle carries the
-*why*.
+A change **promotes** its conclusions into the affected
+`architecture/<capability>.md` by hand **in the implementing PR, alongside the
+code** — the edit rides in the same diff and is reviewed with it, never applied
+as a separate post-merge step. That hand-edit is what keeps `architecture/`
+true; the bundle stays in `changes/` as the *why*.
 
 ### Change bundles
 
-A change is a folder `changes/active/YYYY-MM-DD.NN-<slug>/`:
+A change is a folder `changes/YYYY-MM-DD.NN-<slug>/`:
 
 - `YYYY-MM-DD` — proposal date; `.NN` — zero-padded intra-day counter
   (`.01`, `.02`, …) that breaks same-date ties so the timeline sorts stably.
 - `<slug>` — kebab-case description, not a story ID.
 
-On merge the folder moves to `changes/archive/` with `status: shipped`, `pr:`,
-and `outcome:` filled, and its line moves from **Active** to **Archived** in
-the Index below.
+`summary` is written when the change is created (it is the change's
+one-liner). The implementing PR then sets `status: shipped` and fills `pr`
+and `outcome` **in the branch**, alongside the code and the `architecture/`
+promotion — no post-merge bookkeeping, no folder move.
 
 ### Three lanes
 
@@ -62,70 +64,16 @@ Templates live in [`_templates/`](_templates/).
 ### Frontmatter
 
 `design.md` / `change.md`: `status` (draft|approved|shipped|superseded),
-`date`, `slug`, `supersedes`, `superseded_by`, `pr`, `outcome`.
-`plan.md`: `status`, `date`, `slug`, `spec`, `pr`. Files in `architecture/`
-carry **no** frontmatter — living prose, dated by git.
+`date`, `slug`, `summary` (single line), `supersedes`, `superseded_by`, `pr`,
+`outcome`. `plan.md`: `status`, `date`, `slug`, `spec`, `pr`. Files in
+`architecture/` carry **no** frontmatter — living prose, dated by git.
 
 ## Index
 
-### Active
-
-_None._
-
-### Archived (shipped)
-
-- **[audit-fixes-batch4-5](changes/archive/2026-06-14.06-audit-fixes-batch4-5/plan.md)**
-  (#220, 2026-06-14) — Final audit cleanup: test hardening (P-6 compile-once pin,
-  R-3 behavioral singleton assert, X-2 structured suggestion/path asserts) + DX/docs
-  (X-3 exception docstrings, X-4 `exceptions` export, X-5 `ResolutionStep` docs).
-  Closes every actionable finding. Plan-only; spec = audit report.
-- **[audit-fixes-batch3](changes/archive/2026-06-14.05-audit-fixes-batch3/plan.md)**
-  (#219, 2026-06-14) — R-1 (`AbstractProvider.display_name` dedupes the
-  bound-type-or-repr idiom across ~5 sites) + R-2 minimal (public
-  `fetch_context_value`, drop the `SLF001` reach-in). Plan-only; spec = audit report.
-- **[audit-fixes-batch2](changes/archive/2026-06-14.04-audit-fixes-batch2/plan.md)**
-  (#218, 2026-06-14) — B-3 (gapped custom-enum child-scope derivation) + P-1
-  (drop the per-resolve throwaway `CacheItem` alloc via a `get` fast path,
-  keeping atomic `setdefault` on creation). Plan-only; spec = the audit report.
-- **[audit-doc-rulings-batch1](changes/archive/2026-06-14.03-audit-doc-rulings-batch1/plan.md)**
-  (#217, 2026-06-14) — Action batch-1 rulings from the 2026-06-14 deep audit
-  (B-4 pin, B-5/S-1/S-2 doc notes, A-1 comment + nogil caveat; A-2 closed).
-  Doc/test/comment-only. Plan-only; spec = the audit report.
-- **[set-context-cross-scope-staleness](changes/archive/2026-06-14.02-set-context-cross-scope-staleness/design.md)**
-  (#216, 2026-06-14) — Resolve `ContextProvider` params live so a late
-  `set_context` always propagates (cross-scope, non-cached); delete dead
-  `invalidate_compiled_kwargs`; document the cached-factory limitation. From the
-  2026-06-14 deep audit (sole ship-blocker). Full lane.
-- **[portable-planning-convention](changes/archive/2026-06-13.03-portable-planning-convention/design.md)**
-  (#210, 2026-06-13) — Adopt the two-axis convention: `architecture/` truth +
-  `changes/` bundles + portable README, copied from faststream-outbox.
-- **[alias-scope-transparency](changes/archive/2026-06-13.02-alias-scope-transparency/plan.md)**
-  (#207, 2026-06-13) — Deprecate decorative `Alias(scope=...)`; `validate()`
-  checks scope transitively via `effective_scope` (X-4). Plan-only; spec = the
-  code-docs audit report.
-- **[audit-fixes-round2](changes/archive/2026-06-13.01-audit-fixes-round2/plan.md)**
-  (#203, 2026-06-13) — Round-2 fixes for the 21 deferred code+docs audit
-  findings. Plan-only; spec = the audit report.
-- **[audit-fixes](changes/archive/2026-06-12.02-audit-fixes/plan.md)**
-  (#202, 2026-06-12) — First batch of code+docs audit fixes. Plan-only; spec =
-  the audit report.
-- **[code-docs-audit](changes/archive/2026-06-12.01-code-docs-audit/design.md)**
-  (2026-06-12) — Full code+docs audit harness; produced the 57-finding report.
-- **[migration-guide-from-that-depends](changes/archive/2026-06-09.02-migration-guide-from-that-depends/design.md)**
-  (2026-06-09) — Migration guide from `that-depends`. Design-only.
-- **[docs-improvements](changes/archive/2026-06-09.01-docs-improvements/design.md)**
-  (2026-06-09) — Docs-site improvements. Design-only.
-- **[scheduled-dep-check](changes/archive/2026-06-08.01-scheduled-dep-check/design.md)**
-  (2026-06-08) — Weekly scheduled dependency-check workflow.
-- **[mkdocs-github-pages-migration](changes/archive/2026-06-07.01-mkdocs-github-pages-migration/design.md)**
-  (2026-06-07) — Docs hosting moved to GitHub Pages.
-- **[validate-rework](changes/archive/2026-06-05.03-validate-rework/design.md)**
-  (2.15.0, 2026-06-05) — Reworked `validate()` for transitive cycle/scope
-  checks.
-- **[singleton-rlock](changes/archive/2026-06-05.02-singleton-rlock/design.md)**
-  (2.15.0, 2026-06-05) — RLock-guarded singleton creation.
-- **[bug-hunt-audit](changes/archive/2026-06-05.01-bug-hunt-audit/design.md)**
-  (2.15.0, 2026-06-05) — Four-dimension bug-hunt audit harness + report.
+The change listing is **generated**, not maintained — run `just index` to
+print it (grouped by `status`: In progress / Shipped / Superseded). The
+frontmatter in each bundle is the single source of truth; there is no
+committed copy to drift.
 
 ## Other
 
