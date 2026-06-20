@@ -42,7 +42,7 @@ section) and `/Users/kevinsmith/src/pypi/faststream-outbox/planning/_templates/`
 
 **Files:**
 - Create: `planning/_templates/design.md`, `plan.md`, `change.md` (copied)
-- Create dirs: `planning/changes/active/`, `planning/changes/archive/`, `architecture/`
+- Create dirs: `planning/changes/active/`, `planning/changes/`, `architecture/`
 
 Empty dirs aren't tracked by git; no `.gitkeep` is needed because Task 2 fills
 `archive/` and the active bundle already populates `active/`.
@@ -103,23 +103,23 @@ edit file contents in this task — only move. Frontmatter is normalized in Task
 
 | From | To |
 |------|----|
-| `planning/specs/2026-06-05-bug-hunt-audit-design.md` | `planning/changes/archive/2026-06-05.01-bug-hunt-audit/design.md` |
-| `planning/plans/2026-06-05-bug-hunt-audit-plan.md` | `planning/changes/archive/2026-06-05.01-bug-hunt-audit/plan.md` |
-| `planning/specs/2026-06-05-singleton-rlock-design.md` | `planning/changes/archive/2026-06-05.02-singleton-rlock/design.md` |
-| `planning/plans/2026-06-05-singleton-rlock-plan.md` | `planning/changes/archive/2026-06-05.02-singleton-rlock/plan.md` |
-| `planning/specs/2026-06-05-validate-rework-design.md` | `planning/changes/archive/2026-06-05.03-validate-rework/design.md` |
-| `planning/plans/2026-06-05-validate-rework-plan.md` | `planning/changes/archive/2026-06-05.03-validate-rework/plan.md` |
-| `planning/specs/2026-06-07-mkdocs-github-pages-migration-design.md` | `planning/changes/archive/2026-06-07.01-mkdocs-github-pages-migration/design.md` |
-| `planning/plans/2026-06-07-mkdocs-github-pages-migration.md` | `planning/changes/archive/2026-06-07.01-mkdocs-github-pages-migration/plan.md` |
-| `planning/specs/2026-06-08-scheduled-dep-check-design.md` | `planning/changes/archive/2026-06-08.01-scheduled-dep-check/design.md` |
-| `planning/plans/2026-06-08-scheduled-dep-check-plan.md` | `planning/changes/archive/2026-06-08.01-scheduled-dep-check/plan.md` |
-| `planning/specs/2026-06-09-docs-improvements-design.md` | `planning/changes/archive/2026-06-09.01-docs-improvements/design.md` |
-| `planning/specs/2026-06-09-migration-guide-from-that-depends.md` | `planning/changes/archive/2026-06-09.02-migration-guide-from-that-depends/design.md` |
-| `planning/specs/2026-06-12-code-docs-audit-design.md` | `planning/changes/archive/2026-06-12.01-code-docs-audit/design.md` |
-| `planning/plans/2026-06-12-code-docs-audit.md` | `planning/changes/archive/2026-06-12.01-code-docs-audit/plan.md` |
-| `planning/plans/2026-06-12-audit-fixes.md` | `planning/changes/archive/2026-06-12.02-audit-fixes/plan.md` |
-| `planning/plans/2026-06-13-audit-fixes-round2.md` | `planning/changes/archive/2026-06-13.01-audit-fixes-round2/plan.md` |
-| `planning/plans/2026-06-13-alias-scope-transparency.md` | `planning/changes/archive/2026-06-13.02-alias-scope-transparency/plan.md` |
+| `planning/specs/2026-06-05-bug-hunt-audit-design.md` | `planning/changes/2026-06-05.01-bug-hunt-audit/design.md` |
+| `planning/plans/2026-06-05-bug-hunt-audit-plan.md` | `planning/changes/2026-06-05.01-bug-hunt-audit/plan.md` |
+| `planning/specs/2026-06-05-singleton-rlock-design.md` | `planning/changes/2026-06-05.02-singleton-rlock/design.md` |
+| `planning/plans/2026-06-05-singleton-rlock-plan.md` | `planning/changes/2026-06-05.02-singleton-rlock/plan.md` |
+| `planning/specs/2026-06-05-validate-rework-design.md` | `planning/changes/2026-06-05.03-validate-rework/design.md` |
+| `planning/plans/2026-06-05-validate-rework-plan.md` | `planning/changes/2026-06-05.03-validate-rework/plan.md` |
+| `planning/specs/2026-06-07-mkdocs-github-pages-migration-design.md` | `planning/changes/2026-06-07.01-mkdocs-github-pages-migration/design.md` |
+| `planning/plans/2026-06-07-mkdocs-github-pages-migration.md` | `planning/changes/2026-06-07.01-mkdocs-github-pages-migration/plan.md` |
+| `planning/specs/2026-06-08-scheduled-dep-check-design.md` | `planning/changes/2026-06-08.01-scheduled-dep-check/design.md` |
+| `planning/plans/2026-06-08-scheduled-dep-check-plan.md` | `planning/changes/2026-06-08.01-scheduled-dep-check/plan.md` |
+| `planning/specs/2026-06-09-docs-improvements-design.md` | `planning/changes/2026-06-09.01-docs-improvements/design.md` |
+| `planning/specs/2026-06-09-migration-guide-from-that-depends.md` | `planning/changes/2026-06-09.02-migration-guide-from-that-depends/design.md` |
+| `planning/specs/2026-06-12-code-docs-audit-design.md` | `planning/changes/2026-06-12.01-code-docs-audit/design.md` |
+| `planning/plans/2026-06-12-code-docs-audit.md` | `planning/changes/2026-06-12.01-code-docs-audit/plan.md` |
+| `planning/plans/2026-06-12-audit-fixes.md` | `planning/changes/2026-06-12.02-audit-fixes/plan.md` |
+| `planning/plans/2026-06-13-audit-fixes-round2.md` | `planning/changes/2026-06-13.01-audit-fixes-round2/plan.md` |
+| `planning/plans/2026-06-13-alias-scope-transparency.md` | `planning/changes/2026-06-13.02-alias-scope-transparency/plan.md` |
 
 - [ ] **Step 1: Create the 11 bundle directories**
 
@@ -139,8 +139,8 @@ edit file contents in this task — only move. Frontmatter is normalized in Task
   Run each move (17 total), e.g.:
 
   ```bash
-  git mv planning/specs/2026-06-05-bug-hunt-audit-design.md planning/changes/archive/2026-06-05.01-bug-hunt-audit/design.md
-  git mv planning/plans/2026-06-05-bug-hunt-audit-plan.md   planning/changes/archive/2026-06-05.01-bug-hunt-audit/plan.md
+  git mv planning/specs/2026-06-05-bug-hunt-audit-design.md planning/changes/2026-06-05.01-bug-hunt-audit/design.md
+  git mv planning/plans/2026-06-05-bug-hunt-audit-plan.md   planning/changes/2026-06-05.01-bug-hunt-audit/plan.md
   ```
 
   …continuing for all 17 rows.
@@ -245,7 +245,7 @@ plan-only bundles):
 - [ ] **Step 4: Commit**
 
   ```bash
-  git add planning/changes/archive/
+  git add planning/changes/
   git commit -m "chore: normalize frontmatter on archived change bundles
 
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -294,32 +294,32 @@ Conventions section stays byte-identical and is verified by diff.
 
   ### Archived (shipped)
 
-  - **[alias-scope-transparency](changes/archive/2026-06-13.02-alias-scope-transparency/plan.md)**
+  - **[alias-scope-transparency](changes/2026-06-13.02-alias-scope-transparency/plan.md)**
     (#207, 2026-06-13) — Deprecate decorative `Alias(scope=...)`; `validate()`
     checks scope transitively via `effective_scope` (X-4). Plan-only; spec = the
     code-docs audit report.
-  - **[audit-fixes-round2](changes/archive/2026-06-13.01-audit-fixes-round2/plan.md)**
+  - **[audit-fixes-round2](changes/2026-06-13.01-audit-fixes-round2/plan.md)**
     (#203, 2026-06-13) — Round-2 fixes for the 21 deferred code+docs audit
     findings. Plan-only; spec = the audit report.
-  - **[audit-fixes](changes/archive/2026-06-12.02-audit-fixes/plan.md)**
+  - **[audit-fixes](changes/2026-06-12.02-audit-fixes/plan.md)**
     (#202, 2026-06-12) — First batch of code+docs audit fixes. Plan-only; spec =
     the audit report.
-  - **[code-docs-audit](changes/archive/2026-06-12.01-code-docs-audit/design.md)**
+  - **[code-docs-audit](changes/2026-06-12.01-code-docs-audit/design.md)**
     (2026-06-12) — Full code+docs audit harness; produced the 57-finding report.
-  - **[migration-guide-from-that-depends](changes/archive/2026-06-09.02-migration-guide-from-that-depends/design.md)**
+  - **[migration-guide-from-that-depends](changes/2026-06-09.02-migration-guide-from-that-depends/design.md)**
     (2026-06-09) — Migration guide from `that-depends`. Design-only.
-  - **[docs-improvements](changes/archive/2026-06-09.01-docs-improvements/design.md)**
+  - **[docs-improvements](changes/2026-06-09.01-docs-improvements/design.md)**
     (2026-06-09) — Docs-site improvements. Design-only.
-  - **[scheduled-dep-check](changes/archive/2026-06-08.01-scheduled-dep-check/design.md)**
+  - **[scheduled-dep-check](changes/2026-06-08.01-scheduled-dep-check/design.md)**
     (2026-06-08) — Weekly scheduled dependency-check workflow.
-  - **[mkdocs-github-pages-migration](changes/archive/2026-06-07.01-mkdocs-github-pages-migration/design.md)**
+  - **[mkdocs-github-pages-migration](changes/2026-06-07.01-mkdocs-github-pages-migration/design.md)**
     (2026-06-07) — Docs hosting moved to GitHub Pages.
-  - **[validate-rework](changes/archive/2026-06-05.03-validate-rework/design.md)**
+  - **[validate-rework](changes/2026-06-05.03-validate-rework/design.md)**
     (2.15.0, 2026-06-05) — Reworked `validate()` for transitive cycle/scope
     checks.
-  - **[singleton-rlock](changes/archive/2026-06-05.02-singleton-rlock/design.md)**
+  - **[singleton-rlock](changes/2026-06-05.02-singleton-rlock/design.md)**
     (2.15.0, 2026-06-05) — RLock-guarded singleton creation.
-  - **[bug-hunt-audit](changes/archive/2026-06-05.01-bug-hunt-audit/design.md)**
+  - **[bug-hunt-audit](changes/2026-06-05.01-bug-hunt-audit/design.md)**
     (2.15.0, 2026-06-05) — Four-dimension bug-hunt audit harness + report.
 
   ## Other
@@ -408,7 +408,7 @@ This is the index for the truth home. No frontmatter (living prose).
 
   Shipping a change hand-edits the affected capability file(s) here to match the
   new reality, then archives the change bundle under
-  [`../planning/changes/archive/`](../planning/changes/archive/).
+  [`../planning/changes/`](../planning/changes/).
   ```
 
 - [ ] **Step 2: Commit**
@@ -566,8 +566,8 @@ This is the index for the truth home. No frontmatter (living prose).
 - Create: `architecture/validation.md`
 - Read first: the `validate()` implementation in `modern_di/container.py`, the
   `effective_scope` logic, `errors.py`, the
-  `changes/archive/2026-06-05.03-validate-rework/` and
-  `changes/archive/2026-06-13.02-alias-scope-transparency/` bundles, `CLAUDE.md`.
+  `changes/2026-06-05.03-validate-rework/` and
+  `changes/2026-06-13.02-alias-scope-transparency/` bundles, `CLAUDE.md`.
 
 - [ ] **Step 1: Write the file** covering:
   - `validate=True` at container creation, or `container.validate()` explicitly;
@@ -641,7 +641,7 @@ touched.
   ```
   with:
   ```markdown
-  - Change bundles: [`bug-hunt-audit`](../changes/archive/2026-06-05.01-bug-hunt-audit/design.md), [`singleton-rlock`](../changes/archive/2026-06-05.02-singleton-rlock/design.md), [`validate-rework`](../changes/archive/2026-06-05.03-validate-rework/design.md) — design + plan in each.
+  - Change bundles: [`bug-hunt-audit`](../changes/2026-06-05.01-bug-hunt-audit/design.md), [`singleton-rlock`](../changes/2026-06-05.02-singleton-rlock/design.md), [`validate-rework`](../changes/2026-06-05.03-validate-rework/design.md) — design + plan in each.
   ```
 
 - [ ] **Step 2: Edit `2.16.0.md`** — replace line 64:
@@ -651,7 +651,7 @@ touched.
   ```
   with:
   ```markdown
-  - Plans: [`code-docs-audit`](../changes/archive/2026-06-12.01-code-docs-audit/plan.md), [`audit-fixes`](../changes/archive/2026-06-12.02-audit-fixes/plan.md), [`audit-fixes-round2`](../changes/archive/2026-06-13.01-audit-fixes-round2/plan.md)
+  - Plans: [`code-docs-audit`](../changes/2026-06-12.01-code-docs-audit/plan.md), [`audit-fixes`](../changes/2026-06-12.02-audit-fixes/plan.md), [`audit-fixes-round2`](../changes/2026-06-13.01-audit-fixes-round2/plan.md)
   ```
 
 - [ ] **Step 3: Edit `2.17.0.md`** — replace line 25:
@@ -661,7 +661,7 @@ touched.
   ```
   with:
   ```markdown
-  - Plan: [`alias-scope-transparency`](../changes/archive/2026-06-13.02-alias-scope-transparency/plan.md)
+  - Plan: [`alias-scope-transparency`](../changes/2026-06-13.02-alias-scope-transparency/plan.md)
   ```
 
 - [ ] **Step 4: Verify no live link still points at the old dirs**

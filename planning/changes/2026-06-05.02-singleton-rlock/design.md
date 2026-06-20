@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-05
 slug: singleton-rlock
+summary: RLock-guarded singleton creation to eliminate re-entrant deadlock; shipped in 2.15.0.
 supersedes: null
 superseded_by: null
 pr: null

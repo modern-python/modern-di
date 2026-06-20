@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-13
 slug: docs-ux-audit
+summary: Reader-experience audit producing a 70-finding report (16 Medium, 54 Low).
 supersedes: null
 superseded_by: null
 pr: 212

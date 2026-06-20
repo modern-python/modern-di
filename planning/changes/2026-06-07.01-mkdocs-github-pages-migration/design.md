@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-07
 slug: mkdocs-github-pages-migration
+summary: Docs hosting moved to GitHub Pages at modern-di.modern-python.org.
 supersedes: null
 superseded_by: null
 pr: null

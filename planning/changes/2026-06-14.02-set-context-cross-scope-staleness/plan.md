@@ -221,5 +221,5 @@ The compiled memo is now matching-only and never goes stale.
 - [ ] **Step 4: On merge — archive the bundle**
 
   Set `status: shipped`, fill `pr:` and `outcome:` in both files; move the folder
-  to `planning/changes/archive/`; move its Index line from **Active** to
+  to `planning/changes/`; move its Index line from **Active** to
   **Archived** in `planning/README.md`.

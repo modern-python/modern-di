@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-14
 slug: docs-ux-lows
+summary: Fixed all 53 Low findings from the docs UX audit (cross-links, imports, terminology, docstrings).
 supersedes: null
 superseded_by: null
 pr: 213

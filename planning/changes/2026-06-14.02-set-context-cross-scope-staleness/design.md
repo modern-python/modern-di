@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-14
 slug: set-context-cross-scope-staleness
+summary: Resolve ContextProvider params live so late set_context always propagates across scopes.
 supersedes: null
 superseded_by: null
 pr: 216

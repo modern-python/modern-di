@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-13
 slug: docs-ux-fixes
+summary: Fixed all 16 Medium findings from the docs UX audit (runnable examples, accuracy, nav).
 supersedes: null
 superseded_by: null
 pr: 212

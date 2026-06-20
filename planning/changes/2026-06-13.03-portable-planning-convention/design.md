@@ -2,9 +2,10 @@
 status: shipped
 date: 2026-06-13
 slug: portable-planning-convention
+summary: Adopted the two-axis planning convention (architecture/ truth + changes/ bundles) from faststream-outbox.
 supersedes: null
 superseded_by: null
-pr: "#210"
+pr: "210"
 outcome: Adopted the two-axis convention — architecture/ truth home (README + 6 capability docs) + planning/changes/{active,archive}/ bundles; migrated 11 historical spec/plan pairs into archive bundles; added portable README, _templates/, CLAUDE.md Workflow. Also aligned CLAUDE.md Architecture with the code.
 ---
 
@@ -102,7 +103,7 @@ The slug is the current filename minus the date prefix and the
 plus `pr:` and `outcome:` filled from the release notes and git log; `plan.md`
 gets `spec:`). `.NN` within a colliding date follows merge order.
 
-All eleven migrate to `changes/archive/`:
+All eleven migrate to `changes/`:
 
 | Bundle id | Files | Source PR / release |
 |-----------|-------|---------------------|
@@ -142,7 +143,7 @@ judgment call — both are same-day docs designs with no strict merge ordering.
 
 - **Inbound links** in `planning/releases/2.15.0.md`, `2.16.0.md`, and
   `2.17.0.md` that target `planning/specs/…` or `planning/plans/…` are repointed
-  to `planning/changes/archive/<id>/design.md|plan.md`. Links to
+  to `planning/changes/<id>/design.md|plan.md`. Links to
   `planning/audits/…` stay valid (audits/ is unchanged).
 - **`planning/README.md`** is created with the "Conventions" section copied
   byte-identical from `faststream-outbox/planning/README.md` and a repo-specific
@@ -180,7 +181,7 @@ immediately deprecate.
 
 - **Broken relative links inside migrated files.** Plans/specs reference each
   other and the audit reports by relative path; moving them two levels deeper
-  (`changes/archive/<id>/`) shifts every `../` prefix. *Mitigation:* the grep
+  (`changes/<id>/`) shifts every `../` prefix. *Mitigation:* the grep
   check in Testing, plus per-bundle link review during execution. Likelihood
   medium, impact low (dead links, not broken code).
 - **Frontmatter drift.** Hand-filling `pr:`/`outcome:` across eleven bundles

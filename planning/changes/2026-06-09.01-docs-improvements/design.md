@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-09
 slug: docs-improvements
+summary: Docs-site improvements: recipes section, concept pages, refreshed Quick Start.
 supersedes: null
 superseded_by: null
 pr: null
