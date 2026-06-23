@@ -2,7 +2,8 @@ import dataclasses
 import enum
 import typing
 
-from modern_di import errors
+
+SUGGESTION_HEADER = "Did you mean:"
 
 
 if typing.TYPE_CHECKING:
@@ -45,11 +46,9 @@ class InvalidChildScopeError(ContainerError):
         self.child_scope = child_scope
         self.allowed_scopes = allowed_scopes
         super().__init__(
-            errors.CONTAINER_SCOPE_IS_LOWER_ERROR.format(
-                parent_scope=parent_scope.name,
-                child_scope=child_scope.name,
-                allowed_scopes=allowed_scopes,
-            )
+            f"Scope of child container cannot be {child_scope.name} if parent scope is {parent_scope.name} "
+            f"(child scope value must be strictly greater than parent scope value). "
+            f"Possible scopes are {allowed_scopes}."
         )
 
 
@@ -60,7 +59,10 @@ class MaxScopeReachedError(ContainerError):
 
     def __init__(self, *, parent_scope: enum.IntEnum) -> None:
         self.parent_scope = parent_scope
-        super().__init__(errors.CONTAINER_MAX_SCOPE_REACHED_ERROR.format(parent_scope=parent_scope.name))
+        super().__init__(
+            f"Max scope of {parent_scope.name} is reached. "
+            "To go deeper, build a child container with a custom IntEnum scope whose value is higher."
+        )
 
 
 class ScopeNotInitializedError(ContainerError):
@@ -72,10 +74,7 @@ class ScopeNotInitializedError(ContainerError):
         self.provider_scope = provider_scope
         self.container_scope = container_scope
         super().__init__(
-            errors.CONTAINER_NOT_INITIALIZED_SCOPE_ERROR.format(
-                provider_scope=provider_scope.name,
-                container_scope=container_scope.name,
-            )
+            f"Provider of scope {provider_scope.name} cannot be resolved in container of scope {container_scope.name}."
         )
 
 
@@ -88,10 +87,9 @@ class ScopeSkippedError(ContainerError):
         self.provider_scope = provider_scope
         self.container_scope = container_scope
         super().__init__(
-            errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(
-                provider_scope=provider_scope.name,
-                container_scope=container_scope.name,
-            )
+            f"No {provider_scope.name}-scope container exists in this chain; "
+            f"this chain starts at {container_scope.name}. "
+            f"Build a {provider_scope.name}-scope container as the root."
         )
 
 
@@ -103,10 +101,7 @@ class InvalidScopeTypeError(ContainerError):
     def __init__(self, *, scope_value: typing.Any) -> None:  # noqa: ANN401
         self.scope_value = scope_value
         super().__init__(
-            errors.INVALID_SCOPE_TYPE_ERROR.format(
-                scope_repr=repr(scope_value),
-                scope_type=type(scope_value).__name__,
-            )
+            f"Container scope must be an enum.IntEnum member; got {scope_value!r} ({type(scope_value).__name__})."
         )
 
 
@@ -117,7 +112,10 @@ class ContainerClosedError(ContainerError):
 
     def __init__(self, *, container_scope: enum.IntEnum) -> None:
         self.container_scope = container_scope
-        super().__init__(errors.CONTAINER_CLOSED_ERROR.format(container_scope=container_scope.name))
+        super().__init__(
+            f"Container (scope {container_scope.name}) is closed and can no longer resolve dependencies "
+            "or build child containers. Create a new container."
+        )
 
 
 class ResolutionError(ModernDIError):
@@ -165,9 +163,9 @@ class ProviderNotRegisteredError(ResolutionError):
     ) -> None:
         self.provider_type = provider_type
         self.suggestions = suggestions or []
-        message = errors.CONTAINER_MISSING_PROVIDER_ERROR.format(provider_type=provider_type)
+        message = f"Provider of type {provider_type} is not registered in providers registry."
         if self.suggestions:
-            message += "\n" + errors.SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
+            message += "\n" + SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
         super().__init__(message)
 
 
@@ -178,7 +176,10 @@ class AliasSourceNotRegisteredError(ResolutionError):
 
     def __init__(self, *, source_type: type) -> None:
         self.source_type = source_type
-        super().__init__(errors.ALIAS_SOURCE_NOT_REGISTERED_ERROR.format(source_type=source_type))
+        super().__init__(
+            f"Alias source type {source_type} is not registered in providers registry. "
+            f"Register a provider for {source_type} before defining the alias."
+        )
 
 
 class ArgumentResolutionError(ResolutionError):
@@ -200,18 +201,21 @@ class ArgumentResolutionError(ResolutionError):
         self.bound_type = bound_type
         self.suggestions = suggestions or []
         if arg_type is not None:
-            message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
-                arg_name=arg_name, arg_type=arg_type, bound_type=bound_type
+            message = (
+                f"Argument {arg_name} of type {arg_type} cannot be resolved. Trying to build dependency {bound_type}."
             )
         elif member_types:
             joined = " | ".join(getattr(t, "__name__", str(t)) for t in member_types)
-            message = errors.FACTORY_ARGUMENT_RESOLUTION_ERROR.format(
-                arg_name=arg_name, arg_type=joined, bound_type=bound_type
+            message = (
+                f"Argument {arg_name} of type {joined} cannot be resolved. Trying to build dependency {bound_type}."
             )
         else:
-            message = errors.FACTORY_ARGUMENT_UNANNOTATED_ERROR.format(arg_name=arg_name, bound_type=bound_type)
+            message = (
+                f"Argument {arg_name} has no usable type annotation, so it cannot be resolved by type. "
+                f"Pass it via the kwargs parameter or add a type annotation. Trying to build dependency {bound_type}."
+            )
         if self.suggestions:
-            message += "\n" + errors.SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
+            message += "\n" + SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
         super().__init__(message)
 
 
@@ -224,7 +228,9 @@ class CreatorCallError(ResolutionError):
         self.creator = creator
         self.original_error = original_error
         creator_name = getattr(creator, "__name__", repr(creator))
-        super().__init__(errors.CREATOR_CALL_ERROR.format(creator_name=creator_name, error=original_error))
+        super().__init__(
+            f"Failed to call creator {creator_name}: {original_error}. Check kwargs and skip_creator_parsing usage."
+        )
 
 
 class CircularDependencyError(ResolutionError):
@@ -234,7 +240,9 @@ class CircularDependencyError(ResolutionError):
 
     def __init__(self, *, cycle_path: list[str]) -> None:
         self.cycle_path = cycle_path
-        super().__init__(errors.CYCLE_DEPENDENCY_ERROR.format(cycle_path=" -> ".join(cycle_path)))
+        super().__init__(
+            f"Circular dependency detected: {' -> '.join(cycle_path)}. Check your provider graph for unintended cycles."
+        )
 
 
 class RegistrationError(ModernDIError):
@@ -250,7 +258,13 @@ class DuplicateProviderTypeError(RegistrationError):
 
     def __init__(self, *, provider_type: type) -> None:
         self.provider_type = provider_type
-        super().__init__(errors.PROVIDER_DUPLICATE_TYPE_ERROR.format(provider_type=provider_type))
+        super().__init__(
+            f"Provider is duplicated by type {provider_type}. "
+            "To resolve this issue:\n"
+            "1. Set bound_type=None on one of the providers to make it unresolvable by type\n"
+            "2. Explicitly pass dependencies via the kwargs parameter to avoid automatic resolution\n"
+            "See https://modern-di.modern-python.org/troubleshooting/duplicate-type-error/ for more details"
+        )
 
 
 class UnknownFactoryKwargError(RegistrationError):
@@ -293,11 +307,7 @@ class UnsupportedCreatorParameterError(RegistrationError):
         self.parameter_name = parameter_name
         self.reason = reason
         creator_name = getattr(creator, "__name__", repr(creator))
-        super().__init__(
-            errors.FACTORY_UNSUPPORTED_PARAMETER_ERROR.format(
-                parameter_name=parameter_name, creator_name=creator_name, reason=reason
-            )
-        )
+        super().__init__(f"Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}")
 
 
 class InvalidScopeDependencyError(RegistrationError):
@@ -319,13 +329,9 @@ class InvalidScopeDependencyError(RegistrationError):
         provider_name = provider.display_name
         dep_name = dep_provider.display_name
         super().__init__(
-            errors.INVALID_SCOPE_DEPENDENCY_ERROR.format(
-                provider_name=provider_name,
-                provider_scope=provider.scope.name,
-                parameter_name=parameter_name,
-                dep_name=dep_name,
-                dep_scope=(dep_scope or dep_provider.scope).name,
-            )
+            f"Provider {provider_name} (scope {provider.scope.name}) declares parameter "
+            f"{parameter_name!r} typed as a provider of {dep_name} at deeper scope "
+            f"{(dep_scope or dep_provider.scope).name}. A provider cannot depend on a deeper-scoped provider."
         )
 
 
@@ -366,7 +372,10 @@ class AsyncFinalizerInSyncCloseError(ModernDIError):
 
     def __init__(self, *, finalizer_type: type) -> None:
         self.finalizer_type = finalizer_type
-        super().__init__(errors.ASYNC_FINALIZER_IN_SYNC_CLOSE_ERROR.format(finalizer_type=finalizer_type.__name__))
+        super().__init__(
+            f"Cannot run async finalizer for {finalizer_type.__name__} during sync close. "
+            "Use `await container.close_async()` (or `async with container:`) instead."
+        )
 
 
 class GroupInstantiationError(ModernDIError):
@@ -376,4 +385,4 @@ class GroupInstantiationError(ModernDIError):
 
     def __init__(self, *, group_name: str) -> None:
         self.group_name = group_name
-        super().__init__(errors.GROUP_INSTANTIATION_ERROR.format(group_name=group_name))
+        super().__init__(f"{group_name} cannot be instantiated")
