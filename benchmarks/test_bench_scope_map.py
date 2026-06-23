@@ -12,7 +12,7 @@ Run:
 
 import dataclasses
 
-from modern_di import Container, Group, Scope, errors, providers
+from modern_di import Container, Group, Scope, providers
 
 
 # ---------------------------------------------------------------------------
@@ -23,16 +23,20 @@ from modern_di import Container, Group, Scope, errors, providers
 def _baseline_find_container(self: Container, scope: Scope) -> Container:
     container = self
     if container.scope < scope:
+        msg = f"Provider of scope {scope.name} cannot be resolved in container of scope {self.scope.name}."
         raise RuntimeError(
-            errors.CONTAINER_NOT_INITIALIZED_SCOPE_ERROR.format(
-                provider_scope=scope.name, container_scope=self.scope.name
-            )
+            msg
         )
     while container.scope > scope and container.parent_container:
         container = container.parent_container
     if container.scope != scope:
+        msg = (
+            f"No {scope.name}-scope container exists in this chain; "
+            f"this chain starts at {self.scope.name}. "
+            f"Build a {scope.name}-scope container as the root."
+        )
         raise RuntimeError(
-            errors.CONTAINER_SCOPE_IS_SKIPPED_ERROR.format(provider_scope=scope.name, container_scope=self.scope.name)
+            msg
         )
     return container
 
