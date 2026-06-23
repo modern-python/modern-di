@@ -6,15 +6,16 @@ from modern_di import exceptions, types
 from modern_di.providers import CacheSettings, Factory
 
 
+if typing.TYPE_CHECKING:
+    from modern_di.wiring import WiringPlan
+
+
 @dataclasses.dataclass(kw_only=True, slots=True)
 class CacheItem:
     settings: CacheSettings[typing.Any] | None
     cache: typing.Any = types.UNSET
-    kwargs_compiled: bool = False
     finalized: bool = False
-    provider_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
-    static_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
-    context_kwargs: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+    wiring_plan: "WiringPlan | None" = None
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:

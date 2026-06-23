@@ -56,50 +56,59 @@ if self.cache_settings and cache_item.cache is not types.UNSET:
 If `cache_settings` is configured **and** the cache slot already holds a value, the cached instance is returned
 immediately. (A `Factory` with no `cache_settings` always re-runs the creator.)
 
-## Step 4 — kwargs compilation
+## Step 4 — Wiring plan
 
-If no cached instance is returned, `Factory` compiles the keyword arguments needed to call the creator. This is done
-once per container per provider via `_ensure_kwargs_cached`, which stores the split result on `CacheItem` so subsequent
-calls (within the same container lifetime) skip recompilation.
+If no cached instance is returned, `Factory` builds the **wiring plan**: the partition of the creator's parameters by
+how each is satisfied. This is done once per container per provider via `_ensure_plan`, which stores a single
+`WiringPlan` on the `CacheItem` so subsequent calls (within the same container lifetime) reuse it.
 
-Compilation is **type matching only** — it decides *which* provider (if any) backs each parameter, not what value that
-provider currently holds. It therefore never goes stale and is never invalidated. `_compile_kwargs` iterates over
-`_parsed_kwargs` — the `SignatureItem` map produced at provider-declaration time by `types_parser.parse_creator` — and
-sorts each parameter into one of three buckets stored on the `CacheItem`:
+`WiringPlan.build` (in `modern_di/wiring.py`) is a **pure function** of `(parsed_kwargs, kwargs, providers_registry,
+owner)` — it reads no cache, scope, or live context, so it runs outside the container lock and never goes stale (the
+providers registry is fixed after construction). It is **type matching only**: it decides *which* provider (if any)
+backs each parameter, not what value that provider currently holds. It iterates `_parsed_kwargs` — the `SignatureItem`
+map produced at provider-declaration time by `types_parser.parse_creator` — and sorts each parameter:
 
 1. **Static kwarg shadows** — if the parameter was supplied via the provider's declaration-time `kwargs`, it is taken
-   from there. Provider-valued static kwargs go to `provider_kwargs`; plain values go to `static_kwargs`. These bypass
-   type-based wiring.
+   from there. Provider-valued static kwargs go to the plan's `provider_kwargs`; plain values go to `static_kwargs`.
+   These bypass type-based wiring and are *not* recorded in the plan's `dependencies` view, so `validate()` does not
+   traverse them.
 
-2. **Provider lookup** — otherwise `_find_dep_provider` searches `providers_registry` for a provider matching the
+2. **Provider lookup** — otherwise `find_dep_provider` searches `providers_registry` for a provider matching the
    parameter's resolved type (`arg_type`) or, for union types, any of the union members (`args`); self-references are
    excluded. A matching `ContextProvider` goes to `context_kwargs` (resolved live, see Step 5); any other provider goes
-   to `provider_kwargs`.
+   to `provider_kwargs`. Type-matched providers are also recorded in the plan's `dependencies` view, which `validate()`
+   reads.
 
    > **Union vs. single parameterized generics.** A bare parameterized generic (e.g. `list[str]`) is *rejected at
    > declaration* — it cannot be resolved by type. Inside a union, however, each member degrades to its origin for
    > matching, so `int | list[str]` matches a provider registered for plain `list`. The element type is not enforced
    > (Python ignores it at runtime); this asymmetry is intentional, not a wiring guarantee.
 
-3. **No provider found** — this is a static graph fact, decided once here:
+3. **No provider found** — a static graph fact, decided once via the shared `absent_disposition(item)` helper (the
+   single home of the absent-value table):
    - If the parameter has a default, it is omitted (the creator's own default applies).
-   - If `SignatureItem.is_nullable` is `True` (the annotation included `None`, e.g. `X | None` or `Optional[X]`), it is
-     set to `None` in `static_kwargs`.
-   - Otherwise, `ArgumentResolutionError` is raised.
+   - Else if `SignatureItem.is_nullable` is `True` (the annotation included `None`, e.g. `X | None` or `Optional[X]`),
+     `None` is placed in `static_kwargs`.
+   - Otherwise the parameter is recorded in the plan's `unwireable` list as a `(name, SignatureItem)` record — **not** a
+     pre-built exception (see Step 5).
 
-The three buckets — `provider_kwargs` (regular providers, resolved recursively), `static_kwargs` (plain values), and
-`context_kwargs` (`ContextProvider` + its `SignatureItem`, resolved live) — are memoized so subsequent resolves within
-the same container lifetime skip recompilation.
+The plan's buckets — `provider_kwargs` (regular providers, resolved recursively), `static_kwargs` (plain values), and
+`context_kwargs` (`ContextProvider` + its `SignatureItem`, resolved live) — plus the `dependencies` view and the
+`unwireable` records are memoized on the `CacheItem`. The same `WiringPlan.build` backs `validate()`: `get_dependencies`
+reads `dependencies`, `iter_validation_issues` builds a fresh error per `unwireable` record.
 
 ## Step 5 — Recursive resolution
 
-With compiled kwargs in hand:
+With the wiring plan in hand, `Factory` first surfaces any unwireable parameter: if `plan.unwireable` is non-empty it
+raises a **freshly built** `ArgumentResolutionError` from the first record before calling the creator. The error is
+built fresh on every raise (never memoized) because `ResolutionError.prepend_step` *mutates* the exception as it
+propagates up the chain — a stored instance would accumulate and leak breadcrumbs across repeated or nested resolves.
 
 ```python
-resolved_kwargs = dict(static_kwargs)
-for k, v in provider_kwargs.items():
+resolved_kwargs = dict(plan.static_kwargs)
+for k, v in plan.provider_kwargs.items():
     resolved_kwargs[k] = container.resolve_provider(v)
-for k, (context_provider, item) in context_kwargs.items():
+for k, (context_provider, item) in plan.context_kwargs.items():
     value = self._resolve_context_value(container, k, context_provider, item)
     if value is not types.UNSET:
         resolved_kwargs[k] = value
@@ -110,8 +119,8 @@ sequence from Step 1 — override check, then `provider.resolve(container)`.
 
 Context-backed parameters are resolved **live on every resolve**, so a `set_context` after a factory has already
 resolved is always picked up (across scopes, for non-cached factories). `_resolve_context_value` mirrors
-`resolve_provider`'s override check, then reads the live context value; when the value is absent it applies the same
-fallback as Step 4's no-provider case — omit (default applies), `None` (nullable), or raise `ArgumentResolutionError`.
+`resolve_provider`'s override check, then reads the live context value; when the value is absent it applies the shared
+`absent_disposition` helper — omit (default applies), `None` (nullable), or raise `ArgumentResolutionError`.
 
 The recursion bottoms out at providers with
 no dependencies or at already-cached instances.
@@ -130,9 +139,10 @@ the instance is stored and returned.
 
 `types_parser.SignatureItem` carries an `is_nullable: bool` field. It is set to `True` when the parameter annotation
 is a union that includes `NoneType` — that is, `X | None`, `Optional[X]`, or any union spelled with `typing.Union`
-that contains `None`. When `_compile_kwargs` cannot find a provider for the parameter (or finds a `ContextProvider`
-with no value set) and the parameter has no default, `is_nullable=True` causes `None` to be injected rather than
-raising an error.
+that contains `None`. When no provider is found for the parameter (or a `ContextProvider` has no value set) and the
+parameter has no default, the shared `absent_disposition` helper returns `None` for `is_nullable=True` — at plan-build
+time (`WiringPlan.build`) for a missing provider, or live at resolve time (`_resolve_context_value`) for an unset
+context value — rather than raising an error.
 
 ## Thread safety
 

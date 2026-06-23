@@ -59,10 +59,10 @@ via `kwargs={...}`, give the parameter a default, or set `skip_creator_parsing=T
 
 ### Recursive resolution
 
-When a `Factory` is resolved, `_compile_kwargs` iterates the parsed parameter map. For each parameter it looks up
-a matching provider by type in the registry and recurses into `container.resolve_provider(dep_provider)`.
-Resolution errors are annotated with a breadcrumb describing the current factory, so the full chain appears in the
-exception.
+When a `Factory` is resolved, `WiringPlan.build` (in `modern_di/wiring.py`) iterates the parsed parameter map and
+partitions it into the plan; `Factory` then recurses into `container.resolve_provider(dep_provider)` for each matched
+provider. The plan is built once and memoized on the `CacheItem`. Resolution errors are annotated with a breadcrumb
+describing the current factory, so the full chain appears in the exception.
 
 ### Static kwargs
 
@@ -114,9 +114,9 @@ providers.ContextProvider(scope=Scope.REQUEST, context_type=HttpRequest)
 ```
 
 At resolution time it looks the value up in the container's `context_registry` for the matching scope. If no
-value was supplied (the key is absent), `resolve` returns `None`. `Factory._compile_kwargs` handles the
-absent-context case explicitly: if the dependent parameter has a default or is nullable it is silently satisfied;
-otherwise an `ArgumentResolutionError` is raised.
+value was supplied (the key is absent), `resolve` returns `None`. `Factory._resolve_context_value` handles the
+absent-context case live via the shared `absent_disposition` helper: if the dependent parameter has a default or is
+nullable it is silently satisfied; otherwise an `ArgumentResolutionError` is raised.
 
 `ContextProvider` also accepts an optional `bound_type` that overrides the inferred bound type.
 

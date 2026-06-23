@@ -53,7 +53,7 @@ The four registries split into two categories:
 |---|---|---|
 | `ProvidersRegistry` | Yes — all containers share one instance | Maps `type → AbstractProvider`; populated once at root construction time from `groups`. |
 | `OverridesRegistry` | Yes — all containers share one instance | Maps `provider_id → override object`; used by tests to substitute real instances. |
-| `CacheRegistry` | No — each container has its own | Maps `provider_id → CacheItem`; stores resolved singleton instances and compiled kwargs for this scope level. |
+| `CacheRegistry` | No — each container has its own | Maps `provider_id → CacheItem`; stores resolved singleton instances and the memoized `WiringPlan` for this scope level. |
 | `ContextRegistry` | No — each container has its own | Maps `type → runtime object`; populated via `context=` at construction or `container.set_context()` after the fact. |
 
 Because `ProvidersRegistry` and `OverridesRegistry` are shared, registering a group or setting an

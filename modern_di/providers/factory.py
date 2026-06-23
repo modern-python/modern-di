@@ -10,11 +10,13 @@ from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
 from modern_di.types_parser import SignatureItem, parse_creator
+from modern_di.wiring import WiringPlan, _Absent, absent_disposition
 
 
 if typing.TYPE_CHECKING:
     from modern_di import Container
     from modern_di.registries.cache_registry import CacheItem
+    from modern_di.registries.providers_registry import ProvidersRegistry
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -113,21 +115,15 @@ class Factory(AbstractProvider[types.T_co]):
     def _resolution_step(self) -> exceptions.ResolutionStep:
         return exceptions.ResolutionStep(scope=self.scope, name=self.display_name)
 
-    def _find_dep_provider(self, container: "Container", v: SignatureItem) -> "AbstractProvider[typing.Any] | None":
-        if v.arg_type:
-            provider = container.providers_registry.find_provider(v.arg_type)
-            if provider is self:
-                return None
-            return provider
-        for x in v.args:
-            provider = container.providers_registry.find_provider(x)
-            if provider is not None and provider is not self:
-                return provider
-        return None
-
     def _argument_resolution_error(
-        self, arg_name: str, item: SignatureItem, suggestions: list[str]
+        self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry | None" = None
     ) -> exceptions.ArgumentResolutionError:
+        # The single error-construction site: build the message and (when a registry is given and the
+        # argument has a resolvable type) the closest-match suggestions. The context path passes no
+        # registry, so absent-context errors carry no suggestions — as before.
+        suggestions = (
+            registry.build_suggestions(item.arg_type) if registry is not None and item.arg_type is not None else []
+        )
         return exceptions.ArgumentResolutionError(
             arg_name=arg_name,
             arg_type=item.arg_type,
@@ -136,60 +132,19 @@ class Factory(AbstractProvider[types.T_co]):
             member_types=item.args,
         )
 
-    def _compile_kwargs(
-        self, container: "Container"
-    ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any], dict[str, typing.Any]]:
-        """Partition parameters into live providers, static values, and live context lookups.
-
-        ``context_kwargs`` holds parameters backed by a ``ContextProvider``; their value is
-        looked up on every resolve (so a late ``set_context`` is always picked up) and the
-        value-absent decision (default / None / raise) is deferred to resolve time. A
-        parameter with no registered provider is a static graph fact, decided once here.
-        """
-        provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
-        static_kwargs: dict[str, typing.Any] = {}
-        context_kwargs: dict[str, typing.Any] = {}
-        for k, v in self._parsed_kwargs.items():
-            if self._kwargs and k in self._kwargs:
-                continue  # supplied as a static kwarg below
-            provider = self._find_dep_provider(container, v)
-            if provider is not None:
-                if isinstance(provider, ContextProvider):
-                    context_kwargs[k] = (provider, v)
-                else:
-                    provider_kwargs[k] = provider
-                continue
-
-            if v.default is not types.UNSET:
-                continue
-            if v.is_nullable:
-                static_kwargs[k] = None
-                continue
-            suggestions = container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
-            raise self._argument_resolution_error(k, v, suggestions)
-
-        if self._kwargs:
-            for k, static_value in self._kwargs.items():
-                if isinstance(static_value, AbstractProvider):
-                    provider_kwargs[k] = static_value
-                else:
-                    static_kwargs[k] = static_value
-        return provider_kwargs, static_kwargs, context_kwargs
-
-    def _ensure_kwargs_cached(
-        self, container: "Container", cache_item: "CacheItem"
-    ) -> tuple[dict[str, "AbstractProvider[typing.Any]"], dict[str, typing.Any], dict[str, typing.Any]]:
-        # Compilation runs outside the container lock (the lock guards only singleton creation).
-        # Under the GIL this is safe: the buckets are a deterministic function of the fixed providers
-        # registry, so concurrent compiles produce identical results and at worst recompute once.
+    def _ensure_plan(self, container: "Container", cache_item: "CacheItem") -> WiringPlan:
+        # Plan runs outside the container lock (the lock guards only singleton creation).
+        # Under the GIL this is safe: the plan is a deterministic function of the fixed providers
+        # registry, so concurrent builds produce identical results and at worst recompute once.
         # (Free-threaded/nogil caveat tracked in planning/deferred.md.)
-        if not cache_item.kwargs_compiled:
-            provider_kwargs, static_kwargs, context_kwargs = self._compile_kwargs(container)
-            cache_item.provider_kwargs = provider_kwargs
-            cache_item.static_kwargs = static_kwargs
-            cache_item.context_kwargs = context_kwargs
-            cache_item.kwargs_compiled = True
-        return cache_item.provider_kwargs, cache_item.static_kwargs, cache_item.context_kwargs
+        if cache_item.wiring_plan is None:
+            cache_item.wiring_plan = WiringPlan.build(
+                parsed_kwargs=self._parsed_kwargs,
+                kwargs=self._kwargs,
+                registry=container.providers_registry,
+                owner=self,
+            )
+        return cache_item.wiring_plan
 
     def _resolve_context_value(
         self, container: "Container", arg_name: str, provider: ContextProvider[typing.Any], item: SignatureItem
@@ -207,11 +162,12 @@ class Factory(AbstractProvider[types.T_co]):
         value = provider.fetch_context_value(container)
         if value is not types.UNSET:
             return value
-        if item.default is not types.UNSET:
-            return types.UNSET
-        if item.is_nullable:
+        disposition = absent_disposition(item)
+        if disposition is _Absent.OMIT:
+            return types.UNSET  # omit kwarg; creator default applies
+        if disposition is _Absent.NULL:
             return None
-        raise self._argument_resolution_error(arg_name, item, [])
+        raise self._argument_resolution_error(arg_name=arg_name, item=item)
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter-name → dependency-provider mapping using only the providers registry.
@@ -219,35 +175,23 @@ class Factory(AbstractProvider[types.T_co]):
         Pure lookup: no scope check, no cache touch, no context-value lookup. Used by
         Container.validate() to traverse the static graph.
         """
-        result: dict[str, AbstractProvider[typing.Any]] = {}
-        for k, v in self._parsed_kwargs.items():
-            if self._kwargs and k in self._kwargs:
-                continue
-            provider = self._find_dep_provider(container, v)
-            if provider is not None:
-                result[k] = provider
-        return result
+        return WiringPlan.build(
+            parsed_kwargs=self._parsed_kwargs,
+            kwargs=self._kwargs,
+            registry=container.providers_registry,
+            owner=self,
+        ).dependencies
 
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        for k, v in self._parsed_kwargs.items():
-            is_kwarg_not_found = not self._kwargs or k not in self._kwargs
-            if not is_kwarg_not_found:
-                continue
-            if self._find_dep_provider(container, v) is not None:
-                continue
-            if v.default is not types.UNSET:
-                continue
-            if v.is_nullable:
-                continue
-            suggestions = container.providers_registry.build_suggestions(v.arg_type) if v.arg_type is not None else []
-            yield exceptions.ArgumentResolutionError(
-                arg_name=k,
-                arg_type=v.arg_type,
-                bound_type=self.bound_type or self._creator,
-                suggestions=suggestions,
-                member_types=v.args,
-            )
+        plan = WiringPlan.build(
+            parsed_kwargs=self._parsed_kwargs,
+            kwargs=self._kwargs,
+            registry=container.providers_registry,
+            owner=self,
+        )
+        for name, item in plan.unwireable:
+            yield self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
 
     def _call_creator(self, resolved_kwargs: dict[str, typing.Any]) -> types.T_co:
         try:
@@ -264,11 +208,14 @@ class Factory(AbstractProvider[types.T_co]):
             raise error from exc
 
     def _resolve_kwargs(self, container: "Container", cache_item: "CacheItem") -> dict[str, typing.Any]:
-        provider_kwargs, static_kwargs, context_kwargs = self._ensure_kwargs_cached(container, cache_item)
-        resolved_kwargs = dict(static_kwargs)
-        for k, v in provider_kwargs.items():
+        plan = self._ensure_plan(container, cache_item)
+        if plan.unwireable:
+            name, item = plan.unwireable[0]
+            raise self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
+        resolved_kwargs = dict(plan.static_kwargs)
+        for k, v in plan.provider_kwargs.items():
             resolved_kwargs[k] = container.resolve_provider(v)
-        for k, (context_provider, item) in context_kwargs.items():
+        for k, (context_provider, item) in plan.context_kwargs.items():
             value = self._resolve_context_value(container, k, context_provider, item)
             if value is not types.UNSET:
                 resolved_kwargs[k] = value
