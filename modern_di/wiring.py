@@ -15,7 +15,6 @@ import dataclasses
 import enum
 import typing
 
-from modern_di import exceptions
 from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.types import UNSET
@@ -28,8 +27,8 @@ if typing.TYPE_CHECKING:
 
 
 class _Absent(enum.Enum):
-    OMIT = enum.auto()       # parameter omitted; creator default applies
-    NULL = enum.auto()       # inject None (annotation was nullable)
+    OMIT = enum.auto()  # parameter omitted; creator default applies
+    NULL = enum.auto()  # inject None (annotation was nullable)
     UNWIRABLE = enum.auto()  # required, no provider, no default → error
 
 
@@ -56,7 +55,7 @@ def find_dep_provider(
     Mirrors ``Factory._find_dep_provider`` exactly: prefers ``arg_type``,
     falls back to the first matching type in ``args`` (union members).
     """
-    if item.arg_type:
+    if item.arg_type is not None:
         provider = registry.find_provider(item.arg_type)
         if provider is owner:
             return None
@@ -79,8 +78,12 @@ class WiringPlan:
         dependencies:     type-matched providers only (regular + context),
                           excluding providers supplied via ``kwargs={...}``.
                           Used by ``validate()``'s graph traversal.
-        issues:           UNWIRABLE parameters as ``ArgumentResolutionError``
-                          instances; ``build`` never raises.
+        unwireable:       UNWIRABLE parameters as (param-name, SignatureItem)
+                          records; ``build`` never raises. Consumers construct
+                          fresh ``ArgumentResolutionError`` instances at
+                          raise/yield time so that ``prepend_step`` mutations
+                          do not compound across repeated resolves of the same
+                          memoized plan.
 
     """
 
@@ -88,7 +91,7 @@ class WiringPlan:
     static_kwargs: dict[str, typing.Any]
     context_kwargs: dict[str, "tuple[ContextProvider[typing.Any], SignatureItem]"]
     dependencies: dict[str, "AbstractProvider[typing.Any]"]
-    issues: "list[exceptions.ArgumentResolutionError]"
+    unwireable: "list[tuple[str, SignatureItem]]"
 
     @classmethod
     def build(
@@ -106,13 +109,17 @@ class WiringPlan:
         from ``_compile_kwargs``; free-threaded/nogil caveat tracked in
         planning/deferred.md).
 
-        The plan never raises; unwireable parameters are recorded in ``issues``.
+        The plan never raises; unwireable parameters are recorded in
+        ``unwireable`` as raw (name, SignatureItem) records — NOT pre-built
+        exceptions — so that consumers can construct a fresh
+        ``ArgumentResolutionError`` at each raise/yield site without risk of
+        ``prepend_step`` mutations compounding across repeated resolves.
         """
         provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
         static_kwargs: dict[str, typing.Any] = {}
         context_kwargs: dict[str, tuple[ContextProvider[typing.Any], SignatureItem]] = {}
         dependencies: dict[str, AbstractProvider[typing.Any]] = {}
-        issues: list[exceptions.ArgumentResolutionError] = []
+        unwireable: list[tuple[str, SignatureItem]] = []
 
         for name, item in parsed_kwargs.items():
             if kwargs and name in kwargs:
@@ -133,9 +140,8 @@ class WiringPlan:
             if disposition is _Absent.NULL:
                 static_kwargs[name] = None
                 continue
-            # UNWIRABLE: record the error but do not raise
-            suggestions = registry.build_suggestions(item.arg_type) if item.arg_type else []
-            issues.append(owner._argument_resolution_error(name, item, suggestions))  # noqa: SLF001
+            # UNWIRABLE: record the (name, item) pair but do not raise
+            unwireable.append((name, item))
 
         if kwargs:  # static overlay — NOT added to `dependencies`
             for name, value in kwargs.items():
@@ -149,5 +155,5 @@ class WiringPlan:
             static_kwargs=static_kwargs,
             context_kwargs=context_kwargs,
             dependencies=dependencies,
-            issues=issues,
+            unwireable=unwireable,
         )

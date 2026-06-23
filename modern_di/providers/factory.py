@@ -177,12 +177,17 @@ class Factory(AbstractProvider[types.T_co]):
 
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        return WiringPlan.build(
+        plan = WiringPlan.build(
             parsed_kwargs=self._parsed_kwargs,
             kwargs=self._kwargs,
             registry=container.providers_registry,
             owner=self,
-        ).issues
+        )
+        for name, item in plan.unwireable:
+            suggestions = (
+                container.providers_registry.build_suggestions(item.arg_type) if item.arg_type is not None else []
+            )
+            yield self._argument_resolution_error(name, item, suggestions)
 
     def _call_creator(self, resolved_kwargs: dict[str, typing.Any]) -> types.T_co:
         try:
@@ -200,8 +205,12 @@ class Factory(AbstractProvider[types.T_co]):
 
     def _resolve_kwargs(self, container: "Container", cache_item: "CacheItem") -> dict[str, typing.Any]:
         plan = self._ensure_plan(container, cache_item)
-        if plan.issues:
-            raise plan.issues[0]
+        if plan.unwireable:
+            name, item = plan.unwireable[0]
+            suggestions = (
+                container.providers_registry.build_suggestions(item.arg_type) if item.arg_type is not None else []
+            )
+            raise self._argument_resolution_error(name, item, suggestions)
         resolved_kwargs = dict(plan.static_kwargs)
         for k, v in plan.provider_kwargs.items():
             resolved_kwargs[k] = container.resolve_provider(v)

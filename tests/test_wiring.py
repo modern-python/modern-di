@@ -2,13 +2,13 @@
 
 import pytest
 
-from modern_di import exceptions, providers
+from modern_di import providers
 from modern_di.providers import ContextProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 from modern_di.types import UNSET
 from modern_di.types_parser import SignatureItem
-from modern_di.wiring import WiringPlan, _Absent, absent_disposition
+from modern_di.wiring import WiringPlan, _Absent, absent_disposition, find_dep_provider
 
 
 # ---------------------------------------------------------------------------
@@ -99,8 +99,8 @@ def test_wiring_plan_partitioning() -> None:
     assert "with_default" not in plan.static_kwargs
     assert "with_default" not in plan.context_kwargs
 
-    # no issues on a correctly wired plan
-    assert plan.issues == []
+    # no unwireable params on a correctly wired plan
+    assert plan.unwireable == []
 
 
 def test_wiring_plan_nullable_no_default_goes_to_static_kwargs() -> None:
@@ -117,7 +117,7 @@ def test_wiring_plan_nullable_no_default_goes_to_static_kwargs() -> None:
 
     assert "nullable" in plan.static_kwargs
     assert plan.static_kwargs["nullable"] is None
-    assert plan.issues == []
+    assert plan.unwireable == []
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ class _UnwirableCreator:
         pass  # pragma: no cover
 
 
-def test_wiring_plan_issues_no_raise() -> None:
+def test_wiring_plan_unwireable_no_raise() -> None:
     # Empty registry — _ServiceA has no provider
     registry = ProvidersRegistry()
     owner = providers.Factory(scope=Scope.APP, creator=_UnwirableCreator)
@@ -143,11 +143,10 @@ def test_wiring_plan_issues_no_raise() -> None:
     )
 
     # build returns normally (no raise)
-    assert len(plan.issues) == 1
-    issue = plan.issues[0]
-    assert isinstance(issue, exceptions.ArgumentResolutionError)
-    assert issue.arg_name == "required_dep"
-    assert issue.arg_type is _ServiceA
+    assert len(plan.unwireable) == 1
+    unwired_name, unwired_item = plan.unwireable[0]
+    assert unwired_name == "required_dep"
+    assert unwired_item.arg_type is _ServiceA
 
     # nothing wired when the only param is unwirable
     assert plan.provider_kwargs == {}
@@ -194,7 +193,7 @@ def test_wiring_plan_dependencies_excludes_static_supplied_providers() -> None:
     assert "y" in plan.dependencies
     assert plan.dependencies["y"] is factory_b
 
-    assert plan.issues == []
+    assert plan.unwireable == []
 
 
 # ---------------------------------------------------------------------------
@@ -229,3 +228,49 @@ def test_absent_disposition_default_wins_over_nullable() -> None:
     # default is not UNSET (it is None), so OMIT regardless of is_nullable
     assert item.default is not UNSET
     assert absent_disposition(item) is _Absent.OMIT
+
+
+# ---------------------------------------------------------------------------
+# Test: find_dep_provider — union-args branch (arg_type is None)
+# ---------------------------------------------------------------------------
+
+
+class _UnionTypeA:
+    pass
+
+
+class _UnionTypeB:
+    pass
+
+
+def test_find_dep_provider_union_args_matches_first_registered() -> None:
+    """When arg_type is None (union member), find_dep_provider falls through to args list.
+
+    A SignatureItem with args=[_UnionTypeA, _UnionTypeB] and no arg_type (the
+    union-member branch) should resolve to the provider registered for the first
+    matching member — and appear in provider_kwargs/dependencies accordingly.
+    """
+    factory_a = providers.Factory(scope=Scope.APP, creator=_UnionTypeA)
+    registry = ProvidersRegistry()
+    registry.add_providers(factory_a)
+
+    owner = providers.Factory(scope=Scope.APP, creator=_UnionTypeA)
+
+    # Manually craft a SignatureItem with args but no arg_type (union member scenario)
+    item = SignatureItem(arg_type=None, args=[_UnionTypeA, _UnionTypeB])
+
+    result = find_dep_provider(registry, owner, item)
+    # factory_a is registered for _UnionTypeA; it is not `owner`, so it must be returned
+    assert result is factory_a
+
+
+def test_find_dep_provider_union_args_skips_owner() -> None:
+    """When the only union member matching a registered provider IS the owner, returns None."""
+    factory_a = providers.Factory(scope=Scope.APP, creator=_UnionTypeA)
+    registry = ProvidersRegistry()
+    registry.add_providers(factory_a)
+
+    # owner IS factory_a — should be skipped
+    item = SignatureItem(arg_type=None, args=[_UnionTypeA])
+    result = find_dep_provider(registry, factory_a, item)
+    assert result is None

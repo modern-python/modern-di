@@ -122,11 +122,11 @@ def absent_disposition(item: SignatureItem) -> _Absent:
 `absent_disposition` is pure on the `SignatureItem` (no registry, no container).
 It is the *only* place the table lives after this change.
 
-### 2. `WiringPlan` — representation (buckets + issues + dependencies view)
+### 2. `WiringPlan` — representation (buckets + unwireable records + dependencies view)
 
 The representation is deliberately the three buckets `Factory` already resolves
-from, plus an `issues` list and a `dependencies` view; the resolve hot loop does
-not move.
+from, plus an `unwireable` list and a `dependencies` view; the resolve hot loop
+does not move.
 
 ```python
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -135,7 +135,7 @@ class WiringPlan:
     static_kwargs: dict[str, typing.Any]           # literals + nullable-None
     context_kwargs: dict[str, tuple[ContextProvider, SignatureItem]]
     dependencies: dict[str, AbstractProvider]      # type-matched only → validate
-    issues: list[ArgumentResolutionError]          # UNWIRABLE params
+    unwireable: list[tuple[str, SignatureItem]]    # UNWIRABLE params (name, item)
 
     @classmethod
     def build(cls, *, parsed_kwargs, kwargs, registry, owner) -> "WiringPlan":
@@ -167,8 +167,8 @@ for name, item in parsed_kwargs.items():
     if disposition is _Absent.NULL:
         static_kwargs[name] = None
         continue
-    suggestions = registry.build_suggestions(item.arg_type) if item.arg_type else []
-    issues.append(owner._argument_resolution_error(name, item, suggestions))
+    # UNWIRABLE: record the raw (name, item) pair — NOT a pre-built exception
+    unwireable.append((name, item))
 
 if kwargs:                            # static overlay — NOT in `dependencies`
     for name, value in kwargs.items():
@@ -178,17 +178,15 @@ if kwargs:                            # static overlay — NOT in `dependencies`
             static_kwargs[name] = value
 ```
 
-The plan **never raises**; it records `issues`. Two consumers, two disciplines
-(Design §3, §4). Error construction stays single-source: `build` calls the
-owner's existing `_argument_resolution_error` (cross-module private access, with
-`# noqa: SLF001` consistent with `alias.py:63`), so the message/suggestion shape
-is defined in exactly one place and shared by the resolve and validate paths.
-
-Note on suggestion cost: today resolve builds suggestions only for the one
-parameter it raises on; `build` constructs the error (with suggestions) for every
-`issue`. This is off the hot path — `issues` is non-empty only when the graph is
-already broken, in which case resolve is about to raise and validate already does
-this work per issue. The happy path does zero suggestion work.
+The plan **never raises**; it records `unwireable` as raw `(name, SignatureItem)`
+records rather than pre-built `ArgumentResolutionError` instances. This is
+critical: `ResolutionError.prepend_step` mutates the exception in place
+(`self.dependency_path.insert(0, step); self.args = (str(self),)`), so storing a
+pre-built exception in a memoized plan means the breadcrumb grows on every
+repeated resolve. Two consumers, two disciplines (Design §3, §4). Each consumer
+constructs a fresh error at raise/yield time, calling the owner's existing
+`_argument_resolution_error`, so the message/suggestion shape is defined in one
+place and shared by the resolve and validate paths.
 
 ### 3. `Factory.resolve` reads the plan, raises the first issue
 
@@ -209,17 +207,21 @@ def _ensure_plan(self, container, cache_item) -> WiringPlan:
 
 `_resolve_kwargs` reads `plan.provider_kwargs` / `static_kwargs` /
 `context_kwargs` with its current loop unchanged, except it first surfaces any
-recorded issue so behavior matches today's eager raise:
+recorded unwireable param so behavior matches today's eager raise:
 
 ```python
 plan = self._ensure_plan(container, cache_item)
-if plan.issues:
-    raise plan.issues[0]
+if plan.unwireable:
+    name, item = plan.unwireable[0]
+    suggestions = container.providers_registry.build_suggestions(item.arg_type) if item.arg_type is not None else []
+    raise self._argument_resolution_error(name, item, suggestions)
 ```
 
-Because `build` iterates `_parsed_kwargs` in order and `resolve` raises
-`issues[0]`, the *same* `ArgumentResolutionError` is raised as today's
-first-encountered eager raise. The only difference is that `build` finishes
+Because `build` iterates `_parsed_kwargs` in order and `resolve` raises on
+`unwireable[0]`, the same error shape is raised as today's first-encountered
+eager raise. A fresh `ArgumentResolutionError` is constructed each time so that
+`resolve()`'s subsequent `prepend_step` mutation does not compound across repeated
+calls. The only difference vs. the pre-fix code is that `build` finishes
 partitioning before the raise surfaces — extra work on the error path only.
 
 Context-backed parameters keep their **live** loop in `Factory`
@@ -249,17 +251,21 @@ def get_dependencies(self, container):
     return WiringPlan.build(..., registry=container.providers_registry, owner=self).dependencies
 
 def iter_validation_issues(self, container):
-    return WiringPlan.build(..., owner=self).issues
+    plan = WiringPlan.build(..., owner=self)
+    for name, item in plan.unwireable:
+        suggestions = registry.build_suggestions(item.arg_type) if item.arg_type is not None else []
+        yield self._argument_resolution_error(name, item, suggestions)
 ```
 
 `plan.dependencies` is the **type-matched** providers only (regular + context),
 excluding providers supplied via `self._kwargs` — exactly what today's
 `get_dependencies` returns, so `validate()`'s graph traversal and scope-ordering
-checks are unchanged (see Non-goals on the static-kwarg gap). `plan.issues`
-equals today's `iter_validation_issues` output. Validate builds the plan twice
-per `Factory` (once per method); validate is a one-shot construction-time check,
-so the double build is negligible and the polymorphic interface stays exactly as
-wide as it is.
+checks are unchanged (see Non-goals on the static-kwarg gap). Validate builds the
+plan twice per `Factory` (once per method); validate is a one-shot
+construction-time check, so the double build is negligible and the polymorphic
+interface stays exactly as wide as it is. Yielding a fresh error per unwireable
+param (rather than returning `plan.issues`) keeps `iter_validation_issues`
+consistent with the fresh-per-raise discipline.
 
 ### 5. `CacheItem` stores one plan instead of three buckets + a flag
 
@@ -334,6 +340,13 @@ decision now lives in `WiringPlan`; the absent-value table is single-source) and
   outside the lock, identical to `_compile_kwargs` today; the lock still guards
   only singleton creation. Mitigation: preserve the determinism comment verbatim
   on `_ensure_plan`.
-- **Suggestion work moved earlier** — *negligible.* Only on the error path
-  (`issues` non-empty), where resolve is about to raise and validate already does
-  per-issue suggestion work today.
+- **Memoized-exception mutation hazard** — *medium likelihood if storing
+  pre-built exceptions in the plan / high impact.* `ResolutionError.prepend_step`
+  mutates the exception in place; storing an `ArgumentResolutionError` on the
+  memoized `WiringPlan` would cause the breadcrumb to grow on every repeated
+  failing resolve (and to leak parent steps into sibling direct resolves).
+  Mitigation: `unwireable` stores raw `(name, SignatureItem)` records; each
+  consumer constructs a fresh exception at raise/yield time.
+- **Suggestion work per raise** — *negligible.* Each failing resolve now calls
+  `build_suggestions` at raise time rather than once at plan-build time. On the
+  error path (where resolution is already failing), this cost is immaterial.

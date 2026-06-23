@@ -1,3 +1,4 @@
+import contextlib
 import dataclasses
 import re
 import unittest.mock
@@ -569,3 +570,97 @@ def test_internal_typeerror_from_creator_body_is_not_wrapped() -> None:
         container.resolve(_InternalTypeErrorService)
     assert not isinstance(exc_info.value, exceptions.CreatorCallError)
     assert "len()" in str(exc_info.value)
+
+
+# Regression: memoized plan must not compound breadcrumbs across repeated resolves
+
+
+class _UnregisteredDep:
+    pass
+
+
+class _NeedsUnregistered:
+    def __init__(self, dep: _UnregisteredDep) -> None:
+        self.dep = dep  # pragma: no cover
+
+
+def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
+    """Resolving an unwireable provider twice must produce identical error strings.
+
+    Before the fix, ``prepend_step`` mutated the memoized exception in place so the
+    dependency path grew on every call (e.g. "NeedsUnregistered → NeedsUnregistered →
+    …" on the third resolve).
+    """
+    factory: providers.Factory[_NeedsUnregistered] = providers.Factory(creator=_NeedsUnregistered, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_NeedsUnregistered, factory)
+
+    def _grab() -> str:
+        try:
+            container.resolve(_NeedsUnregistered)
+        except exceptions.ResolutionError as exc:
+            return str(exc)
+        return ""  # pragma: no cover
+
+    first = _grab()
+    second = _grab()
+    third = _grab()
+    assert first == second == third, f"breadcrumb compounded: {first!r} != {second!r}"
+
+
+class _UnregisteredLeaf:
+    pass
+
+
+class _ParentNeedsLeaf:
+    def __init__(self, leaf: _UnregisteredLeaf) -> None:
+        self.leaf = leaf  # pragma: no cover
+
+
+def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
+    """After a parent's failing resolve, a direct resolve of the leaf must not include the parent's step.
+
+    Before the fix, the leaf's memoized exception was mutated by the parent's
+    ``prepend_step``, so subsequent direct resolves of the leaf incorrectly showed the
+    parent in the chain.
+    """
+    leaf_factory: providers.Factory[_UnregisteredLeaf] = providers.Factory(creator=_UnregisteredLeaf, scope=Scope.APP)
+    parent_factory: providers.Factory[_ParentNeedsLeaf] = providers.Factory(creator=_ParentNeedsLeaf, scope=Scope.APP)
+    container = Container(scope=Scope.APP)
+    container.providers_registry.register(_UnregisteredLeaf, leaf_factory)
+    container.providers_registry.register(_ParentNeedsLeaf, parent_factory)
+
+    # First resolve the parent — it fails because Leaf has no registered dep; the
+    # parent's step is prepended to the error as it propagates.
+    # (Note: Leaf itself IS registered; it just needs _UnregisteredDep which is not.)
+    # For this test we need a provider that depends on something TRULY unwired.
+    # Let's use a separate container where the leaf's dep is missing.
+    class _MissingDep:
+        pass
+
+    class _Leaf2:
+        def __init__(self, dep: _MissingDep) -> None:
+            self.dep = dep  # pragma: no cover
+
+    class _Parent2:
+        def __init__(self, leaf: _Leaf2) -> None:
+            self.leaf = leaf  # pragma: no cover
+
+    leaf2: providers.Factory[_Leaf2] = providers.Factory(creator=_Leaf2, scope=Scope.APP)
+    parent2: providers.Factory[_Parent2] = providers.Factory(creator=_Parent2, scope=Scope.APP)
+    c2 = Container(scope=Scope.APP)
+    c2.providers_registry.register(_Leaf2, leaf2)
+    c2.providers_registry.register(_Parent2, parent2)
+
+    # Resolve parent — propagates through leaf → parent step prepended
+    with contextlib.suppress(exceptions.ResolutionError):
+        c2.resolve(_Parent2)
+
+    # Now resolve leaf directly — its error must NOT contain Parent2's breadcrumb
+    try:
+        c2.resolve(_Leaf2)
+    except exceptions.ResolutionError as exc:
+        leaf_err = str(exc)
+        assert "Parent2" not in leaf_err, f"Parent2 leaked into leaf error: {leaf_err!r}"
+    else:
+        pytest.fail("Expected ResolutionError when resolving _Leaf2 directly")  # pragma: no cover
