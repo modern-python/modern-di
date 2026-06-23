@@ -58,7 +58,7 @@ def _baseline_resolve_inner(cache_item: CacheItem, container: Container) -> dict
         return {}
     unified = {**plan.provider_kwargs, **plan.static_kwargs}
     return {
-        k: container.resolve_provider(v) if isinstance(v, AbstractProvider) else v  # type: ignore[arg-type]
+        k: container.resolve_provider(v) if isinstance(v, AbstractProvider) else v
         for k, v in unified.items()
     }
 
