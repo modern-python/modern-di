@@ -108,6 +108,11 @@ Planning follows a portable two-axis convention (shared with
 - **`planning/changes/<YYYY-MM-DD.NN-slug>/`** are change
   bundles: `design.md` + `plan.md` (full lane), or `change.md` (lightweight).
   Tiny changes (typo, dep bump, CI tweak) skip bundles entirely.
+- **`planning/decisions/<YYYY-MM-DD>-<slug>.md`** — when something is decided
+  *not* to be done (a rejected option with a load-bearing reason), record it
+  here, one file each with a revisit trigger, so it isn't re-litigated; listed
+  by `just index`. (`deferred.md` is the flat backlog of real-but-unscheduled
+  work.)
 - Templates live in [`planning/_templates/`](planning/_templates/).
 - **Shipping a change** hand-edits the affected
   `architecture/<capability>.md` and sets `status: shipped` + `pr:` +
