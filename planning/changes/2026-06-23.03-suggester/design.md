@@ -1,0 +1,122 @@
+---
+status: draft
+date: 2026-06-23
+slug: suggester
+summary: Extract the shared difflib fuzzy-match primitive into a directly-testable suggester module.
+supersedes: null
+superseded_by: null
+pr: null
+outcome: null
+---
+
+# Design: A `suggester` module for the shared "did you mean" fuzzy match
+
+## Summary
+
+`difflib.get_close_matches` is called in two places — `ProvidersRegistry.
+build_suggestions` (fuzzy type-name suggestions) and `Factory._validate_kwargs_
+against_signature` (unknown-kwarg "did you mean"). Both are reachable only by
+triggering an error, so neither is unit-tested directly, and the `0.6` cutoff is
+aligned across them only by coincidence. This change extracts the one shared
+primitive into a new top-level `modern_di/suggester.py` —
+`close_matches(target, candidates, *, n, cutoff=0.6)` — that both sites delegate
+to. Pure refactor: behavior is identical (both already used cutoff `0.6`); the
+win is a directly-testable seam and a single home for the cutoff policy.
+
+## Motivation
+
+From the 2026-06-23 architecture review (candidate 3). The fuzzy-match logic is
+duplicated at `registries/providers_registry.py:91` (`n=remaining,
+cutoff=_SIMILARITY_CUTOFF` where `_SIMILARITY_CUTOFF = 0.6`) and
+`providers/factory.py:96` (`n=1`, no cutoff → `difflib`'s default, which is also
+`0.6`). The two thresholds are equal today by accident, not design: changing
+`_SIMILARITY_CUTOFF` would not move factory's. And the matching is exercised only
+through raised `ProviderNotRegisteredError` / `ArgumentResolutionError` /
+`UnknownFactoryKwargError` messages — there is no way to unit-test "does this
+target fuzzy-match these candidates?" in isolation.
+
+The **deletion test**: a `suggester` concentrates the one genuinely-shared thing
+(the `difflib` wrapper + the cutoff policy). The divergent halves — `providers_
+registry`'s scope-annotated formatting and hierarchy hints, factory's
+`{bad: match}` map — stay at their sites, where candidate 2 just put them. Two
+real callers justify the seam.
+
+## Non-goals
+
+- **Moving formatting or `_hierarchy_hint`.** The two sites format differently,
+  and `_hierarchy_hint` needs `bound_type`/subclass knowledge — both stay put.
+- **Changing `_MAX_SUGGESTIONS`** (the total-suggestions cap in `build_
+  suggestions`) — it is suggestion-assembly policy, not fuzzy matching; it stays.
+- **Touching the suggestion *vocabulary*** (`SUGGESTION_HEADER` in `exceptions.py`,
+  the line-formats in `providers_registry.py`). Candidate 2 deliberately left
+  that split; unifying message text is out of scope here.
+
+## Design
+
+### 1. New `modern_di/suggester.py`
+
+```python
+import difflib
+import typing
+
+
+def close_matches(
+    target: str, candidates: typing.Iterable[str], *, n: int, cutoff: float = 0.6
+) -> list[str]:
+    """Fuzzy-match ``target`` against ``candidates``; best ``n`` at/above ``cutoff``.
+
+    Thin wrapper over ``difflib.get_close_matches`` so the similarity cutoff and
+    its tuning live in one place, and the matching is unit-testable without
+    raising an error.
+    """
+    return difflib.get_close_matches(target, list(candidates), n=n, cutoff=cutoff)
+```
+
+`0.6` lives here, once, as the default. (`difflib.get_close_matches` already
+returns matches sorted best-first and capped at `n`; the wrapper preserves that
+contract exactly. `candidates` is materialized to a `list` so any iterable —
+`dict_keys`, `set` — works, matching today's call sites.)
+
+### 2. `providers_registry.build_suggestions` delegates
+
+Replace the inline `difflib.get_close_matches(requested_name,
+name_to_provider.keys(), n=remaining, cutoff=_SIMILARITY_CUTOFF)` with
+`suggester.close_matches(requested_name, name_to_provider.keys(), n=remaining)`.
+Drop `import difflib` and the `_SIMILARITY_CUTOFF` constant (the `0.6` now lives
+in the suggester default). `_MAX_SUGGESTIONS` and `_hierarchy_hint` are unchanged.
+
+### 3. `factory._validate_kwargs_against_signature` delegates
+
+Replace `difflib.get_close_matches(bad, known, n=1)` with
+`suggester.close_matches(bad, known, n=1)`. Drop `import difflib` from
+`factory.py` (its only use). The unknown-key detection and the
+`UnknownFactoryKwargError` construction are unchanged.
+
+## Testing
+
+The payoff is a new **`tests/test_suggester.py`** exercising `close_matches`
+directly (no `Container`, no raised error):
+
+- exact match returned;
+- a fuzzy hit at/above the cutoff returned; a near-miss below it excluded;
+- the `n` cap honoured; results ordered best-first;
+- empty `candidates` → `[]`;
+- the default cutoff is `0.6` (a borderline candidate that passes at `0.6` and a
+  lower-similarity one that fails, to pin the default).
+
+Existing tests pass **unchanged**: `tests/test_suggestions.py` (the
+type-suggestion message assertions), `tests/registries/test_providers_registry.py`,
+and the factory unknown-kwarg tests all still exercise the same behavior, since
+both sites already used cutoff `0.6`. `just test-ci` green at 100% coverage,
+`just lint-ci` clean.
+
+No `architecture/` capability prose changes (suggestion *behavior* is unchanged);
+add `modern_di/suggester.py` to the `CLAUDE.md` "Key files" list on ship.
+
+## Risk
+
+- **Behavior drift in suggestions** — *low / fully guarded.* Both sites already
+  resolved to cutoff `0.6` and the same `n`; the wrapper preserves `difflib`'s
+  contract. `test_suggestions.py` + the registry/factory tests are the guard.
+- **`list(candidates)` materialization** — *none.* The sites already pass finite
+  collections (`dict_keys`, `set`); `difflib` materializes internally anyway.
