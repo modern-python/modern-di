@@ -82,6 +82,7 @@ class MyGroup(Group):
 - `modern_di/providers/context_provider.py` — ContextProvider for runtime-injected values
 - `modern_di/providers/container_provider.py` — auto-registered provider that resolves to the Container itself
 - `modern_di/types_parser.py` — Signature introspection engine (parses type hints for DI wiring)
+- `modern_di/suggester.py` — `close_matches`, the shared difflib fuzzy-match used by registry type suggestions and factory kwarg "did you mean"
 - `modern_di/scope.py` — Scope enum
 - `modern_di/group.py` — Group base class for provider namespaces
 - `modern_di/exceptions.py` — exception class hierarchy (`ModernDIError` → `ContainerError`/`ResolutionError`/`RegistrationError` subclasses); each error message is an inline f-string in the class that raises it
