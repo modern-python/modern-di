@@ -1,0 +1,339 @@
+---
+status: draft
+date: 2026-06-23
+slug: wiring-plan-extraction
+summary: Extract a WiringPlan deep module from Factory so the kwarg-binding decision lives in one place, testable without a Container.
+supersedes: null
+superseded_by: null
+pr: null
+outcome: null
+---
+
+# Design: Extract the kwarg-wiring decision out of `Factory` into a `WiringPlan`
+
+## Summary
+
+The static decision "how do this creator's parameters bind to providers,
+static values, and context — and which can't be wired at all" is implemented
+**four times** inside `Factory`, with the absent-value table (default → omit,
+nullable → `None`, else → raise) **hand-copied at three sites** that must stay
+in sync. This change concentrates that decision in one deep module,
+`WiringPlan`, built once per `CacheItem` exactly as today's compiled kwargs are.
+`Factory.resolve` and `Container.validate()` both read the plan; the only thing
+that stays split is the *consumer* discipline — resolve raises the first
+unwireable parameter, validate collects them all. Behavior and per-resolve cost
+are identical; the win is locality (one decision, one absent-value table, one
+error-construction site) and testability (`WiringPlan.build(...)` is a pure
+function of its inputs — exercisable with no `Container`, `Group`, or scope
+chain).
+
+## Motivation
+
+From the 2026-06-23 architecture review (top recommendation). Inside
+`modern_di/providers/factory.py`, the "parsed signature → providers, given the
+registry" decision is spread across four traversals of `self._parsed_kwargs`:
+
+- `_compile_kwargs` (`factory.py:139-177`) — partitions parameters into
+  `provider_kwargs` / `static_kwargs` / `context_kwargs` for resolution; **raises
+  eagerly** on the first unwireable required parameter.
+- `_resolve_context_value` (`factory.py:194-214`) — applies the same absent-value
+  table **live** for context-backed parameters; raises on required-absent.
+- `get_dependencies` (`factory.py:216-229`) — re-matches each parameter to a
+  provider for `validate()`'s graph traversal; no fallback, never raises.
+- `iter_validation_issues` (`factory.py:231-250`) — **yields** an
+  `ArgumentResolutionError` for every unwireable required parameter, for
+  `validate()`'s collect-all.
+
+The matching half is already shared (`_find_dep_provider`, `factory.py:116-126`,
+called from three of the four). The **absent-value table is not**: the
+`default → omit / is_nullable → None / else → raise` precedence is written out at
+`factory.py:163-169`, `factory.py:210-214`, and `factory.py:241-244`. Three
+copies of one decision is exactly the locality defect the review flagged; a
+change to the rule (or a new disposition) must be made in three places or it
+drifts.
+
+Testability is the second cost. To check "does this creator wire correctly
+against these providers?" today you must build a `Container` + `Group` (+ child
+container for scoped cases), call `resolve`, and catch — the suite does this at
+98 construction sites. The wiring decision is *already* a pure function of
+`(_parsed_kwargs, _kwargs, providers_registry)` (it never reads cache, scope, or
+live context — see the `_ensure_kwargs_cached` comment at `factory.py:182-185`),
+but it has no seam, so it is reachable only through full resolution.
+
+## Non-goals
+
+- **Changing the caching lifetime.** The plan is built once and stored on the
+  `CacheItem`, on first resolve, under the existing one-time guard — same
+  lifetime, same scope, same per-container memo as today. Hoisting the plan to a
+  per-registry cache (compile once per container *tree*) is a separate, later
+  change; it touches the shared registry's locking and is not needed for the
+  locality/testability win.
+- **Fixing the static-kwarg-provider validation gap.** Today a provider passed
+  via `kwargs={"x": SomeProvider}` *is* resolved at resolve time
+  (`_compile_kwargs` routes it into `provider_kwargs`, `factory.py:171-176`) but
+  is **not** traversed by `validate()` (`get_dependencies` and
+  `iter_validation_issues` skip every `self._kwargs` key). This change preserves
+  that asymmetry exactly (see Design §4); closing the gap is a deliberate,
+  separate behavior change.
+- **Touching the polymorphic provider interface.** `AbstractProvider.
+  get_dependencies` / `iter_validation_issues` stay as they are; `Alias` and the
+  others are untouched. Only `Factory`'s two implementations are rewritten as
+  thin plan-readers.
+- **Free-threaded / nogil.** The existing GIL-determinism argument
+  (`factory.py:182-185`) is preserved verbatim; the no-GIL caveat already tracked
+  in `planning/deferred.md` is unchanged.
+
+## Design
+
+### 1. New module `modern_di/wiring.py`
+
+A top-level support module alongside `types_parser.py` and `scope.py`, holding:
+
+- **`WiringPlan`** — a frozen value object (the buckets + issues + a validate
+  view), built by a pure classmethod.
+- **`absent_disposition(item)`** — the single copy of the absent-value table.
+- **`find_dep_provider(registry, owner, item)`** — the matcher moved out of
+  `Factory` (today's `_find_dep_provider`), self-reference exclusion preserved.
+
+`wiring.py` imports `SignatureItem` from `types_parser`, `AbstractProvider` and
+`ContextProvider` from `modern_di.providers`, and `exceptions`. It imports
+`ContextProvider` exactly as `factory.py` does today (`from modern_di.providers
+import ContextProvider`); this is cycle-safe because `providers/__init__.py`
+binds `ContextProvider` (line 4) before `factory` (line 5), and `wiring` is
+imported *by* `factory`. `Factory` is referenced for typing only (under
+`TYPE_CHECKING`).
+
+```python
+class _Absent(enum.Enum):
+    OMIT = enum.auto()   # parameter omitted; creator default applies
+    NULL = enum.auto()   # inject None (annotation was nullable)
+    UNWIRABLE = enum.auto()  # required, no provider, no default → error
+
+
+def absent_disposition(item: SignatureItem) -> _Absent:
+    # precedence matches today: default before nullable before raise
+    if item.default is not UNSET:
+        return _Absent.OMIT
+    if item.is_nullable:
+        return _Absent.NULL
+    return _Absent.UNWIRABLE
+```
+
+`absent_disposition` is pure on the `SignatureItem` (no registry, no container).
+It is the *only* place the table lives after this change.
+
+### 2. `WiringPlan` — representation (buckets + issues + dependencies view)
+
+The representation is deliberately the three buckets `Factory` already resolves
+from, plus an `issues` list and a `dependencies` view; the resolve hot loop does
+not move.
+
+```python
+@dataclasses.dataclass(frozen=True, slots=True)
+class WiringPlan:
+    provider_kwargs: dict[str, AbstractProvider]   # resolved live each resolve
+    static_kwargs: dict[str, typing.Any]           # literals + nullable-None
+    context_kwargs: dict[str, tuple[ContextProvider, SignatureItem]]
+    dependencies: dict[str, AbstractProvider]      # type-matched only → validate
+    issues: list[ArgumentResolutionError]          # UNWIRABLE params
+
+    @classmethod
+    def build(cls, *, parsed_kwargs, kwargs, registry, owner) -> "WiringPlan":
+        ...
+```
+
+`build` is a pure function of `(parsed_kwargs, kwargs, registry, owner)` — no
+cache, no scope, no live context — so it stays runnable **outside** the container
+lock, exactly as `_compile_kwargs` runs today (preserving the determinism
+argument at `factory.py:182-185`). The algorithm is today's `_compile_kwargs`
+with the raise replaced by an append, and a parallel `dependencies` map recorded
+for validate:
+
+```python
+for name, item in parsed_kwargs.items():
+    if kwargs and name in kwargs:
+        continue                      # supplied as a static kwarg below
+    provider = find_dep_provider(registry, owner, item)
+    if provider is not None:
+        dependencies[name] = provider                 # validate-visible
+        if isinstance(provider, ContextProvider):
+            context_kwargs[name] = (provider, item)
+        else:
+            provider_kwargs[name] = provider
+        continue
+    disposition = absent_disposition(item)
+    if disposition is _Absent.OMIT:
+        continue
+    if disposition is _Absent.NULL:
+        static_kwargs[name] = None
+        continue
+    suggestions = registry.build_suggestions(item.arg_type) if item.arg_type else []
+    issues.append(owner._argument_resolution_error(name, item, suggestions))
+
+if kwargs:                            # static overlay — NOT in `dependencies`
+    for name, value in kwargs.items():
+        if isinstance(value, AbstractProvider):
+            provider_kwargs[name] = value
+        else:
+            static_kwargs[name] = value
+```
+
+The plan **never raises**; it records `issues`. Two consumers, two disciplines
+(Design §3, §4). Error construction stays single-source: `build` calls the
+owner's existing `_argument_resolution_error` (cross-module private access, with
+`# noqa: SLF001` consistent with `alias.py:63`), so the message/suggestion shape
+is defined in exactly one place and shared by the resolve and validate paths.
+
+Note on suggestion cost: today resolve builds suggestions only for the one
+parameter it raises on; `build` constructs the error (with suggestions) for every
+`issue`. This is off the hot path — `issues` is non-empty only when the graph is
+already broken, in which case resolve is about to raise and validate already does
+this work per issue. The happy path does zero suggestion work.
+
+### 3. `Factory.resolve` reads the plan, raises the first issue
+
+`_ensure_kwargs_cached` becomes `_ensure_plan`, returning (and memoizing) a
+single `WiringPlan` on the `CacheItem`:
+
+```python
+def _ensure_plan(self, container, cache_item) -> WiringPlan:
+    if cache_item.wiring_plan is None:
+        cache_item.wiring_plan = WiringPlan.build(
+            parsed_kwargs=self._parsed_kwargs,
+            kwargs=self._kwargs,
+            registry=container.providers_registry,
+            owner=self,
+        )
+    return cache_item.wiring_plan
+```
+
+`_resolve_kwargs` reads `plan.provider_kwargs` / `static_kwargs` /
+`context_kwargs` with its current loop unchanged, except it first surfaces any
+recorded issue so behavior matches today's eager raise:
+
+```python
+plan = self._ensure_plan(container, cache_item)
+if plan.issues:
+    raise plan.issues[0]
+```
+
+Because `build` iterates `_parsed_kwargs` in order and `resolve` raises
+`issues[0]`, the *same* `ArgumentResolutionError` is raised as today's
+first-encountered eager raise. The only difference is that `build` finishes
+partitioning before the raise surfaces — extra work on the error path only.
+
+Context-backed parameters keep their **live** loop in `Factory`
+(`_resolve_context_value` stays a `Factory` method — it needs the live
+container, override registry, and scope), but its absent branch now calls the
+shared helper instead of re-spelling the table:
+
+```python
+value = provider.fetch_context_value(container)
+if value is not UNSET:
+    return value
+disposition = absent_disposition(item)          # shared with build
+if disposition is _Absent.OMIT:
+    return UNSET                                  # omit kwarg
+if disposition is _Absent.NULL:
+    return None
+raise self._argument_resolution_error(arg_name, item, [])
+```
+
+### 4. `Factory.get_dependencies` / `iter_validation_issues` become plan-readers
+
+Both delegate to a freshly built plan (no `CacheItem` exists at validate time —
+validate runs across the registry at construction):
+
+```python
+def get_dependencies(self, container):
+    return WiringPlan.build(..., registry=container.providers_registry, owner=self).dependencies
+
+def iter_validation_issues(self, container):
+    return WiringPlan.build(..., owner=self).issues
+```
+
+`plan.dependencies` is the **type-matched** providers only (regular + context),
+excluding providers supplied via `self._kwargs` — exactly what today's
+`get_dependencies` returns, so `validate()`'s graph traversal and scope-ordering
+checks are unchanged (see Non-goals on the static-kwarg gap). `plan.issues`
+equals today's `iter_validation_issues` output. Validate builds the plan twice
+per `Factory` (once per method); validate is a one-shot construction-time check,
+so the double build is negligible and the polymorphic interface stays exactly as
+wide as it is.
+
+### 5. `CacheItem` stores one plan instead of three buckets + a flag
+
+`CacheItem` (`cache_registry.py:9-17`) drops `kwargs_compiled`,
+`provider_kwargs`, `static_kwargs`, and `context_kwargs`, and gains a single
+`wiring_plan: "WiringPlan | None" = None` field (type imported under
+`TYPE_CHECKING` from `modern_di.wiring`). "Compiled" ⇔ `wiring_plan is not
+None`. This is the same per-`CacheItem` memo lifetime as today — only the stored
+shape changes (4 fields → 1) — and it is the locality win extended to the cache
+item.
+
+## Operations
+
+None — library-internal refactor + docs.
+
+## Out of scope
+
+See Non-goals: per-registry plan hoisting, the static-kwarg-provider validation
+gap, and any provider-interface widening are all explicitly excluded and can be
+filed as follow-ups.
+
+## Testing
+
+The headline payoff is a new **`tests/test_wiring.py`** that exercises
+`WiringPlan.build` and `absent_disposition` directly — no `Container`:
+
+1. **Partitioning:** a creator with one type-matched provider param, one static
+   `kwargs` literal, one `ContextProvider` param, one defaulted-absent param, one
+   nullable-absent param → assert each lands in the right bucket / is omitted /
+   is `None`.
+2. **Issues, no raise:** a creator with a required, unwireable param → `build`
+   returns `plan.issues == [ArgumentResolutionError(...)]` and does **not** raise;
+   assert the error carries the same `arg_name` / `arg_type` / suggestions as
+   today.
+3. **`dependencies` excludes static-supplied providers:** `kwargs={"x":
+   SomeProvider}` → `x` in `plan.provider_kwargs` but **not** in
+   `plan.dependencies` (locks in the preserved validate asymmetry).
+4. **`absent_disposition` precedence:** default-before-nullable-before-unwirable,
+   as a small parametrized table test.
+
+Behavior-preservation is proven by the **existing suite staying green,
+unchanged**: every current resolve / validate / context / override / suggestion
+test must pass as-is (any test that needs editing signals a behavior change and
+is a red flag). Specifically confirm:
+
+- the eager-raise tests in `test_factory.py` still raise the same
+  `ArgumentResolutionError` (now via `plan.issues[0]`);
+- the `validate()` cycle / scope-ordering / collect-all tests in
+  `test_container.py` are untouched;
+- the cross-scope live-`set_context` regression from the
+  `set-context-cross-scope-staleness` bundle still passes (context stays live).
+
+`just test` green, **100% coverage maintained**, `just lint-ci` clean (watch for
+`SLF001` on the cross-module `_argument_resolution_error` call — annotate as
+`alias.py` does). On ship, promote into `architecture/resolution.md` (the wiring
+decision now lives in `WiringPlan`; the absent-value table is single-source) and
+`architecture/providers.md` (Factory delegates partitioning to `WiringPlan`).
+
+## Risk
+
+- **Behavior drift in the resolve/validate output** — *low likelihood / high
+  impact.* The whole change is a relocation; the algorithm is line-for-line
+  today's `_compile_kwargs` / `iter_validation_issues` with raise↔append swapped.
+  Mitigation: the unchanged existing suite at 100% coverage is the guard; the
+  preserved static-kwarg asymmetry (§4) is explicitly tested.
+- **Import cycle from `wiring.py`** — *low.* It mirrors `factory.py`'s existing,
+  working `from modern_di.providers import ContextProvider`, and `__init__`
+  binds `ContextProvider` before `factory`. Mitigation: keep `Factory` /
+  `ProvidersRegistry` as `TYPE_CHECKING`-only imports in `wiring`; smoke-import
+  `modern_di` at the top of the task.
+- **Thread-safety regression** — *low.* `WiringPlan.build` stays pure and runs
+  outside the lock, identical to `_compile_kwargs` today; the lock still guards
+  only singleton creation. Mitigation: preserve the determinism comment verbatim
+  on `_ensure_plan`.
+- **Suggestion work moved earlier** — *negligible.* Only on the error path
+  (`issues` non-empty), where resolve is about to raise and validate already does
+  per-issue suggestion work today.
