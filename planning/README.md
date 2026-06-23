@@ -58,6 +58,9 @@ into `design.md` + `plan.md`.
   spawns fix changes.
 - **`retros/<date>-<slug>.md`** — what we learned after a body of work.
 - **`deferred.md`** — real-but-unscheduled items, each with a revisit trigger.
+- **`decisions.md`** — design decisions deliberately taken, especially options
+  considered and *rejected*, each with a revisit trigger (an append-only log;
+  promote to `decisions/<date>-<slug>.md` if it grows).
 
 Templates live in [`_templates/`](_templates/).
 
@@ -84,6 +87,8 @@ committed copy to drift.
   code+docs, 2026-06-13 docs-ux, 2026-06-14 deep audit).
 - **[deferred.md](deferred.md)** — real-but-unscheduled items with revisit
   triggers.
+- **[decisions.md](decisions.md)** — design decisions taken (and alternatives
+  rejected), so reviews don't re-litigate them.
 - **[scripts/bug-hunt-audit.workflow.mjs](scripts/bug-hunt-audit.workflow.mjs)**
   — repo-specific extra (the reusable audit harness), not part of the portable
   core.
