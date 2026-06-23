@@ -24,9 +24,7 @@ def _baseline_find_container(self: Container, scope: Scope) -> Container:
     container = self
     if container.scope < scope:
         msg = f"Provider of scope {scope.name} cannot be resolved in container of scope {self.scope.name}."
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     while container.scope > scope and container.parent_container:
         container = container.parent_container
     if container.scope != scope:
@@ -35,9 +33,7 @@ def _baseline_find_container(self: Container, scope: Scope) -> Container:
             f"this chain starts at {self.scope.name}. "
             f"Build a {scope.name}-scope container as the root."
         )
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     return container
 
 
