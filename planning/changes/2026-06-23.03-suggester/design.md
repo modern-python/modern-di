@@ -1,12 +1,19 @@
 ---
-status: draft
+status: shipped
 date: 2026-06-23
 slug: suggester
 summary: Extract the shared difflib fuzzy-match primitive into a directly-testable suggester module.
 supersedes: null
 superseded_by: null
-pr: null
-outcome: null
+pr: 228
+outcome: |
+  Shipped. The two difflib.get_close_matches sites (registry type suggestions,
+  factory kwarg "did you mean") now delegate to modern_di/suggester.close_matches;
+  the 0.6 cutoff lives once as its default; difflib is confined to suggester.py.
+  Adds tests/test_suggester.py (7 direct tests) — the fuzzy match is now unit-
+  testable without raising an error. Behavior identical (both sites already used
+  0.6); review confirmed the list(candidates) materialization is behavior-neutral
+  (difflib's equal-ratio tie-break is deterministic). 232 tests, 100% coverage.
 ---
 
 # Design: A `suggester` module for the shared "did you mean" fuzzy match
