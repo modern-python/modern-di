@@ -1,14 +1,12 @@
-import difflib
 import inspect
 import threading
 import typing
 
-from modern_di import exceptions, types
+from modern_di import exceptions, suggester, types
 from modern_di.providers.abstract import AbstractProvider
 
 
 _MAX_SUGGESTIONS = 3
-_SIMILARITY_CUTOFF = 0.6
 
 
 def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]) -> str | None:
@@ -88,8 +86,6 @@ class ProvidersRegistry:
         remaining = _MAX_SUGGESTIONS - len(hierarchy_hints)
         typo_hints = [
             f"  - {name} (similar name, scope={name_to_provider[name].scope.name})"
-            for name in difflib.get_close_matches(
-                requested_name, name_to_provider.keys(), n=remaining, cutoff=_SIMILARITY_CUTOFF
-            )
+            for name in suggester.close_matches(requested_name, name_to_provider.keys(), n=remaining)
         ]
         return hierarchy_hints + typo_hints
