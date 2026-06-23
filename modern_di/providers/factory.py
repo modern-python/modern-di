@@ -1,11 +1,10 @@
 import dataclasses
-import difflib
 import enum
 import inspect
 import typing
 import warnings
 
-from modern_di import exceptions, types
+from modern_di import exceptions, suggester, types
 from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
@@ -93,7 +92,7 @@ class Factory(AbstractProvider[types.T_co]):
             return
         suggestions: dict[str, str] = {}
         for bad in unknown:
-            matches = difflib.get_close_matches(bad, known, n=1)
+            matches = suggester.close_matches(bad, known, n=1)
             if matches:
                 suggestions[bad] = matches[0]
         raise exceptions.UnknownFactoryKwargError(
