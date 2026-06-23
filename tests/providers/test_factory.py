@@ -608,15 +608,6 @@ def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
     assert first == second == third, f"breadcrumb compounded: {first!r} != {second!r}"
 
 
-class _UnregisteredLeaf:
-    pass
-
-
-class _ParentNeedsLeaf:
-    def __init__(self, leaf: _UnregisteredLeaf) -> None:
-        self.leaf = leaf  # pragma: no cover
-
-
 def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
     """After a parent's failing resolve, a direct resolve of the leaf must not include the parent's step.
 
@@ -624,17 +615,7 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
     ``prepend_step``, so subsequent direct resolves of the leaf incorrectly showed the
     parent in the chain.
     """
-    leaf_factory: providers.Factory[_UnregisteredLeaf] = providers.Factory(creator=_UnregisteredLeaf, scope=Scope.APP)
-    parent_factory: providers.Factory[_ParentNeedsLeaf] = providers.Factory(creator=_ParentNeedsLeaf, scope=Scope.APP)
-    container = Container(scope=Scope.APP)
-    container.providers_registry.register(_UnregisteredLeaf, leaf_factory)
-    container.providers_registry.register(_ParentNeedsLeaf, parent_factory)
 
-    # First resolve the parent — it fails because Leaf has no registered dep; the
-    # parent's step is prepended to the error as it propagates.
-    # (Note: Leaf itself IS registered; it just needs _UnregisteredDep which is not.)
-    # For this test we need a provider that depends on something TRULY unwired.
-    # Let's use a separate container where the leaf's dep is missing.
     class _MissingDep:
         pass
 
