@@ -5,6 +5,7 @@ import warnings
 
 import pytest
 
+import modern_di.wiring as wiring_mod
 from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import ArgumentResolutionError, ScopeNotInitializedError, UnknownFactoryKwargError
 
@@ -431,15 +432,13 @@ def test_compile_kwargs_is_memoized_across_resolves() -> None:
         svc = providers.Factory(scope=Scope.APP, creator=DependentCreator)
 
     container = Container(groups=[_MemoGroup])
-    real_compile = providers.Factory._compile_kwargs  # noqa: SLF001 — spying on the memoization internal
-    with unittest.mock.patch.object(
-        providers.Factory, "_compile_kwargs", autospec=True, side_effect=real_compile
-    ) as compile_spy:
+    real_build = wiring_mod.WiringPlan.build
+    with unittest.mock.patch.object(wiring_mod.WiringPlan, "build", autospec=True, side_effect=real_build) as build_spy:
         container.resolve(DependentCreator)
         container.resolve(DependentCreator)
-    # svc + leaf each compile once on the first resolve; the second reuses the memo (else this is 4).
-    expected_compile_calls = 2
-    assert compile_spy.call_count == expected_compile_calls
+    # svc + leaf each build their plan once on the first resolve; the second reuses the memo (else this is 4).
+    expected_build_calls = 2
+    assert build_spy.call_count == expected_build_calls
 
 
 # Q-1 / G-3 — optional (X | None) params inject None when no provider is registered

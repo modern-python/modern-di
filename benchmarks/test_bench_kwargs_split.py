@@ -53,9 +53,13 @@ class BenchGroup(Group):
 
 def _baseline_resolve_inner(cache_item: CacheItem, container: Container) -> dict[str, typing.Any]:
     """Simulate the old resolved_kwargs dict-comp that ran on every resolve()."""
+    plan = cache_item.wiring_plan
+    if plan is None:
+        return {}
+    unified = {**plan.provider_kwargs, **plan.static_kwargs}
     return {
-        k: container.resolve_provider(v) if isinstance(v, AbstractProvider) else v
-        for k, v in {**cache_item.provider_kwargs, **cache_item.static_kwargs}.items()
+        k: container.resolve_provider(v) if isinstance(v, AbstractProvider) else v  # type: ignore[arg-type]
+        for k, v in unified.items()
     }
 
 
