@@ -1,12 +1,19 @@
 ---
-status: draft
+status: shipped
 date: 2026-06-23
 slug: inline-error-messages
 summary: Inline the single-use error templates into their exception classes and delete the errors.py seam.
 supersedes: null
 superseded_by: null
-pr: null
-outcome: null
+pr: 227
+outcome: |
+  Shipped. 17 single-use message templates inlined as f-strings into their
+  exception classes; SUGGESTION_HEADER kept as a module constant in exceptions.py;
+  the 3 SUGGESTION_* line-formats inlined into providers_registry.py; errors.py
+  deleted. The review's import-cycle worry was verified moot (no constant crosses
+  both modules). A before/after str(e) dump across all 23 exception cases proved
+  every message byte-identical; ty caught a third errors importer in a benchmark,
+  also inlined. 225 tests, 100% coverage.
 ---
 
 # Design: Inline error messages into their exceptions and delete `errors.py`
