@@ -3,7 +3,7 @@ import inspect
 import threading
 import typing
 
-from modern_di import errors, exceptions, types
+from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -17,9 +17,9 @@ def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]
         return None
     try:
         if issubclass(registered, requested_type):
-            return errors.SUGGESTION_SUBCLASS.format(type_name=registered.__name__, scope=provider.scope.name)
+            return f"  - {registered.__name__} (registered subclass, scope={provider.scope.name})"
         if issubclass(requested_type, registered):
-            return errors.SUGGESTION_BASECLASS.format(type_name=registered.__name__, scope=provider.scope.name)
+            return f"  - {registered.__name__} (registered base class, scope={provider.scope.name})"
     except TypeError:
         return None
     return None
@@ -87,7 +87,7 @@ class ProvidersRegistry:
 
         remaining = _MAX_SUGGESTIONS - len(hierarchy_hints)
         typo_hints = [
-            errors.SUGGESTION_SIMILAR.format(type_name=name, scope=name_to_provider[name].scope.name)
+            f"  - {name} (similar name, scope={name_to_provider[name].scope.name})"
             for name in difflib.get_close_matches(
                 requested_name, name_to_provider.keys(), n=remaining, cutoff=_SIMILARITY_CUTOFF
             )
