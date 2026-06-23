@@ -16,6 +16,7 @@ from modern_di.wiring import WiringPlan, _Absent, absent_disposition
 if typing.TYPE_CHECKING:
     from modern_di import Container
     from modern_di.registries.cache_registry import CacheItem
+    from modern_di.registries.providers_registry import ProvidersRegistry
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -115,8 +116,14 @@ class Factory(AbstractProvider[types.T_co]):
         return exceptions.ResolutionStep(scope=self.scope, name=self.display_name)
 
     def _argument_resolution_error(
-        self, arg_name: str, item: SignatureItem, suggestions: list[str]
+        self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry | None" = None
     ) -> exceptions.ArgumentResolutionError:
+        # The single error-construction site: build the message and (when a registry is given and the
+        # argument has a resolvable type) the closest-match suggestions. The context path passes no
+        # registry, so absent-context errors carry no suggestions — as before.
+        suggestions = (
+            registry.build_suggestions(item.arg_type) if registry is not None and item.arg_type is not None else []
+        )
         return exceptions.ArgumentResolutionError(
             arg_name=arg_name,
             arg_type=item.arg_type,
@@ -160,7 +167,7 @@ class Factory(AbstractProvider[types.T_co]):
             return types.UNSET  # omit kwarg; creator default applies
         if disposition is _Absent.NULL:
             return None
-        raise self._argument_resolution_error(arg_name, item, [])
+        raise self._argument_resolution_error(arg_name=arg_name, item=item)
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter-name → dependency-provider mapping using only the providers registry.
@@ -184,10 +191,7 @@ class Factory(AbstractProvider[types.T_co]):
             owner=self,
         )
         for name, item in plan.unwireable:
-            suggestions = (
-                container.providers_registry.build_suggestions(item.arg_type) if item.arg_type is not None else []
-            )
-            yield self._argument_resolution_error(name, item, suggestions)
+            yield self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
 
     def _call_creator(self, resolved_kwargs: dict[str, typing.Any]) -> types.T_co:
         try:
@@ -207,10 +211,7 @@ class Factory(AbstractProvider[types.T_co]):
         plan = self._ensure_plan(container, cache_item)
         if plan.unwireable:
             name, item = plan.unwireable[0]
-            suggestions = (
-                container.providers_registry.build_suggestions(item.arg_type) if item.arg_type is not None else []
-            )
-            raise self._argument_resolution_error(name, item, suggestions)
+            raise self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
         resolved_kwargs = dict(plan.static_kwargs)
         for k, v in plan.provider_kwargs.items():
             resolved_kwargs[k] = container.resolve_provider(v)
