@@ -58,9 +58,9 @@ into `design.md` + `plan.md`.
   spawns fix changes.
 - **`retros/<date>-<slug>.md`** — what we learned after a body of work.
 - **`deferred.md`** — real-but-unscheduled items, each with a revisit trigger.
-- **`decisions.md`** — design decisions deliberately taken, especially options
-  considered and *rejected*, each with a revisit trigger (an append-only log;
-  promote to `decisions/<date>-<slug>.md` if it grows).
+- **`decisions/<YYYY-MM-DD>-<slug>.md`** — one file per design decision taken
+  (especially options *rejected*), each with a revisit trigger; listed by
+  `just index`.
 
 Templates live in [`_templates/`](_templates/).
 
@@ -68,15 +68,17 @@ Templates live in [`_templates/`](_templates/).
 
 `design.md` / `change.md`: `status` (draft|approved|shipped|superseded),
 `date`, `slug`, `summary` (single line), `supersedes`, `superseded_by`, `pr`,
-`outcome`. `plan.md`: `status`, `date`, `slug`, `spec`, `pr`. Files in
-`architecture/` carry **no** frontmatter — living prose, dated by git.
+`outcome`. `plan.md`: `status`, `date`, `slug`, `spec`, `pr`. `decisions/*.md`:
+`status` (accepted|superseded), `date`, `slug`, `summary`, `supersedes`,
+`superseded_by`, `pr`. Files in `architecture/` carry **no** frontmatter —
+living prose, dated by git.
 
 ## Index
 
-The change listing is **generated**, not maintained — run `just index` to
-print it (grouped by `status`: In progress / Shipped / Superseded). The
-frontmatter in each bundle is the single source of truth; there is no
-committed copy to drift.
+The listing is **generated**, not maintained — run `just index` to print it:
+changes grouped by `status` (In progress / Shipped / Superseded), then
+decisions (newest first). The frontmatter in each bundle / decision file is the
+single source of truth; there is no committed copy to drift.
 
 ## Other
 
@@ -87,8 +89,8 @@ committed copy to drift.
   code+docs, 2026-06-13 docs-ux, 2026-06-14 deep audit).
 - **[deferred.md](deferred.md)** — real-but-unscheduled items with revisit
   triggers.
-- **[decisions.md](decisions.md)** — design decisions taken (and alternatives
-  rejected), so reviews don't re-litigate them.
+- **[decisions/](decisions/)** — design decisions taken (and alternatives
+  rejected), so reviews don't re-litigate them; indexed by `just index`.
 - **[scripts/bug-hunt-audit.workflow.mjs](scripts/bug-hunt-audit.workflow.mjs)**
   — repo-specific extra (the reusable audit harness), not part of the portable
   core.
