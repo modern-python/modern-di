@@ -9,6 +9,8 @@ nav:
       - About DI: introduction/about-di.md
       - Resolving: introduction/resolving.md
       - Design decisions: introduction/design-decisions.md
+      - Comparison: introduction/comparison.md
+      - that-depends or modern-di?: introduction/that-depends-or-modern-di.md
   - Providers:
       - Scopes: providers/scopes.md
       - Lifecycle: providers/lifecycle.md
