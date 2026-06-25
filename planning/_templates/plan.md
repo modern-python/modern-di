@@ -1,9 +1,3 @@
----
-date: YYYY-MM-DD
-slug: my-change
-spec: design.md
----
-
 # <slug> — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
@@ -44,9 +38,7 @@ in the spec.
 
   ```bash
   git add path/to/file.py
-  git commit -m "<type>: <subject>
-
-  Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+  git commit -m "<type>: <subject>"
   ```
 
 ---

@@ -1,9 +1,3 @@
----
-date: 2026-06-23
-slug: suggester
-spec: design.md
----
-
 # suggester — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use

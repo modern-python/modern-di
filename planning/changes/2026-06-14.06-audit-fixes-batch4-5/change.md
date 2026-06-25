@@ -1,9 +1,5 @@
 ---
-date: 2026-06-14
-slug: audit-fixes-batch4-5
 summary: Final audit cleanup: test hardening (P-6 compile-once pin, R-3 behavioral singleton assert, X-2 structured suggestion/path asserts) + DX/docs (X-3 exception docstrings, X-4 `exceptions` export, X-5 `ResolutionStep` docs). Closes every actionable finding. Plan-only; spec = audit report.
-spec: ../../../audits/2026-06-14-deep-audit-report.md
-outcome: Closed every actionable 2026-06-14 audit finding (P-6/R-3/X-2 test hardening; X-3/X-4/X-5 DX/docs); only won't-fix R-4/R-5/R-6 and the A-1 nogil follow-up remain.
 ---
 
 # audit-fixes-batch4-5 — implementation plan

@@ -1,7 +1,5 @@
 ---
 status: accepted
-date: 2026-06-23
-slug: sync-async-close-separate
 summary: Keep sync/async close paths separate — the divergence is intrinsic, not duplication.
 supersedes: null
 superseded_by: null

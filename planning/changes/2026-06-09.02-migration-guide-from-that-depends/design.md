@@ -1,8 +1,5 @@
 ---
-date: 2026-06-09
-slug: migration-guide-from-that-depends
 summary: Migration guide from that-depends covering all provider types and conceptual shifts.
-outcome: docs/migration/from-that-depends.md published.
 ---
 
 # Spec: Rewrite `from-that-depends.md` migration guide

@@ -1,8 +1,5 @@
 ---
-date: YYYY-MM-DD
-slug: my-change
-summary: One line — shown in the generated index. Fill at ship time.
-outcome: Realized result — filled at ship time (~1–3 sentences); see README "Frontmatter".
+summary: One line — shown in the generated index. Written at creation; finalize at ship to state the realized result.
 ---
 
 # Design: One-line capitalized title

@@ -30,8 +30,8 @@ intra-day counter. Copy the matching template from
 [`_templates/`](_templates/).
 
 **3. Ship in the implementing PR:** hand-edit the affected
-`architecture/<capability>.md`, fill `outcome:` in
-the bundle frontmatter, and run `just check-planning` before pushing.
+`architecture/<capability>.md`, finalize the bundle's `summary:` to the
+realized result, and run `just check-planning` before pushing.
 
 ## Conventions
 
@@ -62,10 +62,11 @@ A change is a folder `changes/YYYY-MM-DD.NN-<slug>/`:
   (`.01`, `.02`, …) that breaks same-date ties so the timeline sorts stably.
 - `<slug>` — kebab-case description, not a story ID.
 
-`summary` is written when the change is created (it is the change's
-one-liner). The implementing PR fills `outcome`
-**in the branch**, alongside the code and the `architecture/`
-promotion — no post-merge bookkeeping, no folder move.
+`summary` is written when the change is created (the intent one-liner) and
+**finalized at ship** to state the realized result — set in the implementing
+PR, alongside the code and the `architecture/` promotion. No post-merge
+bookkeeping, no folder move. `date` and `slug` are never written — they are
+read from the bundle's directory name.
 
 ### Three lanes
 
@@ -96,16 +97,18 @@ Templates live in [`_templates/`](_templates/).
 
 ### Frontmatter
 
-`design.md` / `change.md`: `date`, `slug`, `summary` (single line), `outcome`.
-`plan.md`: `date`, `slug`, `spec`. `decisions/*.md`: `status`
-(accepted|superseded), `date`, `slug`, `summary`, `supersedes`, `superseded_by`.
-Files in `architecture/` carry **no** frontmatter — living prose, dated by git.
+`date` and `slug` are **derived from the directory / file name** — never
+repeated in frontmatter. So:
 
-**`outcome`** is filled at ship time: one line, ~1–3 sentences (≤ ~300 chars),
-stating the realized result — what shipped and its effect (deviations from the
-plan included), written so a future reader grasps the consequence without
-opening the diff. It is distinct from `summary`, which is the pre-ship intent
-one-liner.
+- `design.md` / `change.md`: `summary` (single line) only.
+- `plan.md`: **no frontmatter** — its identity is the bundle directory.
+- `decisions/*.md`: `status` (accepted|superseded), `summary`, and optional
+  `supersedes` / `superseded_by`.
+- Files in `architecture/` carry **no** frontmatter — living prose, dated by git.
+
+**`summary`** is one line: written at creation as the intent, then **finalized
+at ship** to state the realized result — what shipped and its effect. It is the
+only field the index renders.
 
 ## Index
 

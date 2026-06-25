@@ -1,8 +1,5 @@
 ---
-date: 2026-06-09
-slug: docs-improvements
 summary: Docs-site improvements: recipes section, concept pages, refreshed Quick Start.
-outcome: Docs-site improvements shipped.
 ---
 
 # Spec: Docs improvements — recipes + concept pages

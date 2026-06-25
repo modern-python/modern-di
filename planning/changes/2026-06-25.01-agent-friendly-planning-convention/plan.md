@@ -1,9 +1,3 @@
----
-date: 2026-06-25
-slug: agent-friendly-planning-convention
-spec: design.md
----
-
 # agent-friendly-planning-convention — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use

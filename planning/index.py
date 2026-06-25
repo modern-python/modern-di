@@ -7,6 +7,9 @@ Run via ``just index``. Globs ``planning/changes/*/`` (each bundle's
 reads their frontmatter, and prints a Markdown listing to stdout — changes
 then decisions, newest-first. Never writes a file:
 the listing is a query over the files, not a committed artifact.
+
+``date`` and ``slug`` are derived from the directory / file name, not
+frontmatter — the name is the single source of truth for both.
 """
 
 import pathlib
@@ -17,12 +20,11 @@ import sys
 CHANGES_DIR = pathlib.Path(__file__).parent / "changes"
 DECISIONS_DIR = pathlib.Path(__file__).parent / "decisions"
 VALID_DECISION_STATUS = {"accepted", "superseded"}
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-BUNDLE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.\d{2}-(?P<slug>.+)$")
+BUNDLE_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\.\d{2}-(?P<slug>.+)$")
+DECISION_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})-(?P<slug>.+)$")
 ALLOWED_BUNDLE_FILES = {"design.md", "plan.md", "change.md"}
-SPEC_REQUIRED = ("date", "slug", "summary", "outcome")
-PLAN_REQUIRED = ("date", "slug", "spec")
-DECISION_REQUIRED = ("status", "date", "slug", "summary")
+SPEC_REQUIRED = ("summary",)
+DECISION_REQUIRED = ("status", "summary")
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
@@ -44,8 +46,17 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     return fields
 
 
+def _named(fields: dict[str, str], name: str, pattern: re.Pattern[str]) -> dict[str, str]:
+    """Inject ``date``/``slug`` derived from a dir/file name into ``fields``."""
+    match = pattern.match(name)
+    if match:
+        fields["date"] = match.group("date")
+        fields["slug"] = match.group("slug")
+    return fields
+
+
 def load_bundles() -> list[dict[str, str]]:
-    """Read every bundle's spec frontmatter under ``CHANGES_DIR``."""
+    """Read each bundle's summary; derive date/slug from the directory name."""
     bundles: list[dict[str, str]] = []
     for bundle in sorted(CHANGES_DIR.iterdir()):
         if not bundle.is_dir():
@@ -55,7 +66,7 @@ def load_bundles() -> list[dict[str, str]]:
             spec = bundle / "change.md"
         if not spec.exists():
             continue
-        fields = parse_frontmatter(spec.read_text(encoding="utf-8"))
+        fields = _named(parse_frontmatter(spec.read_text(encoding="utf-8")), bundle.name, BUNDLE_RE)
         fields["path"] = f"changes/{bundle.name}/{spec.name}"
         fields["name"] = bundle.name
         bundles.append(fields)
@@ -63,14 +74,14 @@ def load_bundles() -> list[dict[str, str]]:
 
 
 def load_decisions() -> list[dict[str, str]]:
-    """Read frontmatter from every decision file under ``DECISIONS_DIR``."""
+    """Read each decision's frontmatter; derive date/slug from the file name."""
     decisions: list[dict[str, str]] = []
     if not DECISIONS_DIR.is_dir():
         return decisions
     for path in sorted(DECISIONS_DIR.glob("*.md")):
         if path.name == "README.md" or path.name.startswith("_"):
             continue
-        fields = parse_frontmatter(path.read_text(encoding="utf-8"))
+        fields = _named(parse_frontmatter(path.read_text(encoding="utf-8")), path.stem, DECISION_RE)
         fields["path"] = f"decisions/{path.name}"
         fields["name"] = path.stem
         decisions.append(fields)
@@ -108,41 +119,16 @@ def _require(fields: dict[str, str], keys: tuple[str, ...], rel: str, violations
     violations.extend(f"{rel}: missing or empty frontmatter key '{key}'" for key in keys if not fields.get(key))
 
 
-def _check_common(fields: dict[str, str], dir_slug: str | None, rel: str, violations: list[str]) -> None:
-    """Validate date/slug fields shared by every artifact type."""
-    date = fields.get("date", "")
-    if date and not DATE_RE.match(date):
-        violations.append(f"{rel}: date '{date}' is not YYYY-MM-DD")
-    slug = fields.get("slug", "")
-    if dir_slug and slug and slug != dir_slug:
-        violations.append(f"{rel}: slug '{slug}' does not match directory slug '{dir_slug}'")
-
-
-def _check_spec_file(path: pathlib.Path, rel: str, dir_slug: str | None, violations: list[str]) -> None:
-    """Validate a design.md / change.md spec file."""
+def _check_spec_file(path: pathlib.Path, rel: str, violations: list[str]) -> None:
+    """Validate a design.md / change.md spec file (requires `summary`)."""
     fields = parse_frontmatter(path.read_text(encoding="utf-8"))
     _require(fields, SPEC_REQUIRED, rel, violations)
-    _check_common(fields, dir_slug, rel, violations)
-
-
-def _check_plan_file(
-    path: pathlib.Path, bundle: pathlib.Path, rel: str, dir_slug: str | None, violations: list[str]
-) -> None:
-    """Validate a plan.md file, including that its spec: link resolves."""
-    fields = parse_frontmatter(path.read_text(encoding="utf-8"))
-    _require(fields, PLAN_REQUIRED, rel, violations)
-    _check_common(fields, dir_slug, rel, violations)
-    spec = fields.get("spec", "")
-    if spec and not (bundle / spec).resolve().exists():
-        violations.append(f"{rel}: spec link '{spec}' does not resolve to a file")
 
 
 def _check_bundle(bundle: pathlib.Path, violations: list[str]) -> None:
     """Validate one change bundle directory."""
     rel = f"changes/{bundle.name}"
-    match = BUNDLE_RE.match(bundle.name)
-    dir_slug = match.group("slug") if match else None
-    if match is None:
+    if BUNDLE_RE.match(bundle.name) is None:
         violations.append(f"{rel}: directory name is not 'YYYY-MM-DD.NN-slug'")
     violations.extend(
         f"{rel}/{child.name}: unexpected file in bundle (allowed: {', '.join(sorted(ALLOWED_BUNDLE_FILES))})"
@@ -151,22 +137,21 @@ def _check_bundle(bundle: pathlib.Path, violations: list[str]) -> None:
     )
     design = bundle / "design.md"
     change = bundle / "change.md"
-    plan = bundle / "plan.md"
     if not design.exists() and not change.exists():
         violations.append(f"{rel}: bundle has neither design.md nor change.md")
     for spec_file in (design, change):
         if spec_file.exists():
-            _check_spec_file(spec_file, f"{rel}/{spec_file.name}", dir_slug, violations)
-    if plan.exists():
-        _check_plan_file(plan, bundle, f"{rel}/plan.md", dir_slug, violations)
+            _check_spec_file(spec_file, f"{rel}/{spec_file.name}", violations)
+    # plan.md carries no frontmatter — its identity comes from the bundle dir.
 
 
 def _check_decision(path: pathlib.Path, violations: list[str]) -> None:
-    """Validate one decision file."""
+    """Validate one decision file (requires `status` + `summary`)."""
     rel = f"decisions/{path.name}"
+    if DECISION_RE.match(path.stem) is None:
+        violations.append(f"{rel}: file name is not 'YYYY-MM-DD-slug.md'")
     fields = parse_frontmatter(path.read_text(encoding="utf-8"))
     _require(fields, DECISION_REQUIRED, rel, violations)
-    _check_common(fields, None, rel, violations)
     status = fields.get("status", "")
     if status and status not in VALID_DECISION_STATUS:
         violations.append(f"{rel}: invalid status '{status}' (allowed: {', '.join(sorted(VALID_DECISION_STATUS))})")

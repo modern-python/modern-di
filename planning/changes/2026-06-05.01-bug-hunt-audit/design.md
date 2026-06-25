@@ -1,8 +1,5 @@
 ---
-date: 2026-06-05
-slug: bug-hunt-audit
 summary: Four-dimension bug-hunt audit harness and report; 18 findings actioned in 2.15.0.
-outcome: Four-dimension bug-hunt audit harness; report in audits/2026-06-05-bug-hunt-audit-report.md; 18 findings actioned in 2.15.0 (#188–#197).
 ---
 
 # Bug-Hunt Audit — Design
