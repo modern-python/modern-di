@@ -1,5 +1,4 @@
 ---
-status: shipped
 date: 2026-06-12
 slug: audit-fixes
 summary: First batch of code+docs audit fixes. Plan-only; spec = the audit report.

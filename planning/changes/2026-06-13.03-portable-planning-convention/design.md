@@ -1,10 +1,7 @@
 ---
-status: shipped
 date: 2026-06-13
 slug: portable-planning-convention
 summary: Adopted the two-axis planning convention (architecture/ truth + changes/ bundles) from faststream-outbox.
-supersedes: null
-superseded_by: null
 outcome: Adopted the two-axis convention — architecture/ truth home (README + 6 capability docs) + planning/changes/{active,archive}/ bundles; migrated 11 historical spec/plan pairs into archive bundles; added portable README, _templates/, CLAUDE.md Workflow. Also aligned CLAUDE.md Architecture with the code.
 ---
 

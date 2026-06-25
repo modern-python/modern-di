@@ -1,10 +1,7 @@
 ---
-status: shipped
 date: 2026-06-23
 slug: inline-error-messages
 summary: Inline the single-use error templates into their exception classes and delete the errors.py seam.
-supersedes: null
-superseded_by: null
 outcome: |
   Shipped. 17 single-use message templates inlined as f-strings into their
   exception classes; SUGGESTION_HEADER kept as a module constant in exceptions.py;

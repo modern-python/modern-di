@@ -1,10 +1,7 @@
 ---
-status: shipped
 date: 2026-06-14
 slug: set-context-cross-scope-staleness
 summary: Resolve ContextProvider params live so late set_context always propagates across scopes.
-supersedes: null
-superseded_by: null
 outcome: Shipped. ContextProvider values now resolve live on every resolve;
   invalidate_compiled_kwargs deleted (net simplification). Late set_context
   propagates across scopes for non-cached factories; cached-singleton limitation

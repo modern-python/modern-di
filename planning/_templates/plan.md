@@ -1,5 +1,4 @@
 ---
-status: draft
 date: YYYY-MM-DD
 slug: my-change
 spec: design.md

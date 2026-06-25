@@ -1,5 +1,4 @@
 ---
-status: shipped
 date: 2026-06-13
 slug: alias-scope-transparency
 summary: Deprecate decorative `Alias(scope=...)`; `validate()` checks scope transitively via `effective_scope` (X-4). Plan-only; spec = the code-docs audit report.

@@ -1,5 +1,4 @@
 ---
-status: shipped
 date: 2026-06-12
 slug: code-docs-audit
 spec: design.md

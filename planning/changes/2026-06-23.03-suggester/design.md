@@ -1,10 +1,7 @@
 ---
-status: shipped
 date: 2026-06-23
 slug: suggester
 summary: Extract the shared difflib fuzzy-match primitive into a directly-testable suggester module.
-supersedes: null
-superseded_by: null
 outcome: |
   Shipped. The two difflib.get_close_matches sites (registry type suggestions,
   factory kwarg "did you mean") now delegate to modern_di/suggester.close_matches;

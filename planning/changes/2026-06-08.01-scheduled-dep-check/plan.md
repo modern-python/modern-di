@@ -1,5 +1,4 @@
 ---
-status: shipped
 date: 2026-06-08
 slug: scheduled-dep-check
 spec: design.md

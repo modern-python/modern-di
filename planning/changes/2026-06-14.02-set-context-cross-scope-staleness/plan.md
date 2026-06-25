@@ -1,5 +1,4 @@
 ---
-status: shipped
 date: 2026-06-14
 slug: set-context-cross-scope-staleness
 spec: design.md
