@@ -19,16 +19,3 @@ replaced the old set-`kwargs_compiled`-after-the-bucket-fields sequence — but 
 options: build and publish `wiring_plan` under the existing container lock, or publish the reference
 behind an explicit barrier/atomic. Until then, document modern-di as GIL-assuming for plan compilation.
 See [2026-06-14 audit A-1](audits/2026-06-14-deep-audit-report.md).
-
-## Roll the planning convention into sibling repos — from 2026-06-25
-
-The convention now lives in the canonical repo
-[`lesnik512/planning-convention`](https://github.com/lesnik512/planning-convention)
-(v1.0.0); `modern-di` is consumer #1 (`planning/.convention-version`). Sibling
-repos (`faststream-outbox`, the modern-di integrations) still carry an older,
-hand-copied form.
-
-**Revisit trigger:** next time a sibling repo's planning convention is touched,
-or in a dedicated sync pass — from each sibling, run the canonical repo's
-`APPLY.md` flow (fresh adopt: it has no `.convention-version` yet), verify with
-`just check-planning`, and open a PR.
