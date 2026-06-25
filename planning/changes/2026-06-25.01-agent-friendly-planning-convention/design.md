@@ -5,7 +5,6 @@ slug: agent-friendly-planning-convention
 summary: Make the planning convention agent-friendly — progressive-disclosure restructure (Quick-path on-ramp, deterministic lane decision, de-duplicated text) plus a `just check-planning` validator.
 supersedes: null
 superseded_by: null
-pr: null
 outcome: null
 ---
 
@@ -35,7 +34,7 @@ machine-checkable guardrails. Read against that bar, four concrete frictions
 stand out (numbering matches the evaluation that produced this spec):
 
 1. **No machine-checkable validation.** Frontmatter keys, valid `status`,
-   shipped bundles having `pr`+`outcome`, `plan.md`'s `spec:` resolving, and "no
+   shipped bundles having an `outcome`, `plan.md`'s `spec:` resolving, and "no
    scratch files committed" are all enforced by hand. The 2026-06-23 retro
    records these exact failures (a subagent force-committed
    `.superpowers/sdd/*-report.md`; decisions-lane frontmatter churn). `index.py`
@@ -134,8 +133,7 @@ Checked invariants (all portable):
 - **Field validity:** `status` ∈ the allowed set for that artifact type; `date`
   matches `YYYY-MM-DD`; the bundle dir name matches `YYYY-MM-DD.NN-slug` and its
   `slug` field agrees with the dir slug.
-- **Lifecycle completeness:** `status: shipped` ⇒ `pr` and `outcome` are both
-  non-null.
+- **Lifecycle completeness:** `status: shipped` ⇒ `outcome` is non-null.
 - **Link integrity:** `plan.md`'s `spec:` path resolves to an existing file
   (relative to the bundle dir).
 
@@ -150,6 +148,38 @@ change is bringing the existing bundles to green — either by fixing the
 frontmatter or, where a historical bundle is legitimately irregular, by making
 the check's rule precise enough not to flag it. The executor records any such
 fixes; the gate ships only once `just check-planning` is clean.
+
+## Update (2026-06-25, during execution): `pr` dropped from the convention
+
+The original plan required `status: shipped ⇒ pr + outcome` and backfilled `pr`
+across 15 historical bundles. Doing that backfill exposed why `pr` is the wrong
+field to enforce: it is the only frontmatter value that is hand-supplied,
+knowable only *after* the PR exists (so it is always a second edit and blocks
+marking a bundle shipped until then), **and** already recoverable from git (the
+merge commit that shipped the bundle). `outcome` has none of those problems — it
+is the irreplaceable, human-authored "what resulted", reconstructable from
+nothing else.
+
+So `pr` is dropped from the convention entirely:
+
+- The validator enforces `status: shipped ⇒ outcome` only.
+- `pr` is removed from the three `_templates/` frontmatter blocks, from the
+  `README.md` frontmatter spec, and from the `format_row` index rendering (the
+  listing now shows `(date)`, not `(#pr, date)`). PR traceability lives in git
+  history and the `outcome` line.
+- The `pr:` line is stripped from every existing bundle and decision
+  frontmatter, reverting the now-pointless backfill (the `outcome` backfill
+  stays — it was needed regardless).
+
+This supersedes the "backfill all 15" ruling for `pr`; the equivalent work for
+`outcome` stands.
+
+Because `outcome` is now the sole enforced lifecycle field, it gets a written
+definition in `README.md`'s Frontmatter section (and a guiding placeholder in
+the `_templates/`): filled at ship time, one line / ~1–3 sentences (≤ ~300
+chars), stating the realized result — what shipped and its effect, deviations
+from the plan included — written so a future reader grasps the consequence
+without opening the diff, and distinct from the pre-ship intent in `summary`.
 
 ## Operations
 

@@ -3,7 +3,6 @@ status: draft
 date: 2026-06-25
 slug: agent-friendly-planning-convention
 spec: design.md
-pr: null
 ---
 
 # agent-friendly-planning-convention — implementation plan
@@ -46,8 +45,11 @@ path.
   repo. Throwaway fixtures are removed before committing — never committed.
 - **`spec:` is a bundle-relative path** (Fork 1 ruling): always resolvable from
   the bundle directory (e.g. `design.md`, `../../../audits/x.md`).
-- **`status: shipped` ⇒ `pr` and `outcome` both non-null**, enforced for **all**
-  bundles, historical included (Fork 2 ruling). No grandfathering.
+- **`status: shipped` ⇒ `outcome` non-null**, enforced for **all** bundles.
+  **`pr` was dropped from the convention entirely** mid-execution (see the spec's
+  "Update (2026-06-25): `pr` dropped" section): it is not a frontmatter field, not
+  enforced, and not rendered in the index. The Task 2 `pr` backfill is reverted;
+  the `outcome` backfill stands.
 - This change does **not** promote to `architecture/` — it is process/tooling,
   like the original `portable-planning-convention` adoption. Its "promotion" is
   the README + CLAUDE.md edits it already makes.
@@ -590,9 +592,9 @@ path.
 - [ ] **Step 5: Ship this bundle's frontmatter (in-branch, after the PR number is known)**
 
   Per the convention, set this bundle's lifecycle fields in the implementing PR.
-  In both `design.md` and `plan.md` frontmatter set `status: shipped` and
-  `pr: <this PR number>`; in `design.md` also fill `outcome:` with a one-line
-  result. Then:
+  In both `design.md` and `plan.md` frontmatter set `status: shipped`; in
+  `design.md` also fill `outcome:` with a one-line result. (`pr` is no longer a
+  field — see Global Constraints.) Then:
 
   ```bash
   git add planning/changes/2026-06-25.01-agent-friendly-planning-convention
@@ -603,7 +605,7 @@ path.
   ```
 
   Run `just check-planning` once more before this push — with `status: shipped`
-  the bundle now requires `pr` + `outcome`, so the gate confirms they are set.
+  the bundle now requires `outcome`, so the gate confirms it is set.
   This change does **not** edit `architecture/` (process/tooling; see Global
   Constraints). Watch PR CI to green.
 
