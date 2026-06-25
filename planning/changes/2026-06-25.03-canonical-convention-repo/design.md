@@ -2,7 +2,7 @@
 date: 2026-06-25
 slug: canonical-convention-repo
 summary: Extract the portable planning convention into a personal canonical repo (lesnik512/planning-convention) that agents apply/update into any repo via an APPLY.md instruction doc + a per-repo version marker.
-outcome: Realized result — filled at ship time (~1–3 sentences); see README "Frontmatter".
+outcome: "Extracted the portable planning convention into lesnik512/planning-convention (v1.0.0) with an APPLY.md agent-apply flow + planning/.convention-version marker; modern-di wired as consumer #1 with the README blockquote repointed to the canonical upstream."
 ---
 
 # Design: Canonical planning-convention repo applied by agents
