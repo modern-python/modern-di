@@ -8,72 +8,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-This project uses `just` (task runner) and `uv` (package manager).
+This project uses `just` (task runner) and `uv` (package manager). The
+[`Justfile`](Justfile) is the source of truth for recipes — run `just --list`
+or read it for every recipe and its intent. The non-obvious essentials:
 
-```bash
-just install      # uv lock --upgrade && uv sync --all-extras --frozen --group lint
-just lint         # eof-fixer + ruff format + ruff check --fix + ty check
-just lint-ci      # same checks without auto-fixing (used in CI)
-just test         # uv run pytest (with coverage by default)
-just test-branch  # pytest with branch coverage
-```
-
-`just test` passes extra args to pytest:
-```bash
-just test tests/providers/test_factory.py
-just test tests/providers/test_factory.py -k test_name
-```
-
-Without `just`:
-```bash
-uv run ruff format . && uv run ruff check . --fix && uv run ty check
-uv run pytest
-```
+- `just test [args]` — pytest, **no coverage**; targeted runs won't trip the
+  gate. Passes args through: `just test tests/providers/test_factory.py -k test_name`.
+- `just test-ci` — the **gated** full run (100% line coverage); this is what CI runs.
+- `just lint` (autofix) / `just lint-ci` (no autofix; also validates planning bundles).
+- `just check-planning` validates planning bundles; `just index` prints the change listing.
 
 ## Architecture
 
-> Quick orientation. The authoritative, code-current account of each capability lives in [`architecture/`](architecture/). **When a change alters a capability's behavior, update the matching `architecture/<capability>.md` in the same PR** — that promotion is what keeps `architecture/` true; code that changes without it silently rots the truth home.
+> Quick orientation only. The authoritative, code-current account of each capability lives in [`architecture/`](architecture/) — one file per capability. **When a change alters a capability's behavior, update the matching `architecture/<capability>.md` in the same PR** — that promotion is what keeps `architecture/` true; code that changes without it silently rots the truth home.
 
-### Scope hierarchy
+- **Scope** — `IntEnum`, `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. A provider resolves only from a container of the same or deeper (higher-int) scope; otherwise a clear error is raised.
+- **Container** — the central object. Root: `Container(scope=Scope.APP, groups=[MyGroup])`; children via `container.build_child_container(scope=Scope.REQUEST, context={...})`. Children share the parent's providers/overrides registries; cache/context are per-container. Pass `validate=True` (or call `container.validate()`) for cycle + transitive-scope checks.
 
-`Scope` is an `IntEnum` with five levels: `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. Providers are bound to a scope; a provider can only be resolved from a container of the same or deeper (higher int) scope. Trying to resolve a REQUEST-scoped provider from an APP container raises a clear error.
+Where the detail lives — read the matching capability file before changing behavior:
 
-### Container tree
-
-`Container` is the central object. A root container is created with `Container(scope=Scope.APP, groups=[MyGroup])`. Child containers are created via `container.build_child_container(scope=Scope.REQUEST, context={...})`. Child containers share the parent's `providers_registry` and `overrides_registry` but have their own `cache_registry` and `context_registry`.
-
-Pass `validate=True` to check the provider graph at container creation time — cycle detection plus transitive scope validation through aliases (via `effective_scope`); zero cost when disabled. Can also be called explicitly via `container.validate()`.
-
-### Group and Provider declaration
-
-`Group` is a namespace class (cannot be instantiated) used to declare providers as class-level attributes:
-
-```python
-class MyGroup(Group):
-    my_service = providers.Factory(scope=Scope.APP, creator=MyService)
-```
-
-`Factory` parses the `creator`'s `__init__` type hints at declaration time via `types_parser.parse_creator()`. During resolution it looks up each parameter type in `providers_registry` and recursively resolves dependencies. There is no separate `Singleton` class — singleton behavior is `Factory(cache_settings=CacheSettings())`. Pass `kwargs={}` to supply static arguments that bypass type-based resolution. Pass `skip_creator_parsing=True` for callables whose signatures cannot be introspected.
-
-`ContextProvider` is for runtime values injected at container creation time (e.g. a request object). `container_provider` is an auto-registered singleton that resolves to the `Container` itself.
-
-### Resolution flow
-
-1. `container.resolve(SomeType)` → looks up type in `providers_registry` → calls `resolve_provider(provider)`
-2. `resolve_provider` checks `overrides_registry` first (returns override immediately if found)
-3. Finds the container at the correct scope via `find_container(scope)`, an O(1) lookup in the precomputed `scope_map`
-4. Checks `cache_registry`; if cached, returns immediately
-5. Compiles kwargs: for each parsed parameter, finds a matching provider by type and resolves it recursively
-6. Calls the creator, stores result in cache if `cache_settings` configured
-
-### Registries
-
-| Registry | Shared? | Purpose |
-|---|---|---|
-| `ProvidersRegistry` | Shared across all containers | type → provider mapping |
-| `CacheRegistry` | Per-container | provider_id → cached instance |
-| `ContextRegistry` | Per-container | type → runtime context object |
-| `OverridesRegistry` | Shared across all containers | provider_id → override object (for testing) |
+| File | Covers |
+|---|---|
+| [architecture/scopes.md](architecture/scopes.md) | `Scope` hierarchy + the resolution rule |
+| [architecture/containers.md](architecture/containers.md) | `Container`, registries, child containers, lifecycle/finalizers |
+| [architecture/providers.md](architecture/providers.md) | `Group`, `Factory`/caching, `ContextProvider`, `Alias` |
+| [architecture/resolution.md](architecture/resolution.md) | how `resolve()` wires deps from type hints |
+| [architecture/validation.md](architecture/validation.md) | `validate()` cycle + scope checks |
+| [architecture/testing-and-overrides.md](architecture/testing-and-overrides.md) | overrides + the `modern-di-pytest` integration |
 
 ### Key files
 
@@ -89,12 +50,12 @@ class MyGroup(Group):
 
 ### Testing patterns
 
-- Create a `Group` subclass with providers as class attributes, pass to `Container(groups=[...])`
-- Use `container.resolve_provider(provider)` (by reference) or `container.resolve(SomeType)` (by type)
-- For overrides: `container.override(provider, mock_obj)` / `container.reset_override(provider)`
-- For scope chain tests: `app_container.build_child_container(scope=Scope.REQUEST)`
-- `asyncio_mode = "auto"` in pytest config — async test functions work without extra markers
-- Downstream projects can install **`modern-di-pytest`** to expose DI dependencies as pytest fixtures. It ships two callables: `modern_di_fixture(type_or_provider)` for single fixtures and `expose(*groups)` to bulk-generate one fixture per provider across one or more `Group` subclasses (duplicate attribute names raise `ValueError`). The package itself does **not** depend on `modern-di-pytest`; the integration lives in a sibling repository (`modern-python/modern-di-pytest`).
+- Create a `Group` subclass with providers as class attributes → `Container(groups=[...])`
+- `container.resolve_provider(provider)` (by reference) or `container.resolve(SomeType)` (by type)
+- Overrides: `container.override(provider, mock_obj)` / `container.reset_override(provider)`
+- Scope chains: `app_container.build_child_container(scope=Scope.REQUEST)`
+- `asyncio_mode = "auto"` — async test functions work without extra markers
+- The **`modern-di-pytest`** integration (a sibling repo/package, not a dependency here) → [architecture/testing-and-overrides.md](architecture/testing-and-overrides.md)
 
 ## Workflow
 
@@ -122,4 +83,4 @@ is quick orientation; `architecture/` holds the authoritative account.
 - Line length: 120 characters
 - `ruff` with `select = ["ALL"]` and minimal ignores; `ty` for type checking
 - Coverage excludes `TYPE_CHECKING` blocks
-- Design principle: conservative feature set; resolution is sync-only (async was removed in 2.x); no global state
+- Design principle: conservative feature set; **resolution** is sync-only (async resolution was removed in 2.x), though **finalizers** may still be sync or async (`close_sync`/`close_async`); no global state
