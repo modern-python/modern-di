@@ -62,7 +62,7 @@ def test_no_overrides_optimized(benchmark):
 
 def test_no_overrides_baseline(benchmark):
     original = Container.resolve_provider
-    Container.resolve_provider = _baseline_resolve_provider  # ty: ignore[invalid-assignment]
+    Container.resolve_provider = _baseline_resolve_provider
     try:
         container = Container(scope=Scope.APP, groups=[BenchGroup])
         benchmark(container.resolve_provider, BenchGroup.svc)
@@ -83,7 +83,7 @@ def test_override_other_optimized(benchmark):
 
 def test_override_other_baseline(benchmark):
     original = Container.resolve_provider
-    Container.resolve_provider = _baseline_resolve_provider  # ty: ignore[invalid-assignment]
+    Container.resolve_provider = _baseline_resolve_provider
     try:
         container = Container(scope=Scope.APP, groups=[BenchGroup])
         container.override(BenchGroup.dep, Dep())
@@ -105,7 +105,7 @@ def test_override_self_optimized(benchmark):
 
 def test_override_self_baseline(benchmark):
     original = Container.resolve_provider
-    Container.resolve_provider = _baseline_resolve_provider  # ty: ignore[invalid-assignment]
+    Container.resolve_provider = _baseline_resolve_provider
     try:
         container = Container(scope=Scope.APP, groups=[BenchGroup])
         container.override(BenchGroup.svc, Service(dep=Dep()))

@@ -58,6 +58,8 @@ def _named(fields: dict[str, str], name: str, pattern: re.Pattern[str]) -> dict[
 def load_bundles() -> list[dict[str, str]]:
     """Read each bundle's summary; derive date/slug from the directory name."""
     bundles: list[dict[str, str]] = []
+    if not CHANGES_DIR.is_dir():
+        return bundles
     for bundle in sorted(CHANGES_DIR.iterdir()):
         if not bundle.is_dir():
             continue
@@ -160,9 +162,10 @@ def _check_decision(path: pathlib.Path, violations: list[str]) -> None:
 def check() -> list[str]:
     """Validate every bundle and decision; return the list of violation strings."""
     violations: list[str] = []
-    for bundle in sorted(CHANGES_DIR.iterdir()):
-        if bundle.is_dir():
-            _check_bundle(bundle, violations)
+    if CHANGES_DIR.is_dir():
+        for bundle in sorted(CHANGES_DIR.iterdir()):
+            if bundle.is_dir():
+                _check_bundle(bundle, violations)
     if DECISIONS_DIR.is_dir():
         for path in sorted(DECISIONS_DIR.glob("*.md")):
             if path.name == "README.md" or path.name.startswith("_"):
