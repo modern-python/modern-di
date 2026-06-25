@@ -5,7 +5,7 @@ slug: scheduled-dep-check
 summary: Weekly scheduled dependency-check GitHub Actions workflow.
 supersedes: null
 superseded_by: null
-pr: null
+pr: 200
 outcome: Weekly scheduled dependency-check workflow (.github/workflows/scheduled.yml).
 ---
 

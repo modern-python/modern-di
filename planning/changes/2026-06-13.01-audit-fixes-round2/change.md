@@ -5,6 +5,7 @@ slug: audit-fixes-round2
 summary: Round-2 fixes for the 21 deferred code+docs audit findings. Plan-only; spec = the audit report.
 spec: ../../../audits/2026-06-12-code-docs-audit-report.md
 pr: "203"
+outcome: Fixed 21 deferred code+docs audit findings (Q-1/Q-5/Q-9/X-2..X-5, Q-6..Q-8/X-6, D-2/D-4/D-5/G-1..G-11) including None-injection and coverage-gate move; shipped in PR #203.
 ---
 
 # Audit Fixes — Round 2 Implementation Plan

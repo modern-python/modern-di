@@ -2,7 +2,7 @@
 status: draft
 date: YYYY-MM-DD
 slug: my-change
-spec: my-change
+spec: design.md
 pr: null
 ---
 

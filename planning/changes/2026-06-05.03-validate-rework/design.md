@@ -5,7 +5,7 @@ slug: validate-rework
 summary: Reworked validate() for transitive cycle/scope checks; shipped in 2.15.0.
 supersedes: null
 superseded_by: null
-pr: null
+pr: 189
 outcome: validate() reworked for transitive cycle/scope checks; shipped in 2.15.0.
 ---
 

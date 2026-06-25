@@ -5,7 +5,7 @@ slug: singleton-rlock
 summary: RLock-guarded singleton creation to eliminate re-entrant deadlock; shipped in 2.15.0.
 supersedes: null
 superseded_by: null
-pr: null
+pr: 188
 outcome: RLock guards singleton creation; shipped in 2.15.0.
 ---
 

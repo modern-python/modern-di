@@ -2,6 +2,7 @@
 status: shipped
 date: 2026-06-13
 slug: docs-ux-audit
+spec: design.md
 ---
 
 # Plan: Docs UX & Consistency Audit
