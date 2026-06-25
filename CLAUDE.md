@@ -98,26 +98,15 @@ class MyGroup(Group):
 
 ## Workflow
 
-Planning follows a portable two-axis convention (shared with
-`faststream-outbox`); full details in [`planning/README.md`](planning/README.md).
+Planning uses a portable two-axis convention — `architecture/` (repo root) is
+the living **truth home** and promotion target; `planning/changes/` holds the
+per-change bundles. **Start at the
+[Quick path](planning/README.md#quick-path-start-here)** in
+`planning/README.md` to choose a lane, create a bundle, and ship — that file
+is the authoritative spec. Run `just check-planning` to validate bundles and
+`just index` to print the change listing. The `## Architecture` section above
+is quick orientation; `architecture/` holds the authoritative account.
 
-- **`architecture/`** (repo root) is the **truth home** — living capability
-  prose, the promotion target on every ship. The `## Architecture` section
-  above is quick orientation; `architecture/` holds the authoritative,
-  up-to-date account.
-- **`planning/changes/<YYYY-MM-DD.NN-slug>/`** are change
-  bundles: `design.md` + `plan.md` (full lane), or `change.md` (lightweight).
-  Tiny changes (typo, dep bump, CI tweak) skip bundles entirely.
-- **`planning/decisions/<YYYY-MM-DD>-<slug>.md`** — when something is decided
-  *not* to be done (a rejected option with a load-bearing reason), record it
-  here, one file each with a revisit trigger, so it isn't re-litigated; listed
-  by `just index`. (`deferred.md` is the flat backlog of real-but-unscheduled
-  work.)
-- Templates live in [`planning/_templates/`](planning/_templates/).
-- **Shipping a change** hand-edits the affected
-  `architecture/<capability>.md` and sets `status: shipped` + `pr:` +
-  `outcome:` **in the implementing PR** — there is no folder move. The
-  change listing is generated: run `just index`.
 - **Cutting a release (maintainers)** is tag-driven via
   [`.github/workflows/release.yml`](.github/workflows/release.yml): write the
   notes at `planning/releases/<version>.md` (used verbatim as the GitHub Release
