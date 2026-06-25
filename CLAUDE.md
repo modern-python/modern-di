@@ -32,7 +32,7 @@ uv run pytest
 
 ## Architecture
 
-> Quick orientation. The authoritative, code-current account of each capability lives in [`architecture/`](architecture/).
+> Quick orientation. The authoritative, code-current account of each capability lives in [`architecture/`](architecture/). **When a change alters a capability's behavior, update the matching `architecture/<capability>.md` in the same PR** — that promotion is what keeps `architecture/` true; code that changes without it silently rots the truth home.
 
 ### Scope hierarchy
 
