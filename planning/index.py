@@ -40,6 +40,8 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     for line in lines[1:]:
         if line.strip() == "---":
             break
+        if line[:1] in (" ", "\t"):
+            continue
         key, sep, value = line.partition(": ")
         if not sep:
             continue
