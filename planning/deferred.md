@@ -19,3 +19,26 @@ replaced the old set-`kwargs_compiled`-after-the-bucket-fields sequence — but 
 options: build and publish `wiring_plan` under the existing container lock, or publish the reference
 behind an explicit barrier/atomic. Until then, document modern-di as GIL-assuming for plan compilation.
 See [2026-06-14 audit A-1](audits/2026-06-14-deep-audit-report.md).
+
+## Roll the agent-friendly planning updates into sibling repos — from 2026-06-25
+
+This branch reshaped the portable convention; sibling modern-python repos (e.g.
+`faststream-outbox`) still carry the older form. Copy these over and wire them in:
+
+- **Quick-path on-ramp** atop `planning/README.md` (first-match lane decision +
+  create/ship steps).
+- **`just check-planning`** validator (`planning/index.py --check`), wired into
+  `just lint-ci`.
+- **`spec:` is a bundle-relative path** — switch `_templates/plan.md` from
+  `spec: <slug>` to `spec: design.md`.
+- **`pr` dropped from the convention** — remove it from `_templates/`, the
+  README frontmatter spec, `format_row` rendering, the validator, and existing
+  bundle/decision frontmatter.
+- **`outcome` definition** in the README Frontmatter section + a template
+  placeholder.
+
+Shipped here in
+[2026-06-25.01-agent-friendly-planning-convention](changes/2026-06-25.01-agent-friendly-planning-convention/design.md).
+
+**Revisit trigger:** next time a sibling repo's planning convention is touched,
+or in a dedicated sync pass.
