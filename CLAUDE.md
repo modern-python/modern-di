@@ -118,6 +118,15 @@ Planning follows a portable two-axis convention (shared with
   `architecture/<capability>.md` and sets `status: shipped` + `pr:` +
   `outcome:` **in the implementing PR** — there is no folder move. The
   change listing is generated: run `just index`.
+- **Cutting a release (maintainers)** is tag-driven via
+  [`.github/workflows/release.yml`](.github/workflows/release.yml): write the
+  notes at `planning/releases/<version>.md` (used verbatim as the GitHub Release
+  body), then push a bare semver tag off green `main` —
+  `git tag 2.19.2 && git push origin 2.19.2`. The workflow runs `just publish`
+  (the tag sets the version via `uv version`; no `pyproject.toml` bump) to PyPI,
+  then creates the GitHub Release — PyPI first, so a failed publish creates no
+  Release. Pre-releases use the PEP 440 form (`2.0.0rc1`, not `2.0.0-alpha.5`).
+  PyPI is irreversible; there is no CI gate (a tag is the commitment point).
 
 ## Code Style
 
