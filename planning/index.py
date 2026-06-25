@@ -10,6 +10,7 @@ the listing is a query over the files, not a committed artifact.
 """
 
 import pathlib
+import re
 import sys
 
 
@@ -20,6 +21,14 @@ GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Shipped", ("shipped",)),
     ("Superseded", ("superseded",)),
 )
+VALID_STATUS = {"draft", "approved", "shipped", "superseded"}
+VALID_DECISION_STATUS = {"accepted", "superseded"}
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+BUNDLE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.\d{2}-(?P<slug>.+)$")
+ALLOWED_BUNDLE_FILES = {"design.md", "plan.md", "change.md"}
+SPEC_REQUIRED = ("status", "date", "slug", "summary")
+PLAN_REQUIRED = ("status", "date", "slug", "spec")
+DECISION_REQUIRED = ("status", "date", "slug", "summary")
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
@@ -106,8 +115,106 @@ def render(bundles: list[dict[str, str]], decisions: list[dict[str, str]]) -> st
     return "\n".join(out).rstrip() + "\n"
 
 
+def _require(fields: dict[str, str], keys: tuple[str, ...], rel: str, violations: list[str]) -> None:
+    """Append a violation for each required key that is absent or empty."""
+    violations.extend(f"{rel}: missing or empty frontmatter key '{key}'" for key in keys if not fields.get(key))
+
+
+def _check_common(
+    fields: dict[str, str], allowed_status: set[str], dir_slug: str | None, rel: str, violations: list[str]
+) -> None:
+    """Validate status/date/slug fields shared by every artifact type."""
+    status = fields.get("status", "")
+    if status and status not in allowed_status:
+        violations.append(f"{rel}: invalid status '{status}' (allowed: {', '.join(sorted(allowed_status))})")
+    date = fields.get("date", "")
+    if date and not DATE_RE.match(date):
+        violations.append(f"{rel}: date '{date}' is not YYYY-MM-DD")
+    slug = fields.get("slug", "")
+    if dir_slug and slug and slug != dir_slug:
+        violations.append(f"{rel}: slug '{slug}' does not match directory slug '{dir_slug}'")
+
+
+def _check_spec_file(path: pathlib.Path, rel: str, dir_slug: str | None, violations: list[str]) -> None:
+    """Validate a design.md / change.md spec file."""
+    fields = parse_frontmatter(path.read_text(encoding="utf-8"))
+    _require(fields, SPEC_REQUIRED, rel, violations)
+    _check_common(fields, VALID_STATUS, dir_slug, rel, violations)
+    if fields.get("status") == "shipped":
+        violations.extend(
+            f"{rel}: status is 'shipped' but '{key}' is empty" for key in ("pr", "outcome") if not fields.get(key)
+        )
+
+
+def _check_plan_file(
+    path: pathlib.Path, bundle: pathlib.Path, rel: str, dir_slug: str | None, violations: list[str]
+) -> None:
+    """Validate a plan.md file, including that its spec: link resolves."""
+    fields = parse_frontmatter(path.read_text(encoding="utf-8"))
+    _require(fields, PLAN_REQUIRED, rel, violations)
+    _check_common(fields, VALID_STATUS, dir_slug, rel, violations)
+    spec = fields.get("spec", "")
+    if spec and not (bundle / spec).resolve().exists():
+        violations.append(f"{rel}: spec link '{spec}' does not resolve to a file")
+
+
+def _check_bundle(bundle: pathlib.Path, violations: list[str]) -> None:
+    """Validate one change bundle directory."""
+    rel = f"changes/{bundle.name}"
+    match = BUNDLE_RE.match(bundle.name)
+    dir_slug = match.group("slug") if match else None
+    if match is None:
+        violations.append(f"{rel}: directory name is not 'YYYY-MM-DD.NN-slug'")
+    violations.extend(
+        f"{rel}/{child.name}: unexpected file in bundle (allowed: {', '.join(sorted(ALLOWED_BUNDLE_FILES))})"
+        for child in sorted(bundle.iterdir())
+        if child.name not in ALLOWED_BUNDLE_FILES
+    )
+    design = bundle / "design.md"
+    change = bundle / "change.md"
+    plan = bundle / "plan.md"
+    if not design.exists() and not change.exists():
+        violations.append(f"{rel}: bundle has neither design.md nor change.md")
+    for spec_file in (design, change):
+        if spec_file.exists():
+            _check_spec_file(spec_file, f"{rel}/{spec_file.name}", dir_slug, violations)
+    if plan.exists():
+        _check_plan_file(plan, bundle, f"{rel}/plan.md", dir_slug, violations)
+
+
+def _check_decision(path: pathlib.Path, violations: list[str]) -> None:
+    """Validate one decision file."""
+    rel = f"decisions/{path.name}"
+    fields = parse_frontmatter(path.read_text(encoding="utf-8"))
+    _require(fields, DECISION_REQUIRED, rel, violations)
+    _check_common(fields, VALID_DECISION_STATUS, None, rel, violations)
+
+
+def check() -> list[str]:
+    """Validate every bundle and decision; return the list of violation strings."""
+    violations: list[str] = []
+    for bundle in sorted(CHANGES_DIR.iterdir()):
+        if bundle.is_dir():
+            _check_bundle(bundle, violations)
+    if DECISIONS_DIR.is_dir():
+        for path in sorted(DECISIONS_DIR.glob("*.md")):
+            if path.name == "README.md" or path.name.startswith("_"):
+                continue
+            _check_decision(path, violations)
+    return violations
+
+
 def main() -> int:
-    """Print the listing to stdout."""
+    """Print the listing to stdout, or validate bundles with --check."""
+    if "--check" in sys.argv[1:]:
+        violations = check()
+        if violations:
+            sys.stderr.write(f"planning: {len(violations)} violation(s)\n")
+            for violation in violations:
+                sys.stderr.write(f"  - {violation}\n")
+            return 1
+        sys.stdout.write("planning: OK\n")
+        return 0
     sys.stdout.write(render(load_bundles(), load_decisions()))
     return 0
 
