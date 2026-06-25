@@ -4,6 +4,35 @@ Specs, plans, and change history for `modern-di`. The living truth about *what
 the system does now* lives in [`architecture/`](../architecture/) at the repo
 root; this directory records *how it got there*.
 
+## Quick path (start here)
+
+> The fast lane for making a change. The full reference is in
+> [Conventions](#conventions) below — read it only when this isn't enough.
+
+**1. Choose a lane — first matching rule wins:**
+
+1. Any of: needs design judgment · new file/module · public-API change ·
+   cross-cutting or multi-file · non-trivial test design → **Full**
+   (`design.md` + `plan.md`)
+2. Purely mechanical: typo · dep bump · linter/formatter/CI tweak ·
+   mechanical rename · single-line config → **Tiny** (no bundle, conventional
+   commit)
+3. Small-but-real, none of the above: ≲30 LOC net · ≤2 files · no new file ·
+   no public-API change · one straightforward test → **Lightweight**
+   (`change.md`)
+
+Ambiguous between two? Take the heavier. A `change.md` that outgrows its lane
+splits into `design.md` + `plan.md`.
+
+**2. Create the bundle** (Full / Lightweight only):
+`planning/changes/YYYY-MM-DD.NN-<slug>/`, where `.NN` is a zero-padded
+intra-day counter. Copy the matching template from
+[`_templates/`](_templates/).
+
+**3. Ship in the implementing PR:** hand-edit the affected
+`architecture/<capability>.md`, set `status: shipped` + `pr:` + `outcome:` in
+the bundle frontmatter, and run `just check-planning` before pushing.
+
 ## Conventions
 
 > This section is the portable convention — identical across the
