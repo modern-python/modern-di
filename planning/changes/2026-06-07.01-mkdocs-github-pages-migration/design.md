@@ -1,8 +1,5 @@
 ---
-date: 2026-06-07
-slug: mkdocs-github-pages-migration
 summary: Docs hosting moved to GitHub Pages at modern-di.modern-python.org.
-outcome: Docs hosting moved to GitHub Pages at modern-di.modern-python.org.
 ---
 
 # Migrate docs from Read the Docs to GitHub Pages

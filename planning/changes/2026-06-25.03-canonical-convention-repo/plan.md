@@ -1,9 +1,3 @@
----
-date: 2026-06-25
-slug: canonical-convention-repo
-spec: design.md
----
-
 # canonical-convention-repo — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use

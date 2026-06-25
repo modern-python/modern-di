@@ -1,8 +1,5 @@
 ---
-date: 2026-06-25
-slug: architecture-promotion-reminder
 summary: Add an agent-facing note in CLAUDE.md reminding that a behavior change must promote to the matching architecture/<capability>.md in the same PR.
-outcome: Added a one-line promotion imperative to CLAUDE.md's `## Architecture` intro, resolving evaluation Finding 3 with an agent-facing reminder rather than a CI gate.
 ---
 
 # Change: Agent-facing architecture/ promotion reminder

@@ -1,8 +1,5 @@
 ---
-date: 2026-06-12
-slug: code-docs-audit
 summary: Full code+docs audit harness; produced the 57-finding report.
-outcome: Full code+docs audit harness; produced the 57-finding report in audits/2026-06-12-code-docs-audit-report.md.
 ---
 
 # Code & Docs Audit — Design

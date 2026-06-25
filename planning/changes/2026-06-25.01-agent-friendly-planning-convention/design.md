@@ -1,8 +1,5 @@
 ---
-date: 2026-06-25
-slug: agent-friendly-planning-convention
 summary: Make the planning convention agent-friendly — progressive-disclosure restructure (Quick-path on-ramp, deterministic lane decision, de-duplicated text) plus a `just check-planning` validator.
-outcome: Shipped an agent-friendly planning convention — a `just check-planning` validator wired into `lint-ci`, a Quick-path on-ramp with a first-match lane decision, and CLAUDE.md de-duplicated to a pointer. Mid-flight the maintainer also dropped `pr` and `status`/supersession from change bundles, making a defined `outcome` the sole required lifecycle field.
 ---
 
 # Design: Make the planning convention agent-friendly

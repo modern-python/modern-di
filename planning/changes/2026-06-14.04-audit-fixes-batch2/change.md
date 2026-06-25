@@ -1,9 +1,5 @@
 ---
-date: 2026-06-14
-slug: audit-fixes-batch2
 summary: B-3 (gapped custom-enum child-scope derivation) + P-1 (drop the per-resolve throwaway `CacheItem` alloc via a `get` fast path, keeping atomic `setdefault` on creation). Plan-only; spec = the audit report.
-spec: ../../../audits/2026-06-14-deep-audit-report.md
-outcome: Fixed B-3 (gapped custom-enum child-scope derivation) and P-1 (eliminate per-resolve throwaway CacheItem alloc via get fast path) from 2026-06-14 deep audit; shipped in PR #218.
 ---
 
 # audit-fixes-batch2 — implementation plan

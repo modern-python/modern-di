@@ -1,8 +1,5 @@
 ---
-date: 2026-06-05
-slug: validate-rework
 summary: Reworked validate() for transitive cycle/scope checks; shipped in 2.15.0.
-outcome: validate() reworked for transitive cycle/scope checks; shipped in 2.15.0.
 ---
 
 # `Container.validate()` Rework — Design

@@ -1,9 +1,3 @@
----
-date: 2026-06-23
-slug: wiring-plan-extraction
-spec: design.md
----
-
 # wiring-plan-extraction — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use

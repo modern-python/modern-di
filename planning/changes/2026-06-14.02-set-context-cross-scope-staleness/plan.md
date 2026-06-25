@@ -1,9 +1,3 @@
----
-date: 2026-06-14
-slug: set-context-cross-scope-staleness
-spec: design.md
----
-
 # set-context-cross-scope-staleness — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use

@@ -1,18 +1,5 @@
 ---
-date: 2026-06-23
-slug: wiring-plan-extraction
 summary: Extract a WiringPlan deep module from Factory so the kwarg-binding decision lives in one place, testable without a Container.
-outcome: |
-  Shipped. Factory's kwarg-wiring decision moved to a pure WiringPlan module
-  (modern_di/wiring.py): one matcher, one absent-value table (absent_disposition),
-  one error-construction site, testable with no Container. _compile_kwargs and
-  _find_dep_provider deleted; CacheItem holds one wiring_plan field. Behavior
-  preserved; the static-kwarg-provider validate() asymmetry kept intentionally.
-  The whole-branch review caught a CRITICAL regression — the plan memoized a
-  pre-built ArgumentResolutionError that resolve()'s prepend_step mutated, so
-  breadcrumbs compounded/leaked across repeated and nested failing resolves; fixed
-  by storing unwireable (name, SignatureItem) records and building the error fresh
-  per raise (regression tests added). 225 tests, 100% coverage.
 ---
 
 # Design: Extract the kwarg-wiring decision out of `Factory` into a `WiringPlan`

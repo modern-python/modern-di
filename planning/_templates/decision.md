@@ -1,7 +1,5 @@
 ---
 status: accepted        # accepted | superseded
-date: YYYY-MM-DD
-slug: my-decision
 summary: One line — shown in `just index`.
 supersedes: null
 superseded_by: null

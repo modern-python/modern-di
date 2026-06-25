@@ -1,8 +1,5 @@
 ---
-date: 2026-06-08
-slug: scheduled-dep-check
 summary: Weekly scheduled dependency-check GitHub Actions workflow.
-outcome: Weekly scheduled dependency-check workflow (.github/workflows/scheduled.yml).
 ---
 
 # Scheduled dependency-breakage check
