@@ -5,7 +5,6 @@ slug: sync-async-close-separate
 summary: Keep sync/async close paths separate — the divergence is intrinsic, not duplication.
 supersedes: null
 superseded_by: null
-pr: 229
 ---
 
 # Keep sync and async `close` paths separate

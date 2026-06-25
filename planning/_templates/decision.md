@@ -5,7 +5,6 @@ slug: my-decision
 summary: One line — shown in `just index`.
 supersedes: null
 superseded_by: null
-pr: null                # PR/commit where the decision was made or recorded
 ---
 
 # One-line capitalized title

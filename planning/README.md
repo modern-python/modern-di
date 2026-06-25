@@ -4,6 +4,35 @@ Specs, plans, and change history for `modern-di`. The living truth about *what
 the system does now* lives in [`architecture/`](../architecture/) at the repo
 root; this directory records *how it got there*.
 
+## Quick path (start here)
+
+> The fast lane for making a change. The full reference is in
+> [Conventions](#conventions) below — read it only when this isn't enough.
+
+**1. Choose a lane — first matching rule wins:**
+
+1. Any of: needs design judgment · new file/module · public-API change ·
+   cross-cutting or multi-file · non-trivial test design → **Full**
+   (`design.md` + `plan.md`)
+2. Purely mechanical: typo · dep bump · linter/formatter/CI tweak ·
+   mechanical rename · single-line config → **Tiny** (no bundle, conventional
+   commit)
+3. Small-but-real, none of the above: ≲30 LOC net · ≤2 files · no new file ·
+   no public-API change · one straightforward test → **Lightweight**
+   (`change.md`)
+
+Ambiguous between two? Take the heavier. A `change.md` that outgrows its lane
+splits into `design.md` + `plan.md`.
+
+**2. Create the bundle** (Full / Lightweight only):
+`planning/changes/YYYY-MM-DD.NN-<slug>/`, where `.NN` is a zero-padded
+intra-day counter. Copy the matching template from
+[`_templates/`](_templates/).
+
+**3. Ship in the implementing PR:** hand-edit the affected
+`architecture/<capability>.md`, fill `outcome:` in
+the bundle frontmatter, and run `just check-planning` before pushing.
+
 ## Conventions
 
 > This section is the portable convention — identical across the
@@ -33,8 +62,8 @@ A change is a folder `changes/YYYY-MM-DD.NN-<slug>/`:
 - `<slug>` — kebab-case description, not a story ID.
 
 `summary` is written when the change is created (it is the change's
-one-liner). The implementing PR then sets `status: shipped` and fills `pr`
-and `outcome` **in the branch**, alongside the code and the `architecture/`
+one-liner). The implementing PR fills `outcome`
+**in the branch**, alongside the code and the `architecture/`
 promotion — no post-merge bookkeeping, no folder move.
 
 ### Three lanes
@@ -66,18 +95,21 @@ Templates live in [`_templates/`](_templates/).
 
 ### Frontmatter
 
-`design.md` / `change.md`: `status` (draft|approved|shipped|superseded),
-`date`, `slug`, `summary` (single line), `supersedes`, `superseded_by`, `pr`,
-`outcome`. `plan.md`: `status`, `date`, `slug`, `spec`, `pr`. `decisions/*.md`:
-`status` (accepted|superseded), `date`, `slug`, `summary`, `supersedes`,
-`superseded_by`, `pr`. Files in `architecture/` carry **no** frontmatter —
-living prose, dated by git.
+`design.md` / `change.md`: `date`, `slug`, `summary` (single line), `outcome`.
+`plan.md`: `date`, `slug`, `spec`. `decisions/*.md`: `status`
+(accepted|superseded), `date`, `slug`, `summary`, `supersedes`, `superseded_by`.
+Files in `architecture/` carry **no** frontmatter — living prose, dated by git.
+
+**`outcome`** is filled at ship time: one line, ~1–3 sentences (≤ ~300 chars),
+stating the realized result — what shipped and its effect (deviations from the
+plan included), written so a future reader grasps the consequence without
+opening the diff. It is distinct from `summary`, which is the pre-ship intent
+one-liner.
 
 ## Index
 
 The listing is **generated**, not maintained — run `just index` to print it:
-changes grouped by `status` (In progress / Shipped / Superseded), then
-decisions (newest first). The frontmatter in each bundle / decision file is the
+changes then decisions, newest first. The frontmatter in each bundle / decision file is the
 single source of truth; there is no committed copy to drift.
 
 ## Other

@@ -1,9 +1,7 @@
 ---
-status: shipped
 date: 2026-06-05
 slug: validate-rework
 spec: design.md
-pr: null
 ---
 
 # `Container.validate()` Rework Implementation Plan

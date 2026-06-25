@@ -1,9 +1,7 @@
 ---
-status: draft
 date: YYYY-MM-DD
 slug: my-change
-spec: my-change
-pr: null
+spec: design.md
 ---
 
 # <slug> — implementation plan

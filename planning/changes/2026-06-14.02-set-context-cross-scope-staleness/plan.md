@@ -1,9 +1,7 @@
 ---
-status: shipped
 date: 2026-06-14
 slug: set-context-cross-scope-staleness
-spec: set-context-cross-scope-staleness
-pr: 216
+spec: design.md
 ---
 
 # set-context-cross-scope-staleness — implementation plan

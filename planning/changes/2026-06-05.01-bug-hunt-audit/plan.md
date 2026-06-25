@@ -1,9 +1,7 @@
 ---
-status: shipped
 date: 2026-06-05
 slug: bug-hunt-audit
 spec: design.md
-pr: null
 ---
 
 # Bug-Hunt Audit Implementation Plan

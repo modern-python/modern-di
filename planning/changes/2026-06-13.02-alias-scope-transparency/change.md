@@ -1,10 +1,9 @@
 ---
-status: shipped
 date: 2026-06-13
 slug: alias-scope-transparency
 summary: Deprecate decorative `Alias(scope=...)`; `validate()` checks scope transitively via `effective_scope` (X-4). Plan-only; spec = the code-docs audit report.
 spec: ../../../audits/2026-06-12-code-docs-audit-report.md
-pr: "207"
+outcome: validate() now checks scope transitively via effective_scope through aliases (X-4); decorative Alias(scope=) deprecated; enforces_dependency_scope stopgap retired; shipped as 2.17.0 in PR #207.
 ---
 
 # Alias Scope Transparency (X-4) Implementation Plan

@@ -1,11 +1,7 @@
 ---
-status: shipped
 date: 2026-06-09
 slug: migration-guide-from-that-depends
 summary: Migration guide from that-depends covering all provider types and conceptual shifts.
-supersedes: null
-superseded_by: null
-pr: null
 outcome: docs/migration/from-that-depends.md published.
 ---
 
