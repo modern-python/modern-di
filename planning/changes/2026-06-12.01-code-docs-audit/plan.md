@@ -3,7 +3,6 @@ status: shipped
 date: 2026-06-12
 slug: code-docs-audit
 spec: design.md
-pr: null
 ---
 
 # Code & Docs Audit Implementation Plan

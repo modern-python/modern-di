@@ -4,7 +4,6 @@ date: 2026-06-12
 slug: audit-fixes
 summary: First batch of code+docs audit fixes. Plan-only; spec = the audit report.
 spec: ../../../audits/2026-06-12-code-docs-audit-report.md
-pr: "202"
 outcome: Fixed bugs B-1..B-11/X-1, dead code Q-2..Q-4, pinning tests Q-10..Q-15, and doc drift D-3/D-6..D-14 from the 2026-06-12 code+docs audit; shipped in PR #202.
 ---
 

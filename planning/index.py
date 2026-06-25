@@ -85,10 +85,9 @@ def format_row(bundle: dict[str, str]) -> str:
     """Render one bundle as a Markdown list item."""
     slug = bundle.get("slug", "?")
     path = bundle.get("path", "")
-    pr = bundle.get("pr") or "—"
     date = bundle.get("date", "")
     summary = bundle.get("summary") or "(no summary)"
-    line = f"- **[{slug}]({path})** (#{pr}, {date}) — {summary}"
+    line = f"- **[{slug}]({path})** ({date}) — {summary}"
     if bundle.get("supersedes"):
         line += f" _(supersedes {bundle['supersedes']})_"
     if bundle.get("superseded_by"):
@@ -140,10 +139,8 @@ def _check_spec_file(path: pathlib.Path, rel: str, dir_slug: str | None, violati
     fields = parse_frontmatter(path.read_text(encoding="utf-8"))
     _require(fields, SPEC_REQUIRED, rel, violations)
     _check_common(fields, VALID_STATUS, dir_slug, rel, violations)
-    if fields.get("status") == "shipped":
-        violations.extend(
-            f"{rel}: status is 'shipped' but '{key}' is empty" for key in ("pr", "outcome") if not fields.get(key)
-        )
+    if fields.get("status") == "shipped" and not fields.get("outcome"):
+        violations.append(f"{rel}: status is 'shipped' but 'outcome' is empty")
 
 
 def _check_plan_file(

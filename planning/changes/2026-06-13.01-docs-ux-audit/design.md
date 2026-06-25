@@ -5,7 +5,6 @@ slug: docs-ux-audit
 summary: Reader-experience audit producing a 70-finding report (16 Medium, 54 Low).
 supersedes: null
 superseded_by: null
-pr: 212
 outcome: Produced the 70-finding reader-experience report (0 High, 16 Medium, 54 Low) in audits/2026-06-13-docs-ux-audit-report.md. All 16 Mediums fixed in PR #212; 54 Lows catalogued for later.
 ---
 

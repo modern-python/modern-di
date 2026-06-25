@@ -3,7 +3,6 @@ status: shipped
 date: 2026-06-13
 slug: docs-ux-fixes
 spec: design.md
-pr: 212
 ---
 
 # Docs UX Fixes Implementation Plan

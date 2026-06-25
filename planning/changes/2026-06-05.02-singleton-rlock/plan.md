@@ -3,7 +3,6 @@ status: shipped
 date: 2026-06-05
 slug: singleton-rlock
 spec: design.md
-pr: null
 ---
 
 # Singleton RLock Fix Implementation Plan

@@ -3,7 +3,6 @@ status: draft
 date: 2026-06-23
 slug: inline-error-messages
 spec: design.md
-pr: null
 ---
 
 # inline-error-messages — implementation plan

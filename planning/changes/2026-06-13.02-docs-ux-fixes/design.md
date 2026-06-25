@@ -5,7 +5,6 @@ slug: docs-ux-fixes
 summary: Fixed all 16 Medium findings from the docs UX audit (runnable examples, accuracy, nav).
 supersedes: null
 superseded_by: null
-pr: 212
 outcome: All 16 Medium findings fixed and merged in PR #212 (#11b7b70). mkdocs --strict green; runnable snippets verified; O-5/O-6 confirmed against sibling repos. Architecture pages (scopes.md, providers.md) hand-edited as part of the fixes.
 ---
 

@@ -4,7 +4,6 @@ date: 2026-06-14
 slug: audit-fixes-batch3
 summary: R-1 (`AbstractProvider.display_name` dedupes the bound-type-or-repr idiom across ~5 sites) + R-2 minimal (public `fetch_context_value`, drop the `SLF001` reach-in). Plan-only; spec = the audit report.
 spec: ../../../audits/2026-06-14-deep-audit-report.md
-pr: 219
 outcome: Added AbstractProvider.display_name deduping R-1 (~5 sites) and public fetch_context_value dropping the SLF001 reach-in (R-2) from 2026-06-14 deep audit; shipped in PR #219.
 ---
 

@@ -5,7 +5,6 @@ slug: migration-guide-from-that-depends
 summary: Migration guide from that-depends covering all provider types and conceptual shifts.
 supersedes: null
 superseded_by: null
-pr: 198
 outcome: docs/migration/from-that-depends.md published.
 ---
 

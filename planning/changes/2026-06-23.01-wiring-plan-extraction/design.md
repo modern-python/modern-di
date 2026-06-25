@@ -5,7 +5,6 @@ slug: wiring-plan-extraction
 summary: Extract a WiringPlan deep module from Factory so the kwarg-binding decision lives in one place, testable without a Container.
 supersedes: null
 superseded_by: null
-pr: 226
 outcome: |
   Shipped. Factory's kwarg-wiring decision moved to a pure WiringPlan module
   (modern_di/wiring.py): one matcher, one absent-value table (absent_disposition),

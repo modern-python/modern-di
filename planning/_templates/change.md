@@ -5,8 +5,7 @@ slug: my-change
 summary: One line — shown in the generated index. Fill at ship time.
 supersedes: null
 superseded_by: null
-pr: null
-outcome: null
+outcome: Realized result — filled at ship time (~1–3 sentences); see README "Frontmatter".
 ---
 
 # Change: One-line capitalized title

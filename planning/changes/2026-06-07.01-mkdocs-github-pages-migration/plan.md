@@ -3,7 +3,6 @@ status: shipped
 date: 2026-06-07
 slug: mkdocs-github-pages-migration
 spec: design.md
-pr: null
 ---
 
 # MkDocs to GitHub Pages Migration Implementation Plan

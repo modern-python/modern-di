@@ -3,7 +3,6 @@ status: draft
 date: 2026-06-23
 slug: suggester
 spec: design.md
-pr: null
 ---
 
 # suggester — implementation plan

@@ -5,7 +5,6 @@ slug: code-docs-audit
 summary: Full code+docs audit harness; produced the 57-finding report.
 supersedes: null
 superseded_by: null
-pr: "202-203"
 outcome: Full code+docs audit harness; produced the 57-finding report in audits/2026-06-12-code-docs-audit-report.md.
 ---
 
