@@ -1,5 +1,4 @@
 ---
-status: draft
 date: 2026-06-25
 slug: agent-friendly-planning-convention
 spec: design.md
@@ -45,11 +44,16 @@ path.
   repo. Throwaway fixtures are removed before committing — never committed.
 - **`spec:` is a bundle-relative path** (Fork 1 ruling): always resolvable from
   the bundle directory (e.g. `design.md`, `../../../audits/x.md`).
-- **`status: shipped` ⇒ `outcome` non-null**, enforced for **all** bundles.
-  **`pr` was dropped from the convention entirely** mid-execution (see the spec's
-  "Update (2026-06-25): `pr` dropped" section): it is not a frontmatter field, not
-  enforced, and not rendered in the index. The Task 2 `pr` backfill is reverted;
-  the `outcome` backfill stands.
+- **`outcome` is required on every change spec.** Two fields were dropped from
+  change bundles mid-execution (see the spec's "Updates (2026-06-25)" section):
+  `pr` (not a field, not enforced, not rendered) and `status` +
+  `supersedes`/`superseded_by` (so there is no `shipped` gate — `outcome` is just
+  always required, and the index is a flat newest-first list). A change spec's
+  frontmatter is `date`/`slug`/`summary`/`outcome`; a `plan.md`'s is
+  `date`/`slug`/`spec`. **Decisions keep `status` + supersession.** The Task 2
+  `pr` backfill is reverted; the `outcome` backfill stands. (Task bodies below
+  still describe the original `pr`/`status` workflow — they are the historical
+  execution record; this constraint is the authoritative correction.)
 - This change does **not** promote to `architecture/` — it is process/tooling,
   like the original `portable-planning-convention` adoption. Its "promotion" is
   the README + CLAUDE.md edits it already makes.

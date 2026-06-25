@@ -1,11 +1,8 @@
 ---
-status: draft
 date: 2026-06-25
 slug: agent-friendly-planning-convention
 summary: Make the planning convention agent-friendly — progressive-disclosure restructure (Quick-path on-ramp, deterministic lane decision, de-duplicated text) plus a `just check-planning` validator.
-supersedes: null
-superseded_by: null
-outcome: null
+outcome: Shipped an agent-friendly planning convention — a `just check-planning` validator wired into `lint-ci`, a Quick-path on-ramp with a first-match lane decision, and CLAUDE.md de-duplicated to a pointer. Mid-flight the maintainer also dropped `pr` and `status`/supersession from change bundles, making a defined `outcome` the sole required lifecycle field.
 ---
 
 # Design: Make the planning convention agent-friendly
@@ -127,15 +124,16 @@ Checked invariants (all portable):
   contains **only** known artifacts (`design.md`, `plan.md`, `change.md`) —
   catches the retro's committed-scratch footgun.
 - **Frontmatter completeness:** required keys present per artifact type —
-  `design.md`/`change.md`: `status`, `date`, `slug`, `summary`; `plan.md`:
-  `status`, `date`, `slug`, `spec`; `decisions/*.md`: `status`, `date`, `slug`,
-  `summary`.
-- **Field validity:** `status` ∈ the allowed set for that artifact type; `date`
+  `design.md`/`change.md`: `date`, `slug`, `summary`, `outcome`; `plan.md`:
+  `date`, `slug`, `spec`; `decisions/*.md`: `status`, `date`, `slug`, `summary`.
+- **Field validity:** a decision's `status` ∈ {`accepted`, `superseded`}; `date`
   matches `YYYY-MM-DD`; the bundle dir name matches `YYYY-MM-DD.NN-slug` and its
   `slug` field agrees with the dir slug.
-- **Lifecycle completeness:** `status: shipped` ⇒ `outcome` is non-null.
 - **Link integrity:** `plan.md`'s `spec:` path resolves to an existing file
   (relative to the bundle dir).
+
+(The field set above is the post-`status`/`pr` state — see the Updates section
+below for how it got here.)
 
 The validator reports *all* violations in one run (not fail-fast) so an agent or
 human fixes the whole set at once.
@@ -149,7 +147,9 @@ frontmatter or, where a historical bundle is legitimately irregular, by making
 the check's rule precise enough not to flag it. The executor records any such
 fixes; the gate ships only once `just check-planning` is clean.
 
-## Update (2026-06-25, during execution): `pr` dropped from the convention
+## Updates (2026-06-25, during execution)
+
+### `pr` dropped from the convention
 
 The original plan required `status: shipped ⇒ pr + outcome` and backfilled `pr`
 across 15 historical bundles. Doing that backfill exposed why `pr` is the wrong
@@ -180,6 +180,28 @@ the `_templates/`): filled at ship time, one line / ~1–3 sentences (≤ ~300
 chars), stating the realized result — what shipped and its effect, deviations
 from the plan included — written so a future reader grasps the consequence
 without opening the diff, and distinct from the pre-ship intent in `summary`.
+
+### `status` and supersession dropped from change bundles
+
+On `main`, a change bundle is essentially always `shipped` — the in-progress
+states (`draft`/`approved`) only exist on an unmerged feature branch, and
+"superseded" was derivable from `superseded_by`. So the `draft → shipped` flip
+was ceremony with no payoff, and supersession was judged not useful for changes.
+Both are removed from change bundles:
+
+- `status`, `supersedes`, and `superseded_by` are removed from the change-bundle
+  frontmatter spec, the `_templates/` (design/change/plan), and every existing
+  change bundle. A change spec's frontmatter is now `date`, `slug`, `summary`,
+  `outcome`; a `plan.md`'s is `date`, `slug`, `spec`.
+- The validator requires `outcome` on **every** change spec (no longer gated on
+  `status: shipped`); it drops the `status`-validity and supersession checks for
+  changes.
+- The generated index drops the status grouping: changes render as a flat
+  newest-first list. `format_row` is unchanged (the supersession suffixes simply
+  never fire for changes).
+- **Decisions are unchanged** — `decisions/*.md` keep `status`
+  (`accepted`/`superseded`) and `supersedes`/`superseded_by`, where the
+  distinction is load-bearing. The validator still checks them.
 
 ## Operations
 
