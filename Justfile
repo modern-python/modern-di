@@ -41,3 +41,7 @@ docs-build:
 # Print the planning change index (grouped by status) to stdout.
 index:
     uv run python planning/index.py
+
+# Validate planning bundles + decisions (frontmatter, lanes, spec links); CI runs this.
+check-planning:
+    uv run python planning/index.py --check
