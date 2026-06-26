@@ -19,8 +19,10 @@ class AppProviders(Group):
     user_repo = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
 ```
 
-`Group.get_providers()` walks the MRO and collects every class attribute that is an `AbstractProvider` instance,
-respecting inheritance order and de-duplicating by name.
+`Group.get_named_providers()` walks the MRO and returns a `dict[str, AbstractProvider]` mapping each declared
+attribute name to its provider — respecting inheritance order, de-duplicating by first-seen name, and letting a
+non-provider override mask the parent provider of the same name. `Group.get_providers()` is derived from it as
+`list(cls.get_named_providers().values())`, so the traversal and de-duplication rules live in one place.
 
 ---
 
