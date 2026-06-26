@@ -136,3 +136,13 @@ def test_get_named_providers_diamond_keeps_single_named_entry() -> None:
     class Diamond(Left, Right): ...
 
     assert Diamond.get_named_providers() == {"a": Base.a}
+
+
+def test_get_providers_matches_named_provider_values() -> None:
+    class Base(Group):
+        a = providers.Factory(creator=_A)
+
+    class Child(Base):
+        b = providers.Factory(creator=_B)
+
+    assert Child.get_providers() == list(Child.get_named_providers().values())
