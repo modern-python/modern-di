@@ -113,6 +113,7 @@ def test_get_named_providers_maps_each_provider_to_its_attribute_name() -> None:
         b = providers.Factory(creator=_B)
 
     assert Child.get_named_providers() == {"a": Base.a, "b": Child.b}
+    assert list(Child.get_named_providers().items()) == [("b", Child.b), ("a", Base.a)]
 
 
 def test_get_named_providers_masks_non_provider_override() -> None:
