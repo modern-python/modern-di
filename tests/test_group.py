@@ -103,3 +103,47 @@ def test_failed_group_registration_does_not_pollute_shared_registry() -> None:
     with pytest.raises(DuplicateProviderTypeError):
         Container(scope=child_scope, parent_container=app, groups=[_GroupTwo])
     assert app.providers_registry.find_provider(_ExtraSvc) is None
+
+
+def test_get_named_providers_maps_each_provider_to_its_attribute_name() -> None:
+    class Base(Group):
+        a = providers.Factory(creator=_A)
+
+    class Child(Base):
+        b = providers.Factory(creator=_B)
+
+    assert Child.get_named_providers() == {"a": Base.a, "b": Child.b}
+    assert list(Child.get_named_providers().items()) == [("b", Child.b), ("a", Base.a)]
+
+
+def test_get_named_providers_masks_non_provider_override() -> None:
+    class Base(Group):
+        a = providers.Factory(creator=_A)
+
+    class Child(Base):
+        a = "not a provider"
+
+    assert Child.get_named_providers() == {}
+
+
+def test_get_named_providers_diamond_keeps_single_named_entry() -> None:
+    class Base(Group):
+        a = providers.Factory(creator=_A)
+
+    class Left(Base): ...
+
+    class Right(Base): ...
+
+    class Diamond(Left, Right): ...
+
+    assert Diamond.get_named_providers() == {"a": Base.a}
+
+
+def test_get_providers_matches_named_provider_values() -> None:
+    class Base(Group):
+        a = providers.Factory(creator=_A)
+
+    class Child(Base):
+        b = providers.Factory(creator=_B)
+
+    assert Child.get_providers() == list(Child.get_named_providers().values())

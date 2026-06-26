@@ -13,9 +13,9 @@ class Group:
         raise exceptions.GroupInstantiationError(group_name=cls.__name__)
 
     @classmethod
-    def get_providers(cls) -> list[AbstractProvider[typing.Any]]:
+    def get_named_providers(cls) -> dict[str, AbstractProvider[typing.Any]]:
         seen_names: set[str] = set()
-        collected: list[AbstractProvider[typing.Any]] = []
+        collected: dict[str, AbstractProvider[typing.Any]] = {}
         for klass in cls.__mro__:
             if klass is Group or klass is object:
                 continue
@@ -24,5 +24,9 @@ class Group:
                     continue
                 seen_names.add(name)
                 if isinstance(value, AbstractProvider):
-                    collected.append(value)
+                    collected[name] = value
         return collected
+
+    @classmethod
+    def get_providers(cls) -> list[AbstractProvider[typing.Any]]:
+        return list(cls.get_named_providers().values())
