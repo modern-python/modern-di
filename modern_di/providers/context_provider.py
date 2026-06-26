@@ -20,7 +20,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
     ``ArgumentResolutionError``.
     """
 
-    __slots__ = ("_context_type",)
+    __slots__ = ("context_type",)
 
     def __init__(
         self,
@@ -32,10 +32,12 @@ class ContextProvider(AbstractProvider[types.T_co]):
         super().__init__(
             scope=scope, bound_type=context_type if isinstance(bound_type, types.UnsetType) else bound_type
         )
-        self._context_type = context_type
+        # Public, like its sibling ``bound_type`` — the type this provider supplies and
+        # the key its value is set under in ``context``.
+        self.context_type = context_type
 
     def __repr__(self) -> str:
-        return f"ContextProvider(context_type={self._context_type!r}, scope={self.scope!r})"
+        return f"ContextProvider(context_type={self.context_type!r}, scope={self.scope!r})"
 
     def resolve(self, container: "Container") -> types.T_co | None:
         value = self.fetch_context_value(container)
@@ -47,4 +49,4 @@ class ContextProvider(AbstractProvider[types.T_co]):
         container = container.find_container(self.scope)
         if container.closed:
             raise exceptions.ContainerClosedError(container_scope=container.scope)
-        return container.context_registry.find_context(self._context_type)
+        return container.context_registry.find_context(self.context_type)

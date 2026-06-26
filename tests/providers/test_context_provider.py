@@ -66,6 +66,11 @@ def test_context_provider_repr() -> None:
     assert repr(provider) == "ContextProvider(context_type=<class 'str'>, scope=<Scope.REQUEST: 3>)"
 
 
+def test_context_provider_exposes_context_type() -> None:
+    provider = providers.ContextProvider(context_type=datetime.datetime, scope=Scope.REQUEST)
+    assert provider.context_type is datetime.datetime
+
+
 @pytest.mark.parametrize("value", [0, False, "", [], {}, 0.0])
 def test_context_provider_returns_falsy_values(value: object) -> None:
     context_type = type(value)
