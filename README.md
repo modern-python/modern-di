@@ -1,4 +1,10 @@
-# modern-di
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)"  srcset="https://raw.githubusercontent.com/modern-python/.github/main/brand/projects/modern-di/lockup-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/modern-python/.github/main/brand/projects/modern-di/lockup-light.svg">
+    <img alt="modern-di" src="https://raw.githubusercontent.com/modern-python/.github/main/brand/projects/modern-di/lockup.png" width="420">
+  </picture>
+</p>
 
 [![GitHub stars](https://img.shields.io/github/stars/modern-python/modern-di)](https://github.com/modern-python/modern-di/stargazers)
 [![Context7](https://img.shields.io/badge/Context7-docs-blue)](https://context7.com/modern-python/modern-di)
