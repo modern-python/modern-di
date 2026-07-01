@@ -112,11 +112,22 @@ depends on how the framework runs handlers:
 
 ### 5. `FromDI` marker + `Dependency` resolver
 
-`FromDI` turns a modern-di dependency into the framework's **native injection
-marker**. It accepts a provider **or** a type and returns something the
-framework will inject. Behind it sits a frozen, slotted dataclass whose
-`__call__` receives the request container (via the framework's own DI) and
-dispatches on the argument kind.
+`FromDI(dependency)` accepts a provider **or** a type and, at a handler's call
+site, stands in for the resolved value: `x: Annotated[Foo, FromDI(foo_provider)]`.
+How it delivers that value splits into two modes depending on the framework:
+
+- **Native-DI frameworks** (FastAPI, FastStream, Litestar) have a per-handler
+  injection seam — `Depends`, `Provide`. `FromDI` returns that native marker and
+  the framework calls your resolver with the request container. This is the path
+  documented below.
+- **Frameworks with no request-scoped DI** (Typer/Click CLIs, argparse, task
+  runners) have no seam. `FromDI` returns an inert marker and a **decorator**
+  does the resolution. See [Frameworks without native
+  DI](#frameworks-without-native-di-the-decorator-path).
+
+For the native-DI path, `FromDI` returns the framework's injection marker
+wrapping a frozen, slotted dataclass whose `__call__` receives the request
+container (via the framework's own DI) and dispatches on the argument kind.
 
 ```python
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -133,14 +144,10 @@ def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  
     return typing.cast(T_co, myfw.Depends(Dependency(dependency)))
 ```
 
-The two dispatch arms are invariant across every integration:
+The two dispatch arms are invariant across every integration and both modes:
 `resolve_provider` for an `AbstractProvider`, `resolve` for a bare type.
 `FromDI` is spelled in PascalCase (with `# noqa: N802`) because it stands in for
-a type at call sites — `x: Annotated[Foo, FromDI(foo_provider)]`.
-
-Where a framework has no request-scoped DI to receive the container (Typer),
-`FromDI` returns an inert marker object and the `inject` decorator does the
-resolution instead.
+a type at call sites.
 
 ## Lifecycle rules
 
@@ -191,6 +198,75 @@ instead of `setup_di`/`FromDI` it exposes `modern_di_fixture` (turn one
 dependency into a fixture) and `expose` (turn a `Group`'s providers into
 fixtures). It resolves from a user-supplied `di_container` fixture. Follow it
 when integrating a **test runner** rather than an application framework.
+
+## Frameworks without native DI (the decorator path)
+
+Contract points 4 and 5 assume a **per-handler injection seam** — FastAPI /
+FastStream `Depends`, Litestar `Provide` — that you hand a native marker and
+that calls your resolver with the request container. Some frameworks have none:
+a Typer/Click command, an argparse handler, or a plain task callable receives
+only what the framework's argument parser binds. There is nowhere to inject.
+
+For these, `FromDI` becomes an inert annotation marker and a **decorator** does
+the work native DI would have. [`modern-di-typer`](typer.md)'s `@inject` is the
+reference implementation — reach for this shape whenever the framework runs
+handlers as plain callables it parses arguments for.
+
+### How it works
+
+- **`FromDI` is inert.** It returns a frozen `_FromDI(provider)` dataclass, cast
+  to the resolved type so checkers still see `T`. On its own it does nothing; the
+  decorator interprets it.
+
+  ```python
+  service: typing.Annotated[MyService, FromDI(Dependencies.service)]
+  ```
+
+- **Decoration time** — the decorator introspects
+  `typing.get_type_hints(func, include_extras=True)`, finds parameters whose
+  `Annotated` metadata holds a `_FromDI`, then **rewrites the signature**:
+  *remove* those parameters (so the arg parser never treats them as CLI options)
+  and *insert* the framework's context parameter (`typer.Context`) at position 0
+  if the handler didn't declare one. Assign the cleaned signature to
+  `wrapper.__signature__` — the parser reads that, and `functools.wraps` alone
+  won't set it.
+
+- **Call time** — bind incoming args against the rewritten signature, pull out
+  the context object (deleting it again if the decorator added it implicitly),
+  build the per-call child container, resolve each marked parameter
+  (`resolve_provider` for providers, `resolve` for bare types), fill them into
+  the call by name, invoke the original function, and `close_sync` the container
+  in `finally`.
+
+DI parameters coexist with ordinary framework parameters because the decorator
+strips **only** the marked ones; everything else still reaches the parser.
+
+### What changes vs. the native path
+
+| Contract point | Native DI | Decorator |
+|---|---|---|
+| `FromDI` returns | framework marker (`Depends` / `Provide`) | inert `_FromDI` marker |
+| Child container built by | framework, via your resolver | the decorator wrapper |
+| Handler receives value via | framework's DI | signature rewrite + fill-by-name at call time |
+| Root-container access | connection object passed in | framework's per-call context, injected into the signature if absent |
+| Connection `ContextProvider` | one per connection kind | none — the handler carries no connection object |
+
+### Pitfalls to get right
+
+- **Set `wrapper.__signature__`.** Without it the parser still sees the stripped
+  DI params and errors. (`__signature__` isn't in the stub, so
+  `# ty: ignore[unresolved-attribute]`.)
+- **Strip only DI params.** Leave real arguments/options in the signature or the
+  framework stops parsing them.
+- **Decorator order.** The framework's own registration decorator goes
+  **outside** — `@app.command()` above `@inject` — so it registers the rewritten
+  signature.
+- **Isolate per-call state.** Stash the per-call container on a per-invocation
+  store (`ctx.meta`), not shared app state (`ctx.obj`), so nested scopes can
+  parent onto it and nothing leaks between invocations.
+- **Keep nested scopes caller-driven.** Expose a helper (`action_scope(ctx)`)
+  that yields a fresh deeper-scope child of the per-call container per `with`
+  block, rather than auto-injecting one.
 
 ## Repo scaffolding
 
@@ -250,6 +326,11 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and dispatches
       `resolve_provider` vs `resolve`.
+- [ ] **No native DI?** `FromDI` is an inert marker and a decorator rewrites the
+      handler signature (strips DI params, threads the context object, sets
+      `wrapper.__signature__`), resolves at call time, and closes the per-call
+      container in `finally`. See the [decorator
+      path](#frameworks-without-native-di-the-decorator-path).
 - [ ] Tests cover lifespan (incl. restart), resolution through `FromDI`, and
       context injection from the connection object; coverage gate green.
 - [ ] Usage page + `mkdocs.yml` nav entry added in the `modern-di` repo.
