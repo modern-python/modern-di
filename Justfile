@@ -37,11 +37,12 @@ bench:
     uv run --no-sync pytest benchmarks/ --benchmark-only
 
 # Build + publish to PyPI. Version comes from the git tag ($GITHUB_REF_NAME); no pyproject bump.
+# Auth via PyPI Trusted Publishing (OIDC); uv publish auto-detects the CI id-token.
 publish:
     rm -rf dist
     uv version $GITHUB_REF_NAME
     uv build
-    uv publish --token $PYPI_TOKEN
+    uv publish
 
 # Build the docs site, failing on broken links / nav warnings; CI runs this on every PR.
 docs-build:
