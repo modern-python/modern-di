@@ -26,6 +26,7 @@ nav:
       - Litestar: integrations/litestar.md
       - Typer: integrations/typer.md
       - Pytest: integrations/pytest.md
+      - Writing an integration: integrations/writing-integrations.md
   - Recipes:
       - Async SQLAlchemy: recipes/sqlalchemy.md
       - Async resources via lifespan: recipes/async-lifespan.md
