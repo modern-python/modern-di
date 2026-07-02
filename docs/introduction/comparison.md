@@ -24,7 +24,7 @@ Reach for a container when one of these is true:
   the HTTP layer.
 
 modern-di's core promise is exactly that: **one typed wiring shared across
-FastAPI, Litestar, FastStream, Starlette, and Typer.**
+aiohttp, FastAPI, Litestar, FastStream, Starlette, and Typer.**
 
 ## The landscape
 
@@ -34,7 +34,7 @@ FastAPI, Litestar, FastStream, Starlette, and Typer.**
 | Scopes | APP→…→STEP (fixed chain) | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
 | Resolution | sync (by design) | sync + async | sync + async | sync | async |
 | First-party pytest plugin | ✅ | ✘ | ✘ | ✘ | n/a |
-| Official integrations | 6 (FastAPI, Litestar, FastStream, Starlette, Typer, pytest) | ~20+ | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
+| Official integrations | 7 (aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer, pytest) | ~20+ | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
 | Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
 | License | MIT | Apache-2.0 | BSD-3 | BSD | — |
 | Adoption | newest, very active | established, large community | most popular, mature | mature | built into FastAPI |
