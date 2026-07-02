@@ -24,6 +24,7 @@ nav:
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
       - Litestar: integrations/litestar.md
+      - Starlette: integrations/starlette.md
       - Typer: integrations/typer.md
       - Pytest: integrations/pytest.md
       - Writing an integration: integrations/writing-integrations.md
