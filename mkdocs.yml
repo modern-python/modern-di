@@ -21,6 +21,7 @@ nav:
       - Errors and exceptions: providers/errors-and-exceptions.md
       - Advanced / low-level API: providers/advanced-api.md
   - Integrations:
+      - aiohttp: integrations/aiohttp.md
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
       - Litestar: integrations/litestar.md
