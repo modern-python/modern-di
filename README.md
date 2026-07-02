@@ -18,6 +18,7 @@
 | [modern-di-fastapi](https://github.com/modern-python/modern-di-fastapi)         | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-fastapi.svg)](https://pypi.python.org/pypi/modern-di-fastapi) [![downloads](https://static.pepy.tech/badge/modern-di-fastapi/month)](https://pepy.tech/projects/modern-di-fastapi)             |
 | [modern-di-faststream  ](https://github.com/modern-python/modern-di-faststream) | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-faststream.svg)](https://pypi.python.org/pypi/modern-di-faststream) [![downloads](https://static.pepy.tech/badge/modern-di-faststream/month)](https://pepy.tech/projects/modern-di-faststream) |
 | [modern-di-litestar ](https://github.com/modern-python/modern-di-litestar)      | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-litestar.svg)](https://pypi.python.org/pypi/modern-di-litestar) [![downloads](https://static.pepy.tech/badge/modern-di-litestar/month)](https://pepy.tech/projects/modern-di-litestar)         |
+| [modern-di-starlette](https://github.com/modern-python/modern-di-starlette)     | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-starlette.svg)](https://pypi.python.org/pypi/modern-di-starlette) [![downloads](https://static.pepy.tech/badge/modern-di-starlette/month)](https://pepy.tech/projects/modern-di-starlette)     |
 | [modern-di-typer](https://github.com/modern-python/modern-di-typer)            | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-typer.svg)](https://pypi.python.org/pypi/modern-di-typer) [![downloads](https://static.pepy.tech/badge/modern-di-typer/month)](https://pepy.tech/projects/modern-di-typer)                     |
 | [modern-di-pytest](https://github.com/modern-python/modern-di-pytest)          | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-pytest.svg)](https://pypi.python.org/pypi/modern-di-pytest) [![downloads](https://static.pepy.tech/badge/modern-di-pytest/month)](https://pepy.tech/projects/modern-di-pytest)                 |
 
@@ -28,7 +29,7 @@
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `FastAPI`, `FastStream`, `LiteStar` and `Typer`
+- Integrations with `FastAPI`, `FastStream`, `LiteStar`, `Starlette` and `Typer`
 - Pytest integration (`modern-di-pytest`) — turns any DI dependency into a pytest fixture
 
 ## Install

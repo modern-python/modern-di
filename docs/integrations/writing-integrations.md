@@ -192,6 +192,15 @@ Pattern-match your framework to the closest precedent.
 | `FromDI` bridge | `fastapi.Depends(Dependency(...))` | `faststream.Depends(Dependency(...))` | `Provide(_Dependency(...))` | inert `_FromDI` marker + `inject` |
 | Child close | `close_async` | `close_async` | `close_async` | `close_sync` |
 
+The **Starlette** integration ([`modern-di-starlette`](starlette.md)) is the
+reference for a **middleware + decorator hybrid**: Starlette has no native DI,
+so a pure-ASGI middleware owns the child-container lifecycle (like FastStream)
+while an `@inject` decorator with an inert `FromDI` marker does resolution (like
+Typer). It splits the two responsibilities of the decorator path — the middleware
+builds and closes the per-connection child, the decorator only reads it back from
+the ASGI scope and resolves. See [Frameworks without native
+DI](#frameworks-without-native-di-the-decorator-path).
+
 The **pytest** integration
 ([`modern-di-pytest`](pytest.md)) is a different shape: it has no app to wire, so
 instead of `setup_di`/`FromDI` it exposes `modern_di_fixture` (turn one
@@ -210,7 +219,11 @@ only what the framework's argument parser binds. There is nowhere to inject.
 For these, `FromDI` becomes an inert annotation marker and a **decorator** does
 the work native DI would have. [`modern-di-typer`](typer.md)'s `@inject` is the
 reference implementation — reach for this shape whenever the framework runs
-handlers as plain callables it parses arguments for.
+handlers as plain callables it parses arguments for. The decorator can build the
+per-call child container itself (Typer), or read one built by middleware
+([`modern-di-starlette`](starlette.md) builds it in a pure-ASGI middleware and the
+decorator only resolves from it) — the resolution mechanics below are the same
+either way.
 
 ### How it works
 
