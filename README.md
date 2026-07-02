@@ -29,7 +29,7 @@
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `FastAPI`, `FastStream`, `LiteStar`, `Starlette` and `Typer`
+- Integrations with `aiohttp`, `FastAPI`, `FastStream`, `LiteStar`, `Starlette` and `Typer`
 - Pytest integration (`modern-di-pytest`) — turns any DI dependency into a pytest fixture
 
 ## Install

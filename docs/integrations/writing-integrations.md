@@ -201,6 +201,17 @@ builds and closes the per-connection child, the decorator only reads it back fro
 the ASGI scope and resolves. See [Frameworks without native
 DI](#frameworks-without-native-di-the-decorator-path).
 
+The **aiohttp** integration ([`modern-di-aiohttp`](aiohttp.md)) is another
+middleware + decorator hybrid, for a non-ASGI server where the only connection
+object at middleware entry is `web.Request` — a WebSocket is an upgraded HTTP
+request, not a distinct type. It detects a WebSocket via
+`web.WebSocketResponse().can_prepare(request).ok`, opens a `Scope.REQUEST`
+child for an HTTP request or a `Scope.SESSION` child for a WebSocket, and —
+because both connection providers bind `web.Request` — registers
+`aiohttp_request_provider` by type while keeping `aiohttp_websocket_provider`
+reference-only (`bound_type=None`). Its root lifecycle rides aiohttp's
+`on_startup`/`on_cleanup` signals rather than a composed lifespan.
+
 The **pytest** integration
 ([`modern-di-pytest`](pytest.md)) is a different shape: it has no app to wire, so
 instead of `setup_di`/`FromDI` it exposes `modern_di_fixture` (turn one
