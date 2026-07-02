@@ -9,7 +9,7 @@ Welcome to the `modern-di` documentation!
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `FastAPI`, `FastStream`, `LiteStar`, `Typer`, and `pytest`
+- Integrations with `FastAPI`, `FastStream`, `LiteStar`, `Starlette`, `Typer`, and `pytest`
 
 Reference templates:
 
@@ -42,7 +42,7 @@ For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqla
     poetry add modern-di
     ```
 
-If you want a framework integration, install the matching adapter — e.g. `modern-di-fastapi`, `modern-di-litestar`, `modern-di-faststream`, `modern-di-typer`. For pytest support, install `modern-di-pytest`.
+If you want a framework integration, install the matching adapter — e.g. `modern-di-fastapi`, `modern-di-litestar`, `modern-di-faststream`, `modern-di-starlette`, `modern-di-typer`. For pytest support, install `modern-di-pytest`.
 
 ## 2. Describe your dependencies
 
@@ -97,6 +97,7 @@ Pick the integration you need:
 - [FastAPI](integrations/fastapi.md)
 - [FastStream](integrations/faststream.md)
 - [LiteStar](integrations/litestar.md)
+- [Starlette](integrations/starlette.md)
 - [Typer](integrations/typer.md)
 - [Pytest](integrations/pytest.md)
 

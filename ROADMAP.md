@@ -20,7 +20,7 @@ item, or want to build one, please open or comment in
 Each new entrypoint lets your existing container cover more of your stack:
 - **Taskiq** — async task queue
 - **aiogram** — Telegram bots
-- **AIOHTTP / Starlette**
+- **AIOHTTP**
 - *Later:* gRPC, Click, Celery
 
 ### Developer experience
