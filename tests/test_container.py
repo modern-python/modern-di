@@ -1,6 +1,7 @@
 import copy
 import dataclasses
 import typing
+import warnings
 
 import pytest
 
@@ -9,6 +10,7 @@ from modern_di.exceptions import (
     ArgumentResolutionError,
     CircularDependencyError,
     ContainerClosedError,
+    ContainerClosedWarning,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
     InvalidScopeTypeError,
@@ -362,20 +364,21 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
         Container(scope=Scope.APP, parent_container=request)
 
 
-def test_closed_container_refuses_resolve_and_child_building() -> None:
+def test_closed_container_warns_and_reopens_on_resolve_and_child_building() -> None:
     container = Container(scope=Scope.APP)
     container.close_sync()
-    with pytest.raises(ContainerClosedError):
+    with pytest.warns(ContainerClosedWarning):
         container.resolve(Container)
-    with pytest.raises(ContainerClosedError):
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning):
         container.build_child_container(scope=Scope.REQUEST)
 
 
 async def test_closed_container_async_path() -> None:
     container = Container(scope=Scope.APP)
     await container.close_async()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
 
 
 class _PersistentBroker: ...
@@ -399,8 +402,8 @@ async def test_async_context_manager_reopens() -> None:
     container = Container(scope=Scope.APP)
     async with container:
         pass
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
     async with container:
         assert container.resolve(Container) is container
 
@@ -408,11 +411,56 @@ async def test_async_context_manager_reopens() -> None:
 def test_open_reopens_closed_container() -> None:
     container = Container(scope=Scope.APP)
     container.close_sync()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
     container.open()
     assert container.resolve(Container) is container
     assert container.build_child_container(scope=Scope.REQUEST).scope is Scope.REQUEST
+
+
+def test_reuse_after_close_warns_and_reopens() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning):
+        resolved = container.resolve(Container)
+    assert resolved is container
+    assert container.closed is False
+
+
+def test_build_child_after_close_warns_and_reopens() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning):
+        child = container.build_child_container(scope=Scope.REQUEST)
+    assert container.closed is False
+    assert child.scope is Scope.REQUEST
+
+
+def test_reuse_warns_once_per_close_cycle() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        container.resolve(Container)
+        container.resolve(Container)
+    closed_warnings = [w for w in caught if issubclass(w.category, ContainerClosedWarning)]
+    assert len(closed_warnings) == 1
+
+
+def test_strict_opt_in_reuse_raises() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ContainerClosedWarning)
+        with pytest.raises(ContainerClosedWarning):
+            container.resolve(Container)
+
+
+def test_container_closed_error_message_and_attr() -> None:
+    err = ContainerClosedError(container_scope=Scope.APP)
+    assert err.container_scope is Scope.APP
+    assert "closed" in str(err)
+    assert "Create a new container" in str(err)
 
 
 def test_open_on_open_container_is_noop() -> None:
