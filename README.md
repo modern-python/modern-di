@@ -30,7 +30,7 @@
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `aiohttp`, `FastAPI`, `FastStream`, `LiteStar`, `Starlette` and `Typer`
+- Integrations with `aiohttp`, `FastAPI`, `FastStream`, `Litestar`, `Starlette` and `Typer`
 - Pytest integration (`modern-di-pytest`) — turns any DI dependency into a pytest fixture
 
 ## Install
@@ -71,7 +71,7 @@ See the [documentation](https://modern-di.modern-python.org) for scopes, lifecyc
 
 Usage examples:
 
-- with LiteStar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- with Litestar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
 - with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
 
 ## 📚 [Documentation](https://modern-di.modern-python.org)

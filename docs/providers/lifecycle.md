@@ -12,7 +12,7 @@ from modern_di import Container, Scope, providers, exceptions
 
 `modern-di` creates instances on first resolve. There is no `init_resources()` or "eager startup" call — if a provider is never resolved, its creator never runs.
 
-If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook. Framework integrations are a good place for this.
+If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook.
 
 ```python
 container = Container(groups=[Dependencies], validate=True)

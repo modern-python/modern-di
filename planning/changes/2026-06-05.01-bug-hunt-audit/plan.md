@@ -317,7 +317,7 @@ RULES:
 - Read the actual file before claiming. The context blob is a map, not the source. Use your file-reading tools to open the cited file before writing a finding.
 - Do not flag style or lint issues. ruff and ty already enforce those in CI.
 - Do not propose performance improvements unless they cross into correctness (unbounded growth, hangs, pathological complexity that becomes DoS).
-- Findings about sibling repos (modern-di-pytest, FastAPI / FastStream / LiteStar / Typer integrations) are OUT OF SCOPE. Stay in this repo only.
+- Findings about sibling repos (modern-di-pytest, FastAPI / FastStream / Litestar / Typer integrations) are OUT OF SCOPE. Stay in this repo only.
 
 DIMENSION-SPECIFIC HEURISTICS:
 ${heuristics}

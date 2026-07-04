@@ -34,7 +34,7 @@ Every finding in the final report must:
 
 ### Non-goals
 
-- Sibling repos (`modern-di-pytest`, FastAPI/FastStream/LiteStar/Typer integrations) — explicitly out per `CLAUDE.md`.
+- Sibling repos (`modern-di-pytest`, FastAPI/FastStream/Litestar/Typer integrations) — explicitly out per `CLAUDE.md`.
 - Performance findings unless they cross into correctness (unbounded growth, pathological complexity that becomes DoS).
 - Style or lint-class nits — `ruff` and `ty` already enforce these in CI.
 - Applying fixes. This audit ends at a triaged report.

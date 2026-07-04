@@ -499,5 +499,5 @@ A handful of `that-depends` features have no direct port. Workarounds:
 
 ## More
 
-- LiteStar usage example — [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- Litestar usage example — [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
 - FastAPI usage example — [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)

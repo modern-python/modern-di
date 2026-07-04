@@ -202,7 +202,7 @@ with app_container.build_child_container(scope=Scope.REQUEST) as request_contain
 
 ### 5. Framework Integrations
 
-Works with FastAPI, LiteStar, FastStream:
+Works with FastAPI, Litestar, FastStream:
 
 ```python
 from modern_di_fastapi import FromDI

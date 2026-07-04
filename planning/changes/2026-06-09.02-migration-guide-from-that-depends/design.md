@@ -126,11 +126,11 @@ Call out explicitly: **there is no plan to add async resolution back to `modern-
 
 ### 8. Framework integration
 
-Keep existing FastAPI and LiteStar tabs. Add FastStream and Typer tabs (links to integration doc pages; full setup code lives in those docs). One sentence per framework about what the integration does (creates child containers per request/message/CLI invocation; calls `close_async()` at shutdown).
+Keep existing FastAPI and Litestar tabs. Add FastStream and Typer tabs (links to integration doc pages; full setup code lives in those docs). One sentence per framework about what the integration does (creates child containers per request/message/CLI invocation; calls `close_async()` at shutdown).
 
 ### 9. Routes
 
-Keep existing FastAPI and LiteStar examples. Fix Bug A1 (variable/type name consistency with §4). Add a brief note that `FromDI(T)` replaces both `fastapi.Depends(Provide[T])` and `litestar.di.Provide`.
+Keep existing FastAPI and Litestar examples. Fix Bug A1 (variable/type name consistency with §4). Add a brief note that `FromDI(T)` replaces both `fastapi.Depends(Provide[T])` and `litestar.di.Provide`.
 
 ### 10. Things with no direct equivalent (NEW)
 

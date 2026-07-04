@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`modern-di` is a **zero-dependency** Python dependency injection framework that wires up object graphs from type annotations, manages lifetimes via hierarchical scopes, and supports both sync and async finalizers. Framework integrations (aiohttp, FastAPI, FastStream, LiteStar, Starlette, Typer) and the pytest integration (`modern-di-pytest`) live in **separate repositories** and are published as separate PyPI packages.
+`modern-di` is a **zero-dependency** Python dependency injection framework that wires up object graphs from type annotations, manages lifetimes via hierarchical scopes, and supports both sync and async finalizers. Framework integrations (aiohttp, FastAPI, FastStream, Litestar, Starlette, Typer) and the pytest integration (`modern-di-pytest`) live in **separate repositories** and are published as separate PyPI packages.
 
 ## Commands
 

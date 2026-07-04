@@ -9,11 +9,11 @@ Welcome to the `modern-di` documentation!
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `aiohttp`, `FastAPI`, `FastStream`, `LiteStar`, `Starlette`, `Typer`, and `pytest`
+- Integrations with `aiohttp`, `FastAPI`, `FastStream`, `Litestar`, `Starlette`, `Typer`, and `pytest`
 
 Reference templates:
 
-- LiteStar — [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- Litestar — [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
 - FastAPI — [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
 
 For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqlalchemy.md) section.
@@ -97,7 +97,7 @@ Pick the integration you need:
 - [aiohttp](integrations/aiohttp.md)
 - [FastAPI](integrations/fastapi.md)
 - [FastStream](integrations/faststream.md)
-- [LiteStar](integrations/litestar.md)
+- [Litestar](integrations/litestar.md)
 - [Starlette](integrations/starlette.md)
 - [Typer](integrations/typer.md)
 - [Pytest](integrations/pytest.md)
