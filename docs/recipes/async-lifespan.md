@@ -47,6 +47,11 @@ app = fastapi.FastAPI(lifespan=lifespan)
 
 The same pattern works for `asyncpg.create_pool(...)` (truly async), authenticated API clients that do a token exchange at startup, or anything else that needs `await` to be ready.
 
+`asyncpg.create_pool(...)` returns an awaitable `Pool` that only opens its
+connections when `await`ed (or entered with `async with`); modern-di has async
+*finalizers* but no async *initializer*, so the `await` has to happen in the
+lifespan.
+
 ## Pitfalls
 
 - **Set context *before* yielding.** The lifespan hands control to the app inside the `yield`. If you `set_context` after yielding, requests that arrive in between won't see the value.

@@ -30,9 +30,9 @@ aiohttp, FastAPI, Litestar, FastStream, Starlette, and Typer.**
 
 | | modern-di | Dishka | dependency-injector | injector | FastAPI `Depends` |
 |---|---|---|---|---|---|
-| Style | type-based autowiring | type-based, provider classes | declarative containers + markers | Guice-style `@inject` | callable-based |
-| Scopes | APP→…→STEP (fixed chain) | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
-| Resolution | sync (by design) | sync + async | sync + async | sync | async |
+| Style | type-based autowiring | type-based autowiring (provider classes) | declarative containers + markers | Guice-style `@inject` | callable-based |
+| Scopes | APP→…→STEP + any IntEnum | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
+| Resolution | sync (async finalizers supported) | sync + async | sync + async | sync | async |
 | First-party pytest plugin | ✅ | ✘ | ✘ | ✘ | n/a |
 | Official integrations | 7 (aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer, pytest) | ~20+ | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
 | Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
@@ -45,7 +45,7 @@ aiohttp, FastAPI, Litestar, FastStream, Starlette, and Typer.**
 
 Dishka is the closest library to modern-di — also typed, also scopes-first, also
 integrating with FastAPI/Litestar/FastStream — and it's more established, with
-many more integrations and a larger community. If you need **arbitrary custom
+many more integrations and a larger community. If you need **arbitrary *named*
 scopes**, **async resolution**, or an integration modern-di doesn't have yet
 (aiogram, Taskiq, gRPC, …), Dishka is an excellent choice.
 
@@ -53,9 +53,11 @@ modern-di's deliberate differences:
 
 - **A first-party pytest plugin** (`modern-di-pytest`) that turns any dependency
   into a fixture — Dishka has no built-in pytest integration yet.
-- **Sync-only resolution and a small, fixed scope chain** — a simpler model.
-  Dishka's own docs note that custom scopes are "hardly ever needed," which is
-  the honest case for modern-di's simpler design.
+- **Sync-only *resolution* (async finalizers still supported) and a small,
+  built-in scope chain you can still extend with any `IntEnum`** — a simpler
+  model. Dishka's own docs note that custom scopes are "hardly ever needed,"
+  which is the honest case for modern-di's simpler design. See
+  [Custom scopes](../providers/scopes.md#custom-scopes).
 - **All-official, uniformly-maintained integrations** under a single MIT-licensed
   project, as part of the broader [modern-python](https://github.com/modern-python)
   stack.

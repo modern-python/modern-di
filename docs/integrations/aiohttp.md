@@ -69,6 +69,14 @@ child regardless of which handler ultimately serves it.
 
 A WebSocket handler runs for the whole life of the socket, so its `Scope.SESSION`
 container does too. Read the connection with `FromDI(aiohttp_websocket_provider)`.
+
+Unlike FastAPI, Litestar, and Starlette, aiohttp has no separate WebSocket object — a
+WebSocket is an upgraded `web.Request`. So `aiohttp_websocket_provider` binds
+`web.Request` too, and is declared `bound_type=None` (not resolvable by type,
+because `aiohttp_request_provider` already owns `web.Request`). That is why you
+wire it **explicitly** with `FromDI(aiohttp_websocket_provider)` rather than by
+type annotation.
+
 For per-message work, open a nested `Scope.REQUEST` child of the session
 container, fetched via `fetch_request_container`:
 
@@ -94,3 +102,15 @@ async def ws_handler(
                 ...  # resolve REQUEST-scoped providers for this message
     return ws
 ```
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `setup_di(app, container)` | Opens the root container on startup, closes it on cleanup, and installs the middleware that builds a per-connection child container; returns the container. |
+| `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
+| `inject` | Decorator for an `async def handler(request: web.Request, ...)`; resolves its `FromDI`-annotated parameters. |
+| `fetch_di_container(app)` | Returns the root `Container` stored on the app. |
+| `fetch_request_container(request)` | Returns the per-connection child container the middleware built (REQUEST for HTTP, SESSION for a WebSocket). |
+| `aiohttp_request_provider` | `ContextProvider` for `web.Request` (REQUEST scope), auto-registered by type. |
+| `aiohttp_websocket_provider` | `ContextProvider` for the WebSocket connection's `web.Request` (SESSION scope), `bound_type=None` — resolve via `FromDI(aiohttp_websocket_provider)`. |

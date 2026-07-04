@@ -5,6 +5,7 @@ This document describes the changes required to migrate from modern-di 1.x versi
 ## Overview
 
 The migration to modern-di 2.x involves several key changes in the API, including:
+
 - Simplified container architecture with a single `Container` class
 - Updated provider API with keyword-only arguments
 - Removal of several provider types (`Singleton`, `Resource`, `Dict`, `List`)

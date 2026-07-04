@@ -4,7 +4,7 @@
 
 ## 1. Resolution is sync only
 
-Since 2.x, `Container.resolve(...)` and `resolve_provider(...)` are synchronous. There is no `await container.resolve(...)`, no `AsyncFactory`, no `AsyncSingleton`. Async work belongs in the framework's lifespan and per-request hooks; the container holds the already-constructed objects (see [Async resources via lifespan](../recipes/async-lifespan.md)).
+Since 2.x, `Container.resolve(...)` and `resolve_provider(...)` are synchronous. There is no `await container.resolve(...)`, no `AsyncFactory`, no `AsyncSingleton`. Async work belongs in the framework's lifespan and per-request hooks; the container holds the already-constructed objects (see [Async resources via lifespan](../recipes/async-lifespan.md)). Resolution being sync does not mean teardown is: finalizers may be sync or async (`close_sync` / `close_async`), so async cleanup is fully supported.
 
 This is a permanent choice, not a temporary limitation. There are no plans to reintroduce async resolution.
 
@@ -16,8 +16,15 @@ Cached `Factory` providers use a per-container reentrant lock (`threading.RLock`
 
 - **Cached / singleton creation is locked.** The per-container reentrant lock guards the create-and-store step, so two threads racing to resolve the same cached provider get the same single instance.
 - **Provider registration is safe.** `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently — or while another thread iterates — will not corrupt the registry or raise "dict changed size during iteration".
-- **Intended usage still holds.** Register all providers and groups *before* serving concurrent resolutions. The registry guards keep concurrent registration from corrupting state, but a clean register-then-serve phase ordering is the supported model; resolving a type whose provider is registered mid-flight is racy by nature.
-- **`set_context` and overrides are last-write-wins.** They are not synchronized for ordering across threads — the most recent write wins, with no merge or queueing. Set context and configure overrides during setup (or per-request, on a request-local child container), not from competing threads.
+- **Registration is a setup phase, not a coordination tool.** The registry is
+  lock-guarded against corruption, but the supported model is register every
+  provider *before* serving. Registering a provider while other threads are
+  already resolving is timing-dependent by nature — nothing breaks, but whether
+  a given resolve sees the new provider is undefined.
+- **`set_context` and overrides are last-write-wins.** Both write into a
+  per-container dict with no ordering, queueing, or merge; concurrent writes to
+  the same key keep whichever landed last. Do them during setup, or per-request
+  on a request-local child container — never from competing threads.
 
 ## 3. No global state
 

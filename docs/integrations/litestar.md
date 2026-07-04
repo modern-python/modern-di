@@ -99,6 +99,7 @@ If the same attribute name appears in multiple groups, a `UserWarning` is emitte
 Usually our application uses only two scopes: `APP` and `REQUEST`.
 
 But when websockets are used, `SESSION` scope is used as well:
+
 - for the lifetime of websocket-connection we have `SESSION` scope
 - for each message we have `REQUEST` scope
 
@@ -150,6 +151,7 @@ Framework-specific context objects like `litestar.Request` and `litestar.WebSock
 You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
 
 The following context providers are available for import:
+
 - `litestar_request_provider` - Provides the current `litestar.Request` object
 - `litestar_websocket_provider` - Provides the current `litestar.WebSocket` object
 
@@ -204,3 +206,13 @@ class AppGroup(Group):
         kwargs={"request": modern_di_litestar.litestar_request_provider}
     )
 ```
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `ModernDIPlugin(container, autowired_groups=None)` | Litestar `InitPlugin` that registers the container, composes the lifespan, and (if `autowired_groups` is given) exposes each provider in those groups as a Litestar dependency keyed by attribute name. |
+| `FromDI(dependency)` | Returns a Litestar `Provide` that resolves a provider or type from the per-request child container. |
+| `fetch_di_container(app)` | Returns the root `Container` stored on the Litestar app. |
+| `litestar_request_provider` | `ContextProvider` for `litestar.Request` (REQUEST scope), auto-registered. |
+| `litestar_websocket_provider` | `ContextProvider` for `litestar.WebSocket` (SESSION scope), auto-registered. |
