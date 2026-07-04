@@ -9,6 +9,7 @@ This document describes the changes required to migrate from modern-di 0.x versi
 ## Overview
 
 The migration to modern-di 1.x involves several key changes in the API, including:
+
 - Updated import paths and class names
 - Changes in container initialization and usage
 - Modified provider resolution methods
@@ -154,6 +155,7 @@ instance = await container.resolve(SomeType)
 ```
 
 The key changes are:
+
 1. **Inverted dependency**: Resolution is now called on the container instead of the provider
 2. **Type-based resolution**: You can now resolve dependencies directly by type, not just by provider reference
 3. **Consistent naming**: `sync_resolve_provider()` and `resolve_provider()` for provider-based resolution, `sync_resolve()` and `resolve()` for type-based resolution

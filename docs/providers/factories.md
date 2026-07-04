@@ -125,6 +125,7 @@ Defines the lifetime (scope) of the dependency. Defaults to `Scope.APP`. The ava
 
 The callable (function or class) that will be invoked to create instances of the dependency.
 Modern-DI analyzes the creator's signature to:
+
 1. Determine the return type (used for `bound_type` if not explicitly set)
 2. Identify parameter names and types for automatic dependency resolution
 
@@ -147,6 +148,7 @@ Enables caching for the provider. Pass `cache=True` to cache with default settin
 ### skip_creator_parsing
 
 Disables automatic dependency resolution. When `True`:
+
 - No automatic dependency resolution occurs
 - All parameters must be provided via the `kwargs` parameter
 - The `bound_type` will not be automatically inferred from the creator's return type; unless `bound_type` is explicitly provided, it defaults to `None`
@@ -199,8 +201,8 @@ The table below summarises how Modern-DI handles each parameter shape during **d
 | Parameter shape | Behaviour | When it fails |
 |---|---|---|
 | `param: SomeClass` — plain type annotation with a registered provider | Resolved and injected automatically. | `ArgumentResolutionError` at resolve if no provider is registered and there is no default. |
-| `param: X \| None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails — see [Optional parameters](#optional-parameters). |
-| `param: A \| B` — union without `None` | First registered type from the union is injected. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
+| `param: X &#124; None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails — see [Optional parameters](#optional-parameters). |
+| `param: A &#124; B` — union without `None` | First registered type from the union is injected. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
 | `param: list[X]` / any parameterized generic | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default value or is covered by `kwargs`. | Raised at `Factory(...)` call time. |
 | Positional-only param (`def f(x: T, /)`) | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default (in which case it is silently skipped). | Raised at `Factory(...)` call time. |
 | Unannotated param (`def f(x)`) | Parsed but unresolvable by type. | `ArgumentResolutionError` at resolve unless covered by `kwargs`. |

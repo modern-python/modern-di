@@ -99,6 +99,7 @@ If the same attribute name appears in multiple groups, a `UserWarning` is emitte
 Usually our application uses only two scopes: `APP` and `REQUEST`.
 
 But when websockets are used, `SESSION` scope is used as well:
+
 - for the lifetime of websocket-connection we have `SESSION` scope
 - for each message we have `REQUEST` scope
 
@@ -150,6 +151,7 @@ Framework-specific context objects like `litestar.Request` and `litestar.WebSock
 You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
 
 The following context providers are available for import:
+
 - `litestar_request_provider` - Provides the current `litestar.Request` object
 - `litestar_websocket_provider` - Provides the current `litestar.WebSocket` object
 
