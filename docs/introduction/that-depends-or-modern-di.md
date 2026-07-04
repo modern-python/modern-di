@@ -20,11 +20,16 @@ choose.
 | | that-depends | modern-di |
 |---|---|---|
 | Status | actively maintained, production-proven | recommended for new projects |
-| Resolution | async + sync (`AsyncFactory`, `await resolve`) | sync only (by design) |
+| Resolution | async + sync (`AsyncFactory`, `await resolve`) | sync resolution (async finalizers supported) |
 | Container model | the container class is both schema and runtime | `Group` (schema) and `Container` (runtime) are separate |
 | Scopes | context-based lifetimes | explicit, enforced scope chain (APP→…→STEP) |
 | Global state | resolves directly from the container class | none — you create and pass containers explicitly |
 | Integrations | bundled | separate adapter packages (install only what you need) |
+
+!!! note "\"Sync only\" means resolution, not teardown"
+    modern-di resolves synchronously, but finalizers may be sync **or** async
+    (`close_sync` / `close_async`), so async resource cleanup is fully
+    supported. See [Lifecycle](../providers/lifecycle.md).
 
 ## Choose that-depends if…
 
