@@ -1,0 +1,177 @@
+---
+summary: Add `Factory(cache=...)` accepting `bool | CacheSettings | None`; deprecate the `cache_settings=` alias so the common "just cache it" case is `cache=True`.
+---
+
+# Design: Ergonomic `cache=` toggle on `Factory`
+
+## Summary
+
+Enabling singleton caching on a `Factory` currently requires constructing an
+empty settings object and naming a nested type:
+`cache_settings=providers.CacheSettings()`. This design adds a `cache`
+argument that carries the whole caching spectrum in one axis —
+`cache=True` for the common case, `cache=CacheSettings(...)` for the tuned
+case, absent/`None`/`False` for no caching — and turns `cache_settings=` into a
+warn-only deprecated alias. `CacheSettings` itself is unchanged; the sugar lives
+entirely in `Factory.__init__`. No `Singleton` class is introduced.
+
+## Motivation
+
+The most common provider shape — a cached singleton with no finalizer and
+default eviction — forces the user to import `CacheSettings` and instantiate it
+just to flip a boolean:
+
+```python
+providers.Factory(scope=Scope.APP, creator=Database, cache_settings=providers.CacheSettings())
+```
+
+A cross-framework survey (dependency-injector, that-depends, .NET, Guice,
+Spring, Koin, get_it, InversifyJS, tsyringe, punq, wireup, lagom, injector,
+svcs, shaku, Go fx/wire) shows modern-di sits in the *least* ergonomic bucket
+for this toggle: a construction-time settings object. The ergonomic winners
+express the intent at verb/token level (Koin `single {}`, .NET
+`AddSingleton<T>()`). Both of modern-di's closest Python peers use a distinct
+`Singleton` provider class — including `that-depends`, which this project ships
+a migration guide *from*, so its users reach for `providers.Singleton` by muscle
+memory.
+
+The `bool | config-object` argument pattern is well-precedented in Python
+(`requests(verify=True | "/path")`, `pandas.read_csv(parse_dates=True | [...])`,
+`subprocess.run(capture_output=True)`), so a single upgradeable argument reads
+as idiomatic while collapsing the two-token ceremony to one.
+
+## Non-goals
+
+- No `Singleton` provider class. A `Singleton` preset would express "caching is
+  on" in *two* places (class name + a still-needed `cache_settings` for
+  finalizers), which can drift; the single `cache` axis avoids that. See the
+  decision record.
+- No change to `CacheSettings` — its fields (`clear_cache`, `finalizer`,
+  computed `is_async_finalizer`) and semantics are untouched.
+- No change to `resolve()`, the cache registry, or lifecycle/finalizer
+  behavior. This is an entry-point ergonomics change only.
+- No change to `ContextProvider`, `Alias`, or any provider other than `Factory`.
+
+## Design
+
+### 1. `Factory.__init__` signature
+
+```python
+Factory(
+    *,
+    scope: IntEnum = Scope.APP,
+    creator: Callable[..., T],
+    bound_type: type | None = UNSET,
+    kwargs: dict[str, Any] | None = None,
+    cache: bool | CacheSettings[T] | None = None,          # NEW primary toggle
+    cache_settings: CacheSettings[T] | None = UNSET,       # DEPRECATED alias
+    skip_creator_parsing: bool = False,
+)
+```
+
+`cache_settings` defaults to the `types.UNSET` sentinel (following `bound_type`)
+so an explicit pass is distinguishable from omission.
+
+Usage:
+
+```python
+providers.Factory(creator=Database)                                   # fresh each resolve
+providers.Factory(creator=Database, cache=True)                       # cached, defaults
+providers.Factory(creator=Database, cache=CacheSettings(finalizer=close))  # cached, tuned
+```
+
+### 2. Normalization (in `__init__`)
+
+The `cache` input is normalized once into the existing internal attribute
+`self.cache_settings`, which continues to hold a `CacheSettings | None`:
+
+```python
+if cache_settings is not types.UNSET:                 # deprecated path
+    if cache is not None:
+        raise TypeError(
+            "pass only `cache`, not both `cache` and the deprecated `cache_settings`"
+        )
+    if cache_settings is not None:
+        warnings.warn(
+            "`cache_settings=` is deprecated; use `cache=` "
+            "(pass cache=True for defaults, or cache=CacheSettings(...) to tune). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    cache = cache_settings
+
+self.cache_settings = CacheSettings() if cache is True else (cache or None)
+```
+
+- `cache is True` uses identity so a truthy `CacheSettings` instance is not
+  mistaken for the boolean.
+- `cache or None` maps `False`/`None` → `None` and passes a `CacheSettings`
+  instance through unchanged.
+
+### 3. Everything downstream is unchanged
+
+Because `self.cache_settings` remains a normalized `CacheSettings | None`,
+`Factory.resolve`, `cache_registry` (`provider.cache_settings`), and `__repr__`
+change **zero** lines. The internal attribute keeps its accurate noun name; only
+the *parameter* is the ergonomic `cache`.
+
+### 4. Behavior decisions (confirmed)
+
+- **Internal attribute** stays `self.cache_settings` — no rename, no risk to
+  integrations reading `.cache_settings`.
+- **Both `cache` and `cache_settings` passed** → `TypeError` (conventional for
+  mutually-exclusive kwargs; no correct code reaches it).
+- **`cache_settings=None` passed explicitly** → no warning (a no-op equal to the
+  default; warning it would be noise). The `DeprecationWarning` fires only for a
+  real `CacheSettings` passed via the old name.
+- **Backward compatible** — every existing `cache_settings=CacheSettings(...)`
+  keeps working, now with a `DeprecationWarning`.
+
+## Testing
+
+TDD, failing test first per behavior. New/updated tests in
+`tests/providers/test_factory.py` and `tests/providers/test_singleton.py`; the
+full `just test-ci` run must stay at 100% line coverage.
+
+- `cache=True` → same instance across resolves; `provider.cache_settings` is a
+  `CacheSettings`; `__repr__` reports `cached=True`.
+- `cache=False` / `cache=None` / omitted → a fresh instance each resolve.
+- `cache=CacheSettings(finalizer=fn)` → cached and the finalizer fires on close
+  (sync and async finalizer variants).
+- `cache_settings=CacheSettings(...)` (deprecated) → still caches **and** emits
+  `DeprecationWarning` (assert via `pytest.warns`).
+- `cache_settings=None` explicit → no warning (assert via
+  `warnings.catch_warnings(record=True)` — no `DeprecationWarning` recorded).
+- `cache` and `cache_settings` both passed → `TypeError`.
+
+## Docs (this PR)
+
+Per the repo rule, the truth home is updated in the same PR:
+
+- `architecture/providers.md` — rewrite the `CacheSettings` section around the
+  `cache` argument; document the deprecated alias.
+- `architecture/resolution.md`, `architecture/containers.md` — update the
+  `cache_settings`-spelled references to the `cache` idiom where they show API.
+
+`docs/` example pages switch to the `cache=True` / `cache=CacheSettings(...)`
+idiom (`providers/factories.md`, `providers/lifecycle.md`, `index.md`,
+`introduction/about-di.md`, the integration pages, the recipes, and the
+migration tables in `migration/from-that-depends.md` and `migration/to-2.x.md`),
+plus a one-line deprecation note in `docs/providers/advanced-api.md`. Roughly
+15-20 files of mechanical find-replace. A `planning/decisions/` record captures
+why `cache=` won over the `Singleton`-class / `cached=` / `cache_settings=True`
+alternatives.
+
+## Risk
+
+- **Low — silent behavior drift.** None expected: `resolve`/registry paths are
+  untouched and operate on the same normalized attribute. Mitigation: the
+  existing caching test suite must pass unchanged alongside the new tests.
+- **Low — deprecation noise for existing users.** A `DeprecationWarning` on
+  every `cache_settings=` call could surprise. Mitigation: it is warn-only,
+  removal deferred to a future release (matching the `Alias.scope=` precedent),
+  and the message states the exact replacement.
+- **Low — docs drift.** A large mechanical sweep risks a missed page. Mitigation:
+  a repo-wide grep for `cache_settings=` gates the PR; remaining hits must be
+  intentional (migration prose describing the deprecated form, decision record).
