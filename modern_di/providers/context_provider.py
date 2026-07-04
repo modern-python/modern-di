@@ -1,7 +1,7 @@
 import enum
 import typing
 
-from modern_di import exceptions, types
+from modern_di import types
 from modern_di.providers import AbstractProvider
 from modern_di.scope import Scope
 
@@ -47,6 +47,5 @@ class ContextProvider(AbstractProvider[types.T_co]):
 
     def fetch_context_value(self, container: "Container") -> types.T_co | object:
         container = container.find_container(self.scope)
-        if container.closed:
-            raise exceptions.ContainerClosedError(container_scope=container.scope)
+        container._warn_and_reopen_if_closed()  # noqa: SLF001
         return container.context_registry.find_context(self.context_type)

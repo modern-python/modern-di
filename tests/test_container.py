@@ -390,12 +390,14 @@ class _AppBrokerGroup(Group):
     )
 
 
-def test_resolving_through_closed_parent_via_open_child_raises() -> None:
+def test_resolving_through_closed_parent_via_open_child_warns_and_reopens() -> None:
     app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
     child = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
-    with pytest.raises(ContainerClosedError):
-        child.resolve(_PersistentBroker)
+    with pytest.warns(ContainerClosedWarning):
+        broker = child.resolve(_PersistentBroker)
+    assert isinstance(broker, _PersistentBroker)
+    assert app.closed is False
 
 
 async def test_async_context_manager_reopens() -> None:

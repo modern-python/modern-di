@@ -242,8 +242,7 @@ class Factory(AbstractProvider[types.T_co]):
 
     def resolve(self, container: "Container") -> types.T_co:
         container = container.find_container(self.scope)
-        if container.closed:
-            raise exceptions.ContainerClosedError(container_scope=container.scope)
+        container._warn_and_reopen_if_closed()  # noqa: SLF001
         cache_item = container.cache_registry.fetch_cache_item(self)
 
         if self.cache_settings and cache_item.cache is not types.UNSET:
