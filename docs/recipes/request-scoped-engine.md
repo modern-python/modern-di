@@ -48,13 +48,13 @@ class Dependencies(Group):
         scope=Scope.APP,
         creator=create_primary_engine,
         bound_type=PrimaryEngine,
-        cache_settings=providers.CacheSettings(finalizer=close_engine),
+        cache=providers.CacheSettings(finalizer=close_engine),
     )
     replica = providers.Factory(
         scope=Scope.APP,
         creator=create_replica_engine,
         bound_type=ReplicaEngine,
-        cache_settings=providers.CacheSettings(finalizer=close_engine),
+        cache=providers.CacheSettings(finalizer=close_engine),
     )
 
     # REQUEST-scope: picks per-request, cached for the rest of that request
@@ -62,14 +62,14 @@ class Dependencies(Group):
         scope=Scope.REQUEST,
         creator=choose_engine,
         kwargs={"primary": primary, "replica": replica},
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
 
     # Sessions and repositories use the REQUEST-scoped engine
     session = providers.Factory(
         scope=Scope.REQUEST,
         creator=create_session,
-        cache_settings=providers.CacheSettings(finalizer=close_session),
+        cache=providers.CacheSettings(finalizer=close_session),
     )
 ```
 

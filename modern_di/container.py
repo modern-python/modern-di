@@ -231,7 +231,7 @@ class Container:
         Context values are resolved live, so a value set here is picked up by
         subsequent resolves of **non-cached** providers — including factories in
         deeper-scoped child containers that read this container's context. A
-        **cached** provider (``Factory(cache_settings=...)``) is built once and
+        **cached** provider (``Factory(cache=...)``) is built once and
         its instance is *not* rebuilt by a later ``set_context``; set the context
         before its first resolve.
         """

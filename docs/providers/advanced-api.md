@@ -40,3 +40,9 @@ To implement a custom provider, subclass `AbstractProvider` and implement:
 `CacheSettings.is_async_finalizer` is a computed bool field set at construction time via
 `inspect.iscoroutinefunction(finalizer)`. `Factory.resolve` and the cache registry use it to
 decide whether to `await` the finalizer during `close_async()` or treat it as sync.
+
+## Deprecated: `cache_settings=`
+
+`Factory(cache_settings=...)` is a deprecated alias of `cache=`. It still works but
+emits a `DeprecationWarning`; pass `cache=True` (defaults) or `cache=CacheSettings(...)`
+(tuned) instead. Passing both `cache` and `cache_settings` raises `TypeError`.

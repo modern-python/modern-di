@@ -98,11 +98,9 @@ def test_singleton_optimized(benchmark):
     """Cached provider: current code resolves deps via split dicts."""
 
     class SGroup(Group):
-        leaf = providers.Factory(scope=Scope.APP, creator=Leaf, cache_settings=providers.CacheSettings())
-        dep = providers.Factory(scope=Scope.APP, creator=Dep, cache_settings=providers.CacheSettings())
-        svc = providers.Factory(
-            scope=Scope.APP, creator=Service, kwargs={"tag": "bench"}, cache_settings=providers.CacheSettings()
-        )
+        leaf = providers.Factory(scope=Scope.APP, creator=Leaf, cache=True)
+        dep = providers.Factory(scope=Scope.APP, creator=Dep, cache=True)
+        svc = providers.Factory(scope=Scope.APP, creator=Service, kwargs={"tag": "bench"}, cache=True)
 
     container = Container(scope=Scope.APP, groups=[SGroup])
     container.resolve_provider(SGroup.svc)  # warm cache
@@ -113,11 +111,9 @@ def test_singleton_baseline(benchmark):
     """Cached provider: baseline unified dict-comp with isinstance."""
 
     class SGroup(Group):
-        leaf = providers.Factory(scope=Scope.APP, creator=Leaf, cache_settings=providers.CacheSettings())
-        dep = providers.Factory(scope=Scope.APP, creator=Dep, cache_settings=providers.CacheSettings())
-        svc = providers.Factory(
-            scope=Scope.APP, creator=Service, kwargs={"tag": "bench"}, cache_settings=providers.CacheSettings()
-        )
+        leaf = providers.Factory(scope=Scope.APP, creator=Leaf, cache=True)
+        dep = providers.Factory(scope=Scope.APP, creator=Dep, cache=True)
+        svc = providers.Factory(scope=Scope.APP, creator=Service, kwargs={"tag": "bench"}, cache=True)
 
     container = Container(scope=Scope.APP, groups=[SGroup])
     container.resolve_provider(SGroup.svc)  # warm cache

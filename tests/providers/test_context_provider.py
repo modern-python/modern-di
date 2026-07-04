@@ -261,7 +261,7 @@ class _CachedCtxSvc:
 
 class _CachedCtxGroup(Group):
     ctx = providers.ContextProvider(scope=Scope.APP, context_type=_CrossCtx)
-    svc = providers.Factory(scope=Scope.APP, creator=_CachedCtxSvc, cache_settings=providers.CacheSettings())
+    svc = providers.Factory(scope=Scope.APP, creator=_CachedCtxSvc, cache=True)
 
 
 def test_late_context_does_not_rebuild_cached_singleton() -> None:

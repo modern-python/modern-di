@@ -50,7 +50,7 @@ class AppGroup(Group):
     settings = providers.Factory(
         scope=Scope.APP,
         creator=Settings,
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
     health_reporter = providers.Factory(
         scope=Scope.REQUEST,

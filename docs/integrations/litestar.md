@@ -41,7 +41,7 @@ class AppGroup(Group):
     singleton = providers.Factory(
         scope=Scope.APP,
         creator=create_singleton,
-        cache_settings=providers.CacheSettings()
+        cache=True
     )
 
 

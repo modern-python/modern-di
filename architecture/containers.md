@@ -151,5 +151,5 @@ resolved **live** on every resolve (see [resolution](resolution.md)), so a value
 picked up by subsequent resolves of **non-cached** providers — including factories in deeper-scoped
 child containers that read this container's context — with no cache invalidation needed.
 
-A **cached** provider (`Factory(cache_settings=...)`) is built once and its instance is *not*
+A **cached** provider (`Factory(cache=...)`) is built once and its instance is *not*
 rebuilt by a later `set_context`; set the context before its first resolve.

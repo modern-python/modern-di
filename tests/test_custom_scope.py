@@ -92,7 +92,7 @@ def test_caching_isolated_across_tenant_containers() -> None:
         svc = providers.Factory(
             scope=MyScope.TENANT,
             creator=TenantService,
-            cache_settings=providers.CacheSettings(),
+            cache=True,
         )
 
     app_container = Container(groups=[TenantGroup])

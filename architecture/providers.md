@@ -39,7 +39,8 @@ Factory(
     creator: Callable[..., T],
     bound_type: type | None = UNSET,
     kwargs: dict[str, Any] | None = None,
-    cache_settings: CacheSettings[T] | None = None,
+    cache: bool | CacheSettings[T] | None = None,
+    cache_settings: CacheSettings[T] | None = UNSET,  # deprecated alias of `cache`
     skip_creator_parsing: bool = False,
 )
 ```
@@ -83,12 +84,18 @@ because the provider cannot be resolved by type.
 
 ## `CacheSettings` — singleton behavior
 
-There is **no separate `Singleton` class**. Singleton behavior is opted into by passing a `CacheSettings` instance
-to `Factory(cache_settings=...)`:
+There is **no separate `Singleton` class**. Singleton behavior is opted into via the `cache` argument:
+`cache=True` enables caching with default settings, `cache=CacheSettings(...)` enables caching and tunes it
+(finalizer, `clear_cache`), and an absent, `None`, or `False` value means a fresh instance is created on every
+resolution.
 
 ```python
-providers.Factory(scope=Scope.APP, creator=Database, cache_settings=providers.CacheSettings())
+providers.Factory(scope=Scope.APP, creator=Database, cache=True)
+providers.Factory(scope=Scope.APP, creator=Database, cache=providers.CacheSettings(finalizer=close))
 ```
+
+`cache_settings=` is a deprecated alias of `cache` (it emits a `DeprecationWarning` and will be removed in a
+future release); passing both `cache` and `cache_settings` raises `TypeError`.
 
 `CacheSettings` is a `dataclass` with the following fields:
 
@@ -101,7 +108,7 @@ providers.Factory(scope=Scope.APP, creator=Database, cache_settings=providers.Ca
 `is_async_finalizer` is not an init parameter — it is derived by `inspect.iscoroutinefunction(finalizer)` in
 `__post_init__`. The container uses it to decide whether to `await` the finalizer.
 
-Without `cache_settings`, `Factory.resolve` calls the creator on every resolution and returns a fresh instance
+Without `cache`, `Factory.resolve` calls the creator on every resolution and returns a fresh instance
 each time.
 
 ---

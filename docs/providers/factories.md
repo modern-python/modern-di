@@ -70,7 +70,7 @@ class Dependencies(Group):
     singleton = providers.Factory(
         scope=Scope.APP,
         creator=generate_random_number,
-        cache_settings=providers.CacheSettings()
+        cache=True
     )
 
 
@@ -82,9 +82,9 @@ singleton_instance2 = container.resolve_provider(Dependencies.singleton)
 assert singleton_instance1 is singleton_instance2
 ```
 
-#### Cache Settings
+#### Tuning the cache
 
-You can customize caching behavior with `CacheSettings`:
+You can customize caching behavior by passing a `CacheSettings` to `cache=`:
 
 ```python
 import contextlib
@@ -107,7 +107,7 @@ class Dependencies(Group):
     resource = providers.Factory(
         scope=Scope.APP,
         creator=create_resource,
-        cache_settings=providers.CacheSettings(
+        cache=providers.CacheSettings(
             finalizer=lambda res: res.close(),  # Cleanup function
         )
     )
@@ -138,9 +138,11 @@ Set to `None` to make the provider unresolvable by type.
 Manual values for creator parameters that override automatic dependency resolution.
 Use this to provide specific values for parameters or override automatically resolved dependencies.
 
-### cache_settings
+### cache
 
-Configuration for caching instances. Only applicable for cached factories. Use `providers.CacheSettings()` to enable caching with optional cleanup configuration. See [Lifecycle](lifecycle.md) for how caching, finalizers, and `close_async()` fit together.
+Enables caching for the provider. Pass `cache=True` to cache with default settings (no finalizer, cache cleared on close), or `cache=providers.CacheSettings(...)` to tune the finalizer and/or `clear_cache` behavior. Absent, `None`, or `False` means a fresh instance is created on every resolve. See [Lifecycle](lifecycle.md) for how caching, finalizers, and `close_async()` fit together.
+
+`cache_settings=` is a deprecated alias for `cache=` — see [Advanced API](advanced-api.md#deprecated-cache_settings).
 
 ### skip_creator_parsing
 
@@ -248,7 +250,7 @@ This is useful when `skip_creator_parsing=True` is in effect but you still want 
 
 If a creator raises an exception during resolution:
 
-- **Nothing is cached.** The failed instance is never stored in the cache registry, even if `cache_settings` is set.
+- **Nothing is cached.** The failed instance is never stored in the cache registry, even if `cache` is set.
 - **The next `resolve` call retries.** Subsequent resolves call the creator again from scratch, so a transiently-failing creator will eventually succeed once the underlying condition is fixed.
 - **Already-resolved dependencies are not rolled back.** Dependencies that were successfully resolved before the creator raised are still held in their respective containers and will be finalized normally when those containers are closed.
 
@@ -273,7 +275,7 @@ class Dependencies(Group):
     svc = providers.Factory(
         scope=Scope.APP,
         creator=flaky_creator,
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
 
 

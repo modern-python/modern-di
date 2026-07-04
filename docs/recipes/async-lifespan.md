@@ -56,7 +56,7 @@ The same pattern works for `asyncpg.create_pool(...)` (truly async), authenticat
 
 ## When a sync creator works instead
 
-Many "async" resources actually construct synchronously — `redis.asyncio.Redis.from_url(...)`, `sqlalchemy.ext.asyncio.create_async_engine(...)`, and `httpx.AsyncClient(...)` all return without awaiting. For those, prefer a normal `Factory` with `cache_settings=CacheSettings(finalizer=async_close_fn)` and skip the lifespan + `set_context` dance entirely. Use this recipe only when construction genuinely needs `await` or a running event loop.
+Many "async" resources actually construct synchronously — `redis.asyncio.Redis.from_url(...)`, `sqlalchemy.ext.asyncio.create_async_engine(...)`, and `httpx.AsyncClient(...)` all return without awaiting. For those, prefer a normal `Factory` with `cache=CacheSettings(finalizer=async_close_fn)` and skip the lifespan + `set_context` dance entirely. Use this recipe only when construction genuinely needs `await` or a running event loop.
 
 ## See also
 

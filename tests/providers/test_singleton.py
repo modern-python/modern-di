@@ -28,10 +28,10 @@ class MyGroup(Group):
     app_singleton = providers.Factory(
         creator=SimpleCreator,
         kwargs={"dep1": "original"},
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
     request_singleton = providers.Factory(
-        scope=Scope.REQUEST, creator=DependentCreator, cache_settings=providers.CacheSettings(finalizer=async_finalizer)
+        scope=Scope.REQUEST, creator=DependentCreator, cache=providers.CacheSettings(finalizer=async_finalizer)
     )
 
 
@@ -42,7 +42,7 @@ async def test_app_singleton() -> None:
         singleton = providers.Factory(
             creator=SimpleCreator,
             kwargs={"dep1": "original"},
-            cache_settings=providers.CacheSettings(clear_cache=False, finalizer=sync_calls.append),
+            cache=providers.CacheSettings(clear_cache=False, finalizer=sync_calls.append),
         )
 
     app_container = Container(groups=[LocalGroup])
@@ -72,7 +72,7 @@ def test_close_does_not_re_finalize_with_clear_cache_false() -> None:
         f = providers.Factory(
             creator=lambda: "r",
             bound_type=str,
-            cache_settings=providers.CacheSettings(clear_cache=False, finalizer=calls.append),
+            cache=providers.CacheSettings(clear_cache=False, finalizer=calls.append),
         )
 
     container = Container(groups=[G])
@@ -90,7 +90,7 @@ def test_closed_container_refuses_re_resolve_with_clear_cache_true() -> None:
         f = providers.Factory(
             creator=lambda: "r",
             bound_type=str,
-            cache_settings=providers.CacheSettings(clear_cache=True, finalizer=calls.append),
+            cache=providers.CacheSettings(clear_cache=True, finalizer=calls.append),
         )
 
     container = Container(groups=[G])
@@ -110,7 +110,7 @@ async def test_close_async_runs_sync_finalizer() -> None:
         f = providers.Factory(
             creator=lambda: "r",
             bound_type=str,
-            cache_settings=providers.CacheSettings(finalizer=calls.append),
+            cache=providers.CacheSettings(finalizer=calls.append),
         )
 
     container = Container(groups=[G])
@@ -172,13 +172,13 @@ def test_sync_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
         first = providers.Factory(
             creator=SimpleCreator,
             kwargs={"dep1": "first"},
-            cache_settings=providers.CacheSettings(finalizer=failing_finalizer),
+            cache=providers.CacheSettings(finalizer=failing_finalizer),
         )
         second = providers.Factory(
             creator=SimpleCreator,
             bound_type=None,
             kwargs={"dep1": "second"},
-            cache_settings=providers.CacheSettings(finalizer=good_finalizer),
+            cache=providers.CacheSettings(finalizer=good_finalizer),
         )
 
     app_container = Container(groups=[BrokenGroup])
@@ -207,13 +207,13 @@ async def test_async_finalizer_exception_does_not_abort_remaining_cleanup() -> N
         first = providers.Factory(
             creator=SimpleCreator,
             kwargs={"dep1": "first"},
-            cache_settings=providers.CacheSettings(finalizer=failing_finalizer),
+            cache=providers.CacheSettings(finalizer=failing_finalizer),
         )
         second = providers.Factory(
             creator=SimpleCreator,
             bound_type=None,
             kwargs={"dep1": "second"},
-            cache_settings=providers.CacheSettings(finalizer=good_finalizer),
+            cache=providers.CacheSettings(finalizer=good_finalizer),
         )
 
     app_container = Container(groups=[BrokenAsyncGroup])
@@ -237,7 +237,7 @@ def test_finalizer_runs_for_falsy_cached_resource_sync() -> None:
     class FalsyGroup(Group):
         empty_dict = providers.Factory(
             creator=dict,
-            cache_settings=providers.CacheSettings(finalizer=collect),
+            cache=providers.CacheSettings(finalizer=collect),
         )
 
     app_container = Container(groups=[FalsyGroup])
@@ -257,7 +257,7 @@ async def test_finalizer_runs_for_falsy_cached_resource_async() -> None:
     class FalsyGroup(Group):
         empty_list = providers.Factory(
             creator=list,
-            cache_settings=providers.CacheSettings(finalizer=collect),
+            cache=providers.CacheSettings(finalizer=collect),
         )
 
     app_container = Container(groups=[FalsyGroup])
@@ -283,7 +283,7 @@ def test_cached_none_is_returned_and_finalized() -> None:
     class NoneGroup(Group):
         none_resource = providers.Factory(
             creator=create_none,
-            cache_settings=providers.CacheSettings(finalizer=collect),
+            cache=providers.CacheSettings(finalizer=collect),
         )
 
     app_container = Container(groups=[NoneGroup])
@@ -309,7 +309,7 @@ def test_singleton_threading_concurrency() -> None:
         time.sleep(0.01)
         return ""
 
-    singleton = providers.Factory(creator=create_singleton, cache_settings=providers.CacheSettings())
+    singleton = providers.Factory(creator=create_singleton, cache=True)
 
     def resolve_singleton(container: Container) -> str:
         return container.resolve_provider(singleton)
@@ -348,17 +348,17 @@ class _LifoGroup(Group):
     leaf = providers.Factory(
         scope=Scope.APP,
         creator=_LifoLeaf,
-        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("leaf")),
+        cache=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("leaf")),
     )
     mid = providers.Factory(
         scope=Scope.APP,
         creator=_LifoMid,
-        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("mid")),
+        cache=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("mid")),
     )
     top = providers.Factory(
         scope=Scope.APP,
         creator=_LifoTop,
-        cache_settings=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("top")),
+        cache=providers.CacheSettings(finalizer=lambda _: _lifo_events.append("top")),
     )
 
 
@@ -380,8 +380,8 @@ def test_singleton_resolution_is_reentrant() -> None:
             self.inner = container.resolve(Inner)
 
     class ReentrantGroup(Group):
-        inner = providers.Factory(creator=Inner, cache_settings=providers.CacheSettings())
-        outer = providers.Factory(creator=Outer, cache_settings=providers.CacheSettings())
+        inner = providers.Factory(creator=Inner, cache=True)
+        outer = providers.Factory(creator=Outer, cache=True)
 
     container = Container(groups=[ReentrantGroup])
     result: list[Outer] = []
@@ -416,7 +416,7 @@ class _AwaitableFinGroup(Group):
     svc = providers.Factory(
         scope=Scope.APP,
         creator=_AwaitableFinSvc,
-        cache_settings=providers.CacheSettings(finalizer=lambda obj: _real_cleanup(obj)),  # noqa: PLW0108
+        cache=providers.CacheSettings(finalizer=lambda obj: _real_cleanup(obj)),  # noqa: PLW0108
     )
 
 
@@ -452,14 +452,12 @@ class _CycleGroup(Group):
     broker = providers.Factory(
         scope=Scope.APP,
         creator=_PersistentBroker,
-        cache_settings=providers.CacheSettings(
-            clear_cache=False, finalizer=lambda _: _cycle_events.append("broker-finalized")
-        ),
+        cache=providers.CacheSettings(clear_cache=False, finalizer=lambda _: _cycle_events.append("broker-finalized")),
     )
     svc = providers.Factory(
         scope=Scope.APP,
         creator=_EphemeralSvc,
-        cache_settings=providers.CacheSettings(),  # clear_cache=True default
+        cache=True,  # clear_cache=True default
     )
 
 

@@ -74,7 +74,7 @@ def test_container_sync_context_manager() -> None:
         resource = providers.Factory(
             creator=lambda: "r",
             bound_type=str,
-            cache_settings=providers.CacheSettings(finalizer=cleaned_up.append),
+            cache=providers.CacheSettings(finalizer=cleaned_up.append),
         )
 
     with Container(groups=[G]) as container:
@@ -95,7 +95,7 @@ async def test_container_async_context_manager() -> None:
         resource = providers.Factory(
             creator=lambda: "r",
             bound_type=str,
-            cache_settings=providers.CacheSettings(finalizer=collect),
+            cache=providers.CacheSettings(finalizer=collect),
         )
 
     async with Container(groups=[G]) as container:
@@ -383,7 +383,7 @@ class _PersistentBroker: ...
 
 class _AppBrokerGroup(Group):
     broker = providers.Factory(
-        scope=Scope.APP, creator=_PersistentBroker, cache_settings=providers.CacheSettings(clear_cache=False)
+        scope=Scope.APP, creator=_PersistentBroker, cache=providers.CacheSettings(clear_cache=False)
     )
 
 

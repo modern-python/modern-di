@@ -21,7 +21,7 @@ class PostgresRepository(AbstractRepository):
 
 
 class MyGroup(Group):
-    repo = providers.Factory(creator=PostgresRepository, cache_settings=providers.CacheSettings())
+    repo = providers.Factory(creator=PostgresRepository, cache=True)
     abstract_repo = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
 
@@ -166,7 +166,7 @@ class _ChainIfB: ...
 
 
 class _ChainGroup(Group):
-    impl = providers.Factory(scope=Scope.APP, creator=_ChainImpl, cache_settings=providers.CacheSettings())
+    impl = providers.Factory(scope=Scope.APP, creator=_ChainImpl, cache=True)
     if_a = providers.Alias(source_type=_ChainImpl, bound_type=_ChainIfA)
     if_b = providers.Alias(source_type=_ChainIfA, bound_type=_ChainIfB)
 

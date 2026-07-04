@@ -44,12 +44,12 @@ class Database(Group):
     engine = providers.Factory(
         scope=Scope.APP,
         creator=create_engine,
-        cache_settings=providers.CacheSettings(finalizer=close_engine),
+        cache=providers.CacheSettings(finalizer=close_engine),
     )
     session = providers.Factory(
         scope=Scope.REQUEST,
         creator=create_session,
-        cache_settings=providers.CacheSettings(finalizer=close_session),
+        cache=providers.CacheSettings(finalizer=close_session),
     )
 
 
@@ -57,7 +57,7 @@ class Cache(Group):
     redis_client = providers.Factory(
         scope=Scope.APP,
         creator=create_redis,
-        cache_settings=providers.CacheSettings(finalizer=close_redis),
+        cache=providers.CacheSettings(finalizer=close_redis),
     )
 
 

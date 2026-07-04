@@ -31,16 +31,36 @@ class CacheSettings(typing.Generic[types.T_co]):
 class Factory(AbstractProvider[types.T_co]):
     __slots__ = ("_creator", "_kwargs", "_parsed_kwargs", "cache_settings")
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: C901, PLR0913
         self,
         *,
         scope: enum.IntEnum = Scope.APP,
         creator: typing.Callable[..., types.T_co],
         bound_type: type | None | types.UnsetType = types.UNSET,
         kwargs: dict[str, typing.Any] | None = None,
-        cache_settings: CacheSettings[types.T_co] | None = None,
+        cache: bool | CacheSettings[types.T_co] | None = None,
+        cache_settings: CacheSettings[types.T_co] | None | types.UnsetType = types.UNSET,
         skip_creator_parsing: bool = False,
     ) -> None:
+        if not isinstance(cache_settings, types.UnsetType):
+            if cache is not None:
+                msg = "pass only `cache`, not both `cache` and the deprecated `cache_settings`"
+                raise TypeError(msg)
+            if cache_settings is not None:
+                warnings.warn(
+                    "`cache_settings=` is deprecated; use `cache=` "
+                    "(pass cache=True for defaults, or cache=CacheSettings(...) to tune). "
+                    "It will be removed in a future release.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            cache = cache_settings
+        if cache is True:
+            resolved_cache: CacheSettings[types.T_co] | None = CacheSettings()
+        elif cache:  # a CacheSettings instance
+            resolved_cache = cache
+        else:  # None or False
+            resolved_cache = None
         if skip_creator_parsing:
             if bound_type is types.UNSET:
                 warnings.warn(
@@ -71,7 +91,7 @@ class Factory(AbstractProvider[types.T_co]):
         self._parsed_kwargs = parsed_kwargs
         super().__init__(scope=scope, bound_type=parsed_type if isinstance(bound_type, types.UnsetType) else bound_type)
         self._creator = creator
-        self.cache_settings = cache_settings
+        self.cache_settings = resolved_cache
         self._kwargs = kwargs
 
     @staticmethod

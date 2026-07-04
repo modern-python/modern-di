@@ -242,7 +242,7 @@ def test_factory_repr() -> None:
 
 
 def test_factory_repr_cached() -> None:
-    provider = providers.Factory(creator=str, scope=Scope.APP, cache_settings=providers.CacheSettings())
+    provider = providers.Factory(creator=str, scope=Scope.APP, cache=True)
     assert repr(provider) == "Factory(creator=<class 'str'>, scope=<Scope.APP: 1>, cached=True)"
 
 
@@ -394,12 +394,12 @@ class _FlakyGroup(Group):
     dep = providers.Factory(
         scope=Scope.APP,
         creator=_FlakyDep,
-        cache_settings=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("dep")),
+        cache=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("dep")),
     )
     svc = providers.Factory(
         scope=Scope.APP,
         creator=_FlakySvc,
-        cache_settings=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("svc")),
+        cache=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("svc")),
     )
 
 
@@ -543,7 +543,7 @@ def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
         bound_type=int,
         skip_creator_parsing=True,
         kwargs={"a": 1},
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
     container = Container(scope=Scope.APP)
     container.providers_registry.register(int, factory)
@@ -645,3 +645,72 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
         assert "Parent2" not in leaf_err, f"Parent2 leaked into leaf error: {leaf_err!r}"
     else:
         pytest.fail("Expected ResolutionError when resolving _Leaf2 directly")  # pragma: no cover
+
+
+def test_cache_true_returns_same_instance() -> None:
+    class G(Group):
+        f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=True)
+
+    container = Container(groups=[G])
+    assert container.resolve_provider(G.f) is container.resolve_provider(G.f)
+    assert isinstance(G.f.cache_settings, providers.CacheSettings)
+
+
+def test_cache_absent_returns_fresh_instances() -> None:
+    class G(Group):
+        f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"})
+
+    container = Container(groups=[G])
+    assert container.resolve_provider(G.f) is not container.resolve_provider(G.f)
+    assert G.f.cache_settings is None
+
+
+@pytest.mark.parametrize("cache_value", [False, None])
+def test_cache_falsy_disables_caching(cache_value: bool | None) -> None:
+    class G(Group):
+        f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=cache_value)
+
+    container = Container(groups=[G])
+    assert container.resolve_provider(G.f) is not container.resolve_provider(G.f)
+    assert G.f.cache_settings is None
+
+
+def test_cache_accepts_cache_settings_and_finalizes() -> None:
+    cleaned: list[object] = []
+
+    class G(Group):
+        f = providers.Factory(creator=dict, cache=providers.CacheSettings(finalizer=cleaned.append))
+
+    container = Container(groups=[G])
+    instance = container.resolve_provider(G.f)
+    assert container.resolve_provider(G.f) is instance
+    container.close_sync()
+    assert cleaned == [instance]
+
+
+def test_cache_settings_is_deprecated_but_functional() -> None:
+    with pytest.warns(DeprecationWarning, match="cache_settings"):
+        provider = providers.Factory(
+            creator=SimpleCreator, kwargs={"dep1": "x"}, cache_settings=providers.CacheSettings()
+        )
+    container = Container()
+    assert container.resolve_provider(provider) is container.resolve_provider(provider)
+
+
+def test_cache_settings_none_emits_no_deprecation_warning() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        provider = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache_settings=None)
+    assert provider.cache_settings is None
+
+
+def test_cache_and_cache_settings_together_raise() -> None:
+    with pytest.raises(TypeError, match="pass only `cache`"):
+        providers.Factory(
+            creator=SimpleCreator, kwargs={"dep1": "x"}, cache=True, cache_settings=providers.CacheSettings()
+        )
+
+
+def test_repr_reports_cached_for_cache_true() -> None:
+    provider = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=True)
+    assert "cached=True" in repr(provider)
