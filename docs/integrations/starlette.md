@@ -145,7 +145,7 @@ class AppGroup(Group):
 |---|---|
 | `setup_di(app, container)` | Registers the container on `app.state`, composes the lifespan (opens/closes the container), and installs the middleware that builds a per-connection child container; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
-| `inject` | Decorator for an `async def handler(connection: Request \| WebSocket, ...)`; resolves its `FromDI`-annotated parameters. |
+| `inject` | Decorator for an `async def handler(connection: Request | WebSocket, ...)`; resolves its `FromDI`-annotated parameters. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.state`. |
 | `starlette_request_provider` | `ContextProvider` for `starlette.requests.Request` (REQUEST scope), auto-registered. |
 | `starlette_websocket_provider` | `ContextProvider` for `starlette.websockets.WebSocket` (SESSION scope), auto-registered. |

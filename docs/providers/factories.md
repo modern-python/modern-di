@@ -201,8 +201,8 @@ The table below summarises how Modern-DI handles each parameter shape during **d
 | Parameter shape | Behaviour | When it fails |
 |---|---|---|
 | `param: SomeClass` — plain type annotation with a registered provider | Resolved and injected automatically. | `ArgumentResolutionError` at resolve if no provider is registered and there is no default. |
-| `param: X &#124; None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails — see [Optional parameters](#optional-parameters). |
-| `param: A &#124; B` — union without `None` | First registered type from the union is injected. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
+| `param: X | None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails — see [Optional parameters](#optional-parameters). |
+| `param: A | B` — union without `None` | First registered type from the union is injected. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
 | `param: list[X]` / any parameterized generic | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default value or is covered by `kwargs`. | Raised at `Factory(...)` call time. |
 | Positional-only param (`def f(x: T, /)`) | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default (in which case it is silently skipped). | Raised at `Factory(...)` call time. |
 | Unannotated param (`def f(x)`) | Parsed but unresolvable by type. | `ArgumentResolutionError` at resolve unless covered by `kwargs`. |
