@@ -206,3 +206,13 @@ class AppGroup(Group):
         kwargs={"request": modern_di_litestar.litestar_request_provider}
     )
 ```
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `ModernDIPlugin(container, autowired_groups=None)` | Litestar `InitPlugin` that registers the container, composes the lifespan, and (if `autowired_groups` is given) exposes each provider in those groups as a Litestar dependency keyed by attribute name. |
+| `FromDI(dependency)` | Returns a Litestar `Provide` that resolves a provider or type from the per-request child container. |
+| `fetch_di_container(app)` | Returns the root `Container` stored on the Litestar app. |
+| `litestar_request_provider` | `ContextProvider` for `litestar.Request` (REQUEST scope), auto-registered. |
+| `litestar_websocket_provider` | `ContextProvider` for `litestar.WebSocket` (SESSION scope), auto-registered. |
