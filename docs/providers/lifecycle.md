@@ -109,10 +109,10 @@ Entering `with container:` (or `async with`) opens the container; exiting calls
 `close_sync()` / `close_async()`, which run the finalizers (in reverse-creation order, as
 above) and mark the container closed.
 
-While a container is closed, resolving a dependency — or building a child container —
-raises `ContainerClosedError` (see [Errors and exceptions](errors-and-exceptions.md) for full
-details). Attempting either outside of a re-entered context manager will always raise that error.
-Re-entering `with container:` reopens it, and resolution works again:
+While a container is closed, resolving a dependency — or building a child container — emits a
+`ContainerClosedWarning` and reopens the container so the call succeeds (transitional; modern-di
+3.0 will raise `ContainerClosedError` instead — see [Errors and exceptions](errors-and-exceptions.md)).
+Re-entering `with container:` reopens it cleanly, without a warning, and resolution works again:
 
 ```python
 container = Container(groups=[Dependencies])
@@ -121,7 +121,7 @@ with container:
     container.resolve(Settings)
 # closed here — finalizers ran
 
-# container.resolve(Settings)  -> raises ContainerClosedError
+# container.resolve(Settings)  -> warns (ContainerClosedWarning) and self-reopens
 
 with container:                 # reopened
     container.resolve(Settings)
