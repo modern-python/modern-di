@@ -61,8 +61,8 @@ Use this table as the index for the rest of the guide.
 | `that-depends` | `modern-di` replacement | Where to look |
 |---|---|---|
 | `Factory` | `providers.Factory(...)` | [§4](#4-migrate-the-dependency-graph) |
-| `Singleton` | `providers.Factory(..., cache_settings=CacheSettings())` | [§4](#4-migrate-the-dependency-graph) |
-| `Resource` (sync gen / ctx mgr) | `providers.Factory(..., cache_settings=CacheSettings(finalizer=...))` | [§4](#4-migrate-the-dependency-graph) |
+| `Singleton` | `providers.Factory(..., cache=True)` | [§4](#4-migrate-the-dependency-graph) |
+| `Resource` (sync gen / ctx mgr) | `providers.Factory(..., cache=CacheSettings(finalizer=...))` | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (async gen / ctx mgr) | Lifespan + `ContextProvider` (or sync creator + async finalizer) | [§6](#6-async-resources) |
 | `ContextResource` | `providers.Factory(scope=Scope.REQUEST, ...)` | [§5](#5-context-resources-and-request-scope) |
 | `AsyncFactory` | Lifespan-managed; expose via `ContextProvider` | [§6](#6-async-resources) |
@@ -122,12 +122,12 @@ When a provider is passed inside `kwargs={...}`, `modern-di` detects it and reso
       class Dependencies(Group):
           database_engine = providers.Factory(
               creator=create_sa_engine,
-              cache_settings=providers.CacheSettings(finalizer=close_sa_engine),
+              cache=providers.CacheSettings(finalizer=close_sa_engine),
           )
           session = providers.Factory(
               scope=Scope.REQUEST,
               creator=create_session,
-              cache_settings=providers.CacheSettings(finalizer=close_session),
+              cache=providers.CacheSettings(finalizer=close_session),
               kwargs={"engine": database_engine},
           )
 
@@ -158,7 +158,7 @@ some_singleton = providers.Singleton(SomeClass)
 # modern-di
 some_singleton = providers.Factory(
     creator=SomeClass,
-    cache_settings=providers.CacheSettings(),
+    cache=True,
 )
 ```
 
@@ -171,7 +171,7 @@ some_resource = providers.Resource(create_resource)  # sync generator
 # modern-di — split the generator into a creator and a finalizer
 some_resource = providers.Factory(
     creator=create_resource,                # plain function returning the resource
-    cache_settings=providers.CacheSettings(finalizer=close_resource),
+    cache=providers.CacheSettings(finalizer=close_resource),
 )
 ```
 
@@ -187,7 +187,7 @@ class ApiKey(str): ...
 def _api_key() -> ApiKey:
     return ApiKey("secret-token")
 
-api_key = providers.Factory(creator=_api_key, cache_settings=providers.CacheSettings())
+api_key = providers.Factory(creator=_api_key, cache=True)
 ```
 
 If you only need the value passed into one downstream provider, skip the wrapper and put it directly in that provider's `kwargs`.
@@ -212,7 +212,7 @@ some_list = providers.Factory(creator=build_list)
 repo = providers.Factory(PostgresRepository).bind(Repository)
 
 # modern-di
-repo = providers.Factory(creator=PostgresRepository, cache_settings=providers.CacheSettings())
+repo = providers.Factory(creator=PostgresRepository, cache=True)
 abstract_repo = providers.Alias(source_type=PostgresRepository, bound_type=Repository)
 ```
 
@@ -228,7 +228,7 @@ The framework integration creates a `REQUEST`-scope child container per request 
 session = providers.Factory(
     scope=Scope.REQUEST,
     creator=create_session,
-    cache_settings=providers.CacheSettings(finalizer=close_session),
+    cache=providers.CacheSettings(finalizer=close_session),
     kwargs={"engine": database_engine},
 )
 ```
@@ -297,7 +297,7 @@ async def close_engine(engine: sqlalchemy.ext.asyncio.AsyncEngine) -> None:
 
 engine = providers.Factory(
     creator=create_engine,
-    cache_settings=providers.CacheSettings(finalizer=close_engine),
+    cache=providers.CacheSettings(finalizer=close_engine),
 )
 ```
 

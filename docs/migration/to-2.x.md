@@ -78,11 +78,11 @@ singleton = providers.Singleton(Scope.APP, create_singleton)
 
 **After (2.x):**
 ```python
-# Use Factory with cache settings
+# Use Factory with cache enabled
 singleton = providers.Factory(
     scope=Scope.APP, 
     creator=create_singleton,
-    cache_settings=providers.CacheSettings()
+    cache=True
 )
 ```
 
@@ -95,11 +95,11 @@ resource = providers.Resource(Scope.REQUEST, create_resource)
 
 **After (2.x):**
 ```python
-# Resources can be replaced with Factory with cache_settings with finalizer defined
+# Resources can be replaced with Factory with cache tuned with a finalizer
 resource = providers.Factory(
     scope=Scope.REQUEST,
     creator=create_resource,
-    cache_settings=providers.CacheSettings(
+    cache=providers.CacheSettings(
         finalizer=lambda resource: resource.close(),
     )
 )
@@ -171,16 +171,16 @@ singleton = providers.Singleton(Scope.APP, create_singleton)
 
 **After (2.x):**
 ```python
-# Explicit cache settings
+# Explicit cache
 singleton = providers.Factory(
     creator=create_singleton,
-    cache_settings=providers.CacheSettings()
+    cache=True
 )
 
-# Cache settings with finalizer
+# Cache tuned with a finalizer
 cached_with_cleanup = providers.Factory(
     creator=create_resource,
-    cache_settings=providers.CacheSettings(
+    cache=providers.CacheSettings(
         finalizer=lambda resource: resource.close(),
     )
 )

@@ -51,7 +51,7 @@ class AppGroup(Group):
     settings = providers.Factory(
         scope=Scope.APP,
         creator=Settings,
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
     order_processor = providers.Factory(
         scope=Scope.REQUEST,

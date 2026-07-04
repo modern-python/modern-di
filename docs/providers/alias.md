@@ -42,7 +42,7 @@ class PostgresRepository:
 class Dependencies(Group):
     repo = providers.Factory(
         creator=PostgresRepository,
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
     abstract_repo = providers.Alias(
         source_type=PostgresRepository,

@@ -77,7 +77,7 @@ class Dependencies(Group):
     settings = providers.Factory(
         scope=Scope.APP,                          # APP is the default
         creator=Settings,
-        cache_settings=providers.CacheSettings(),  # one Settings for the whole app
+        cache=True,  # cache the singleton for the whole app
     )
 
     user_repository = providers.Factory(

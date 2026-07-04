@@ -65,7 +65,7 @@ service = UserService(cache=MockCache())     # Testing
 
 ## Lifetime Management in DI
 
-Objects can have different lifetime cycles (singleton, scoped, transient). `modern-di` expresses this with [Scopes](../providers/scopes.md) — APP for process-wide singletons, REQUEST for per-request resources, and so on. In modern-di's own terms: a provider's scope (APP/SESSION/REQUEST/…) decides how long an instance lives, and the presence of `cache_settings` means one shared instance is reused while its absence means a fresh instance is created on each resolve. Here are examples:
+Objects can have different lifetime cycles (singleton, scoped, transient). `modern-di` expresses this with [Scopes](../providers/scopes.md) — APP for process-wide singletons, REQUEST for per-request resources, and so on. In modern-di's own terms: a provider's scope (APP/SESSION/REQUEST/…) decides how long an instance lives, and the presence of `cache` means one shared instance is reused while its absence means a fresh instance is created on each resolve. Here are examples:
 
 ```python
 
@@ -75,21 +75,21 @@ from modern_di import Group, Scope, providers
 
 class AppGroup(Group):
     # Cached for the whole app: one shared instance.
-    # CacheSettings() makes the provider a cached singleton (see the Factories page).
+    # cache=True makes the provider a cached singleton (see the Factories page).
     config = providers.Factory(
         scope=Scope.APP,
         creator=AppConfig,
-        cache_settings=providers.CacheSettings()
+        cache=True
     )
 
     # Cached per request: one shared instance per request
     db_session = providers.Factory(
         scope=Scope.REQUEST,
         creator=DatabaseSession,
-        cache_settings=providers.CacheSettings()
+        cache=True
     )
 
-    # No cache_settings: a fresh instance each resolve
+    # No cache: a fresh instance each resolve
     request_id = providers.Factory(
         scope=Scope.REQUEST,
         creator=lambda: str(uuid.uuid4())
@@ -137,7 +137,7 @@ class AppGroup(Group):
     config = providers.Factory(
         scope=Scope.APP,
         creator=AppConfig,
-        cache_settings=providers.CacheSettings()
+        cache=True
     )
     db = providers.Factory(scope=Scope.REQUEST, creator=DatabaseConnection)
     user_service = providers.Factory(scope=Scope.REQUEST, creator=UserService)
@@ -189,7 +189,7 @@ class AppGroup(Group):
     db_session = providers.Factory(
         scope=Scope.REQUEST,
         creator=DatabaseSession,
-        cache_settings=providers.CacheSettings(
+        cache=providers.CacheSettings(
             finalizer=lambda session: session.close()  # ✅ Define cleanup
         )
     )

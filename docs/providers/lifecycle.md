@@ -30,11 +30,11 @@ container.resolve(Settings)
 session = providers.Factory(
     scope=Scope.REQUEST,
     creator=create_session,
-    cache_settings=providers.CacheSettings(finalizer=close_session),
+    cache=providers.CacheSettings(finalizer=close_session),
 )
 ```
 
-- **Caching.** With `cache_settings=CacheSettings()`, the provider returns the same instance for every resolve inside that scope's container. Without `cache_settings`, the provider creates a fresh instance every call.
+- **Caching.** With `cache=True`, the provider returns the same instance for every resolve inside that scope's container. Without `cache`, the provider creates a fresh instance every call.
 - **Finalizer.** A callable that runs on the cached instance when the container is closed. Sync or async — `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance.
 
 ```python

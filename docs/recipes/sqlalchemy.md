@@ -43,12 +43,12 @@ class Dependencies(Group):
     engine = providers.Factory(
         scope=Scope.APP,
         creator=create_engine,
-        cache_settings=providers.CacheSettings(finalizer=close_engine),
+        cache=providers.CacheSettings(finalizer=close_engine),
     )
     session = providers.Factory(
         scope=Scope.REQUEST,
         creator=create_session,
-        cache_settings=providers.CacheSettings(finalizer=close_session),
+        cache=providers.CacheSettings(finalizer=close_session),
     )
     user_repository = providers.Factory(
         scope=Scope.REQUEST,

@@ -28,7 +28,7 @@ class Dependencies(Group):
     session = providers.Factory(
         scope=Scope.REQUEST,
         creator=create_session,
-        cache_settings=providers.CacheSettings(finalizer=close_session),
+        cache=providers.CacheSettings(finalizer=close_session),
     )
 
     # ❌ APP-scoped — fails validation
