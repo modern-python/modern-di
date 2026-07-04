@@ -70,7 +70,7 @@ child regardless of which handler ultimately serves it.
 A WebSocket handler runs for the whole life of the socket, so its `Scope.SESSION`
 container does too. Read the connection with `FromDI(aiohttp_websocket_provider)`.
 
-Unlike FastAPI and Litestar, aiohttp has no separate WebSocket object — a
+Unlike FastAPI, Litestar, and Starlette, aiohttp has no separate WebSocket object — a
 WebSocket is an upgraded `web.Request`. So `aiohttp_websocket_provider` binds
 `web.Request` too, and is declared `bound_type=None` (not resolvable by type,
 because `aiohttp_request_provider` already owns `web.Request`). That is why you
