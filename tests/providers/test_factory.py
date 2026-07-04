@@ -242,7 +242,7 @@ def test_factory_repr() -> None:
 
 
 def test_factory_repr_cached() -> None:
-    provider = providers.Factory(creator=str, scope=Scope.APP, cache_settings=providers.CacheSettings())
+    provider = providers.Factory(creator=str, scope=Scope.APP, cache=True)
     assert repr(provider) == "Factory(creator=<class 'str'>, scope=<Scope.APP: 1>, cached=True)"
 
 
@@ -394,12 +394,12 @@ class _FlakyGroup(Group):
     dep = providers.Factory(
         scope=Scope.APP,
         creator=_FlakyDep,
-        cache_settings=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("dep")),
+        cache=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("dep")),
     )
     svc = providers.Factory(
         scope=Scope.APP,
         creator=_FlakySvc,
-        cache_settings=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("svc")),
+        cache=providers.CacheSettings(finalizer=lambda _: _flaky_events.append("svc")),
     )
 
 
@@ -543,7 +543,7 @@ def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
         bound_type=int,
         skip_creator_parsing=True,
         kwargs={"a": 1},
-        cache_settings=providers.CacheSettings(),
+        cache=True,
     )
     container = Container(scope=Scope.APP)
     container.providers_registry.register(int, factory)
