@@ -2,25 +2,16 @@
 
 Lower-level public surface for library authors and advanced use-cases.
 
-## `Container` attributes and methods
+## Supported extension points
 
-- **`find_container(scope)`** — walks `scope_map` and returns the container registered at
-  `scope`; raises `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
-- **`parent_container`** — constructor kwarg and slot; the direct parent of a child container,
-  or `None` for a root. Passing a `scope ≤ parent.scope` raises `InvalidChildScopeError`.
-- **`scope_map`** — `dict[IntEnum, Container]` mapping every scope in the chain to its
-  container; built at construction time and inherited (plus the new scope) by each child.
-- **`lock`** — a `threading.RLock` instance, or `None` when the container was created with
-  `use_lock=False`. The lock gates singleton creation inside `Factory.resolve`.
-
-## `Group.get_providers()`
+### `Group.get_providers()`
 
 `Group.get_providers()` is a classmethod that traverses the MRO (excluding `Group` and
 `object`) and collects every class attribute that is an `AbstractProvider` instance, respecting
 MRO override order (subclass attribute shadows parent attribute of the same name). Use it to
 inspect or iterate all providers declared on a group hierarchy.
 
-## Subclassing `AbstractProvider`
+### Subclassing `AbstractProvider`
 
 To implement a custom provider, subclass `AbstractProvider` and implement:
 
@@ -35,14 +26,30 @@ To implement a custom provider, subclass `AbstractProvider` and implement:
   `Alias`) should override it to follow the source chain so that `Container.validate()` checks
   callers against the real target scope rather than any nominal scope on the wrapper itself.
 
-## `CacheSettings.is_async_finalizer`
+### `CacheSettings.is_async_finalizer`
 
 `CacheSettings.is_async_finalizer` is a computed bool field set at construction time via
 `inspect.iscoroutinefunction(finalizer)`. `Factory.resolve` and the cache registry use it to
 decide whether to `await` the finalizer during `close_async()` or treat it as sync.
 
-## Deprecated: `cache_settings=`
+### Deprecated: `cache_settings=`
 
 `Factory(cache_settings=...)` is a deprecated alias of `cache=`. It still works but
 emits a `DeprecationWarning`; pass `cache=True` (defaults) or `cache=CacheSettings(...)`
 (tuned) instead. Passing both `cache` and `cache_settings` raises `TypeError`.
+
+## Container internals — no stability guarantee
+
+!!! warning "Internal surface"
+    These attributes back the container's own machinery. They are documented
+    for debugging and deep integration work only, and may change without a
+    deprecation cycle. Do not build on them.
+
+- **`find_container(scope)`** — walks `scope_map` and returns the container registered at
+  `scope`; raises `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
+- **`parent_container`** — constructor kwarg and slot; the direct parent of a child container,
+  or `None` for a root. Passing a `scope ≤ parent.scope` raises `InvalidChildScopeError`.
+- **`scope_map`** — `dict[IntEnum, Container]` mapping every scope in the chain to its
+  container; built at construction time and inherited (plus the new scope) by each child.
+- **`lock`** — a `threading.RLock` instance, or `None` when the container was created with
+  `use_lock=False`. The lock gates singleton creation inside `Factory.resolve`.
