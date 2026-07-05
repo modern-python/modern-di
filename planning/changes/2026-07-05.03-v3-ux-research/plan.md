@@ -64,5 +64,7 @@ Dedupe and rank; write
 - [x] `just check-planning` and `just lint-ci` pass.
 - [x] Finalize this bundle's `summary:` to the realized result.
 - [x] Commit report + bundle, push, open PR, watch CI.
-- [ ] Maintainer rules on the shortlist (in PR review or a follow-up session);
-      accepted items spawn their own planning bundles.
+- [x] Maintainer rules on the shortlist (in PR review or a follow-up session);
+      accepted items spawn their own planning bundles. Ruled 2026-07-05:
+      22 accepted, 2 rejected (API-2, API-3 — decision files), 2 deferred
+      (ERR-8, INT-6 — deferred.md).

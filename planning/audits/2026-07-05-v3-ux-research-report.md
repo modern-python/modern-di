@@ -26,6 +26,12 @@ they are ranked adjacently and cross-referenced, not merged, since each carries 
 (API-1/ERR-2), sync-generator creators (API-2), and raising on direct resolve of an unset ContextProvider
 (API-6). Everything else is additive or docs-only.
 
+**Rulings (2026-07-05).** All 26 distinct decisions ruled by the maintainer: **22 accepted**, **2 rejected**
+(API-2 generator creators — `planning/decisions/2026-07-05-no-generator-creators.md`; API-3 `enter_scope`
+alias — `planning/decisions/2026-07-05-no-enter-scope-alias.md`), **2 deferred** (ERR-8 resolution tracing,
+INT-6 conformance suite — `planning/deferred.md`). Per-candidate rulings inline in section 5. With API-2
+rejected, the breaking budget carries two decisions: API-1/ERR-2 and API-6.
+
 **Top 5 by impact:**
 
 | # | Candidate | One-line case |
@@ -347,7 +353,7 @@ what was checked and corrected.
   children without validate; validation runs correctly from a root APP container without runtime context.
   dishka and wireup precedents verified against live official docs; Spring and Koin corroborated in the
   per-framework notes with official citations. Constraints pass.
-- **Ruling:** _pending_
+- **Ruling:** **accepted** (one decision with ERR-2).
 
 ### 2. ERR-2 — Flip validate to on-by-default in 3.0 (validate=True, explicit opt-out)
 
@@ -369,7 +375,7 @@ what was checked and corrected.
 - **Verification:** confirmed. Verified against `container.py:49`, `architecture/validation.md`, and the
   ground-truth digest; dishka precedent verified live. `get_dependencies` is a pure registry lookup, so
   default-on validation works on roots regardless of scope depth or context providers. Constraints pass.
-- **Ruling:** _pending_
+- **Ruling:** **accepted** (one decision with API-1).
 
 ### 3. DOC-1 — Publish migration/to-3.x.md before the 3.0 tag, with a warnings-as-errors readiness recipe
 
@@ -393,7 +399,7 @@ what was checked and corrected.
   the ContainerClosedWarning readiness snippet already exists on the errors page (so the gap is a single
   page covering all three, not "no documented way"), and wireup cushions only some renames with
   FutureWarnings — the precedent is the page, not a universal alias policy.
-- **Ruling:** _pending_
+- **Ruling:** **accepted** — time-boxed: must ship before the 3.0 tag.
 
 ### 4. API-2 — Sync-generator creators: yield-based Factory with built-in teardown
 
@@ -429,7 +435,7 @@ what was checked and corrected.
   `CacheSettings(finalizer=)`; LIFO close exists; no generator handling in `modern_di/`). dishka precedent
   verified live; wireup/svcs/that-depends/FastAPI corroborated in notes. Constraints pass (stdlib `inspect`,
   sync advance, sync finalizer continuation).
-- **Ruling:** _pending_
+- **Ruling:** **rejected** — complexity not justified for core; `CacheSettings(finalizer=)` stays the single teardown channel; generator support can live in a Factory subclass outside core if demand appears. See `planning/decisions/2026-07-05-no-generator-creators.md`.
 
 ### 5. API-6 — Raise on direct resolve of an unset ContextProvider (kill the silent None) in 3.0
 
@@ -451,7 +457,7 @@ what was checked and corrected.
   queued 3.0 change. dishka precedent verified in source (raised on missing context key in
   factory_compiler.py); that-depends message live-reproduced. "Dependent behavior unchanged" is feasible
   because Factory reads context via `fetch_context_value` (UNSET sentinel), not `ContextProvider.resolve`.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 6. ERR-1 — Runtime cycle guard: CircularDependencyError with cycle path instead of raw RecursionError
 
@@ -480,7 +486,7 @@ what was checked and corrected.
   anywhere; `CircularDependencyError` raised only in validate() at container.py:180). injector precedent
   verified verbatim in master source; dig verified at pkg.go.dev. Sketch corrected on two technical points
   (no distinguished entry frame; iterative re-walk required, with re-raise when no static cycle exists).
-- **Ruling:** _pending_
+- **Ruling:** **accepted** (one decision with API-7; this amended sketch governs the mechanics).
 
 ### 7. API-7 — Turn unvalidated-cycle RecursionError into a self-diagnosing CircularDependencyError
 
@@ -506,7 +512,7 @@ what was checked and corrected.
   confirmed verbatim against primary sources. One precision fix: dependency-injector #811 fires during
   container deepcopy, not on first resolve; #764 is the wiring-cycle case. svcs and FastAPI claims match the
   notes. Constraints pass.
-- **Ruling:** _pending_
+- **Ruling:** **accepted** (one decision with ERR-1; ERR-1's amended sketch governs).
 
 ### 8. ERR-3 — Breadcrumb dependency paths on runtime scope errors
 
@@ -535,7 +541,7 @@ what was checked and corrected.
   yielding the no-names, no-chain message. Dagger #1023 and Angular #58391 fetched and confirmed as
   wrong-blame reports; MEDI message sourced from dotnet/runtime Strings.resx. Not covered by validate()'s
   opt-in declaration-time checks or the 2026-06 breadcrumb work.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 9. API-5 — Accept the creator as the first positional argument of Factory
 
@@ -563,7 +569,7 @@ what was checked and corrected.
   Two defects fixed: the problem originally overstated today's verbosity (scope defaults to APP), and the
   original sketch's `/` would have made `creator` positional-only, breaking every existing `creator=` call —
   self-defeating; corrected to positional-or-keyword.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 10. API-4 — Group-level default scope for providers
 
@@ -590,7 +596,7 @@ what was checked and corrected.
 - **Verification:** confirmed. `group.py` has no scope machinery; dishka's three-level priority verified
   live; secondary precedents check out in notes. `__init_subclass__` + UNSET are stdlib-only; Factory's
   declaration-time signature parsing does not consume scope, so deferred stamping is feasible.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 11. INT-1 — Container-level API for integration-contributed providers
 
@@ -614,7 +620,7 @@ what was checked and corrected.
   plus three more sibling repos found doing the same (seam more load-bearing than stated).
   `architecture/containers.md` even documents the registry as "populated once at root construction", which
   the integrations' mutation contradicts. Both precedents verified against live docs.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 12. INT-2 — Unified resolve entry point accepting provider-or-type
 
@@ -635,7 +641,7 @@ what was checked and corrected.
 - **Verification:** amended (duplication count corrected 4 → 7, verified in local sibling source at exact
   file:line; strengthens the candidate). dishka and svcs precedents verified against live docs. Pure
   additive sync dispatch; constraints pass.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 13. API-8 — Eager warm-up: build all cached providers at startup (container.init_cache())
 
@@ -658,7 +664,7 @@ what was checked and corrected.
   only workaround is manual per-provider resolves. All three precedents verified against live sources.
   Maintainer note: the from-that-depends guide currently editorializes "no equivalent needed", so this
   reverses a documented stance — a design call, not a defect.
-- **Ruling:** _pending_
+- **Ruling:** **accepted** — interface open: method name and exact semantics to be settled in the bundle's design (one decision with INT-3).
 
 ### 14. INT-3 — Eager initialization of cached providers for startup fail-fast
 
@@ -678,7 +684,7 @@ what was checked and corrected.
 - **Verification:** confirmed. No eager-init method in `modern_di/`; all four precedents verified against
   live sources. Sync instance method over the existing registry using sync `resolve_provider`; constraints
   pass. Decide jointly with API-8 (one method, one name).
-- **Ruling:** _pending_
+- **Ruling:** **accepted** — interface open (one decision with API-8).
 
 ### 15. INT-4 — Self-resetting context-manager form of override
 
@@ -706,7 +712,7 @@ what was checked and corrected.
 - **Verification:** confirmed. `container.py:232` shows `override(...) -> None` as the only spelling; both
   precedents verified against official docs, including wireup v2.8.0's nested-overrides release note.
   Stdlib-only handle; constraints pass.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 16. DOC-2 — Progressive-disclosure quickstart: 2-3 concept first success, scopes as lesson two
 
@@ -726,7 +732,7 @@ what was checked and corrected.
 - **Verification:** confirmed. Concept count verified against `docs/index.md`; the minimal path is honest
   (Factory defaults to `scope=Scope.APP`, factory.py:37). Comparator counts check out against the notes;
   FastAPI tutorial fetched live and escalates exactly as claimed. Not covered by the 2026-06 docs work.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 17. DOC-3 — "Migrate from dependency-injector" guide (with dishka as a follow-up)
 
@@ -749,7 +755,7 @@ what was checked and corrected.
   (star count, no by-type API, no whole-graph validation, silent wiring failures #658/#521). wireup page
   fetched live — precedent stronger than claimed since it already targets dependency-injector migrators.
   that-depends README pointer confirmed.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 18. ERR-4 — Stable per-exception docs URLs and a uniform hint slot across the exception hierarchy
 
@@ -771,7 +777,7 @@ what was checked and corrected.
 - **Breaking:** no — message text only; hierarchy, attributes, raise sites unchanged.
 - **Verification:** confirmed. Exception census verified in `exceptions.py`; all three precedents checked
   against primary sources (wireup's message confirmed in `factory_compiler.py` source).
-- **Ruling:** _pending_
+- **Ruling:** **accepted** — one workstream with DOC-6.
 
 ### 19. DOC-6 — Complete the error-docs registry: one stable troubleshooting anchor per public exception
 
@@ -791,7 +797,7 @@ what was checked and corrected.
 - **Verification:** amended. Page census verified (5 pages vs ~20 classes); the original claim that no
   message links to docs was false — DuplicateProviderTypeError already does, which strengthens feasibility:
   the proposal completes an existing in-repo pattern. Precedents verified against primary sources.
-- **Ruling:** _pending_
+- **Ruling:** **accepted** — one workstream with ERR-4.
 
 ### 20. ERR-5 — ValidationFailedError report format: group by kind, render cycles as diagrams
 
@@ -814,7 +820,7 @@ what was checked and corrected.
 - **Verification:** confirmed. Current rendering verified at exceptions.py:353-367 and 259; both precedents
   verified in primary source (dishka's hint confirmed verbatim in exceptions.py source; Spring's
   box-drawing rendering in buildMessage()).
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 21. ERR-7 — Zero-dependency graph export: container.export_graph(format='mermaid'|'dot')
 
@@ -835,7 +841,7 @@ what was checked and corrected.
 - **Verification:** confirmed. No existing capability (grep + ground truth); internal foundation real
   (abstract.py:40 backing container.py:188); both precedents verified against official docs, including Fx's
   "colorized to highlight the root cause" wording.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 22. API-3 — Intent-named scope entry: container.enter_scope(scope=None, context=...) as the taught spelling
 
@@ -857,7 +863,7 @@ what was checked and corrected.
 - **Verification:** confirmed. `build_child_container` is the sole scope-entry spelling
   (container.py:93); wireup docs fetched live with the verbatim spelling; dishka/MEDI corroborated in notes.
   The conservative-feature-set/API-bloat tension is explicitly a decision option.
-- **Ruling:** _pending_
+- **Ruling:** **rejected** — `build_child_container` stays the single, mechanism-accurate spelling; the migrant-familiarity gap is closed in docs instead (DOC-4/DOC-5 carry the cross-framework name mapping). See `planning/decisions/2026-07-05-no-enter-scope-alias.md`.
 
 ### 23. DOC-4 — "modern-di for FastAPI users" page disambiguating the two meanings of scope
 
@@ -883,7 +889,7 @@ what was checked and corrected.
   use_cache/dependency_overrides/0.121). Release semantics verified via `gh api`; discussion verified real
   but low-engagement (problem wording toned down accordingly). Sketch mapping fixed: `use_cache` equivalent
   is a cached REQUEST-scope Factory, not a bare one.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 24. DOC-5 — Cross-framework lifetime vocabulary table ("where is Singleton?")
 
@@ -907,7 +913,7 @@ what was checked and corrected.
 - **Verification:** amended. Gap real (grep confirms no cross-framework spelling translation anywhere); the
   original "no direct docs answer" overstatement corrected (three pages partially answer it), and the dishka
   Alternatives citation was fetched and reclassified as weak — svcs glossary promoted to primary precedent.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 25. DOC-7 — "Good and bad practices" anti-pattern catalog page
 
@@ -926,7 +932,7 @@ what was checked and corrected.
 - **Verification:** confirmed. No practices page exists (mkdocs nav + grep); all four cited footguns
   verified as real and scattered at exact locations; injector page fetched live with both warnings present;
   Microsoft catalog corroborated.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 26. ERR-6 — Definition sites (module:line of the creator) in breadcrumb steps and cycle paths
 
@@ -949,7 +955,7 @@ what was checked and corrected.
 - **Verification:** confirmed. Source structure verified (exceptions.py:13-24, container.py:177-180; no
   source-location capture anywhere); dig precedent fetched and matched verbatim. Minor nit folded into the
   sketch (avoid eager getsourcelines per Factory at import).
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 27. ERR-8 — Opt-in resolution tracing via stdlib logging (DEBUG-level narration)
 
@@ -969,7 +975,7 @@ what was checked and corrected.
 - **Breaking:** no — DEBUG records are dropped by default logging config.
 - **Verification:** confirmed. Zero logging verified by grep and ground truth; Fx and Koin precedents
   verified against official docs (both opt-in). Module-level getLogger adds no library-owned global state.
-- **Ruling:** _pending_
+- **Ruling:** **deferred** — revisit on the first user issue a resolution trace would have answered; see `planning/deferred.md`.
 
 ### 28. DOC-9 — Expand design-decisions.md into an explicit non-goals page for 3.0
 
@@ -995,7 +1001,7 @@ what was checked and corrected.
   documented (async resolution, global container); the genuinely missing three stand. Both precedents
   verified at primary sources. Sketch corrected to stop citing nonexistent CONTRIBUTING/issue-template
   files. Note: section 4's rejected-practices table is ready source material for this page.
-- **Ruling:** _pending_
+- **Ruling:** **accepted as amended** — non-goals limited to auto-binding and in-package integrations; the graphs entry states the ERR-7 boundary (text export in scope, rendering/visualization out).
 
 ### 29. DOC-8 — Publish llms.txt (and per-page markdown endpoints) for the docs site
 
@@ -1013,7 +1019,7 @@ what was checked and corrected.
 - **Verification:** confirmed. Absence verified (repo grep, built site, and
   https://modern-di.modern-python.org/llms.txt returning 404); precedent verified live including a sampled
   per-page markdown endpoint. Docs-site tooling only; published library stays zero-dep.
-- **Ruling:** _pending_
+- **Ruling:** **accepted**.
 
 ### 30. INT-6 — Shared conformance test suite for sibling integration repos
 
@@ -1038,7 +1044,7 @@ what was checked and corrected.
   verified at source. The original secondary citation (ploeh's "Conforming Container" essay) was
   misdescribed — it argues the abstraction is an anti-pattern and is inverted relative to this proposal;
   replaced with the on-point MEDI Specification.Tests precedent (verified on NuGet, v10.0.9).
-- **Ruling:** _pending_
+- **Ruling:** **deferred** — revisit after INT-1/INT-2 land and the sibling repos migrate to the new seams; see `planning/deferred.md`.
 
 ## 6. Appendix
 

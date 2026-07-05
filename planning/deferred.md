@@ -19,3 +19,27 @@ replaced the old set-`kwargs_compiled`-after-the-bucket-fields sequence — but 
 options: build and publish `wiring_plan` under the existing container lock, or publish the reference
 behind an explicit barrier/atomic. Until then, document modern-di as GIL-assuming for plan compilation.
 See [2026-06-14 audit A-1](audits/2026-06-14-deep-audit-report.md).
+
+## Opt-in DEBUG resolution tracing (ERR-8) — from 2026-07-05 3.0 UX research
+
+A module-level `logging.getLogger("modern_di")` narrating resolution at DEBUG level: resolve start
+(provider, scope, container), cache hit vs. creator call, override short-circuit, context reads, and
+finalizer order at close — all dropped by default logging config. Field precedent: Uber Fx's event
+narration, Koin's opt-in `logger(Level.DEBUG)`. Cost: one `isEnabledFor(DEBUG)` boolean per chokepoint
+on the hot path plus 5-8 log statements through resolution code.
+
+**Revisit trigger:** the first user issue that a resolution trace would have answered.
+See [2026-07-05 3.0 UX research, ERR-8](audits/2026-07-05-v3-ux-research-report.md).
+
+## Shared conformance test suite for integration repos (INT-6) — from 2026-07-05 3.0 UX research
+
+A reusable pytest contract suite, parametrized over each integration's app factory + setup function,
+asserting the lifespan/scope/override/close invariants all seven sibling integrations currently
+re-implement independently. Published outside core (modern-di-pytest or a conformance sibling) so core
+stays zero-dependency; each sibling repo runs it in CI. Precedent:
+`Microsoft.Extensions.DependencyInjection.Specification.Tests`; wireup #118 is the regression class it
+prevents.
+
+**Revisit trigger:** after INT-1 (`Container.add_providers`) and INT-2 (`resolve_dependency`) land in
+core and the sibling repos migrate to those seams — the contract surface changes with them.
+See [2026-07-05 3.0 UX research, INT-6](audits/2026-07-05-v3-ux-research-report.md).

@@ -1,5 +1,5 @@
 ---
-summary: Comparative UX research across 13 DI frameworks; cited report with a 30-candidate verified shortlist (26 distinct decisions, 3 breaking) awaiting maintainer rulings.
+summary: Comparative UX research across 13 DI frameworks; 26 distinct decisions ruled — 22 accepted (2 breaking), 2 rejected (decision files), 2 deferred.
 ---
 
 # Design: 3.0 UX & Interface Research
