@@ -255,9 +255,10 @@ class CircularDependencyError(ResolutionError):
 
     def __init__(self, *, cycle_path: list[str]) -> None:
         self.cycle_path = cycle_path
-        super().__init__(
-            f"Circular dependency detected: {' -> '.join(cycle_path)}. Check your provider graph for unintended cycles."
+        rendered = "\n".join(
+            f"  {'    ' * (i - 1)}└─> {name}" if i else f"  {name}" for i, name in enumerate(cycle_path)
         )
+        super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
 
 
 class RegistrationError(ModernDIError):
