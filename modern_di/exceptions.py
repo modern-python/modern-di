@@ -371,8 +371,8 @@ class ValidationFailedError(ContainerError):
             errors = by_kind[kind]
             lines.append(f"\n{kind} ({len(errors)}):")
             for error in errors:
-                first, *rest = str(error).splitlines()
-                lines.append(f"  - {first}")
+                first, *rest = str(error).splitlines() or [""]
+                lines.append(f"  - {first}".rstrip())
                 lines.extend(f"    {line}" for line in rest)
         return "\n".join(lines)
 

@@ -5,11 +5,7 @@ def test_circular_dependency_error_renders_cycle_as_arrow_chain() -> None:
     error = exceptions.CircularDependencyError(cycle_path=["A", "B", "A"])
     assert error.cycle_path == ["A", "B", "A"]
     assert str(error) == (
-        "Circular dependency detected:\n"
-        "  A\n"
-        "  └─> B\n"
-        "      └─> A\n"
-        "Check your provider graph for unintended cycles."
+        "Circular dependency detected:\n  A\n  └─> B\n      └─> A\nCheck your provider graph for unintended cycles."
     )
 
 
@@ -31,3 +27,8 @@ def test_validation_failed_error_groups_by_kind_and_indents_multiline() -> None:
         "RuntimeError (1):\n"
         "  - boom"
     )
+
+
+def test_validation_failed_error_renders_message_less_sub_error() -> None:
+    error = exceptions.ValidationFailedError(errors=[RuntimeError()])
+    assert str(error) == ("Container.validate() found 1 issue(s): RuntimeError\n\nRuntimeError (1):\n  -")
