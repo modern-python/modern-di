@@ -92,8 +92,9 @@ to render the chain programmatically.
 - **`ArgumentResolutionError`** — raised when a creator parameter cannot be resolved: no provider
   matches its annotated type, or the parameter is unannotated. See
   [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
-- **`CircularDependencyError`** — raised when the provider graph contains a cycle (A → B → A),
-  detected during `validate()` or at resolution; the message shows the cycle path. See
+- **`CircularDependencyError`** — raised only by `validate()` when the provider graph contains a
+  cycle (A → B → A); the message shows the cycle path. An unvalidated cyclic graph fails with a raw
+  `RecursionError` at first resolve instead. See
   [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md).
 - **`CreatorCallError`** — raised when a creator's dependencies all resolved but the creator itself
   raised while being called. The original exception is preserved on `.original_error` (and as the

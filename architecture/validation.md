@@ -47,7 +47,7 @@ type names showing the loop (e.g., `["A", "B", "A"]`). The recursive walk does *
 but the rest of the graph continues to be checked.
 
 `CircularDependencyError.__str__` renders `.cycle_path` as a multi-line arrow chain (the same `└─>` continuation
-style as the `ResolutionError` dependency-chain breadcrumb), not an inline `A -> B -> A` string:
+glyph as the `ResolutionError` dependency-chain breadcrumb), not an inline `A -> B -> A` string:
 
 ```
 Circular dependency detected:

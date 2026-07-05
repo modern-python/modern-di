@@ -537,9 +537,54 @@ def test_explicit_validate_false_never_warns() -> None:
 
 
 def test_explicit_validate_true_validates_and_never_warns() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class BrokenService:
+        missing: Missing
+
+    class BrokenGroup(Group):
+        svc = providers.Factory(creator=BrokenService)
+
+    with pytest.raises(ValidationFailedError):
+        Container(scope=Scope.APP, groups=[BrokenGroup], validate=True)
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Dep:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class ValidService:
+        dep: Dep
+
+    class ValidGroup(Group):
+        dep = providers.Factory(creator=Dep)
+        svc = providers.Factory(creator=ValidService)
+
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        Container(scope=Scope.APP, validate=True)
+        Container(scope=Scope.APP, groups=[ValidGroup], validate=True)
+
+
+def test_unset_validate_warns_but_does_not_validate() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        missing: Missing
+
+    class G(Group):
+        svc = providers.Factory(creator=Service)
+
+    with pytest.warns(exceptions.UnvalidatedContainerWarning):
+        Container(scope=Scope.APP, groups=[G])  # constructs fine; the broken graph is never checked
+
+    with pytest.raises(ValidationFailedError):
+        Container(scope=Scope.APP, groups=[G], validate=True)
 
 
 def test_child_container_does_not_warn_about_validate() -> None:
