@@ -38,6 +38,13 @@ decide whether to `await` the finalizer during `close_async()` or treat it as sy
 emits a `DeprecationWarning`; pass `cache=True` (defaults) or `cache=CacheSettings(...)`
 (tuned) instead. Passing both `cache` and `cache_settings` raises `TypeError`.
 
+### `find_container(scope)`
+
+`find_container(scope)` walks `_scope_map` and returns the container registered at
+`scope`; raises `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
+It is the primitive a custom `AbstractProvider.resolve` calls to locate the container at
+its scope — see [Subclassing `AbstractProvider`](#subclassing-abstractprovider) above.
+
 ## Container internals — no stability guarantee
 
 !!! warning "Internal surface"
@@ -45,11 +52,12 @@ emits a `DeprecationWarning`; pass `cache=True` (defaults) or `cache=CacheSettin
     for debugging and deep integration work only, and may change without a
     deprecation cycle. Do not build on them.
 
-- **`find_container(scope)`** — walks `scope_map` and returns the container registered at
-  `scope`; raises `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
 - **`parent_container`** — constructor kwarg and slot; the direct parent of a child container,
   or `None` for a root. Passing a `scope ≤ parent.scope` raises `InvalidChildScopeError`.
-- **`scope_map`** — `dict[IntEnum, Container]` mapping every scope in the chain to its
+- **`_scope_map`** — `dict[IntEnum, Container]` mapping every scope in the chain to its
   container; built at construction time and inherited (plus the new scope) by each child.
-- **`lock`** — a `threading.RLock` instance, or `None` when the container was created with
+- **`_lock`** — a `threading.RLock` instance, or `None` when the container was created with
   `use_lock=False`. The lock gates singleton creation inside `Factory.resolve`.
+
+The former public names `scope_map` and `lock` remain as read-only properties that emit
+`DeprecationWarning` and will be removed in a future release.
