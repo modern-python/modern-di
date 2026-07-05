@@ -1,5 +1,5 @@
 ---
-summary: 2.x bridges for the ruled 3.0 breaks — validation report rework, tri-state validate FutureWarning, ContextProvider unset-value DeprecationWarning, and the to-3.x migration guide.
+summary: Shipped 2.x bridges for the 3.0 breaks — grouped/arrow-chain validation rendering, a tri-state validate= FutureWarning, the ContextProvider unset-value DeprecationWarning/3.0-error pair, and the to-3.x migration guide.
 ---
 
 # Design: 3.0 bridges on 2.x (validation UX, ContextProvider deprecation, migration guide)

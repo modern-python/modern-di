@@ -122,10 +122,21 @@ being constructed by a factory:
 providers.ContextProvider(scope=Scope.REQUEST, context_type=HttpRequest)
 ```
 
-At resolution time it looks the value up in the container's `context_registry` for the matching scope. If no
-value was supplied (the key is absent), `resolve` returns `None`. `Factory._resolve_context_value` handles the
-absent-context case live via the shared `absent_disposition` helper: if the dependent parameter has a default or is
-nullable it is silently satisfied; otherwise an `ArgumentResolutionError` is raised.
+At resolution time it looks the value up in the container's `context_registry` for the matching scope. What
+happens next depends on **how** the value is fetched — direct resolve vs. as another provider's dependency —
+and the two paths are independent:
+
+- **Direct resolve** (`container.resolve(HttpRequest)` / `container.resolve_provider(the_provider)` →
+  `ContextProvider.resolve`): if no value was supplied (the key is absent), it emits
+  `~modern_di.exceptions.ContextValueNoneWarning` (a `DeprecationWarning` naming the context type and scope) and
+  returns `None`. modern-di 3.0 raises `~modern_di.exceptions.ContextValueNotSetError` here instead of warning —
+  see the [migration guide](../docs/migration/to-3.x.md). Escalate the warning now to catch unset-context bugs
+  ahead of the 3.0 upgrade: `warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)`.
+- **As a dependent parameter** of another provider (e.g. a `Factory` constructor argument typed as the context
+  type): unchanged by the above — `Factory` reads the value via `fetch_context_value` (not `resolve`), so no
+  warning fires on this path. `Factory._resolve_context_value` handles the absent-context case live via the
+  shared `absent_disposition` helper: if the dependent parameter has a default or is nullable it is silently
+  satisfied; otherwise an `ArgumentResolutionError` is raised, exactly as before this warning was added.
 
 `ContextProvider` also accepts an optional `bound_type` that overrides the inferred bound type.
 
