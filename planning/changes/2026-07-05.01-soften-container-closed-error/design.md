@@ -9,8 +9,8 @@ summary: Reuse of a closed container warns (ContainerClosedWarning) and self-reo
 The hard `ContainerClosedError` added in 2.16.0 broke "close then resolve"
 code (including maintainer projects) that relied on pre-2.16 lenient behavior.
 Reuse of a closed container now emits `ContainerClosedWarning` and self-reopens
-so the call succeeds; the error returns as the default in 3.0. Full brainstorm
-spec: `docs/superpowers/specs/2026-07-05-soften-container-closed-error-design.md`.
+so the call succeeds; the error returns as the default in 3.0. The full
+implementation plan is in [`plan.md`](./plan.md).
 
 ## Motivation
 
