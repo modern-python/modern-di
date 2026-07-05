@@ -247,18 +247,18 @@ section for the renamed attributes.
 ### Task 3: Release notes
 
 **Files:**
-- Create: `planning/releases/2.22.0.md`
+- Create: `planning/releases/2.23.0.md`
 
-Pre-stage the deprecation entry. `2.22.0` is the next minor (a deprecation is
+Pre-stage the deprecation entry. `2.23.0` is the next minor (a deprecation is
 additive/back-compatible); the maintainer may adjust the version at tag time.
 
 - [ ] **Step 1: Write the release notes**
 
-  Create `planning/releases/2.22.0.md`, mirroring the house style of
+  Create `planning/releases/2.23.0.md`, mirroring the house style of
   `planning/releases/2.21.0.md`:
 
 ```markdown
-# modern-di 2.22.0 — private `Container` internals
+# modern-di 2.23.0 — private `Container` internals
 
 Back-compatible. Two `Container` attributes become private, with deprecated aliases; one member is reclassified as a supported extension point.
 
@@ -283,8 +283,8 @@ No action required. Nothing in the official integrations reads `scope_map` or `l
 
   Run: `just check-planning`  (Expected: `planning: OK`)
   ```bash
-  git add planning/releases/2.22.0.md
-  git commit -m "docs: release notes for 2.22.0 (private Container internals)"
+  git add planning/releases/2.23.0.md
+  git commit -m "docs: release notes for 2.23.0 (private Container internals)"
   ```
 
 ---
