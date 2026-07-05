@@ -273,6 +273,35 @@ class CircularDependencyError(ResolutionError):
         super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
 
 
+class ContextValueNotSetError(ResolutionError):
+    """An unset ``ContextProvider`` was resolved directly.
+
+    Raised in modern-di 3.0; until then direct resolve emits
+    :class:`ContextValueNoneWarning` and returns ``None``. Inspect
+    ``.context_type``.
+    """
+
+    __slots__ = ("context_type",)
+
+    def __init__(self, *, context_type: type, scope_name: str) -> None:
+        self.context_type = context_type
+        super().__init__(
+            f"No context value is set for {context_type!r} (scope {scope_name}). "
+            "Pass context={...} to the container or call set_context()."
+        )
+
+
+class ContextValueNoneWarning(DeprecationWarning):
+    """Direct resolve of an unset ``ContextProvider`` returned ``None`` — transitional.
+
+    The ``None`` return works today but modern-di 3.0 raises
+    :class:`ContextValueNotSetError` here. Opt into strict behavior now by
+    escalating this warning::
+
+        warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)
+    """
+
+
 class RegistrationError(ModernDIError):
     """Base class for errors raised while registering providers."""
 

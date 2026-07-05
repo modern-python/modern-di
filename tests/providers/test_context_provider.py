@@ -1,10 +1,11 @@
 import dataclasses
 import datetime
+import warnings
 
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError, ContainerClosedWarning
+from modern_di.exceptions import ArgumentResolutionError, ContainerClosedWarning, ContextValueNoneWarning
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -39,7 +40,8 @@ def test_context_provider_set_context_after_creation() -> None:
 
 def test_context_provider_not_found() -> None:
     app_container = Container()
-    assert app_container.resolve_provider(MyGroup.context_provider) is None
+    with pytest.warns(ContextValueNoneWarning):
+        assert app_container.resolve_provider(MyGroup.context_provider) is None
 
 
 def test_context_provider_not_found_but_required() -> None:
@@ -171,7 +173,8 @@ def test_context_provider_reads_registry_at_its_own_scope_not_resolving_containe
     app = Container(scope=Scope.APP, groups=[_ScopedCtxGroup])
     request = app.build_child_container(scope=Scope.REQUEST, context={_ScopedCtx: _ScopedCtx()})
     # context set on the CHILD must be invisible to an APP-scoped provider
-    assert request.resolve(_ScopedCtx) is None
+    with pytest.warns(ContextValueNoneWarning):
+        assert request.resolve(_ScopedCtx) is None
     # context set on the container at the provider's scope is what counts
     app.set_context(_ScopedCtx, value)
     assert request.resolve(_ScopedCtx) is value
@@ -275,3 +278,17 @@ def test_late_context_does_not_rebuild_cached_singleton() -> None:
     second = app.resolve(_CachedCtxSvc)
     assert second is first
     assert second.ctx is None
+
+
+def test_unset_context_provider_direct_resolve_warns_and_returns_none() -> None:
+    app_container = Container(groups=[MyGroup], validate=False)
+    with pytest.warns(ContextValueNoneWarning, match="modern-di 3.0 raises ContextValueNotSetError"):
+        assert app_container.resolve_provider(MyGroup.context_provider) is None
+
+
+def test_set_context_provider_direct_resolve_does_not_warn() -> None:
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app_container = Container(groups=[MyGroup], context={datetime.datetime: now}, validate=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert app_container.resolve_provider(MyGroup.context_provider) is now

@@ -1,7 +1,8 @@
 import enum
 import typing
+import warnings
 
-from modern_di import types
+from modern_di import exceptions, types
 from modern_di.providers import AbstractProvider
 from modern_di.scope import Scope
 
@@ -15,8 +16,9 @@ class ContextProvider(AbstractProvider[types.T_co]):
 
     The value is passed via ``build_child_container(context={SomeType: value})``
     and looked up from the context registry at this provider's bound scope.
-    Resolving it directly when no value is set returns ``None``; injecting it into
-    a non-nullable, no-default ``Factory`` parameter instead raises
+    Resolving it directly when no value is set emits :class:`~modern_di.exceptions.ContextValueNoneWarning`
+    and returns ``None`` (modern-di 3.0 raises :class:`~modern_di.exceptions.ContextValueNotSetError` instead);
+    injecting it into a non-nullable, no-default ``Factory`` parameter instead raises
     ``ArgumentResolutionError``.
     """
 
@@ -42,6 +44,13 @@ class ContextProvider(AbstractProvider[types.T_co]):
     def resolve(self, container: "Container") -> types.T_co | None:
         value = self.fetch_context_value(container)
         if value is types.UNSET:
+            warnings.warn(
+                f"No context value is set for {self.context_type!r} (scope {self.scope.name}); returning None. "
+                "modern-di 3.0 raises ContextValueNotSetError here. Pass context={...} to the container or call "
+                "set_context(). See https://modern-di.modern-python.org/migration/to-3.x/.",
+                exceptions.ContextValueNoneWarning,
+                stacklevel=2,
+            )
             return None
         return typing.cast(types.T_co, value)
 

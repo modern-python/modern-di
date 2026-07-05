@@ -32,3 +32,12 @@ def test_validation_failed_error_groups_by_kind_and_indents_multiline() -> None:
 def test_validation_failed_error_renders_message_less_sub_error() -> None:
     error = exceptions.ValidationFailedError(errors=[RuntimeError()])
     assert str(error) == ("Container.validate() found 1 issue(s): RuntimeError\n\nRuntimeError (1):\n  -")
+
+
+def test_context_value_not_set_error_message_and_hierarchy() -> None:
+    error = exceptions.ContextValueNotSetError(context_type=str, scope_name="APP")
+    assert isinstance(error, exceptions.ResolutionError)
+    assert str(error) == (
+        "No context value is set for <class 'str'> (scope APP). "
+        "Pass context={...} to the container or call set_context()."
+    )
