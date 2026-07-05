@@ -117,8 +117,9 @@ Append to `tests/test_error_rendering.py`:
 ```python
 def test_validation_failed_error_groups_by_kind_and_indents_multiline() -> None:
     cycle = exceptions.CircularDependencyError(cycle_path=["A", "B", "A"])
-    error = exceptions.ValidationFailedError(errors=[RuntimeError("boom"), cycle])
-    assert error.errors == [RuntimeError("boom"), cycle] or len(error.errors) == 2  # list preserved
+    boom = RuntimeError("boom")
+    error = exceptions.ValidationFailedError(errors=[boom, cycle])
+    assert error.errors == [boom, cycle]  # list content preserved, order as given
     assert str(error) == (
         "Container.validate() found 2 issue(s): CircularDependencyError, RuntimeError\n"
         "\n"
