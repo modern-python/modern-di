@@ -1,6 +1,11 @@
-# Modern DI
+<div class="mp-hero" markdown>
 
-Welcome to the `modern-di` documentation!
+<h1 class="mp-lockup">
+<img class="mp-logo mp-logo--light" src="assets/lockup-light.svg" alt="modern-di">
+<img class="mp-logo mp-logo--dark" src="assets/lockup-dark.svg" alt="" aria-hidden="true">
+</h1>
+
+</div>
 
 `modern-di` is a Python dependency injection framework which supports the following:
 
