@@ -39,8 +39,9 @@ provider declaring `Container` as a dependency receives the resolving container 
   (a `FutureWarning`) pointing at the [migration guide](../docs/migration/to-3.x.md): modern-di 3.0
   runs `validate()` at root construction by default, so leaving `validate` unset now is a
   transitional state, not a permanent one. Child containers built via `build_child_container` never
-  pass `validate` explicitly, so they always take this branch — but the warning is conditioned on
-  `parent_container is None`, so children never warn regardless.
+  pass `validate` explicitly, so they also reach the unset (`None`) branch — but the warning itself
+  additionally requires `parent_container is None`, which is false for every child, so children
+  never warn regardless of `validate`.
 
 Escalate the warning to catch it in CI ahead of the 3.0 upgrade:
 

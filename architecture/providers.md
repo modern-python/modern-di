@@ -128,8 +128,8 @@ and the two paths are independent:
 
 - **Direct resolve** (`container.resolve(HttpRequest)` / `container.resolve_provider(the_provider)` →
   `ContextProvider.resolve`): if no value was supplied (the key is absent), it emits
-  `~modern_di.exceptions.ContextValueNoneWarning` (a `DeprecationWarning` naming the context type and scope) and
-  returns `None`. modern-di 3.0 raises `~modern_di.exceptions.ContextValueNotSetError` here instead of warning —
+  `ContextValueNoneWarning` (a `DeprecationWarning` naming the context type and scope) and
+  returns `None`. modern-di 3.0 raises `ContextValueNotSetError` here instead of warning —
   see the [migration guide](../docs/migration/to-3.x.md). Escalate the warning now to catch unset-context bugs
   ahead of the 3.0 upgrade: `warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)`.
 - **As a dependent parameter** of another provider (e.g. a `Factory` constructor argument typed as the context
