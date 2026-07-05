@@ -257,8 +257,8 @@ class Factory(AbstractProvider[types.T_co]):
         if not self.cache_settings:
             return self._call_creator(resolved_kwargs)
 
-        if container.lock:
-            container.lock.acquire()
+        if container._lock:  # noqa: SLF001
+            container._lock.acquire()  # noqa: SLF001
 
         try:
             if cache_item.cache is not types.UNSET:
@@ -269,5 +269,5 @@ class Factory(AbstractProvider[types.T_co]):
             container.cache_registry.mark_created(cache_item)
             return instance
         finally:
-            if container.lock:
-                container.lock.release()
+            if container._lock:  # noqa: SLF001
+                container._lock.release()  # noqa: SLF001

@@ -329,8 +329,8 @@ def test_validation_failed_error_str_renders_inner_errors() -> None:
 def test_build_child_container_propagates_use_lock_false() -> None:
     root = Container(use_lock=False)
     child = root.build_child_container(scope=Scope.REQUEST)
-    assert root.lock is None
-    assert child.lock is None
+    assert root._lock is None  # noqa: SLF001
+    assert child._lock is None  # noqa: SLF001
 
 
 def test_container_provider_resolves_on_subclasses() -> None:
@@ -470,3 +470,54 @@ def test_open_on_open_container_is_noop() -> None:
     container.open()
     assert container.closed is False
     assert container.resolve(Container) is container
+
+
+def test_private_lock_and_scope_map_back_the_machinery() -> None:
+    root = Container(use_lock=True)
+    child = root.build_child_container(scope=Scope.REQUEST)
+
+    # _lock is a reentrant lock (threading.RLock is a factory, not a type, so
+    # assert behavior, not isinstance)
+    assert root._lock is not None  # noqa: SLF001
+    assert root._lock.acquire()  # noqa: SLF001
+    assert root._lock.acquire()  # reentrant  # noqa: SLF001
+    root._lock.release()  # noqa: SLF001
+    root._lock.release()  # noqa: SLF001
+    # child inherits the parent's scope map plus its own scope
+    assert set(child._scope_map) == {Scope.APP, Scope.REQUEST}  # noqa: SLF001
+    assert child._scope_map[Scope.APP] is root  # noqa: SLF001
+
+
+def test_use_lock_false_yields_no_private_lock() -> None:
+    root = Container(use_lock=False)
+    child = root.build_child_container(scope=Scope.REQUEST)
+    assert root._lock is None  # noqa: SLF001
+    assert child._lock is None  # noqa: SLF001
+
+
+def test_scope_map_alias_warns_and_forwards() -> None:
+    container = Container()
+    with pytest.warns(DeprecationWarning, match="scope_map"):
+        aliased = container.scope_map
+    assert aliased is container._scope_map  # noqa: SLF001
+
+
+def test_lock_alias_warns_and_forwards() -> None:
+    container = Container(use_lock=True)
+    with pytest.warns(DeprecationWarning, match="lock"):
+        aliased = container.lock
+    assert aliased is container._lock  # noqa: SLF001
+
+
+def test_resolve_emits_no_deprecation_warning() -> None:
+    class _Dep:
+        pass
+
+    class _Group(Group):
+        dep = providers.Factory(scope=Scope.APP, creator=_Dep, cache=True)
+
+    container = Container(groups=[_Group])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        container.resolve(_Dep)  # touches _lock and _scope_map internally
+        container.build_child_container(scope=Scope.REQUEST)
