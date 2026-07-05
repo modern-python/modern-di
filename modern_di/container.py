@@ -258,7 +258,10 @@ class Container:
         Emits :class:`~modern_di.exceptions.ContainerClosedWarning` and reopens
         (so pre-2.16 "close then resolve" code keeps working); modern-di 3.0
         will raise :class:`~modern_di.exceptions.ContainerClosedError` here
-        instead. One warning per close→reuse transition, since it self-reopens.
+        instead. The warning fires once per container transitioning from closed
+        to reopened — a single resolve that crosses several distinct closed
+        containers (e.g. a closed ancestor scope) emits one warning per closed
+        container it reopens; an already-open container emits none.
         """
         if not self.closed:
             return

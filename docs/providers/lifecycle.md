@@ -135,6 +135,9 @@ How a cached instance survives this cycle depends on its `CacheSettings`:
   again — the *same object* (its finalizer runs once, at the first close, and is not
   re-run on later closes). Use this for a shared resource whose identity must stay stable
   across restarts.
+- Overrides are not part of this survival — closing a root container resets its
+  overrides registry, and self-reopen does not restore overrides set beforehand; only
+  cached instances (with `clear_cache=False`) survive close→reopen.
 
 !!! caution "The context manager is not reference-counted"
     Nesting `with container:` on the **same** object closes it on the inner `with` exit,
