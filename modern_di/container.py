@@ -28,15 +28,15 @@ class Container:
     """
 
     __slots__ = (
+        "_lock",
+        "_scope_map",
         "cache_registry",
         "closed",
         "context_registry",
-        "lock",
         "overrides_registry",
         "parent_container",
         "providers_registry",
         "scope",
-        "scope_map",
     )
 
     def __init__(  # noqa: PLR0913
@@ -64,12 +64,12 @@ class Container:
                 child_scope=scope,
                 allowed_scopes=[x.name for x in type(parent_container.scope) if x > parent_container.scope],
             )
-        self.lock = threading.RLock() if use_lock else None
+        self._lock = threading.RLock() if use_lock else None
         self.closed = False
         self.scope = scope
         self.parent_container = parent_container
-        self.scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
-            {**parent_container.scope_map, scope: self} if parent_container else {scope: self}
+        self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
+            {**parent_container._scope_map, scope: self} if parent_container else {scope: self}  # noqa: SLF001
         )
         self.cache_registry = CacheRegistry()
         self.context_registry = ContextRegistry(context=context or {})
@@ -113,14 +113,32 @@ class Container:
                 raise exceptions.MaxScopeReachedError(parent_scope=self.scope)
             scope = min(deeper_scopes)
 
-        return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self.lock is not None)
+        return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self._lock is not None)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
-        if scope not in self.scope_map:
+        if scope not in self._scope_map:
             if scope > self.scope:
                 raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)
             raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope)
-        return self.scope_map[scope]
+        return self._scope_map[scope]
+
+    @property
+    def scope_map(self) -> "dict[enum.IntEnum, typing_extensions.Self]":
+        warnings.warn(
+            "`Container.scope_map` is private; it will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._scope_map
+
+    @property
+    def lock(self) -> "threading.RLock | None":
+        warnings.warn(
+            "`Container.lock` is private; it will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._lock
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
         """Resolve a dependency by its type."""

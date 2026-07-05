@@ -44,7 +44,7 @@ Rules:
   `ContainerClosedWarning` and self-reopens the container instead of raising `ContainerClosedError`
   (see [Lifecycle: close and reopen](#lifecycle-close-and-reopen) below).
 
-The child gets its own, independent `scope_map` dict that includes all ancestors plus itself,
+The child gets its own, independent `_scope_map` dict that includes all ancestors plus itself,
 enabling `find_container(scope)` to walk up to any ancestor scope in O(1).
 
 ## Registry sharing

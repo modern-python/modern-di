@@ -1,0 +1,166 @@
+---
+summary: Privatize Container.scope_map and Container.lock to _scope_map/_lock behind deprecated property aliases; promote find_container to a documented extension point.
+---
+
+# Design: Privatize `Container.scope_map` and `Container.lock`
+
+**Date:** 2026-07-05
+**Goal:** Shrink the `Container` public surface by making its two genuinely-internal
+attributes private, without breaking anyone — using the project's established
+deprecation-shim pattern. Reclassify `find_container` as a supported extension
+point in the same pass.
+
+## Summary
+
+`Container` exposes four low-level members that the docs currently label
+"internal, no stability guarantee": `find_container`, `parent_container`,
+`scope_map`, `lock`. Two of them (`scope_map`, `lock`) are pure machinery with
+no legitimate external use. This change renames those two to `_scope_map` and
+`_lock`, keeps the old names working as `@property` aliases that emit
+`DeprecationWarning`, and switches internal callers to the private names. The
+other two are deliberately left public: `find_container` is the resolution
+primitive custom providers call (promoted to a documented extension point), and
+`parent_container` remains a public low-level construction/navigation API.
+
+## Motivation
+
+The docs-accuracy PR (`2026-07-04.02-docs-accuracy-parity`) split
+`advanced-api.md` into "supported extension points" vs. "Container internals —
+no stability guarantee" and flagged the underscore-rename as a follow-up
+decision. Research during that work established:
+
+- `scope_map` is referenced only inside `container.py`. `lock` only inside
+  `container.py` and `factory.py`. Neither appears in any of the six official
+  integration packages (the `.lock` hits there are all `uv.lock`).
+- `find_container` is called by `Factory.resolve` and `ContextProvider.resolve`
+  to locate the container at a provider's scope; the documented "subclass
+  `AbstractProvider`" extension point implies custom providers need it too. It
+  is an extension point, not an internal — so it stays public.
+- `parent_container` is both a stored attribute and the constructor kwarg
+  `build_child_container` passes; it is a legitimate low-level API and stays
+  public.
+
+The project reserves major versions for large rewrites (the 1.x→2.x break) and
+handles smaller public-API changes within 2.x with deprecation warnings — the
+`cache_settings=` → `cache=` change (commit 4d5fdf5) is the direct precedent
+this change mirrors.
+
+## Non-goals
+
+- Touching `find_container` or `parent_container` (kwarg or attribute) — both
+  stay public.
+- Renaming or deprecating the `use_lock=` constructor parameter or the
+  `Container(...)` constructor — the public thread-safety knob is unchanged.
+- Adding any new public helper (e.g. a `resolve_at_scope` wrapper) —
+  `find_container` already fills that role. YAGNI.
+- A hard/breaking rename. The old names keep working until a future major.
+
+## Design
+
+### 1. Rename the two slots
+
+In `modern_di/container.py`, change `__slots__` entries `"lock"` → `"_lock"`
+and `"scope_map"` → `"_scope_map"`, and set them under the new names in
+`__init__`:
+
+- `self._lock = threading.RLock() if use_lock else None`
+- `self._scope_map = {**parent_container._scope_map, scope: self} if parent_container else {scope: self}`
+
+### 2. Switch internal callers to the private names
+
+All internal reads/writes move to `_scope_map` / `_lock`. Verified call sites
+(the plan must re-grep to confirm none were missed):
+
+- `container.py`:
+  - `__init__` — sets `self._lock`, `self._scope_map`; child inherits
+    `parent_container._scope_map`.
+  - `build_child_container` — `use_lock=self._lock is not None`.
+  - `find_container` — `if scope not in self._scope_map` / `return self._scope_map[scope]`.
+- `factory.py` — `Factory.resolve` lock gate:
+  `if container._lock: container._lock.acquire()` / `container._lock.release()`.
+
+Because internal code uses the underscore names, the deprecated property
+(step 3) is never triggered on the resolve hot path.
+
+### 3. Add deprecated property aliases
+
+Add two class-level properties on `Container`, keeping the old names readable:
+
+```python
+@property
+def scope_map(self) -> "dict[enum.IntEnum, typing_extensions.Self]":
+    warnings.warn(
+        "`Container.scope_map` is private; it will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return self._scope_map
+
+@property
+def lock(self) -> "threading.RLock | None":
+    warnings.warn(
+        "`Container.lock` is private; it will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return self._lock
+```
+
+`stacklevel=2` and the "will be removed in a future release" phrasing match the
+existing `cache_settings=` deprecation. Properties are class descriptors and
+coexist with `__slots__` because the slot names (`_lock`, `_scope_map`) now
+differ from the property names. `warnings` is already imported in `container.py`
+(verified). No setters — these were never meant to be assigned externally.
+
+### 4. Docs
+
+- `docs/providers/advanced-api.md`:
+  - Move `find_container(scope)` out of "Container internals — no stability
+    guarantee" and into "Supported extension points" (it is the primitive a
+    custom `AbstractProvider.resolve` calls to find its scope's container).
+  - In the internals section, rename the `scope_map` and `lock` bullets to
+    `_scope_map` / `_lock`, and note that the old names remain as
+    deprecated read-only properties that emit `DeprecationWarning`.
+  - Leave the `parent_container` bullet as-is (public).
+- `architecture/containers.md`: update any mention of `scope_map` / `lock`
+  to the private names (the repo's promotion rule — same PR).
+
+### 5. Release notes
+
+Add a deprecation entry to the next `planning/releases/<version>.md` (a bare
+semver tag off green `main` drives the release): note that `Container.scope_map`
+and `Container.lock` are now private (`_scope_map` / `_lock`) with deprecated
+aliases, and that `find_container` is confirmed a supported extension point.
+
+## Testing
+
+TDD; the 100%-line-coverage gate (`just test-ci`) applies, so the property
+getters and their warning branches must be exercised.
+
+- **Internal rename is transparent:** existing scope-resolution and
+  `use_lock`/threading tests still pass (resolution walks `_scope_map`;
+  cached-singleton creation still locks via `_lock`).
+- **Private attributes exist and back the machinery:** a child container's
+  `_scope_map` contains every ancestor scope; `use_lock=False` ⇒ `_lock is None`;
+  `use_lock=True` ⇒ `_lock` is an `RLock`.
+- **Deprecated aliases warn and forward:** `pytest.warns(DeprecationWarning,
+  match="scope_map")` around a `.scope_map` read returns the same object as
+  `._scope_map`; same for `.lock` vs `._lock`.
+- **No warning on the happy path:** resolving providers (which touches `_lock`
+  and `_scope_map` internally) emits no `DeprecationWarning`
+  (`warnings.catch_warnings` / `pytest.warns(None)`-style assertion).
+
+## Risk
+
+- **Low.** The rename is mechanical and contained to two files' internals; the
+  aliases preserve backward compatibility, and both attributes were already
+  documented "no stability guarantee."
+- **`__slots__`/property collision** if a slot and property share a name:
+  avoided by renaming the slots to `_lock`/`_scope_map` first. A class-creation
+  `ValueError` would surface immediately in any test run if botched.
+- **Missed internal caller** still compiles but would hit the deprecated
+  property and warn (or, if it assigned the attribute, fail — there are no
+  external assigners). Mitigation: the plan greps the whole `modern_di/` tree
+  for `.lock`/`.scope_map` before finishing and asserts no `DeprecationWarning`
+  on the resolve happy path.
+- **Coverage gate** on the two warning branches: covered by the alias tests.
