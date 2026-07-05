@@ -106,7 +106,11 @@ class InvalidScopeTypeError(ContainerError):
 
 
 class ContainerClosedError(ContainerError):
-    """Operation attempted on a closed container. Attr: ``container_scope``; re-enter the ``with`` block to reopen."""
+    """Operation attempted on a closed container. Attr: ``container_scope``.
+
+    Raised in modern-di 3.0; until then reuse emits :class:`ContainerClosedWarning`
+    and self-reopens.
+    """
 
     __slots__ = ("container_scope",)
 
@@ -116,6 +120,17 @@ class ContainerClosedError(ContainerError):
             f"Container (scope {container_scope.name}) is closed and can no longer resolve dependencies "
             "or build child containers. Create a new container."
         )
+
+
+class ContainerClosedWarning(DeprecationWarning):
+    """Reuse of a closed container (resolve / build a child) — transitional.
+
+    The reuse works today because the container self-reopens, but it will raise
+    :class:`ContainerClosedError` in modern-di 3.0. Opt into strict behavior now
+    by escalating this warning::
+
+        warnings.filterwarnings("error", category=exceptions.ContainerClosedWarning)
+    """
 
 
 class ResolutionError(ModernDIError):

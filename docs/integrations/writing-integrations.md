@@ -152,8 +152,10 @@ a type at call sites.
 ## Lifecycle rules
 
 - **Reopen the root container on startup.** A container that was closed on
-  shutdown raises `ContainerClosedError` if reused. Reopening on each startup
-  lets a second lifespan cycle (test client re-entry, broker restart) work.
+  shutdown emits a `ContainerClosedWarning` (and, in 3.0, raises
+  `ContainerClosedError`) if reused without reopening. Reopening on each
+  startup lets a second lifespan cycle (test client re-entry, broker restart)
+  work.
     - With a context-manager lifespan: `async with fetch_di_container(app): yield`
       — `__aenter__` reopens, `__aexit__` closes. Compose *around* any existing
       lifespan rather than replacing it.
@@ -345,8 +347,8 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `fetch_di_container` reads the root container back out of framework state.
 - [ ] A per-unit-of-work builder opens a child container at the right scope,
       injects the connection as context, and closes it in `finally`.
-- [ ] Root container **reopens on startup** so restarts don't raise
-      `ContainerClosedError`.
+- [ ] Root container **reopens on startup** so restarts don't emit a
+      `ContainerClosedWarning` (or, in 3.0, raise `ContainerClosedError`).
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and dispatches
       `resolve_provider` vs `resolve`.
