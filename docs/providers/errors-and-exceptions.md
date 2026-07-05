@@ -26,7 +26,8 @@ ModernDIError (RuntimeError)
 │   ├── AliasSourceNotRegisteredError
 │   ├── ArgumentResolutionError
 │   ├── CircularDependencyError
-│   └── CreatorCallError
+│   ├── CreatorCallError
+│   └── ContextValueNotSetError
 ├── RegistrationError
 │   ├── DuplicateProviderTypeError
 │   ├── UnknownFactoryKwargError
@@ -65,10 +66,15 @@ Catch `ContainerError` for any container/scope failure.
   `DeprecationWarning`) and the container self-reopens. Re-enter the `with` block or call `open()`
   to reuse it cleanly; escalate the warning with
   `warnings.filterwarnings("error", category=exceptions.ContainerClosedWarning)` to fail fast today.
+  See [Migration: To 3.x](../migration/to-3.x.md).
 - **`ValidationFailedError`** — raised by `Container.validate()` (and `Container(..., validate=True)`)
   when the graph has problems. Catch this for validation results; its `.errors` attribute holds the
   list of individual issues (each itself a `ResolutionError` or `RegistrationError`), and `str()`
-  renders them all.
+  renders them all, grouped by error kind. Leaving `validate` unset on a root container skips the
+  check (as before) but emits **`UnvalidatedContainerWarning`** (a `FutureWarning`) — modern-di
+  **3.0** runs `validate()` at root construction by default; pass `validate=True` to adopt that now
+  or `validate=False` to keep validation off permanently. See
+  [Migration: To 3.x](../migration/to-3.x.md).
 
 ## `ResolutionError` — failures while resolving a type
 
@@ -92,6 +98,13 @@ to render the chain programmatically.
 - **`CreatorCallError`** — raised when a creator's dependencies all resolved but the creator itself
   raised while being called. The original exception is preserved on `.original_error` (and as the
   `__cause__`).
+- **`ContextValueNotSetError`** — raised in modern-di **3.0** when an unset `ContextProvider` is
+  resolved *directly* (`container.resolve(SomeContextType)` with no value set). Until then that
+  resolve emits **`ContextValueNoneWarning`** (a `DeprecationWarning`) and returns `None`; escalate
+  it with `warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)` to fail
+  fast today. Only the direct-resolve path is affected — a `Factory` parameter backed by the same
+  `ContextProvider` keeps following its own default/nullable/required disposition. Inspect
+  `.context_type`. See [Migration: To 3.x](../migration/to-3.x.md).
 
 ## `RegistrationError` — declaration / registration problems
 
