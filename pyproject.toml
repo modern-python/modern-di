@@ -75,6 +75,9 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 addopts = ""
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# message-filter form on purpose: ignore::modern_di.exceptions.UnvalidatedContainerWarning
+# would import modern_di at pytest config time, before pytest-cov starts tracing, collapsing
+# coverage. Kept in sync by tests/test_container.py::test_unvalidated_warning_pyproject_filter_matches_live_message.
 filterwarnings = [
     "ignore:This root container was created without an explicit `validate` argument:FutureWarning",
 ]

@@ -1,7 +1,16 @@
 import copy
 import dataclasses
+import pathlib
+import re
+import sys
 import typing
 import warnings
+
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib  # ty: ignore[unresolved-import]
 
 import pytest
 
@@ -552,3 +561,29 @@ def test_unvalidated_container_warning_is_escalatable() -> None:
         warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
         with pytest.raises(exceptions.UnvalidatedContainerWarning):
             Container(scope=Scope.APP)
+
+
+def test_unvalidated_warning_pyproject_filter_matches_live_message() -> None:
+    """The pyproject.toml filterwarnings message must keep matching the live warning text.
+
+    The filter is message-based on purpose (see the comment in pyproject.toml), so nothing
+    else ties it to the warning it silences. If the wording in container.py drifts, this test
+    catches it instead of the suite silently filling with warning noise.
+    """
+    with pytest.warns(exceptions.UnvalidatedContainerWarning) as record:
+        Container(scope=Scope.APP)
+
+    pyproject_path = pathlib.Path(__file__).resolve().parent.parent / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text())
+    filters = pyproject["tool"]["pytest"]["ini_options"]["filterwarnings"]
+
+    message_pattern = None
+    for filter_str in filters:
+        action, message, rest = ([*filter_str.split(":", 2), "", ""])[:3]
+        category = rest.split(":", 1)[0]
+        if action == "ignore" and category == "FutureWarning":
+            message_pattern = message
+            break
+    assert message_pattern is not None, "no ignore:...:FutureWarning filter found in pyproject.toml filterwarnings"
+
+    assert re.compile(message_pattern).match(str(record[0].message)) is not None
