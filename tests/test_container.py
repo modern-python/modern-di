@@ -5,7 +5,7 @@ import warnings
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
     CircularDependencyError,
@@ -521,3 +521,34 @@ def test_resolve_emits_no_deprecation_warning() -> None:
         warnings.simplefilter("error", DeprecationWarning)
         container.resolve(_Dep)  # touches _lock and _scope_map internally
         container.build_child_container(scope=Scope.REQUEST)
+
+
+def test_root_container_without_validate_arg_warns_about_3_0_default() -> None:
+    with pytest.warns(exceptions.UnvalidatedContainerWarning, match="modern-di 3.0 runs validate"):
+        Container(scope=Scope.APP)
+
+
+def test_explicit_validate_false_never_warns() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        Container(scope=Scope.APP, validate=False)
+
+
+def test_explicit_validate_true_validates_and_never_warns() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        Container(scope=Scope.APP, validate=True)
+
+
+def test_child_container_does_not_warn_about_validate() -> None:
+    root = Container(scope=Scope.APP, validate=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        root.build_child_container(scope=Scope.REQUEST)
+
+
+def test_unvalidated_container_warning_is_escalatable() -> None:
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
+        with pytest.raises(exceptions.UnvalidatedContainerWarning):
+            Container(scope=Scope.APP)

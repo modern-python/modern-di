@@ -75,6 +75,9 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 addopts = ""
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:This root container was created without an explicit `validate` argument:FutureWarning",
+]
 pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"
 

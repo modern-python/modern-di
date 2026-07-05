@@ -133,6 +133,18 @@ class ContainerClosedWarning(DeprecationWarning):
     """
 
 
+class UnvalidatedContainerWarning(FutureWarning):
+    """A root container was built without an explicit ``validate`` argument — transitional.
+
+    modern-di 3.0 runs :meth:`Container.validate` at root construction by
+    default. Pass ``validate=True`` to adopt the 3.0 behavior now, or
+    ``validate=False`` to keep validation off (also after 3.0). Opt into strict
+    behavior early by escalating this warning::
+
+        warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
+    """
+
+
 class ResolutionError(ModernDIError):
     """Base class for errors raised while resolving a provider.
 
