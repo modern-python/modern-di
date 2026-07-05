@@ -61,8 +61,8 @@ Dedupe and rank; write
 
 ## Phase 6 — Ship
 
-- [ ] `just check-planning` and `just lint-ci` pass.
-- [ ] Finalize this bundle's `summary:` to the realized result.
-- [ ] Commit report + bundle, push, open PR, watch CI.
+- [x] `just check-planning` and `just lint-ci` pass.
+- [x] Finalize this bundle's `summary:` to the realized result.
+- [x] Commit report + bundle, push, open PR, watch CI.
 - [ ] Maintainer rules on the shortlist (in PR review or a follow-up session);
       accepted items spawn their own planning bundles.

@@ -1,5 +1,5 @@
 ---
-summary: Comparative UX research across 13 DI frameworks producing a ruled shortlist of candidate 3.0 improvements.
+summary: Comparative UX research across 13 DI frameworks; cited report with a 30-candidate verified shortlist (26 distinct decisions, 3 breaking) awaiting maintainer rulings.
 ---
 
 # Design: 3.0 UX & Interface Research
