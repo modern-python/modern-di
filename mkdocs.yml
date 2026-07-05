@@ -87,6 +87,12 @@ theme:
         icon: material/brightness-4
         name: Switch to system preference
 
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
 markdown_extensions:
   - toc:
       permalink: true
