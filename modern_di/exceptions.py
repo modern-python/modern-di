@@ -363,9 +363,18 @@ class ValidationFailedError(ContainerError):
         super().__init__(f"Container.validate() found {len(errors)} issue(s): {kinds}")
 
     def __str__(self) -> str:
-        header = super().__str__()
-        rendered = "\n".join(f"  - {e}" for e in self.errors)
-        return f"{header}\n{rendered}"
+        lines = [super().__str__()]
+        by_kind: dict[str, list[Exception]] = {}
+        for error in self.errors:
+            by_kind.setdefault(type(error).__name__, []).append(error)
+        for kind in sorted(by_kind):
+            errors = by_kind[kind]
+            lines.append(f"\n{kind} ({len(errors)}):")
+            for error in errors:
+                first, *rest = str(error).splitlines()
+                lines.append(f"  - {first}")
+                lines.extend(f"    {line}" for line in rest)
+        return "\n".join(lines)
 
 
 class FinalizerError(ModernDIError):
