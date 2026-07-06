@@ -106,6 +106,7 @@ lifetime dialect, so here is how the same six concepts translate:
 ## See also
 
 - [Design decisions](design-decisions.md) — the reasoning behind sync-only
-  resolution, no global state, and a conservative core.
+  resolution, no global state, a conservative core, and the deliberate
+  [non-goals](design-decisions.md#non-goals) that keep it that way.
 - [that-depends or modern-di?](that-depends-or-modern-di.md) — choosing within
   the modern-python family.
