@@ -291,7 +291,11 @@ class CreatorCallError(ResolutionError):
 
 
 class CircularDependencyError(ResolutionError):
-    """A dependency cycle was detected by ``validate()``. Inspect ``.cycle_path`` (the loop as type names)."""
+    """A dependency cycle was detected by ``validate()`` or the runtime resolve guard.
+
+    Inspect ``.cycle_path`` (the loop as type names). When raised at resolve time,
+    ``__cause__`` carries the original ``RecursionError``.
+    """
 
     __slots__ = ("cycle_path",)
 
