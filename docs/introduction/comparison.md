@@ -70,7 +70,9 @@ Cython-accelerated core and a declarative style using `Provide[...]` markers and
 differs in style — **type-based autowiring instead of explicit markers** — and
 adds **nested request scopes** and a **first-party pytest plugin**. If you prefer
 explicit declarative wiring and the largest ecosystem, dependency-injector is a
-solid, proven choice.
+solid, proven choice. Migrating an existing codebase? See the
+[migration guide](../migration/from-dependency-injector.md) for the full
+provider-by-provider mapping.
 
 ### vs injector
 
