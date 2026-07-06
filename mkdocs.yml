@@ -121,6 +121,62 @@ extra_css:
   - css/code.css
   - css/brand.css
 
+plugins:
+  - llmstxt:
+      full_output: llms-full.txt
+      markdown_description: "Powerful dependency-injection framework with IoC container and scopes."
+      sections:
+        Quickstart:
+          - index.md: How to install and a minimal container example
+        Introduction:
+          - introduction/about-di.md: What dependency injection is and the problem it solves
+          - introduction/resolving.md: Resolving dependencies by type or by provider reference
+          - introduction/design-decisions.md: The deliberate API choices behind modern-di
+          - introduction/comparison.md: How modern-di compares to other DI approaches
+          - introduction/for-fastapi-users.md: Translating FastAPI's Depends idioms to modern-di
+          - introduction/that-depends-or-modern-di.md: Choosing between that-depends and modern-di
+        Providers:
+          - providers/scopes.md: The five built-in scopes and the resolution rule
+          - providers/lifecycle.md: How instances are created, cached, and cleaned up
+          - providers/factories.md: Regular vs cached Factory providers
+          - providers/context.md: Injecting runtime context values with ContextProvider
+          - providers/container.md: The auto-registered provider that resolves to the Container itself
+          - providers/alias.md: Binding one type to an already-registered provider
+          - providers/errors-and-exceptions.md: The ModernDIError exception hierarchy
+          - providers/advanced-api.md: Low-level extension points for library authors
+        Integrations:
+          - integrations/aiohttp.md: Usage with aiohttp
+          - integrations/fastapi.md: Usage with FastAPI
+          - integrations/faststream.md: Usage with FastStream
+          - integrations/litestar.md: Usage with Litestar
+          - integrations/starlette.md: Usage with Starlette
+          - integrations/typer.md: Usage with Typer
+          - integrations/pytest.md: Usage with pytest via modern-di-pytest
+          - integrations/writing-integrations.md: Specification for building a new framework integration
+        Recipes:
+          - recipes/sqlalchemy.md: Wiring an async SQLAlchemy engine, session, and repositories
+          - recipes/async-lifespan.md: Constructing async resources via the framework lifespan
+          - recipes/multi-group.md: Organizing a large container with multiple Groups
+          - recipes/testing-overrides.md: Swapping dependencies in tests with overrides
+          - recipes/request-scoped-engine.md: Routing requests to different engines by scope
+          - recipes/good-and-bad-practices.md: Common DI footguns and how modern-di catches them
+        Testing:
+          - testing/fixtures.md: Wiring modern-di into pytest, with and without modern-di-pytest
+        Troubleshooting:
+          - troubleshooting/circular-dependency.md: Diagnosing circular dependency errors
+          - troubleshooting/duplicate-type-error.md: Diagnosing duplicate bound_type registration errors
+          - troubleshooting/scope-chain.md: Diagnosing scope chain violation errors
+          - troubleshooting/missing-provider.md: Diagnosing missing provider registration errors
+          - troubleshooting/context-not-set.md: Diagnosing ContextProvider-has-no-value errors
+        Migration:
+          - migration/to-1.x.md: Migrating from modern-di 0.x to 1.x
+          - migration/to-2.x.md: Migrating from modern-di 1.x to 2.x
+          - migration/to-3.x.md: Migrating from modern-di 2.x to 3.x
+          - migration/from-that-depends.md: Migrating an existing that-depends codebase to modern-di
+          - migration/from-dependency-injector.md: Migrating an existing dependency-injector codebase to modern-di
+        Development:
+          - dev/contributing.md: Contributing guide for local setup and workflow
+
 extra:
   social:
     - icon: fontawesome/brands/github

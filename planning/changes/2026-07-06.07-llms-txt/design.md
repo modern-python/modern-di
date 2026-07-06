@@ -1,5 +1,5 @@
 ---
-summary: Publish llms.txt (and per-page markdown endpoints) for the docs site (DOC-8), mirroring the that-depends setup.
+summary: Published llms.txt + per-page markdown endpoints via mkdocs-llmstxt (DOC-8), mirroring that-depends' plugin/config with sections adapted to this repo's nav.
 ---
 
 # Design: llms.txt for the docs site
