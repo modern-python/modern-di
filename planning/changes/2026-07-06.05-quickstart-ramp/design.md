@@ -1,5 +1,5 @@
 ---
-summary: Progressive-disclosure quickstart (DOC-2) — first success with Group + Factory + resolve, cache/finalizer as lesson two, scopes as lesson three.
+summary: Shipped DOC-2 — quickstart teaches Group + Factory + resolve first (2 concepts, was ~5), caching then scopes as lessons two and three.
 ---
 
 # Design: Progressive-disclosure quickstart
