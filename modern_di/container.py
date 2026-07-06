@@ -18,6 +18,61 @@ if typing.TYPE_CHECKING:
     import typing_extensions
 
 
+def _find_reachable_cycle(start: AbstractProvider[typing.Any], container: "Container") -> list[str] | None:
+    """Re-walk the static graph from `start`, looking for a cycle reachable from it.
+
+    Explicit-stack DFS — no recursion, since this runs inside a ``RecursionError`` handler
+    near CPython's stack limit (headroom for a recursive walk is not guaranteed there).
+    Mirrors ``Container.validate()``'s own cycle detection (`visiting`/`visited`/`path`, see
+    `validate` below): on a back-edge, renders the cycle as `display_name`s with the first
+    name repeated at the end. Returns `None` if no static cycle is reachable from `start`.
+    """
+    visiting: set[int] = {start.provider_id}
+    visited: set[int] = set()
+    path: list[AbstractProvider[typing.Any]] = [start]
+    stack: list[typing.Iterator[AbstractProvider[typing.Any]]] = [iter(start.get_dependencies(container).values())]
+
+    while stack:
+        try:
+            dep = next(stack[-1])
+        except StopIteration:
+            finished = path.pop()
+            stack.pop()
+            visiting.discard(finished.provider_id)
+            visited.add(finished.provider_id)
+            continue
+
+        if dep.provider_id in visiting:
+            cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep.provider_id)
+            cycle_names = [p.display_name for p in path[cycle_start:]]
+            cycle_names.append(cycle_names[0])
+            return cycle_names
+        if dep.provider_id in visited:
+            continue
+
+        visiting.add(dep.provider_id)
+        path.append(dep)
+        stack.append(iter(dep.get_dependencies(container).values()))
+
+    return None
+
+
+def _convert_recursion_error(
+    provider: AbstractProvider[typing.Any], container: "Container", exc: RecursionError
+) -> typing.NoReturn:
+    """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
+
+    Split out of `resolve_provider` into its own call: CPython suspends trace-function calls for
+    a few frames while unwinding a `RecursionError`, which (under coverage.py) can under-report
+    lines executed directly inside the `except` block; giving the tracer a fresh call boundary
+    to re-arm on before raising avoids that — a coverage-measurement concern, not a behavior one.
+    """
+    cycle = _find_reachable_cycle(provider, container)
+    if cycle is None:
+        raise exc
+    raise exceptions.CircularDependencyError(cycle_path=cycle) from exc
+
+
 class Container:
     """DI container — the central object that resolves providers within a scope.
 
@@ -166,7 +221,17 @@ class Container:
         return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
+        """Resolve a specific provider by reference (enforces closed-state and applies overrides).
+
+        An unvalidated circular graph would otherwise die with a raw ``RecursionError`` on first
+        resolve; when one escapes ``provider.resolve``, this re-walks the static graph from
+        `provider` (iteratively — see `_find_reachable_cycle`) and, if a cycle is reachable,
+        raises `exceptions.CircularDependencyError` from it instead. A `RecursionError` from a
+        creator recursing on its own (no static cycle) is re-raised untouched. `resolve_provider`
+        is re-entrant (`Factory`/`Alias` call it per dependency edge), so it is the innermost frame
+        that converts; outer frames see a `ResolutionError` and the existing breadcrumb machinery
+        prepends steps as it propagates back up.
+        """
         self._warn_and_reopen_if_closed()
 
         if (
@@ -175,7 +240,10 @@ class Container:
         ):
             return override  # ty: ignore[invalid-return-type]
 
-        return provider.resolve(self)
+        try:
+            return provider.resolve(self)
+        except RecursionError as exc:
+            _convert_recursion_error(provider, self, exc)
 
     def validate(self) -> None:
         validation_errors: list[Exception] = []

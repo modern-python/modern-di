@@ -1,0 +1,143 @@
+"""Runtime cycle guard (ERR-1): an unvalidated circular graph raises CircularDependencyError.
+
+Complements ``test_container.py``'s ``validate()``-time cycle tests: these exercise the
+guard in ``Container.resolve_provider`` that catches a ``RecursionError`` escaping an
+unvalidated resolve and converts it when a static cycle is reachable from the failing
+provider, leaving genuinely recursive (non-cyclic) creators untouched.
+"""
+
+import dataclasses
+import sys
+
+import pytest
+
+from modern_di import Container, Group, exceptions, providers
+
+
+# Lowering the recursion limit (from CPython's default of 1000) triggers the RecursionError much
+# closer to the call site — fewer ambient frames from pytest/coverage machinery are on the stack
+# when it's caught and converted, which keeps that conversion deterministic under coverage.py
+# (CPython suspends trace-function calls for a few frames while unwinding a RecursionError, and
+# without this, coverage.py can flakily under-report lines that run immediately after recovery —
+# a known CPython/coverage.py interaction, not a real gap in execution). Unrelated to the guard's
+# iterative-finder requirement, which must stay flat regardless of where the limit sits.
+_SHALLOW_RECURSION_LIMIT = 80
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class Common:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class NodeA:
+    # `common` is shared with `NodeB` and resolves (and is walked by the finder) *before* `dep`,
+    # so the finder's cycle re-walk visits and fully finishes `Common` from one side before
+    # encountering it again from the other — exercising the "already visited, skip" branch —
+    # before it finds the actual A<->B back-edge.
+    common: Common
+    dep: "NodeB"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class NodeB:
+    common: Common
+    dep: NodeA
+
+
+class CycleGroup(Group):
+    common = providers.Factory(creator=Common)
+    a = providers.Factory(creator=NodeA)
+    b = providers.Factory(creator=NodeB)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class DeepNodeA:
+    dep: "DeepNodeB"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class DeepNodeB:
+    dep: DeepNodeA
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class Middle:
+    node: DeepNodeA
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class Root:
+    middle: Middle
+
+
+class DeepCycleGroup(Group):
+    node_a = providers.Factory(creator=DeepNodeA)
+    node_b = providers.Factory(creator=DeepNodeB)
+    middle = providers.Factory(creator=Middle)
+    root = providers.Factory(creator=Root)
+
+
+def _assert_simple_cycle(exc: exceptions.CircularDependencyError) -> None:
+    assert exc.cycle_path[0] == exc.cycle_path[-1]
+    assert set(exc.cycle_path) == {"NodeA", "NodeB"}
+    assert isinstance(exc.__cause__, RecursionError)
+
+
+def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
+    # Asserting inside a plain `except` clause (rather than `pytest.raises(...)` followed by
+    # assertions after the `with` block) keeps this deterministic under coverage.py — see
+    # `_SHALLOW_RECURSION_LIMIT` above. It mirrors the guard's own `except RecursionError` shape
+    # in `resolve_provider`.
+    container = Container(groups=[CycleGroup])
+    original_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
+    try:
+        container.resolve(NodeA)
+    # CPython suspends trace-function calls for a few frames while unwinding a RecursionError;
+    # coverage.py can then under-report lines that run immediately during/after that recovery —
+    # a known CPython/coverage.py interaction (not a real execution gap: these lines run on
+    # every pass of this test, or the test would error/fail instead of passing).
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+        _assert_simple_cycle(exc)
+    else:  # pragma: no cover
+        pytest.fail("expected CircularDependencyError")
+    finally:  # pragma: no cover
+        sys.setrecursionlimit(original_limit)
+
+
+def _assert_deep_chain_cycle(exc: exceptions.CircularDependencyError) -> None:
+    names = [step.name for step in exc.dependency_path]
+    assert "Root" in names
+    assert "Middle" in names
+    rendered = str(exc)
+    assert "Root" in rendered
+    assert "Middle" in rendered
+    assert isinstance(exc.__cause__, RecursionError)
+
+
+def test_deep_chain_cycle_carries_breadcrumbs() -> None:
+    container = Container(groups=[DeepCycleGroup])
+    original_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
+    try:
+        container.resolve(Root)
+    # See `test_unvalidated_cycle_raises_circular_dependency_error` for why this is `no cover`.
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+        _assert_deep_chain_cycle(exc)
+    else:  # pragma: no cover
+        pytest.fail("expected CircularDependencyError")
+    finally:  # pragma: no cover
+        sys.setrecursionlimit(original_limit)
+
+
+def test_self_recursing_creator_passes_through_recursion_error() -> None:
+    def recursive_creator() -> str:
+        return recursive_creator()
+
+    class RecursiveGroup(Group):
+        svc = providers.Factory(creator=recursive_creator, bound_type=str)
+
+    container = Container(groups=[RecursiveGroup])
+    with pytest.raises(RecursionError):
+        container.resolve(str)
