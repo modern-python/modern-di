@@ -30,29 +30,30 @@ class ModernDIError(RuntimeError):
     __slots__ = ()
 
 
-class DependencyPathMixin(ModernDIError):  # noqa: N818 -- mixin, not a raisable error in its own right
+class DependencyPathMixin:
     """Breadcrumb machinery shared by :class:`ResolutionError` and the runtime scope errors.
 
-    Owns the two extra slots (`_base_message`, `dependency_path`) plus `prepend_step` and the
-    chain-rendering `__str__`, so any error raised inside a resolution frame can accumulate the
-    chain of provider names as it propagates back up to the caller. With an empty
-    `dependency_path` (the error never passed through a resolution frame) `__str__` returns the
-    base message unchanged.
+    Owns `prepend_step` and the chain-rendering `__str__`, so any error raised inside a
+    resolution frame can accumulate the chain of provider names as it propagates back up to the
+    caller. With an empty `dependency_path` (the error never passed through a resolution frame)
+    `__str__` returns the base message unchanged.
 
-    Inherits from `ModernDIError` (rather than being a bare mixin) so it shares one instance
-    layout with `ContainerError`'s branch: combining a plain-object mixin's `__slots__` with an
-    `Exception` subclass's C-level layout raises `TypeError: multiple bases have instance
-    lay-out conflict`; sharing the solid base resolves it without changing any public surface
-    (not exported; `ResolutionError`/`ScopeNotInitializedError`/`ScopeSkippedError` keep their
-    documented bases and `isinstance` behavior).
+    Not itself an exception: it is not catchable via `except DependencyPathMixin` and is not
+    exported. Plain-`object` with empty `__slots__` so it never contributes instance layout of
+    its own — each concrete error (`ResolutionError`, `ScopeNotInitializedError`,
+    `ScopeSkippedError`) declares the `_base_message`/`dependency_path` slots itself alongside
+    its own attrs, avoiding the `TypeError: multiple bases have instance lay-out conflict` that
+    combining a slotted mixin with an `Exception` subclass would otherwise raise.
     """
 
-    __slots__ = ("_base_message", "dependency_path")
+    __slots__ = ()
 
     def __init__(self, message: str) -> None:
         self._base_message = message
         self.dependency_path: list[ResolutionStep] = []
-        super().__init__(message)
+        # Mixin's own base is `object`; the real MRO (via ResolutionError/ContainerError ->
+        # ModernDIError -> RuntimeError) accepts the arg at runtime.
+        super().__init__(message)  # ty: ignore[too-many-positional-arguments]
 
     def prepend_step(self, step: ResolutionStep) -> None:
         self.dependency_path.insert(0, step)
@@ -113,7 +114,7 @@ class ScopeNotInitializedError(DependencyPathMixin, ContainerError):
     runtime dependency names both the failing provider and the one that captured it.
     """
 
-    __slots__ = ("container_scope", "provider_scope")
+    __slots__ = ("_base_message", "container_scope", "dependency_path", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
@@ -130,7 +131,7 @@ class ScopeSkippedError(DependencyPathMixin, ContainerError):
     runtime dependency names both the failing provider and the one that captured it.
     """
 
-    __slots__ = ("container_scope", "provider_scope")
+    __slots__ = ("_base_message", "container_scope", "dependency_path", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
@@ -203,7 +204,7 @@ class ResolutionError(DependencyPathMixin, ModernDIError):
     :class:`DependencyPathMixin` for the shared machinery.
     """
 
-    __slots__ = ()
+    __slots__ = ("_base_message", "dependency_path")
 
 
 class ProviderNotRegisteredError(ResolutionError):

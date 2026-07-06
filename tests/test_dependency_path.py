@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
     ContainerError,
@@ -147,3 +147,8 @@ def test_scope_error_still_caught_as_container_error() -> None:
     with pytest.raises(ContainerError) as exc_info:
         container.find_container(Scope.REQUEST)
     assert isinstance(exc_info.value, ScopeNotInitializedError)
+
+
+def test_dependency_path_mixin_is_not_an_exception() -> None:
+    # Guards the ruling: DependencyPathMixin must never become except-catchable on its own.
+    assert not issubclass(exceptions.DependencyPathMixin, BaseException)
