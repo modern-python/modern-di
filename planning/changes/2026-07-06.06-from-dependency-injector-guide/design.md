@@ -1,5 +1,5 @@
 ---
-summary: Migration guide from dependency-injector (DOC-3) — provider taxonomy mapping, wiring replacement, diagnostics comparison, in the from-that-depends template.
+summary: Shipped DOC-3 — from-dependency-injector migration guide: 27-row provider taxonomy (22 mapped, 5 with workarounds), wiring replacement, tabbed integrations, diagnostics comparison.
 ---
 
 # Design: "Migrate from dependency-injector" guide

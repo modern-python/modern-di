@@ -443,7 +443,7 @@ expose(AppGroup)
 | Whole-graph validation | None — errors surface one at a time, on first resolve, wherever the graph happens to break | `Container(..., validate=True)` walks the entire graph and raises one `ValidationFailedError` aggregating *every* wiring bug (cycles, inverted scopes, missing dependencies) at once |
 | Resolve by type | [No type-based resolution API](https://python-dependency-injector.ets-labs.org/wiring.html) — every call site needs an explicit `Provide[Container.x]` marker | `container.resolve(SomeType)` resolves directly from a type annotation; unregistered types get closest-match ("did you mean") suggestions |
 
-Spot-run of the cycle guard, showing both diagnostics paths (script and full output in the report below): `validate()` raises `ValidationFailedError` naming the cycle up front; without `validate()`, the same graph's first resolve raises `CircularDependencyError` (not a bare `RecursionError`), though the un-validated path's breadcrumb trail is considerably noisier since the conversion happens deep inside an already near-exhausted call stack — run with `validate=True` during migration to see the clean report instead.
+Both diagnostics paths in practice: `validate()` raises `ValidationFailedError` naming the cycle up front; without `validate()`, the same graph's first resolve raises `CircularDependencyError` (not a bare `RecursionError`), though the un-validated path's breadcrumb trail is considerably noisier since the conversion happens deep inside an already near-exhausted call stack — run with `validate=True` during migration to see the clean report instead.
 
 ## 12. No direct equivalent
 
