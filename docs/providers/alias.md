@@ -50,7 +50,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 
 concrete = container.resolve(PostgresRepository)
 abstract = container.resolve(Repository)

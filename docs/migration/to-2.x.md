@@ -36,7 +36,7 @@ sync_container.enter()
 from modern_di import Container
 
 # Single container for both sync and async operations
-container = Container(groups=ALL_GROUPS)
+container = Container(groups=ALL_GROUPS, validate=True)
 # No need to explicitly enter the container
 
 # For async cleanup

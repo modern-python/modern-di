@@ -21,7 +21,7 @@ def my_creator(di_container: Container) -> str:
 class Dependencies(Group):
     my_factory = providers.Factory(scope=Scope.APP, creator=my_creator)
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 result = container.resolve(str)
 # result: "Container scope: APP"
 ```
@@ -44,7 +44,7 @@ class Dependencies(Group):
         kwargs={"di_container": providers.container_provider}
     )
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 result = container.resolve(str)
 # result: "resolved from APP scope"
 ```
@@ -56,7 +56,7 @@ the active chain, not the `APP` root. The `container_provider` simply hands back
 ran the resolve, so a `REQUEST` child resolves `Container` to *itself*:
 
 ```python
-app_container = Container(scope=Scope.APP)
+app_container = Container(scope=Scope.APP, validate=True)
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 
 assert app_container.resolve(Container) is app_container

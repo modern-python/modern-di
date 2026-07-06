@@ -56,7 +56,7 @@ async def index(injected: datetime.datetime) -> str:
 
 app = Litestar(
     route_handlers=[index],
-    plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS))],
+    plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS, validate=True))],
 )
 ```
 
@@ -83,7 +83,7 @@ class AppGroup(Group):
 ALL_GROUPS = [AppGroup]
 
 app = litestar.Litestar(
-    plugins=[ModernDIPlugin(Container(groups=ALL_GROUPS), autowired_groups=ALL_GROUPS)],
+    plugins=[ModernDIPlugin(Container(groups=ALL_GROUPS, validate=True), autowired_groups=ALL_GROUPS)],
 )
 
 
@@ -126,7 +126,7 @@ class Dependencies(Group):
 
 ALL_GROUPS = [Dependencies]
 
-app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS))])
+app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS, validate=True))])
 
 
 @litestar.websocket_listener("/ws")

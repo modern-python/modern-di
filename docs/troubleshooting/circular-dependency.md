@@ -29,8 +29,9 @@ from modern_di import Container
 # Option 1: validate at creation
 container = Container(groups=[MyGroup], validate=True)
 
-# Option 2: validate explicitly
-container = Container(groups=[MyGroup])
+# Option 2: validate explicitly (validate=False silences the construction-time
+# UnvalidatedContainerWarning since validate() below runs the same check manually)
+container = Container(groups=[MyGroup], validate=False)
 container.validate()
 ```
 

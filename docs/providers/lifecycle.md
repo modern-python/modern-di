@@ -115,7 +115,7 @@ While a container is closed, resolving a dependency — or building a child cont
 Re-entering `with container:` reopens it cleanly, without a warning, and resolution works again:
 
 ```python
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 
 with container:
     container.resolve(Settings)
