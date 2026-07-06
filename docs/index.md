@@ -49,12 +49,16 @@ For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqla
 
 If you want a framework integration, install the matching adapter — e.g. `modern-di-aiohttp`, `modern-di-fastapi`, `modern-di-litestar`, `modern-di-faststream`, `modern-di-starlette`, `modern-di-typer`. For pytest support, install `modern-di-pytest`.
 
-## 2. Describe your dependencies
+## 2. First success
 
-Two providers, two scopes: a `Settings` shared by the whole process, and a `UserRepository` rebuilt per request.
+One provider, no scopes, no caching — the smallest honest example. A `Group` is a namespace that
+lists your providers; `Factory` defaults to `scope=Scope.APP`; `Container.resolve` looks a value up
+by its type.
 
 ```python
 import dataclasses
+
+from modern_di import Container, Group, providers
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -62,78 +66,119 @@ class Settings:
     database_url: str = "postgresql+asyncpg://localhost/app"
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
-class UserRepository:
-    settings: Settings    # auto-injected by type
+class Dependencies(Group):
+    settings = providers.Factory(creator=Settings)
 
-    def find(self, user_id: int) -> dict[str, int]:
-        return {"id": user_id}
+
+# Pass validate=True to detect cycles and scope-chain errors at startup
+container = Container(groups=[Dependencies], validate=True)
+settings = container.resolve(Settings)
+print(settings.database_url)
 ```
 
-## 3. Declare a Group
+Without `cache=`, `Factory` calls the creator on every resolve — fine for cheap, stateless objects,
+but not what you want for a database engine you only want to build once.
 
-A `Group` is a namespace that lists your providers. You instantiate a `Container` from it; the `Group` itself is schema only.
+## 3. Create once, reuse
+
+Add `cache=True` (via `CacheSettings`, which also lets you attach a finalizer) to turn `settings`
+into a singleton, and switch to the `with` form so the finalizer runs when the container closes.
 
 ```python
-from modern_di import Group, Scope, providers
+import dataclasses
+
+from modern_di import Container, Group, providers
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    database_url: str = "postgresql+asyncpg://localhost/app"
+
+
+def close_settings(settings: Settings) -> None:
+    print(f"closing settings ({id(settings)})")
 
 
 class Dependencies(Group):
     settings = providers.Factory(
-        scope=Scope.APP,                          # APP is the default
         creator=Settings,
-        cache=True,  # cache the singleton for the whole app
+        cache=providers.CacheSettings(finalizer=close_settings),
     )
 
-    user_repository = providers.Factory(
-        scope=Scope.REQUEST,                       # rebuilt for each request
-        creator=UserRepository,
-    )
+
+with Container(groups=[Dependencies], validate=True) as container:
+    first = container.resolve(Settings)
+    second = container.resolve(Settings)
+    assert first is second  # same instance, cached on first resolve
+# `close_settings` ran here, on `with` exit
 ```
 
-## 4. Wire it up
+## 4. Request scope
 
-Pick **one** of the two mutually-exclusive options below.
-
-### Option A — integrate with your framework
-
-Pick the integration you need:
-
-- [aiohttp](integrations/aiohttp.md)
-- [FastAPI](integrations/fastapi.md)
-- [FastStream](integrations/faststream.md)
-- [Litestar](integrations/litestar.md)
-- [Starlette](integrations/starlette.md)
-- [Typer](integrations/typer.md)
-- [Pytest](integrations/pytest.md)
-
-The integration package builds the per-request child container automatically and closes the APP container at shutdown.
-
-### Option B — use modern-di directly
+Real apps also need state that lives for one request: a `UserRepository` rebuilt per request, fed
+by a `RequestId` supplied at request time via `ContextProvider`. Build a `Scope.REQUEST` child
+container with `build_child_container(scope=..., context={...})`; it can still resolve the
+APP-scoped `Settings` through the parent.
 
 ```python
-from modern_di import Container, Scope
+import dataclasses
+
+from modern_di import Container, Group, Scope, providers
 
 
-# Pass validate=True to detect cycles and scope-chain errors at startup
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    database_url: str = "postgresql+asyncpg://localhost/app"
+
+
+def close_settings(settings: Settings) -> None:
+    print(f"closing settings ({id(settings)})")
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class RequestId:
+    value: str
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class UserRepository:
+    settings: Settings       # auto-injected by type, resolved through the request container
+    request_id: RequestId    # supplied via context, one value per request
+
+    def find(self, user_id: int) -> dict[str, object]:
+        return {"id": user_id, "request_id": self.request_id.value}
+
+
+class Dependencies(Group):
+    settings = providers.Factory(
+        creator=Settings,
+        cache=providers.CacheSettings(finalizer=close_settings),
+    )
+    request_id = providers.ContextProvider(scope=Scope.REQUEST, context_type=RequestId)
+    user_repository = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
+
+
 with Container(groups=[Dependencies], validate=True) as container:
-    # APP-scoped providers resolve straight from the container
-    settings = container.resolve(Settings)
-
-    # REQUEST-scoped providers need a REQUEST child container
-    with container.build_child_container(scope=Scope.REQUEST) as request:
+    request_context = {RequestId: RequestId(value="req-1")}
+    with container.build_child_container(scope=Scope.REQUEST, context=request_context) as request:
         repo = request.resolve(UserRepository)
         user = repo.find(42)
-
-    # Request-scope finalizers (teardown hooks such as closing a DB connection) ran on `with` exit
-# App-scope finalizers ran on the outer `with` exit
+    # REQUEST-scope finalizers ran here (none declared in this example)
+# APP-scope finalizers ran here (closes settings)
 ```
 
-Resolution is always synchronous. Use `async with` (on both the container and the child) only when a
-provider registers an **async** finalizer — see [Lifecycle](providers/lifecycle.md).
+A framework integration (linked under "Where to next" below) builds and tears down this REQUEST
+child container for you automatically. Resolution itself is always synchronous; use `async with`
+instead of `with` only when a provider registers an **async** finalizer — see
+[Lifecycle](providers/lifecycle.md).
 
 ## Where to next
 
+- Framework integrations — [aiohttp](integrations/aiohttp.md), [FastAPI](integrations/fastapi.md),
+  [FastStream](integrations/faststream.md), [Litestar](integrations/litestar.md),
+  [Starlette](integrations/starlette.md), [Typer](integrations/typer.md),
+  [Pytest](integrations/pytest.md) — each builds the per-request child container automatically and
+  closes the APP container at shutdown.
 - [Resolving](introduction/resolving.md) — how type-based auto-injection works.
 - [Factories](providers/factories.md) — the provider you just used.
 - [Scopes](providers/scopes.md) — the APP → REQUEST lifetime model in one page.
