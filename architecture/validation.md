@@ -57,10 +57,22 @@ Circular dependency detected:
 Check your provider graph for unintended cycles.
 ```
 
-> **Runtime resolution has no cycle guard.** Cycle detection lives only here. To keep the resolve hot path free of
-> per-resolve bookkeeping, `resolve()` does not track in-flight providers — a circular graph that is never validated
-> raises a raw `RecursionError` on first resolve. Run with `validate=True` (or call `container.validate()`) in
-> development to surface cycles as a clear `CircularDependencyError` instead.
+> **Runtime resolution has a cycle guard too — but `validate()` remains the way to see all errors up front.**
+> `Container.resolve_provider` wraps the final `provider.resolve(self)` in `try/except RecursionError`. When an
+> unvalidated circular graph's first resolve overflows the stack, the handler iteratively re-walks the static
+> graph from the failing provider (an explicit-stack DFS — the walk must stay flat, since it runs close to the
+> recursion limit) and, if a static cycle is reachable, raises `CircularDependencyError` with the cycle path,
+> `from` the original `RecursionError`. `resolve_provider` is re-entrant (`Factory`/`Alias` call it per dependency
+> edge), so it is the innermost frame that converts; outer frames see a `ResolutionError` and the existing
+> breadcrumb machinery (see [resolution.md](resolution.md)) prepends steps as it propagates back up, so the
+> converted error arrives with the dependency chain attached. A `RecursionError` from a creator that recurses on
+> its own (no static cycle in the graph) is re-raised untouched, not misreported as a circular dependency. This is
+> a deliberate duplication of cycle detection, not a refactor of the one DFS above into two callers: `validate()`
+> collects *all* errors of *all* kinds in one walk, while the runtime guard only answers "is a cycle reachable
+> from here" on an exhausted stack — unifying them would couple the resolve hot path to the all-errors walker for
+> no user benefit. Run with `validate=True` (or call `container.validate()`) in development to surface *every*
+> cycle (and other wiring bugs) before the first resolve, rather than only the one a particular resolve happens
+> to hit.
 
 ### Inverted scope dependencies
 
