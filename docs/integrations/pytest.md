@@ -43,7 +43,7 @@ from app import ioc
 
 @pytest.fixture(scope="session")
 def di_container() -> typing.Iterator[modern_di.Container]:
-    with modern_di.Container(groups=ioc.ALL_GROUPS) as container:
+    with modern_di.Container(groups=ioc.ALL_GROUPS, validate=True) as container:
         yield container
 ```
 

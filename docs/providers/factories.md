@@ -32,7 +32,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 # Resolve by provider reference
 instance = container.resolve_provider(Dependencies.independent_factory)
 assert isinstance(instance, IndependentFactory)
@@ -51,7 +51,7 @@ The caching mechanism is thread-safe by default, ensuring that even when multipl
 If your application is single-threaded, you can disable the lock for a small performance gain:
 
 ```python
-container = Container(groups=[Dependencies], use_lock=False)
+container = Container(groups=[Dependencies], use_lock=False, validate=True)
 ```
 
 Do not set `use_lock=False` in multi-threaded applications — it removes the guarantee that only one instance is created per cached factory.
@@ -74,7 +74,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 singleton_instance1 = container.resolve_provider(Dependencies.singleton)
 singleton_instance2 = container.resolve_provider(Dependencies.singleton)
 
@@ -189,7 +189,7 @@ class Dependencies(Group):
     service = providers.Factory(scope=Scope.APP, creator=Service)
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 service = container.resolve(Service)
 assert service.cache is None  # no Cache provider registered -> None injected
 ```
@@ -242,7 +242,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 # make_service receives a Backend instance, not the Factory provider
 ```
 
@@ -281,7 +281,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 
 try:
     container.resolve(object)

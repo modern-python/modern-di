@@ -264,7 +264,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 
 with container.build_child_container(
     scope=Scope.REQUEST,
@@ -318,7 +318,7 @@ class Dependencies(Group):
     http_client = providers.ContextProvider(scope=Scope.APP, context_type=aiohttp.ClientSession)
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 
 
 @contextlib.asynccontextmanager

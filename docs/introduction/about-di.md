@@ -144,7 +144,7 @@ class AppGroup(Group):
 
 
 # Build the app-level container, then a request-scoped child for per-request providers
-app_container = Container(scope=Scope.APP, groups=[AppGroup])
+app_container = Container(scope=Scope.APP, groups=[AppGroup], validate=True)
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     user_service = request_container.resolve(UserService)
 ```
@@ -160,7 +160,7 @@ Type annotations auto-wire dependencies - no manual registration needed.
 Hierarchical containers with automatic inheritance:
 
 ```python
-app_container = Container(groups=[AppGroup], scope=Scope.APP)
+app_container = Container(groups=[AppGroup], scope=Scope.APP, validate=True)
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 
 # Resolves from correct scope automatically
@@ -175,7 +175,7 @@ Override any dependency:
 ```python
 @pytest.fixture
 def test_container() -> Container:
-    container = Container(groups=[AppGroup])
+    container = Container(groups=[AppGroup], validate=True)
     container.override(AppGroup.db, Mock(spec=DatabaseConnection))
     return container
 ```

@@ -28,7 +28,7 @@ The root `Container` is at `APP` scope. Child containers are built from a parent
 from modern_di import Container, Scope
 
 
-app_container = Container(groups=[Dependencies])     # APP scope
+app_container = Container(groups=[Dependencies], validate=True)     # APP scope
 
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     ...
@@ -108,7 +108,7 @@ class MyGroup(Group):
     tenant_provider = providers.Factory(scope=MyScope.TENANT, creator=TenantContext)
 
 
-container = Container(groups=[MyGroup])
+container = Container(groups=[MyGroup], validate=True)
 with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
     tenant = tenant_container.resolve(TenantContext)
 ```

@@ -43,7 +43,7 @@ class Dependencies(Group):
 
 
 # Provide custom context when building the child container
-container = Container(groups=[Dependencies])
+container = Container(groups=[Dependencies], validate=True)
 custom_context = CustomContext(user_id="123", tenant_id="abc")
 request_container = container.build_child_container(
     scope=Scope.REQUEST,
@@ -77,7 +77,7 @@ Context never propagates between containers. A `ContextProvider` reads the conte
     ```python
     # ❌ Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
     # Setting it on the APP parent has no effect.
-    app_container = Container()
+    app_container = Container(validate=True)
     app_container.set_context(CustomContext, value)  # ignored for REQUEST-scoped providers
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     ```
@@ -125,7 +125,10 @@ class Dependencies(Group):
 
 ALL_GROUPS = [Dependencies]
 app = fastapi.FastAPI()
-container = Container(groups=ALL_GROUPS)
+# validate=False: request_info depends on fastapi.Request, whose ContextProvider
+# is registered by setup_di() below — validating before that call would raise
+# ArgumentResolutionError for a dependency the integration hasn't wired in yet.
+container = Container(groups=ALL_GROUPS, validate=False)
 modern_di_fastapi.setup_di(app, container)
 # The integration creates a REQUEST-scoped child container per request and
 # automatically injects the fastapi.Request into its context. The factory
