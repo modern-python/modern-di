@@ -97,9 +97,13 @@ the same `dependency_path` — the breadcrumb machinery is shared, not duplicate
 - **`ArgumentResolutionError`** — raised when a creator parameter cannot be resolved: no provider
   matches its annotated type, or the parameter is unannotated. See
   [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
-- **`CircularDependencyError`** — raised only by `validate()` when the provider graph contains a
-  cycle (A → B → A); the message shows the cycle path. An unvalidated cyclic graph fails with a raw
-  `RecursionError` at first resolve instead. See
+- **`CircularDependencyError`** — raised when the provider graph contains a cycle (A → B → A); the
+  message shows the cycle path. `validate()` finds it up front, as part of its all-errors walk. The
+  runtime guard in `Container.resolve_provider` finds it too: an unvalidated cyclic graph's first
+  resolve overflows the stack, and the guard catches that `RecursionError`, re-walks the static
+  graph from the failing provider, and raises `CircularDependencyError` `from` it when a cycle is
+  reachable — a creator that recurses on its own (no static cycle) still raises the original
+  `RecursionError` untouched. See
   [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md).
 - **`CreatorCallError`** — raised when a creator's dependencies all resolved but the creator itself
   raised while being called. The original exception is preserved on `.original_error` (and as the
