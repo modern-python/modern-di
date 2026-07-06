@@ -30,6 +30,47 @@ class ModernDIError(RuntimeError):
     __slots__ = ()
 
 
+class DependencyPathMixin(ModernDIError):  # noqa: N818 -- mixin, not a raisable error in its own right
+    """Breadcrumb machinery shared by :class:`ResolutionError` and the runtime scope errors.
+
+    Owns the two extra slots (`_base_message`, `dependency_path`) plus `prepend_step` and the
+    chain-rendering `__str__`, so any error raised inside a resolution frame can accumulate the
+    chain of provider names as it propagates back up to the caller. With an empty
+    `dependency_path` (the error never passed through a resolution frame) `__str__` returns the
+    base message unchanged.
+
+    Inherits from `ModernDIError` (rather than being a bare mixin) so it shares one instance
+    layout with `ContainerError`'s branch: combining a plain-object mixin's `__slots__` with an
+    `Exception` subclass's C-level layout raises `TypeError: multiple bases have instance
+    lay-out conflict`; sharing the solid base resolves it without changing any public surface
+    (not exported; `ResolutionError`/`ScopeNotInitializedError`/`ScopeSkippedError` keep their
+    documented bases and `isinstance` behavior).
+    """
+
+    __slots__ = ("_base_message", "dependency_path")
+
+    def __init__(self, message: str) -> None:
+        self._base_message = message
+        self.dependency_path: list[ResolutionStep] = []
+        super().__init__(message)
+
+    def prepend_step(self, step: ResolutionStep) -> None:
+        self.dependency_path.insert(0, step)
+        self.args = (str(self),)
+
+    def __str__(self) -> str:
+        if not self.dependency_path:
+            return self._base_message
+
+        scope_width = max(len(step.scope.name) for step in self.dependency_path)
+        lines = ["Cannot resolve dependency chain:"]
+        for i, step in enumerate(self.dependency_path):
+            prefix = "" if i == 0 else "    " * (i - 1) + "└─> "
+            lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{step.name}")
+        lines.append(f"  caused by: {self._base_message}")
+        return "\n".join(lines)
+
+
 class ContainerError(ModernDIError):
     """Base class for container and scope errors."""
 
@@ -65,8 +106,12 @@ class MaxScopeReachedError(ContainerError):
         )
 
 
-class ScopeNotInitializedError(ContainerError):
-    """Provider's scope is deeper than any active container. Inspect ``.provider_scope``, ``.container_scope``."""
+class ScopeNotInitializedError(DependencyPathMixin, ContainerError):
+    """Provider's scope is deeper than any active container. Inspect ``.provider_scope``, ``.container_scope``.
+
+    Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`) so a captive
+    runtime dependency names both the failing provider and the one that captured it.
+    """
 
     __slots__ = ("container_scope", "provider_scope")
 
@@ -78,8 +123,12 @@ class ScopeNotInitializedError(ContainerError):
         )
 
 
-class ScopeSkippedError(ContainerError):
-    """Provider's scope was skipped in the container chain. Attrs: ``provider_scope``, ``container_scope``."""
+class ScopeSkippedError(DependencyPathMixin, ContainerError):
+    """Provider's scope was skipped in the container chain. Attrs: ``provider_scope``, ``container_scope``.
+
+    Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`) so a captive
+    runtime dependency names both the failing provider and the one that captured it.
+    """
 
     __slots__ = ("container_scope", "provider_scope")
 
@@ -145,36 +194,16 @@ class UnvalidatedContainerWarning(FutureWarning):
     """
 
 
-class ResolutionError(ModernDIError):
+class ResolutionError(DependencyPathMixin, ModernDIError):
     """Base class for errors raised while resolving a provider.
 
     Carries an optional `dependency_path` accumulated as the error propagates up
     the resolution chain, so the rendered message shows the full path from the
-    initially requested type down to the failing dependency.
+    initially requested type down to the failing dependency. See
+    :class:`DependencyPathMixin` for the shared machinery.
     """
 
-    __slots__ = ("_base_message", "dependency_path")
-
-    def __init__(self, message: str) -> None:
-        self._base_message = message
-        self.dependency_path: list[ResolutionStep] = []
-        super().__init__(message)
-
-    def prepend_step(self, step: ResolutionStep) -> None:
-        self.dependency_path.insert(0, step)
-        self.args = (str(self),)
-
-    def __str__(self) -> str:
-        if not self.dependency_path:
-            return self._base_message
-
-        scope_width = max(len(step.scope.name) for step in self.dependency_path)
-        lines = ["Cannot resolve dependency chain:"]
-        for i, step in enumerate(self.dependency_path):
-            prefix = "" if i == 0 else "    " * (i - 1) + "└─> "
-            lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{step.name}")
-        lines.append(f"  caused by: {self._base_message}")
-        return "\n".join(lines)
+    __slots__ = ()
 
 
 class ProviderNotRegisteredError(ResolutionError):

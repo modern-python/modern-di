@@ -68,6 +68,6 @@ class Alias(AbstractProvider[types.T_co]):
     def resolve(self, container: "Container") -> types.T_co:
         try:
             return container.resolve_provider(self._find_source(container))
-        except exceptions.ResolutionError as exc:
+        except (exceptions.ResolutionError, exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
             exc.prepend_step(self._resolution_step())
             raise

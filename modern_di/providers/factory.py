@@ -241,7 +241,14 @@ class Factory(AbstractProvider[types.T_co]):
         return resolved_kwargs
 
     def resolve(self, container: "Container") -> types.T_co:
-        container = container.find_container(self.scope)
+        try:
+            container = container.find_container(self.scope)
+        except (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
+            # Name the failing end too: without this, a captive dependency's own step never
+            # makes it into the chain, and consumer frames alone would name every provider
+            # except the one that actually failed to resolve.
+            exc.prepend_step(self._resolution_step())
+            raise
         container._warn_and_reopen_if_closed()  # noqa: SLF001
         cache_item = container.cache_registry.fetch_cache_item(self)
 
@@ -250,7 +257,7 @@ class Factory(AbstractProvider[types.T_co]):
 
         try:
             resolved_kwargs = self._resolve_kwargs(container, cache_item)
-        except exceptions.ResolutionError as exc:
+        except (exceptions.ResolutionError, exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
             exc.prepend_step(self._resolution_step())
             raise
 
