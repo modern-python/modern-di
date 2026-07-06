@@ -56,7 +56,7 @@ Three things change in how you think about the framework. Most migration confusi
 
 ## 3. Provider taxonomy
 
-Use this table as the index for the rest of the guide. Every provider class documented in `dependency-injector`'s live docs is listed; "no direct equivalent" rows link to [§10](#10-no-direct-equivalent) for the workaround.
+Use this table as the index for the rest of the guide. Every provider class documented in `dependency-injector`'s live docs is listed; "no direct equivalent" rows link to [§12](#12-no-direct-equivalent) for the workaround.
 
 | `dependency-injector` | `modern-di` replacement | Where to look |
 |---|---|---|
@@ -64,9 +64,11 @@ Use this table as the index for the rest of the guide. Every provider class docu
 | `Callable` | `providers.Factory(creator=the_callable)` — `Factory`'s creator can be any callable, not just a class | [§4](#4-migrate-the-dependency-graph) |
 | `Singleton` | `providers.Factory(..., cache=True)` | [§4](#4-migrate-the-dependency-graph) |
 | `ThreadSafeSingleton` | `providers.Factory(..., cache=True)` — `modern-di`'s cache is lock-guarded by default (`use_lock=True` on the container) | [§4](#4-migrate-the-dependency-graph) |
-| `ThreadLocalSingleton` | No direct equivalent — see [§10](#10-no-direct-equivalent) | [§10](#10-no-direct-equivalent) |
+| `ThreadLocalSingleton` | No direct equivalent — see [§12](#12-no-direct-equivalent) | [§12](#12-no-direct-equivalent) |
+| `Resource` (plain-function initializer — their docs' most common form; no shutdown step) | `providers.Factory(..., cache=True)` — same as `Singleton`; add a finalizer only when there is teardown | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (generator / context-manager initializer) | `providers.Factory(..., cache=CacheSettings(finalizer=...))` | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (async initializer) | Lifespan + `ContextProvider` (or sync creator + async finalizer) | [§4](#4-migrate-the-dependency-graph) |
+| `ContextLocalResource` | `providers.Factory(scope=Scope.REQUEST, ..., cache=CacheSettings(finalizer=...))` resolved from a per-request child container | [§4](#4-migrate-the-dependency-graph) |
 | `Coroutine` | No direct equivalent — resolution is sync-only; do the `await` in the lifespan and inject the result, same as an async `Resource` | [§4](#4-migrate-the-dependency-graph) |
 | `Object` | `providers.Factory` with a creator that returns the value | [§4](#4-migrate-the-dependency-graph) |
 | `List` | `providers.Factory` with a creator that returns a list | [§4](#4-migrate-the-dependency-graph) |
@@ -74,16 +76,16 @@ Use this table as the index for the rest of the guide. Every provider class docu
 | `Dependency` | `providers.ContextProvider(context_type=...)` | [§4](#4-migrate-the-dependency-graph) |
 | `AbstractFactory` | `providers.Alias(source_type=..., bound_type=...)` — pick the concrete implementation at declaration time instead of via `.override()` before first use | [§4](#4-migrate-the-dependency-graph) |
 | `Configuration` | A plain settings object registered as a provider — no config subsystem (`from_yaml`/`from_env`/etc.) | [§5](#5-configuration) |
-| `Selector` | No direct equivalent — see [§10](#10-no-direct-equivalent) | [§10](#10-no-direct-equivalent) |
-| `Aggregate` / `FactoryAggregate` | No direct equivalent — see [§10](#10-no-direct-equivalent) | [§10](#10-no-direct-equivalent) |
-| `.provided` (attribute / item / method-call access on a provider) | No direct equivalent — see [§10](#10-no-direct-equivalent) | [§10](#10-no-direct-equivalent) |
-| `@inject` + `Provide[...]` + `container.wire(modules=[...])` (web) | `FromDI(T)` from the framework integration | [§6](#6-wiring-replacement) |
+| `Selector` | No direct equivalent — see [§12](#12-no-direct-equivalent) | [§12](#12-no-direct-equivalent) |
+| `Aggregate` / `FactoryAggregate` | No direct equivalent — see [§12](#12-no-direct-equivalent) | [§12](#12-no-direct-equivalent) |
+| `.provided` (attribute / item / method-call access on a provider) | No direct equivalent — see [§12](#12-no-direct-equivalent) | [§12](#12-no-direct-equivalent) |
+| `@inject` + `Provide[...]` + `container.wire(modules=[...])` (web) | `FromDI(T)` from the framework integration | [§6](#6-wiring-replacement), [§9](#9-routes) |
 | `@inject` + `Provide[...]` + `container.wire(modules=[...])` (non-web) | Explicit `container.resolve(T)` | [§6](#6-wiring-replacement) |
 | `DeclarativeContainer` | `Group` (schema) + `Container(groups=[...], validate=True)` (runtime) | [§2](#2-key-conceptual-shifts) |
-| `container.init_resources()` | Lazy initialization — no equivalent needed | [§8](#8-testing-and-overrides) |
-| `container.shutdown_resources()` / `provider.shutdown()` | `container.close_sync()` / `await container.close_async()` | [§8](#8-testing-and-overrides) |
-| `provider.override(...)` / `with provider.override(...):` | `container.override(provider, mock)` (no context-manager form yet — see [§8](#8-testing-and-overrides)) | [§8](#8-testing-and-overrides) |
-| `provider.reset_override()` / `provider.reset_last_overriding()` | `container.reset_override(provider)` | [§8](#8-testing-and-overrides) |
+| `container.init_resources()` | Lazy initialization — no equivalent needed | [§10](#10-testing-and-overrides) |
+| `container.shutdown_resources()` / `provider.shutdown()` | `container.close_sync()` / `await container.close_async()` | [§10](#10-testing-and-overrides) |
+| `provider.override(...)` / `with provider.override(...):` | `container.override(provider, mock)` (no context-manager form yet — see [§10](#10-testing-and-overrides)) | [§10](#10-testing-and-overrides) |
+| `provider.reset_override()` / `provider.reset_last_overriding()` | `container.reset_override(provider)` | [§10](#10-testing-and-overrides) |
 
 ## 4. Migrate the dependency graph
 
@@ -102,7 +104,17 @@ some_threadsafe_singleton = providers.ThreadSafeSingleton(SomeClass)
 some_singleton = providers.Factory(creator=SomeClass, cache=True)
 ```
 
-**`Resource`** (generator or context-manager initializer) → cached `Factory` with a `finalizer`. Split the two-step generator into a plain creator function and a separate finalizer function:
+**`Resource`** → cached `Factory`, with or without a `finalizer` depending on the initializer form. Their docs call the plain-function initializer "the most common way to specify resource initialization" — and a plain-function `Resource` has no shutdown step, so it maps to exactly what `Singleton` maps to:
+
+```python
+# dependency-injector — plain-function initializer, no shutdown
+thread_pool = providers.Resource(init_thread_pool, max_workers=4)
+
+# modern-di — same as the Singleton mapping
+thread_pool = providers.Factory(creator=init_thread_pool, kwargs={"max_workers": 4}, cache=True)
+```
+
+For the generator or context-manager initializer forms (the ones with a shutdown step), split init and teardown into a plain creator function and a separate finalizer function:
 
 ```python
 # dependency-injector
@@ -123,6 +135,20 @@ def close_resource(resource: SomeResource) -> None:
 thread_pool = providers.Factory(
     creator=create_resource,
     cache=providers.CacheSettings(finalizer=close_resource),
+)
+```
+
+**`ContextLocalResource`** → `REQUEST`-scoped cached `Factory` with a `finalizer`. `dependency-injector`'s `ContextLocalResource` uses `contextvars` to give each execution context (in practice: each async request) its own instance of a `Resource`, cleaned up when the context ends. `modern-di` expresses the same lifetime explicitly: declare the provider at `Scope.REQUEST` and resolve it from a per-request child container — the framework integrations build that child container for you ([§8](#8-framework-integration)), and closing it runs the finalizer:
+
+```python
+# dependency-injector
+db_session = providers.ContextLocalResource(AsyncSessionLocal)
+
+# modern-di — one instance per request container, finalizer on request end
+db_session = providers.Factory(
+    scope=Scope.REQUEST,
+    creator=create_session,
+    cache=providers.CacheSettings(finalizer=close_session),
 )
 ```
 
@@ -201,7 +227,7 @@ cache_client = providers.Alias(source_type=RedisCacheClient, bound_type=Abstract
 
 ## 5. Configuration
 
-`dependency-injector`'s `Configuration` provider is a subsystem: `providers.Configuration()` plus `.from_yaml()` / `.from_json()` / `.from_ini()` / `.from_env()` / `.from_pydantic()` / `.from_dict()` loaders, environment-variable interpolation (`${VAR:default}`), and a "use first, define later" declaration order. `modern-di` deliberately has no equivalent subsystem — this is a design decision, not a gap: load your settings with whatever library you already use (`pydantic-settings`, `environ-config`, plain `os.environ`, ...) into a regular object, then register that object as an ordinary provider:
+`dependency-injector`'s `Configuration` provider is a subsystem: `providers.Configuration()` plus `.from_yaml()` / `.from_json()` / `.from_ini()` / `.from_env()` / `.from_pydantic()` / `.from_dict()` / `.from_value()` loaders, environment-variable interpolation (`${VAR:default}`), and a "use first, define later" declaration order. `modern-di` deliberately has no equivalent subsystem — this is a design decision, not a gap: load your settings with whatever library you already use (`pydantic-settings`, `environ-config`, plain `os.environ`, ...) into a regular object, then register that object as an ordinary provider:
 
 ```python
 class Settings:
@@ -245,7 +271,9 @@ async def handler(service: Service = FromDI(Service)) -> None:
     ...
 ```
 
-This also removes `dependency-injector`'s most-filed failure mode: an unwired function's marker is left as a raw `Provide` object, which surfaces as a confusing `AttributeError: 'Provide' object has no attribute ...` deep in your own code ([issue #658](https://github.com/ets-labs/python-dependency-injector/issues/658), [issue #521](https://github.com/ets-labs/python-dependency-injector/issues/521)) rather than a DI-specific error at the point of the mistake. `modern-di` fails at declaration time (`UnsupportedCreatorParameterError`) or resolve time (`ProviderNotRegisteredError`, with "did you mean" suggestions) — see [§9](#9-diagnostics-comparison).
+More framework examples in [§8](#8-framework-integration) and [§9](#9-routes).
+
+This also removes `dependency-injector`'s most-filed failure mode: an unwired function's marker is left as a raw `Provide` object, which surfaces as a confusing `AttributeError: 'Provide' object has no attribute ...` deep in your own code ([issue #658](https://github.com/ets-labs/python-dependency-injector/issues/658), [issue #521](https://github.com/ets-labs/python-dependency-injector/issues/521)) rather than a DI-specific error at the point of the mistake. `modern-di` fails at declaration time (`UnsupportedCreatorParameterError`) or resolve time (`ProviderNotRegisteredError`, with "did you mean" suggestions) — see [§11](#11-diagnostics-comparison).
 
 ## 7. Scopes
 
@@ -263,9 +291,104 @@ app_container = Container(scope=Scope.APP, groups=[AppGroup], validate=True)
 request_container = app_container.build_child_container(scope=Scope.REQUEST, context={...})
 ```
 
-A provider can only depend on providers of equal-or-broader scope — an `APP`-scoped provider cannot declare a `REQUEST`-scoped constructor parameter. `validate()` catches this (`InvalidScopeDependencyError`) before the first resolve; unvalidated, it surfaces at runtime as `ScopeNotInitializedError` or `ScopeSkippedError` with a breadcrumb naming both the capturing provider and the one that failed. Framework integrations build and tear down the per-request child container automatically, the same role `Resource` + `Closing` (or a hand-rolled second container) plays in `dependency-injector`.
+A provider can only depend on providers of equal-or-broader scope — an `APP`-scoped provider cannot declare a `REQUEST`-scoped constructor parameter. `validate()` catches this (`InvalidScopeDependencyError`) before the first resolve; unvalidated, it surfaces at runtime as `ScopeNotInitializedError` or `ScopeSkippedError` with a breadcrumb naming both the capturing provider and the one that failed. Framework integrations ([§8](#8-framework-integration)) build and tear down the per-request child container automatically, the same role `Resource` + `Closing` (or a hand-rolled second container) plays in `dependency-injector`.
 
-## 8. Testing and overrides
+## 8. Framework integration
+
+Replace `container.wire(modules=[...])` (plus any per-framework glue such as `container` attributes on the app object) with the integration package's setup call. The integration creates per-request child containers and tears them down automatically; at app shutdown it calls `container.close_async()` to run finalizers. There is no module list to maintain and no import-time patching.
+
+=== "fastapi"
+
+      ```python
+      import fastapi
+      import modern_di_fastapi
+      from modern_di import Container
+
+      from app.ioc import AppGroup
+
+
+      container = Container(groups=[AppGroup], validate=True)
+
+      app = fastapi.FastAPI()
+      modern_di_fastapi.setup_di(app, container)
+      ```
+
+      See [the FastAPI integration docs](../integrations/fastapi.md) for websockets and framework-provided context objects (`fastapi.Request`, `fastapi.WebSocket`).
+
+=== "litestar"
+
+      ```python
+      from litestar import Litestar
+      import modern_di_litestar
+      from modern_di import Container
+
+      from app.ioc import AppGroup
+
+
+      container = Container(groups=[AppGroup], validate=True)
+
+      app = Litestar(
+          route_handlers=[...],
+          plugins=[modern_di_litestar.ModernDIPlugin(container)],
+      )
+      ```
+
+      See [the Litestar integration docs](../integrations/litestar.md) for `autowired_groups` and websockets.
+
+=== "faststream"
+
+      See [the FastStream integration docs](../integrations/faststream.md) for the full setup.
+
+=== "typer"
+
+      See [the Typer integration docs](../integrations/typer.md) for the full setup.
+
+## 9. Routes
+
+`FromDI(T)` replaces the `@inject` + `Provide[Container.x]` pair on route handlers. Resolution is by type — no marker points at a specific container attribute, and no `@inject` decorator is needed:
+
+=== "fastapi"
+
+      ```python
+      import typing
+
+      import fastapi
+      from modern_di_fastapi import FromDI
+
+      from app import schemas
+      from app.repositories import DecksService
+
+
+      ROUTER: typing.Final = fastapi.APIRouter()
+
+
+      @ROUTER.get("/decks/")
+      async def list_decks(
+          decks_service: DecksService = FromDI(DecksService),
+      ) -> schemas.Decks:
+          objects = await decks_service.list()
+          return schemas.Decks(items=objects)
+      ```
+
+=== "litestar"
+
+      ```python
+      import litestar
+      from modern_di_litestar import FromDI
+
+      from app import schemas
+      from app.repositories import DecksService
+
+
+      @litestar.get("/decks/", dependencies={
+          "decks_service": FromDI(DecksService),
+      })
+      async def list_decks(decks_service: DecksService) -> schemas.Decks:
+          objects = await decks_service.list()
+          return schemas.Decks(items=objects)
+      ```
+
+## 10. Testing and overrides
 
 ### Overrides
 
@@ -311,7 +434,7 @@ decks_service = modern_di_fixture(DecksService)
 expose(AppGroup)
 ```
 
-## 9. Diagnostics comparison
+## 11. Diagnostics comparison
 
 | Failure mode | `dependency-injector` | `modern-di` |
 |---|---|---|
@@ -322,7 +445,7 @@ expose(AppGroup)
 
 Spot-run of the cycle guard, showing both diagnostics paths (script and full output in the report below): `validate()` raises `ValidationFailedError` naming the cycle up front; without `validate()`, the same graph's first resolve raises `CircularDependencyError` (not a bare `RecursionError`), though the un-validated path's breadcrumb trail is considerably noisier since the conversion happens deep inside an already near-exhausted call stack — run with `validate=True` during migration to see the clean report instead.
 
-## 10. No direct equivalent
+## 12. No direct equivalent
 
 A handful of `dependency-injector` features have no direct port. Workarounds:
 
