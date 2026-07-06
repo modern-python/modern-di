@@ -38,6 +38,34 @@ The codebase is type-checked with `ty` and linted with ruff's full rule set (`se
 
 New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton — most other DI frameworks have two to three times that. This is deliberate: a small, composable core is easier to learn, easier to test, and easier to keep correct.
 
+## Non-goals
+
+Beyond the choices above, three more things are deliberately out of scope. Naming them here is meant to save you from filing (or us from re-litigating) the same feature request.
+
+### Auto-binding / auto-registration
+
+**What:** modern-di never registers a provider for a type you didn't declare, and never infers wiring by scanning your codebase (import scanning, decorator scanning, `auto_bind`-style fallbacks some frameworks offer).
+
+**Why:** Auto-binding defers a missing-provider error from declaration time — where modern-di already raises `UnsupportedCreatorParameterError` — to whichever request first exercises the untested path. That's the opposite of the framework's declaration-time-failure bet, and it invites automagic wiring nobody can trace back to a source.
+
+**Alternative:** Register the provider explicitly in a `Group`. If the boilerplate is real, write a small helper that builds several `Factory` instances from a list of classes — that's application code, not a framework feature.
+
+### In-package framework integrations
+
+**What:** The core `modern-di` package ships no aiohttp/FastAPI/FastStream/Litestar/Starlette/Typer/pytest code. Each integration is a separate `modern-di-*` package with its own release cadence.
+
+**Why:** Bundling integrations into core would couple the library's release cadence to every framework's own churn, and would erode the zero-dependency guarantee that lets `modern-di` itself stay dependency-free. The separate-repo model is a standing architectural decision (see [`writing-integrations.md`](../integrations/writing-integrations.md)), not an oversight.
+
+**Alternative:** Install the matching adapter package — see the [Quickstart](../index.md) for the current list — or write your own following [Writing an integration](../integrations/writing-integrations.md).
+
+### Graph rendering / visualization tooling
+
+**What:** modern-di has no built-in way to render the dependency graph as a picture — no ASCII art, no bundled renderer, no `plot()`/`render()` call, no image output.
+
+**Why:** Rendering is a standalone subsystem (choosing, drawing, and maintaining a diagram toolchain) rather than an extension of an existing primitive, so it sits outside the conservative feature set and the zero-dependency guarantee. `validate()`'s aggregated, all-errors-at-once text report already surfaces the graph's problems without a new dependency or output format.
+
+**Alternative:** None shipped today. If you need a picture of the graph, walk `Group.get_providers()` yourself and feed the edges to the diagram tool of your choice.
+
 ## See also
 
 - [About DI](about-di.md) — the framework-agnostic introduction.

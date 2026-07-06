@@ -139,3 +139,4 @@ provider registers an **async** finalizer — see [Lifecycle](providers/lifecycl
 - [Scopes](providers/scopes.md) — the APP → REQUEST lifetime model in one page.
 - [Lifecycle](providers/lifecycle.md) — finalizers, `close_async()`, validation.
 - [Recipes](recipes/sqlalchemy.md) — async SQLAlchemy, lifespan-managed resources, testing with overrides.
+- [Good and bad practices](recipes/good-and-bad-practices.md) — named footguns and the mechanism that catches each one.

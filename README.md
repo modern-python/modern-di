@@ -67,7 +67,7 @@ with Container(groups=[Dependencies], validate=True) as container:
         print(repo.settings.database_url)
 ```
 
-See the [documentation](https://modern-di.modern-python.org) for scopes, lifecycles, finalizers, and framework integrations.
+See the [documentation](https://modern-di.modern-python.org) for scopes, lifecycles, finalizers, and framework integrations. `modern-di` is deliberately conservative — see [Design decisions](https://modern-di.modern-python.org/introduction/design-decisions/) for what it leaves out on purpose, including auto-binding, in-package integrations, and graph rendering.
 
 Usage examples:
 
