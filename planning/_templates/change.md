@@ -6,7 +6,7 @@ summary: One line — shown in the generated index. Written at creation; finaliz
 
 **Lane:** lightweight — ≲30 LOC net, ≤2 files, no new file, no public-API
 change, a single straightforward test. If it outgrows this, split into
-`design.md` + `plan.md`.
+a `design.md`.
 
 ## Goal
 
