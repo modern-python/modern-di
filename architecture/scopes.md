@@ -37,6 +37,13 @@ two exceptions, depending on what went wrong:
 
 Both exceptions inherit from `ContainerError → ModernDIError → RuntimeError`.
 
+Both also carry a breadcrumb `dependency_path` (via the shared `DependencyPathMixin` — see the scope
+walk in [resolution.md](resolution.md)), so a **captive dependency** (a shallower-scoped provider that,
+directly or transitively, depends on a deeper-scoped one) reports both the capturing provider's name
+and the one that actually failed to resolve, in addition to the two scope names. Raised with an empty
+path (e.g. a bare `find_container` call with no provider frame involved) the message is unchanged from
+the shape shown above.
+
 ## How the container locates the right-scope container
 
 Each `Container` maintains a `scope_map: dict[IntEnum, Container]`. When a root container is created, the map is

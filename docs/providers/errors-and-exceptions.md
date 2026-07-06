@@ -55,10 +55,14 @@ Catch `ContainerError` for any container/scope failure.
   parent is already at the deepest scope (`STEP`), so there is no next level to advance to.
 - **`ScopeNotInitializedError`** — raised during resolution when a provider needs a scope *deeper*
   than the current container's, and no container at that scope exists in the chain (e.g. resolving a
-  `REQUEST`-scoped provider from the `APP` container). See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
+  `REQUEST`-scoped provider from the `APP` container). Like `ResolutionError`, it carries a breadcrumb
+  `dependency_path`: a runtime *captive dependency* (a shallower-scoped provider depending, directly or
+  transitively, on this deeper-scoped one) names both the capturing provider and the one that actually
+  failed, not just the two scope names. See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
 - **`ScopeSkippedError`** — raised during resolution when the target scope is *shallower* than the
   current container but is missing from the scope chain (a level was skipped when building children).
-  See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
+  Carries the same breadcrumb `dependency_path` as `ScopeNotInitializedError`. See
+  [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
 - **`InvalidScopeTypeError`** — raised by the `Container` constructor when `scope` is not an
   `enum.IntEnum`.
 - **`ContainerClosedError`** — raised in modern-di **3.0** when you resolve from, or build a child
@@ -82,7 +86,8 @@ Catch `ResolutionError` for any resolution failure. These carry a `dependency_pa
 accumulated as the error propagates, so the message shows the full chain from the requested type
 down to the failing dependency. `dependency_path` is a `list[ResolutionStep]`, where each
 `ResolutionStep` (importable from `modern_di.exceptions`) has a `.scope` and a `.name` — inspect it
-to render the chain programmatically.
+to render the chain programmatically. `ScopeNotInitializedError` and `ScopeSkippedError` (below) carry
+the same `dependency_path` — the breadcrumb machinery is shared, not duplicated.
 
 - **`ProviderNotRegisteredError`** — raised by `resolve(SomeType)` when no provider is registered for
   the type. The message includes "did you mean…" suggestions when a close match exists. See
