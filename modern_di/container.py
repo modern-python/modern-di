@@ -46,15 +46,20 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
         use_lock: bool = True,
-        validate: bool = False,
+        validate: bool | None = None,
     ) -> None:
         """Build a container at ``scope``.
 
         ``validate=True`` checks the provider graph (cycles plus scope ordering)
-        at construction time. ``context`` seeds this container's context registry.
-        A root container owns fresh registries; a child (with ``parent_container``
-        set) shares the parent's providers/overrides registries and inherits its
-        scope map.
+        at construction time. ``validate=False`` skips the check silently.
+        Leaving ``validate`` unset (``None``, the default) skips the check but
+        warns with :class:`~modern_di.exceptions.UnvalidatedContainerWarning` on
+        a root container — modern-di 3.0 will run ``validate()`` by default;
+        pass ``validate=True`` to adopt that now or ``validate=False`` to opt
+        out silently. Child containers (with ``parent_container`` set) never
+        warn regardless. ``context`` seeds this container's context registry.
+        A root container owns fresh registries; a child shares the parent's
+        providers/overrides registries and inherits its scope map.
         """
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
@@ -89,6 +94,15 @@ class Container:
             self.providers_registry.add_providers(*all_providers)
         if validate:
             self.validate()
+        elif validate is None and parent_container is None:
+            warnings.warn(
+                "This root container was created without an explicit `validate` argument. "
+                "modern-di 3.0 runs validate() at root construction by default. Pass validate=True "
+                "to adopt the 3.0 behavior now, or validate=False to keep validation off. "
+                "See https://modern-di.modern-python.org/migration/to-3.x/.",
+                exceptions.UnvalidatedContainerWarning,
+                stacklevel=2,
+            )
 
     def build_child_container(
         self,

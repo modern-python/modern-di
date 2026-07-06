@@ -133,6 +133,18 @@ class ContainerClosedWarning(DeprecationWarning):
     """
 
 
+class UnvalidatedContainerWarning(FutureWarning):
+    """A root container was built without an explicit ``validate`` argument — transitional.
+
+    modern-di 3.0 runs :meth:`Container.validate` at root construction by
+    default. Pass ``validate=True`` to adopt the 3.0 behavior now, or
+    ``validate=False`` to keep validation off (also after 3.0). Opt into strict
+    behavior early by escalating this warning::
+
+        warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
+    """
+
+
 class ResolutionError(ModernDIError):
     """Base class for errors raised while resolving a provider.
 
@@ -255,9 +267,39 @@ class CircularDependencyError(ResolutionError):
 
     def __init__(self, *, cycle_path: list[str]) -> None:
         self.cycle_path = cycle_path
-        super().__init__(
-            f"Circular dependency detected: {' -> '.join(cycle_path)}. Check your provider graph for unintended cycles."
+        rendered = "\n".join(
+            f"  {'    ' * (i - 1)}└─> {name}" if i else f"  {name}" for i, name in enumerate(cycle_path)
         )
+        super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
+
+
+class ContextValueNotSetError(ResolutionError):
+    """An unset ``ContextProvider`` was resolved directly.
+
+    Raised in modern-di 3.0; until then direct resolve emits
+    :class:`ContextValueNoneWarning` and returns ``None``. Inspect
+    ``.context_type``.
+    """
+
+    __slots__ = ("context_type",)
+
+    def __init__(self, *, context_type: type, scope_name: str) -> None:
+        self.context_type = context_type
+        super().__init__(
+            f"No context value is set for {context_type!r} (scope {scope_name}). "
+            "Pass context={...} to the container or call set_context()."
+        )
+
+
+class ContextValueNoneWarning(DeprecationWarning):
+    """Direct resolve of an unset ``ContextProvider`` returned ``None`` — transitional.
+
+    The ``None`` return works today but modern-di 3.0 raises
+    :class:`ContextValueNotSetError` here. Opt into strict behavior now by
+    escalating this warning::
+
+        warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)
+    """
 
 
 class RegistrationError(ModernDIError):
@@ -362,9 +404,18 @@ class ValidationFailedError(ContainerError):
         super().__init__(f"Container.validate() found {len(errors)} issue(s): {kinds}")
 
     def __str__(self) -> str:
-        header = super().__str__()
-        rendered = "\n".join(f"  - {e}" for e in self.errors)
-        return f"{header}\n{rendered}"
+        lines = [super().__str__()]
+        by_kind: dict[str, list[Exception]] = {}
+        for error in self.errors:
+            by_kind.setdefault(type(error).__name__, []).append(error)
+        for kind in sorted(by_kind):
+            errors = by_kind[kind]
+            lines.append(f"\n{kind} ({len(errors)}):")
+            for error in errors:
+                first, *rest = str(error).splitlines() or [""]
+                lines.append(f"  - {first}".rstrip())
+                lines.extend(f"    {line}" for line in rest)
+        return "\n".join(lines)
 
 
 class FinalizerError(ModernDIError):

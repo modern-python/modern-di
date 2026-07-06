@@ -1,11 +1,13 @@
 import copy
 import dataclasses
+import pathlib
+import re
 import typing
 import warnings
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
     CircularDependencyError,
@@ -521,3 +523,97 @@ def test_resolve_emits_no_deprecation_warning() -> None:
         warnings.simplefilter("error", DeprecationWarning)
         container.resolve(_Dep)  # touches _lock and _scope_map internally
         container.build_child_container(scope=Scope.REQUEST)
+
+
+def test_root_container_without_validate_arg_warns_about_3_0_default() -> None:
+    with pytest.warns(exceptions.UnvalidatedContainerWarning, match="modern-di 3.0 runs validate"):
+        Container(scope=Scope.APP)
+
+
+def test_explicit_validate_false_never_warns() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        Container(scope=Scope.APP, validate=False)
+
+
+def test_explicit_validate_true_validates_and_never_warns() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class BrokenService:
+        missing: Missing
+
+    class BrokenGroup(Group):
+        svc = providers.Factory(creator=BrokenService)
+
+    with pytest.raises(ValidationFailedError):
+        Container(scope=Scope.APP, groups=[BrokenGroup], validate=True)
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Dep:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class ValidService:
+        dep: Dep
+
+    class ValidGroup(Group):
+        dep = providers.Factory(creator=Dep)
+        svc = providers.Factory(creator=ValidService)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        Container(scope=Scope.APP, groups=[ValidGroup], validate=True)
+
+
+def test_unset_validate_warns_but_does_not_validate() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        missing: Missing
+
+    class G(Group):
+        svc = providers.Factory(creator=Service)
+
+    with pytest.warns(exceptions.UnvalidatedContainerWarning):
+        Container(scope=Scope.APP, groups=[G])  # constructs fine; the broken graph is never checked
+
+    with pytest.raises(ValidationFailedError):
+        Container(scope=Scope.APP, groups=[G], validate=True)
+
+
+def test_child_container_does_not_warn_about_validate() -> None:
+    root = Container(scope=Scope.APP, validate=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        root.build_child_container(scope=Scope.REQUEST)
+
+
+def test_unvalidated_container_warning_is_escalatable() -> None:
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
+        with pytest.raises(exceptions.UnvalidatedContainerWarning):
+            Container(scope=Scope.APP)
+
+
+def test_unvalidated_warning_pyproject_filter_matches_live_message() -> None:
+    """The pyproject.toml filterwarnings message must keep matching the live warning text.
+
+    The filter is message-based on purpose (see the comment in pyproject.toml), so nothing
+    else ties it to the warning it silences. If the wording in container.py drifts, this test
+    catches it instead of the suite silently filling with warning noise.
+    """
+    with pytest.warns(exceptions.UnvalidatedContainerWarning) as record:
+        Container(scope=Scope.APP)
+
+    pyproject_path = pathlib.Path(__file__).resolve().parent.parent / "pyproject.toml"
+    raw = pyproject_path.read_text()
+    pattern = re.search(r'"ignore:(?P<message>[^"]+):FutureWarning"', raw)
+    assert pattern is not None, "no ignore:...:FutureWarning filter found in pyproject.toml filterwarnings"
+
+    assert re.compile(pattern.group("message")).match(str(record[0].message)) is not None

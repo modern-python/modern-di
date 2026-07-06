@@ -7,7 +7,9 @@ This error fires when a provider depends on another provider with a *shorter* li
 You'll see something like:
 
 ```
-ValidationFailedError: Container.validate() found 1 issue(s): InvalidScopeDependencyError
+Container.validate() found 1 issue(s): InvalidScopeDependencyError
+
+InvalidScopeDependencyError (1):
   - Provider UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
 ```
 

@@ -22,11 +22,32 @@ Constructor parameters:
 | `groups` | `None` | One or more `Group` subclasses whose providers are registered into `providers_registry`. |
 | `context` | `None` | Mapping of `type → object` pre-populated into `context_registry`. |
 | `use_lock` | `True` | Wraps resolution in a `threading.RLock`; set `False` for single-threaded use. |
-| `validate` | `False` | If `True`, runs cycle and scope-ordering checks immediately after construction. |
+| `validate` | `None` | Tri-state, see below. |
 
 A root container (no `parent_container`) creates fresh `ProvidersRegistry` and `OverridesRegistry`
 instances. It also auto-registers `container_provider` under the `Container` type so that any
 provider declaring `Container` as a dependency receives the resolving container instance directly.
+
+### `validate`'s three states
+
+- `True` — runs `container.validate()` immediately after construction (see [validation](validation.md)).
+- `False` — explicit opt-out: never validates, never warns. This is the only way to stay silent
+  once modern-di 3.0 flips the default to `True`-like behavior (see below), so it remains a
+  supported, permanent choice, not just a 2.x shim.
+- `None` (the default) — behaves like `False` today (no validation), but on a **root** container
+  (`parent_container is None`) it also emits `UnvalidatedContainerWarning`
+  (a `FutureWarning`) pointing at the [migration guide](../docs/migration/to-3.x.md): modern-di 3.0
+  runs `validate()` at root construction by default, so leaving `validate` unset now is a
+  transitional state, not a permanent one. Child containers built via `build_child_container` never
+  pass `validate` explicitly, so they also reach the unset (`None`) branch — but the warning itself
+  additionally requires `parent_container is None`, which is false for every child, so children
+  never warn regardless of `validate`.
+
+Escalate the warning to catch it in CI ahead of the 3.0 upgrade:
+
+```python
+warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
+```
 
 ## Child containers
 
@@ -144,7 +165,9 @@ exactly this: `app.on_startup(container.open)` paired with `app.after_shutdown(c
 detecting circular dependencies and scope-ordering violations (a provider at a wider scope
 depending on one at a narrower scope). Pass `validate=True` to the constructor to run this at
 creation time, or call `container.validate()` explicitly at any point. It raises
-`ValidationFailedError` with all collected errors if any are found.
+`ValidationFailedError` with all collected errors if any are found — see
+[validation](validation.md) for the DFS algorithm, the grouped error rendering, and the pending
+3.0 default flip.
 
 ## `set_context()`
 

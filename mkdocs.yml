@@ -46,6 +46,7 @@ nav:
   - Migration:
       - To 1.x: migration/to-1.x.md
       - To 2.x: migration/to-2.x.md
+      - To 3.x: migration/to-3.x.md
       - From that-depends: migration/from-that-depends.md
   - Development:
       - Contributing: dev/contributing.md

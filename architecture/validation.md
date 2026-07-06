@@ -19,9 +19,14 @@ container = Container(scope=Scope.APP, groups=[MyGroup])
 container.validate()  # raises ValidationFailedError if any issue found
 ```
 
-When `validate=False` (the default), no graph traversal occurs and there is zero runtime cost. The `validate=True`
-path is equivalent to `Container(...); container.validate()` — the call is made inside `__init__` only if the
-flag is set.
+`validate` is tri-state (`bool | None`, default `None`) — see the [constructor table](containers.md#creating-a-root-container)
+for the full parameter reference. `validate=True` runs validation inside `__init__` (equivalent to
+`Container(...); container.validate()`); `validate=False` skips it silently with zero runtime cost;
+leaving it unset (`None`) also skips it but emits `UnvalidatedContainerWarning` on a **root**
+container, because **modern-di 3.0 runs `validate()` at root construction by default** — the
+current opt-in becomes opt-out. Pass `validate=True` now to adopt the 3.0 behavior early, or
+`validate=False` to keep it off permanently (that stays a supported no-warning choice after 3.0).
+See the [migration guide](../docs/migration/to-3.x.md) for the full readiness recipe.
 
 ## What validate() checks
 
@@ -30,8 +35,9 @@ errors** across the entire walk before raising, so a single call surfaces all wi
 stopping at the first one.
 
 If any errors are found, `validate()` raises `exceptions.ValidationFailedError`, whose `.errors` attribute is a
-list of all individual exceptions encountered. `ValidationFailedError.__str__` renders a human-readable count
-plus per-error detail.
+list of all individual exceptions encountered. `ValidationFailedError.__str__` groups `.errors` by exception
+class name (sorted alphabetically) so a report mixing several error kinds reads as one section per kind rather
+than an undifferentiated flat list — see [Report rendering](#report-rendering) below for the exact shape.
 
 ### Circular dependencies
 
@@ -39,6 +45,17 @@ During the DFS, a provider encountered a second time while it is still on the ac
 `visiting`) means a cycle exists. `validate()` records a `CircularDependencyError` with a `.cycle_path` list of
 type names showing the loop (e.g., `["A", "B", "A"]`). The recursive walk does **not** continue into the cycle,
 but the rest of the graph continues to be checked.
+
+`CircularDependencyError.__str__` renders `.cycle_path` as a multi-line arrow chain (the same `└─>` continuation
+glyph as the `ResolutionError` dependency-chain breadcrumb), not an inline `A -> B -> A` string:
+
+```
+Circular dependency detected:
+  A
+  └─> B
+      └─> A
+Check your provider graph for unintended cycles.
+```
 
 > **Runtime resolution has no cycle guard.** Cycle detection lives only here. To keep the resolve hot path free of
 > per-resolve bookkeeping, `resolve()` does not track in-flight providers — a circular graph that is never validated
@@ -67,6 +84,35 @@ Before recursing into a provider's dependencies, `validate()` calls `provider.it
 and appends any returned exceptions to the error list. `Factory` implements this hook to yield
 `ArgumentResolutionError` for each constructor parameter that has no matching provider in `providers_registry`,
 no default value, and no static `kwargs` entry.
+
+### Report rendering
+
+`ValidationFailedError.__str__` starts with the one-line summary (`Container.validate() found N issue(s): ...`,
+used by `repr`/logging), then one section per exception class, sorted by class name, each headed
+`{ClassName} ({count}):` and listing its errors as `  - ` bullets. An error's own multi-line message (e.g. a
+`CircularDependencyError` arrow chain, or a `ProviderNotRegisteredError`'s "Did you mean" suggestion block) has
+its first line placed after the bullet and every continuation line indented four spaces so multi-line
+sub-errors read as a block rather than mangling into the bullet list. A trailing blank message line is stripped
+(the `rstrip`/empty-message guard), so an error with no extra content renders as a bare `  - ` without a dangling
+space.
+
+A container with both a circular dependency and a missing provider renders as:
+
+```
+Container.validate() found 2 issue(s): CircularDependencyError, ProviderNotRegisteredError
+
+CircularDependencyError (1):
+  - Circular dependency detected:
+      A
+      └─> B
+          └─> A
+    Check your provider graph for unintended cycles.
+
+ProviderNotRegisteredError (1):
+  - Provider of type <class 'str'> is not registered in providers registry.
+    Did you mean:
+    Str2
+```
 
 ## Effective scope and alias transparency
 

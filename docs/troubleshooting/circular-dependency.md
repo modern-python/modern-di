@@ -7,8 +7,14 @@ This error occurs when providers form a dependency cycle, meaning A depends on B
 When you see this error:
 
 ```
-ValidationFailedError: Container.validate() found 1 issue(s): CircularDependencyError
-  - Circular dependency detected: ServiceA -> ServiceB -> ServiceA. Check your provider graph for unintended cycles.
+Container.validate() found 1 issue(s): CircularDependencyError
+
+CircularDependencyError (1):
+  - Circular dependency detected:
+      ServiceA
+      └─> ServiceB
+          └─> ServiceA
+    Check your provider graph for unintended cycles.
 ```
 
 It means the listed providers form a cycle that cannot be resolved. Without `validate()`, this would manifest as a `RecursionError` during resolution.
