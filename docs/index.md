@@ -52,8 +52,7 @@ If you want a framework integration, install the matching adapter — e.g. `mode
 ## 2. First success
 
 One provider, no scopes, no caching — the smallest honest example. A `Group` is a namespace that
-lists your providers; `Factory` defaults to `scope=Scope.APP`; `Container.resolve` looks a value up
-by its type.
+lists your providers; `Container.resolve` looks a value up by its type.
 
 ```python
 import dataclasses
@@ -109,7 +108,7 @@ class Dependencies(Group):
 with Container(groups=[Dependencies], validate=True) as container:
     first = container.resolve(Settings)
     second = container.resolve(Settings)
-    assert first is second  # same instance, cached on first resolve
+    print(id(first), id(second), first is second)  # same instance, cached on first resolve
 # `close_settings` ran here, on `with` exit
 ```
 
@@ -163,14 +162,15 @@ with Container(groups=[Dependencies], validate=True) as container:
     with container.build_child_container(scope=Scope.REQUEST, context=request_context) as request:
         repo = request.resolve(UserRepository)
         user = repo.find(42)
+        print(user)
     # REQUEST-scope finalizers ran here (none declared in this example)
 # APP-scope finalizers ran here (closes settings)
 ```
 
 A framework integration (linked under "Where to next" below) builds and tears down this REQUEST
 child container for you automatically. Resolution itself is always synchronous; use `async with`
-instead of `with` only when a provider registers an **async** finalizer — see
-[Lifecycle](providers/lifecycle.md).
+(on both the container and the child) instead of `with` only when a provider registers an
+**async** finalizer — see [Lifecycle](providers/lifecycle.md).
 
 ## Where to next
 
