@@ -1,5 +1,5 @@
 ---
-summary: Runtime scope errors carry breadcrumb dependency chains (ERR-3): a captive dependency now names both ends of the bad edge.
+summary: Shipped ERR-3 — runtime scope errors carry breadcrumb chains naming both ends of a captive dependency, via an uncatchable empty-slots DependencyPathMixin (maintainer-ruled shape).
 ---
 
 # Design: Breadcrumb dependency paths on runtime scope errors
