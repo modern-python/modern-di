@@ -36,6 +36,7 @@ nav:
       - Multi-Group organization: recipes/multi-group.md
       - Testing with overrides: recipes/testing-overrides.md
       - Request-scoped engine selection: recipes/request-scoped-engine.md
+      - Good and bad practices: recipes/good-and-bad-practices.md
   - Testing:
       - Fixtures: testing/fixtures.md
   - Troubleshooting:
