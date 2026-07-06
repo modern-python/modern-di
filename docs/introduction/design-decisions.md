@@ -60,11 +60,11 @@ Beyond the choices above, three more things are deliberately out of scope. Namin
 
 ### Graph rendering / visualization tooling
 
-**What:** modern-di has no built-in way to render the dependency graph as a picture — no ASCII art, no Graphviz/Mermaid export, no `plot()`/`render()` call.
+**What:** modern-di has no built-in way to render the dependency graph as a picture — no ASCII art, no bundled renderer, no `plot()`/`render()` call, no image output.
 
-**Why:** The graph already exists internally — `validate()` walks the full provider graph and reports every wiring problem it finds — but a renderer is a standalone subsystem (choosing and maintaining a diagram format) rather than an extension of an existing primitive, so it sits outside the conservative feature set. `validate()`'s aggregated, all-errors-at-once text report already surfaces the graph's problems without a new dependency or output format.
+**Why:** Rendering is a standalone subsystem (choosing, drawing, and maintaining a diagram toolchain) rather than an extension of an existing primitive, so it sits outside the conservative feature set and the zero-dependency guarantee. `validate()`'s aggregated, all-errors-at-once text report already surfaces the graph's problems without a new dependency or output format.
 
-**Alternative:** None shipped today. If you need a picture of the graph, walk `Group.get_providers()` yourself.
+**Alternative:** None shipped today. If you need a picture of the graph, walk `Group.get_providers()` yourself and feed the edges to the diagram tool of your choice.
 
 ## See also
 
