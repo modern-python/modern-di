@@ -42,6 +42,15 @@ the container at that level. If the scope is deeper than the current container (
 `ScopeNotInitializedError` is raised; if it was skipped when building the child chain, a `ScopeSkippedError` is raised.
 From this point all cache and context operations use the scope-correct container.
 
+Both scope errors carry the same breadcrumb `dependency_path` as `ResolutionError` (they share
+`DependencyPathMixin`, see below), so a runtime **captive dependency** — a shallower-scoped provider
+depending, directly or transitively, on a deeper-scoped one — names both ends: the provider that
+captured the dependency and the one that actually failed to resolve, not just the two scope names.
+`Factory.resolve` wraps its own `find_container` call and prepends its own step on a scope error before
+re-raising, so the failing provider's name makes it into the chain even though this call sits outside
+the try block that wraps the rest of `resolve` (see Step 5's `prepend_step` note for the general
+mechanism). `Alias.resolve`'s except is widened the same way.
+
 ## Step 3 — Cache hit
 
 With the correct container in hand, `Factory.resolve` fetches (or creates) a `CacheItem` for this provider:
@@ -101,8 +110,9 @@ reads `dependencies`, `iter_validation_issues` builds a fresh error per `unwirea
 
 With the wiring plan in hand, `Factory` first surfaces any unwireable parameter: if `plan.unwireable` is non-empty it
 raises a **freshly built** `ArgumentResolutionError` from the first record before calling the creator. The error is
-built fresh on every raise (never memoized) because `ResolutionError.prepend_step` *mutates* the exception as it
-propagates up the chain — a stored instance would accumulate and leak breadcrumbs across repeated or nested resolves.
+built fresh on every raise (never memoized) because `prepend_step` (owned by the shared `DependencyPathMixin`, mixed
+into both `ResolutionError` and the two scope errors) *mutates* the exception as it propagates up the chain — a
+stored instance would accumulate and leak breadcrumbs across repeated or nested resolves.
 
 ```python
 resolved_kwargs = dict(plan.static_kwargs)
