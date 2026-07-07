@@ -1,6 +1,6 @@
 # Scope chain violation
 
-This error fires when a provider depends on another provider with a *shorter* lifetime than its own. APP-scoped factories cannot consume REQUEST-scoped dependencies, because the REQUEST instance would outlive its request.
+This error fires when a provider depends on another provider at a deeper (shorter-lived) scope — see [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why that's disallowed.
 
 ## Understanding the error
 
@@ -49,5 +49,5 @@ class Dependencies(Group):
 
 ## See also
 
-- [Scopes](../providers/scopes.md) — the lifetime model and the "max of dependencies' scopes" rule.
+- [Scopes](../providers/scopes.md#the-scope-dependency-rule) — the lifetime model and the "max of dependencies' scopes" rule.
 - [Lifecycle](../providers/lifecycle.md) — `validate=True` and other startup checks.
