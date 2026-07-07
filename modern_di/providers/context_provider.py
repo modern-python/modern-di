@@ -44,7 +44,8 @@ class ContextProvider(AbstractProvider[types.T_co]):
             warnings.warn(
                 f"No context value is set for {self.context_type!r} (scope {self.scope.name}); returning None. "
                 "modern-di 3.0 raises ContextValueNotSetError here. Pass context={...} to the container or call "
-                "set_context(). See https://modern-di.modern-python.org/migration/to-3.x/.",
+                "set_context(). See: https://modern-di.modern-python.org/migration/to-3.x/"
+                "#5-direct-resolve-of-an-unset-contextprovider-raises",
                 exceptions.ContextValueNoneWarning,
                 stacklevel=2,
             )

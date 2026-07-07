@@ -286,6 +286,17 @@ def test_unset_context_provider_direct_resolve_warns_and_returns_none() -> None:
         assert app_container.resolve_provider(MyGroup.context_provider) is None
 
 
+def test_unset_context_provider_warning_links_migration_guide_anchor() -> None:
+    # The trailer names the section covering this specific switch, not just the guide's landing page.
+    app_container = Container(groups=[MyGroup], validate=False)
+    with pytest.warns(
+        ContextValueNoneWarning,
+        match=r"See: https://modern-di\.modern-python\.org/migration/to-3\.x/"
+        r"#5-direct-resolve-of-an-unset-contextprovider-raises$",
+    ):
+        app_container.resolve_provider(MyGroup.context_provider)
+
+
 def test_set_context_provider_direct_resolve_does_not_warn() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(groups=[MyGroup], context={datetime.datetime: now}, validate=False)

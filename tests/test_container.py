@@ -368,6 +368,17 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
         Container(scope=Scope.APP, parent_container=request)
 
 
+def test_container_closed_warning_links_migration_guide_anchor() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.warns(
+        ContainerClosedWarning,
+        match=r"See: https://modern-di\.modern-python\.org/migration/to-3\.x/"
+        r"#1-closed-containers-raise-instead-of-self-healing$",
+    ):
+        container.resolve(Container)
+
+
 def test_closed_container_warns_and_reopens_on_resolve_and_child_building() -> None:
     container = Container(scope=Scope.APP)
     container.close_sync()
@@ -529,6 +540,15 @@ def test_resolve_emits_no_deprecation_warning() -> None:
 
 def test_root_container_without_validate_arg_warns_about_3_0_default() -> None:
     with pytest.warns(exceptions.UnvalidatedContainerWarning, match="modern-di 3.0 runs validate"):
+        Container(scope=Scope.APP)
+
+
+def test_unvalidated_container_warning_links_migration_guide_anchor() -> None:
+    with pytest.warns(
+        exceptions.UnvalidatedContainerWarning,
+        match=r"See: https://modern-di\.modern-python\.org/migration/to-3\.x/"
+        r"#4-validate-runs-by-default-at-root-construction$",
+    ):
         Container(scope=Scope.APP)
 
 
