@@ -60,6 +60,11 @@ class ProvidersRegistry:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
 
+    def remove_providers(self, *provider_types: type) -> None:
+        with self._lock:
+            for provider_type in provider_types:
+                self._providers.pop(provider_type, None)
+
     def build_suggestions(self, requested_type: type) -> list[str]:
         requested_is_class = inspect.isclass(requested_type)
         requested_name = getattr(requested_type, "__name__", str(requested_type))

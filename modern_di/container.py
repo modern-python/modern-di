@@ -81,6 +81,7 @@ class Container:
     __slots__ = (
         "_lock",
         "_scope_map",
+        "_validated",
         "cache_registry",
         "closed",
         "context_registry",
@@ -119,6 +120,7 @@ class Container:
                 allowed_scopes=[x.name for x in type(parent_container.scope) if x > parent_container.scope],
             )
         self._lock = threading.RLock() if use_lock else None
+        self._validated = False
         self.closed = False
         self.scope = scope
         self.parent_container = parent_container
@@ -278,6 +280,32 @@ class Container:
 
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
+        self._validated = True
+
+    def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
+        """Register providers on this (root) container after construction.
+
+        This is the blessed seam for framework integrations that discover providers
+        after the container is built. Root-only: calling this on a child container
+        raises :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since
+        the providers registry is shared tree-wide. If this container has already
+        been validated (via ``validate=True`` at construction or a manual
+        :meth:`validate` call), it is re-validated after registering, so a
+        newly-added provider that breaks the graph raises
+        :class:`~modern_di.exceptions.ValidationFailedError` here rather than later.
+        Atomic: if that re-validation fails, the whole batch is removed again —
+        either the batch is fully registered and valid, or the container is unchanged.
+        """
+        if self.parent_container is not None:
+            raise exceptions.ChildContainerRegistrationError
+        self.providers_registry.add_providers(*providers)
+        if self._validated:
+            try:
+                self.validate()
+            except exceptions.ValidationFailedError:
+                added_types = [provider.bound_type for provider in providers if provider.bound_type]
+                self.providers_registry.remove_providers(*added_types)
+                raise
 
     async def close_async(self) -> None:
         if not self.parent_container:

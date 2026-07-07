@@ -10,9 +10,11 @@ import pytest
 from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
+    ChildContainerRegistrationError,
     CircularDependencyError,
     ContainerClosedError,
     ContainerClosedWarning,
+    DuplicateProviderTypeError,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
     InvalidScopeTypeError,
@@ -617,3 +619,149 @@ def test_unvalidated_warning_pyproject_filter_matches_live_message() -> None:
     assert pattern is not None, "no ignore:...:FutureWarning filter found in pyproject.toml filterwarnings"
 
     assert re.compile(pattern.group("message")).match(str(record[0].message)) is not None
+
+
+def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:
+    container = Container(scope=Scope.APP, validate=False)
+    str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
+
+    container.add_providers(str_factory)
+
+    assert container.resolve(str) == "added"
+    assert container.resolve_provider(str_factory) == "added"
+
+
+def test_add_providers_raises_on_duplicate_against_registered() -> None:
+    str_factory = providers.Factory(creator=lambda: "one", bound_type=str)
+    other_str_factory = providers.Factory(creator=lambda: "two", bound_type=str)
+    container = Container(scope=Scope.APP, validate=False)
+    container.add_providers(str_factory)
+
+    with pytest.raises(DuplicateProviderTypeError) as exc:
+        container.add_providers(other_str_factory)
+    assert exc.value.provider_type is str
+
+
+def test_add_providers_raises_on_duplicate_intra_batch() -> None:
+    str_factory = providers.Factory(creator=lambda: "one", bound_type=str)
+    other_str_factory = providers.Factory(creator=lambda: "two", bound_type=str)
+    container = Container(scope=Scope.APP, validate=False)
+
+    with pytest.raises(DuplicateProviderTypeError) as exc:
+        container.add_providers(str_factory, other_str_factory)
+    assert exc.value.provider_type is str
+
+
+def test_add_providers_on_child_container_raises() -> None:
+    root = Container(scope=Scope.APP, validate=False)
+    child = root.build_child_container(scope=Scope.REQUEST)
+    str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
+
+    with pytest.raises(ChildContainerRegistrationError, match="root") as exc:
+        child.add_providers(str_factory)
+    assert isinstance(exc.value, exceptions.RegistrationError)
+
+
+def test_add_providers_on_validated_root_reraises_validation_failure() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Broken:
+        missing: Missing
+
+    container = Container(scope=Scope.APP, validate=True)
+    broken_factory = providers.Factory(creator=Broken)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        container.add_providers(broken_factory)
+    [issue] = exc.value.errors
+    assert isinstance(issue, ArgumentResolutionError)
+
+
+def test_add_providers_on_validate_false_root_does_not_validate() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Broken:
+        missing: Missing
+
+    container = Container(scope=Scope.APP, validate=False)
+    broken_factory = providers.Factory(creator=Broken)
+
+    container.add_providers(broken_factory)  # should not raise
+
+
+def test_add_providers_on_unset_validate_root_does_not_validate() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Broken:
+        missing: Missing
+
+    with pytest.warns(exceptions.UnvalidatedContainerWarning):
+        container = Container(scope=Scope.APP)
+    broken_factory = providers.Factory(creator=Broken)
+
+    container.add_providers(broken_factory)  # should not raise
+
+
+def test_add_providers_rolls_back_whole_batch_when_revalidation_fails() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Original:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Inner:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Outer:
+        inner: Inner
+
+    class G(Group):
+        original = providers.Factory(creator=Original)
+
+    container = Container(scope=Scope.APP, groups=[G], validate=True)
+
+    valid_factory = providers.Factory(creator=lambda: "ok", bound_type=str)
+    inner_factory = providers.Factory(scope=Scope.REQUEST, creator=Inner)
+    outer_factory = providers.Factory(scope=Scope.APP, creator=Outer)  # scope-invalid: APP depends on REQUEST
+
+    with pytest.raises(ValidationFailedError):
+        container.add_providers(valid_factory, inner_factory, outer_factory)
+
+    # the whole batch rolled back, including the valid providers
+    with pytest.raises(ProviderNotRegisteredError):
+        container.resolve(str)
+    with pytest.raises(ProviderNotRegisteredError):
+        container.resolve(Inner)
+    with pytest.raises(ProviderNotRegisteredError):
+        container.resolve(Outer)
+    # the container is unchanged: original providers still resolve and the graph is still valid
+    assert isinstance(container.resolve(Original), Original)
+    container.validate()
+
+
+def test_add_providers_after_manual_validate_reraises_validation_failure() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Broken:
+        missing: Missing
+
+    container = Container(scope=Scope.APP, validate=False)
+    container.validate()  # manual call also sets the flag
+    broken_factory = providers.Factory(creator=Broken)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        container.add_providers(broken_factory)
+    [issue] = exc.value.errors
+    assert isinstance(issue, ArgumentResolutionError)
