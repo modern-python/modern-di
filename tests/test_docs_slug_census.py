@@ -1,14 +1,17 @@
-"""Census of docs_slug coverage across modern_di.exceptions (ERR-4).
+"""Census of docs_slug coverage across modern_di.exceptions (ERR-4/DOC-6).
 
-Task 1 (this file) asserts the slug half of the completeness gate: every concrete
-`ModernDIError` subclass sets a unique `docs_slug`. Task 2 extends
-`test_every_concrete_error_has_a_unique_docs_slug` with the page-existence half
-(`docs/troubleshooting/<slug>.md` must exist) once the 16 new troubleshooting pages
-land — see planning/changes/2026-07-07.06-error-docs-registry.md.
+Every concrete `ModernDIError` subclass sets a unique `docs_slug`, and every slug has a
+matching page under `docs/troubleshooting/<slug>.md` — the full completeness gate. See
+planning/changes/2026-07-07.06-error-docs-registry.md.
 """
+
+import pathlib
 
 from modern_di import exceptions
 
+
+_REPO_ROOT = pathlib.Path(__file__).parent.parent
+_TROUBLESHOOTING_DIR = _REPO_ROOT / "docs" / "troubleshooting"
 
 # The 5 pre-existing troubleshooting pages plus the 16 new ones this change adds.
 _EXPECTED_CONCRETE_CLASS_COUNT = 21
@@ -24,6 +27,7 @@ _BASE_CLASSES = frozenset(
 
 
 def _concrete_error_classes() -> list[type[exceptions.ModernDIError]]:
+    # Walking modern_di/exceptions.py covers every error class by repo convention: all of them live there.
     return [
         obj
         for obj in vars(exceptions).values()
@@ -40,6 +44,15 @@ def test_every_concrete_error_has_a_unique_docs_slug() -> None:
 
     slugs = [cls.docs_slug for cls in classes]
     assert len(slugs) == len(set(slugs)), "docs_slug values must be unique across all concrete error classes"
+
+
+def test_every_docs_slug_has_a_troubleshooting_page() -> None:
+    missing = sorted(
+        cls.docs_slug
+        for cls in _concrete_error_classes()
+        if cls.docs_slug and not (_TROUBLESHOOTING_DIR / f"{cls.docs_slug}.md").exists()
+    )
+    assert not missing, f"docs_slug values with no matching docs/troubleshooting/<slug>.md page: {missing}"
 
 
 def test_base_classes_have_no_docs_slug() -> None:

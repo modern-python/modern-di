@@ -313,7 +313,7 @@ class ArgumentResolutionError(ResolutionError):
 
 
 class CreatorCallError(ResolutionError):
-    """A creator's dependencies resolved but the creator itself raised. Inspect ``.creator`` and ``.original_error``."""
+    """Argument binding failed when calling the creator (kwargs mismatch). Inspect ``.creator``, ``.original_error``."""
 
     docs_slug = "creator-call-error"
 

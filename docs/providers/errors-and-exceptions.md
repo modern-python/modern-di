@@ -51,27 +51,32 @@ Catch `ContainerError` for any container/scope failure.
 
 - **`InvalidChildScopeError`** — raised when `build_child_container(scope=...)` is given a scope
   that is not deeper than the parent's (or the constructor receives a parent at an equal/shallower
-  scope). The error lists the scopes that *are* allowed.
+  scope). The error lists the scopes that *are* allowed. See
+  [Troubleshooting: InvalidChildScopeError](../troubleshooting/invalid-child-scope-error.md).
 - **`MaxScopeReachedError`** — raised by `build_child_container()` with no explicit `scope` when the
-  parent is already at the deepest scope (`STEP`), so there is no next level to advance to.
+  parent is already at the deepest scope (`STEP`), so there is no next level to advance to. See
+  [Troubleshooting: MaxScopeReachedError](../troubleshooting/max-scope-reached-error.md).
 - **`ScopeNotInitializedError`** — raised during resolution when a provider needs a scope *deeper*
   than the current container's, and no container at that scope exists in the chain (e.g. resolving a
   `REQUEST`-scoped provider from the `APP` container). Like `ResolutionError`, it carries a breadcrumb
   `dependency_path`: a runtime *captive dependency* (a shallower-scoped provider depending, directly or
   transitively, on this deeper-scoped one) names both the capturing provider and the one that actually
-  failed, not just the two scope names. See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
+  failed, not just the two scope names. See
+  [Troubleshooting: ScopeNotInitializedError](../troubleshooting/scope-not-initialized-error.md).
 - **`ScopeSkippedError`** — raised during resolution when the target scope is *shallower* than the
   current container but is missing from the scope chain (a level was skipped when building children).
   Carries the same breadcrumb `dependency_path` as `ScopeNotInitializedError`. See
-  [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
+  [Troubleshooting: ScopeSkippedError](../troubleshooting/scope-skipped-error.md).
 - **`InvalidScopeTypeError`** — raised by the `Container` constructor when `scope` is not an
-  `enum.IntEnum`.
+  `enum.IntEnum`. See
+  [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
 - **`ContainerClosedError`** — raised in modern-di **3.0** when you resolve from, or build a child
   of, a closed container. Until then that reuse emits a **`ContainerClosedWarning`** (a
   `DeprecationWarning`) and the container self-reopens — see
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening). Escalate the warning
   today via the
   [readiness recipe](../migration/to-3.x.md#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings).
+  See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 - **`ValidationFailedError`** — raised by `Container.validate()` (and `Container(..., validate=True)`)
   when the graph has problems. Catch this for validation results; its `.errors` attribute holds the
   list of individual issues (each itself a `ResolutionError` or `RegistrationError`), and `str()`
@@ -79,7 +84,8 @@ Catch `ContainerError` for any container/scope failure.
   check (as before) but emits **`UnvalidatedContainerWarning`** (a `FutureWarning`) — modern-di
   **3.0** runs `validate()` at root construction by default; pass `validate=True` to adopt that now
   or `validate=False` to keep validation off permanently. See
-  [Migration: To 3.x](../migration/to-3.x.md).
+  [Migration: To 3.x](../migration/to-3.x.md) and
+  [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
 
 ## `ResolutionError` — failures while resolving a type
 
@@ -94,17 +100,20 @@ the same `dependency_path` — the breadcrumb machinery is shared, not duplicate
   the type. The message includes "did you mean…" suggestions when a close match exists. See
   [Troubleshooting: Missing provider](../troubleshooting/missing-provider.md).
 - **`AliasSourceNotRegisteredError`** — raised when an `Alias` points at a `source_type` that has no
-  registered provider (eagerly during `validate()`, or at resolution time).
+  registered provider (eagerly during `validate()`, or at resolution time). See
+  [Troubleshooting: AliasSourceNotRegisteredError](../troubleshooting/alias-source-not-registered-error.md).
 - **`ArgumentResolutionError`** — raised when a creator parameter cannot be resolved: no provider
   matches its annotated type, or the parameter is unannotated. See
-  [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
+  [Troubleshooting: ArgumentResolutionError](../troubleshooting/argument-resolution-error.md).
 - **`CircularDependencyError`** — raised when the provider graph contains a cycle (A → B → A); the
   message shows the cycle path. Raised eagerly by `validate()`, and also by a bare `resolve()` on an
   unvalidated cyclic graph via a runtime guard — see
   [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
-- **`CreatorCallError`** — raised when a creator's dependencies all resolved but the creator itself
-  raised while being called. The original exception is preserved on `.original_error` (and as the
-  `__cause__`).
+- **`CreatorCallError`** — raised when a creator's dependencies all resolved but argument binding
+  failed while calling it (the assembled arguments don't match the signature — typically a `kwargs` /
+  `skip_creator_parsing` mismatch). Exceptions raised *inside* the creator body propagate unchanged,
+  never wrapped. The binding `TypeError` is preserved on `.original_error` (and as the `__cause__`).
+  See [Troubleshooting: CreatorCallError](../troubleshooting/creator-call-error.md).
 - **`ContextValueNotSetError`** — raised in modern-di **3.0** when an unset `ContextProvider` is
   resolved *directly* (`container.resolve(SomeContextType)` with no value set). Until then that
   resolve emits **`ContextValueNoneWarning`** (a `DeprecationWarning`) and returns `None` —
@@ -112,7 +121,7 @@ the same `dependency_path` — the breadcrumb machinery is shared, not duplicate
   [readiness recipe](../migration/to-3.x.md#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings).
   Only the direct-resolve path is affected — a `Factory` parameter backed by the same
   `ContextProvider` keeps following its own default/nullable/required disposition. Inspect
-  `.context_type`.
+  `.context_type`. See [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
 
 ## `RegistrationError` — declaration / registration problems
 
@@ -125,14 +134,17 @@ Catch `RegistrationError` for declaration- and registration-time problems.
   container; registration is root-only because the providers registry is shared tree-wide, so
   registering from a child would mutate every container in the tree. Call `add_providers` on the root
   container instead. Inspect `.scope` for the offending child container's scope. See
-  [Container: registering after construction](container.md#registering-providers-after-construction).
+  [Container: registering after construction](container.md#registering-providers-after-construction) and
+  [Troubleshooting: ChildContainerRegistrationError](../troubleshooting/child-container-registration-error.md).
 - **`UnknownFactoryKwargError`** — raised when `Factory(kwargs={...})` contains a key that is not a
-  parameter of the creator's signature; lists the known parameters and "did you mean" hints.
+  parameter of the creator's signature; lists the known parameters and "did you mean" hints. See
+  [Troubleshooting: UnknownFactoryKwargError](../troubleshooting/unknown-factory-kwarg-error.md).
 - **`UnsupportedCreatorParameterError`** — raised when a creator's signature has a parameter
-  `modern-di` cannot wire (e.g. an unsupported kind); names the parameter and the reason.
+  `modern-di` cannot wire (e.g. an unsupported kind); names the parameter and the reason. See
+  [Troubleshooting: UnsupportedCreatorParameterError](../troubleshooting/unsupported-creator-parameter-error.md).
 - **`InvalidScopeDependencyError`** — raised when a provider depends on another provider bound to a
   *deeper* scope than its own (a longer-lived provider depending on a shorter-lived one). Surfaced by
-  `validate()`.
+  `validate()`. See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
 
 ## Direct `ModernDIError` subclasses
 
@@ -141,13 +153,16 @@ These don't fit the register/resolve/validate grouping:
 - **`FinalizerError`** — raised by `close_sync()` / `close_async()` when one or more finalizers raised
   during cleanup. The remaining finalizers still run; all errors are aggregated into this single
   exception. `.finalizer_errors` holds the list and `.is_async` records which close path ran. See
-  [Lifecycle](lifecycle.md#close-failure-semantics).
+  [Lifecycle](lifecycle.md#close-failure-semantics) and
+  [Troubleshooting: FinalizerError](../troubleshooting/finalizer-error.md).
 - **`AsyncFinalizerInSyncCloseError`** — raised when `close_sync()` reaches a cached resource whose
   finalizer is async. Because `close_sync()` aggregates, this arrives *wrapped inside a*
   `FinalizerError` (as an entry in `.finalizer_errors`), not on its own. The cache is retained so a
-  later `await close_async()` can finalize it. See [Lifecycle](lifecycle.md#close-failure-semantics).
+  later `await close_async()` can finalize it. See [Lifecycle](lifecycle.md#close-failure-semantics) and
+  [Troubleshooting: AsyncFinalizerInSyncCloseError](../troubleshooting/async-finalizer-in-sync-close-error.md).
 - **`GroupInstantiationError`** — raised when a `Group` subclass is instantiated. Groups are
-  namespaces and must never be created as objects.
+  namespaces and must never be created as objects. See
+  [Troubleshooting: GroupInstantiationError](../troubleshooting/group-instantiation-error.md).
 
 ## Security note
 

@@ -37,11 +37,27 @@ nav:
       - Request-scoped engine selection: recipes/request-scoped-engine.md
       - Good and bad practices: recipes/good-and-bad-practices.md
   - Troubleshooting:
-      - Circular Dependency: troubleshooting/circular-dependency.md
-      - Duplicate Type Error: troubleshooting/duplicate-type-error.md
-      - Scope Chain Violation: troubleshooting/scope-chain.md
+      - Invalid Child Scope: troubleshooting/invalid-child-scope-error.md
+      - Max Scope Reached: troubleshooting/max-scope-reached-error.md
+      - Scope Not Initialized: troubleshooting/scope-not-initialized-error.md
+      - Scope Skipped: troubleshooting/scope-skipped-error.md
+      - Invalid Scope Type: troubleshooting/invalid-scope-type-error.md
+      - Container Closed: troubleshooting/container-closed-error.md
+      - Validation Failed: troubleshooting/validation-failed-error.md
       - Missing Provider For Type: troubleshooting/missing-provider.md
+      - Alias Source Not Registered: troubleshooting/alias-source-not-registered-error.md
+      - Argument Resolution Error: troubleshooting/argument-resolution-error.md
+      - Circular Dependency: troubleshooting/circular-dependency.md
+      - Creator Call Error: troubleshooting/creator-call-error.md
       - ContextProvider Has No Value: troubleshooting/context-not-set.md
+      - Duplicate Type Error: troubleshooting/duplicate-type-error.md
+      - Child Container Registration: troubleshooting/child-container-registration-error.md
+      - Unknown Factory Kwarg: troubleshooting/unknown-factory-kwarg-error.md
+      - Unsupported Creator Parameter: troubleshooting/unsupported-creator-parameter-error.md
+      - Scope Chain Violation: troubleshooting/scope-chain.md
+      - Finalizer Error: troubleshooting/finalizer-error.md
+      - Async Finalizer In Sync Close: troubleshooting/async-finalizer-in-sync-close-error.md
+      - Group Instantiation Error: troubleshooting/group-instantiation-error.md
   - Migration:
       - To 1.x: migration/to-1.x.md
       - To 2.x: migration/to-2.x.md
@@ -157,11 +173,27 @@ plugins:
           - recipes/request-scoped-engine.md: Routing requests to different engines by scope
           - recipes/good-and-bad-practices.md: Common DI footguns and how modern-di catches them
         Troubleshooting:
-          - troubleshooting/circular-dependency.md: Diagnosing circular dependency errors
-          - troubleshooting/duplicate-type-error.md: Diagnosing duplicate bound_type registration errors
-          - troubleshooting/scope-chain.md: Diagnosing scope chain violation errors
+          - troubleshooting/invalid-child-scope-error.md: Diagnosing InvalidChildScopeError
+          - troubleshooting/max-scope-reached-error.md: Diagnosing MaxScopeReachedError
+          - troubleshooting/scope-not-initialized-error.md: Diagnosing ScopeNotInitializedError
+          - troubleshooting/scope-skipped-error.md: Diagnosing ScopeSkippedError
+          - troubleshooting/invalid-scope-type-error.md: Diagnosing InvalidScopeTypeError
+          - troubleshooting/container-closed-error.md: Diagnosing ContainerClosedError
+          - troubleshooting/validation-failed-error.md: Diagnosing ValidationFailedError
           - troubleshooting/missing-provider.md: Diagnosing missing provider registration errors
+          - troubleshooting/alias-source-not-registered-error.md: Diagnosing AliasSourceNotRegisteredError
+          - troubleshooting/argument-resolution-error.md: Diagnosing ArgumentResolutionError
+          - troubleshooting/circular-dependency.md: Diagnosing circular dependency errors
+          - troubleshooting/creator-call-error.md: Diagnosing CreatorCallError
           - troubleshooting/context-not-set.md: Diagnosing ContextProvider-has-no-value errors
+          - troubleshooting/duplicate-type-error.md: Diagnosing duplicate bound_type registration errors
+          - troubleshooting/child-container-registration-error.md: Diagnosing ChildContainerRegistrationError
+          - troubleshooting/unknown-factory-kwarg-error.md: Diagnosing UnknownFactoryKwargError
+          - troubleshooting/unsupported-creator-parameter-error.md: Diagnosing UnsupportedCreatorParameterError
+          - troubleshooting/scope-chain.md: Diagnosing scope chain violation errors
+          - troubleshooting/finalizer-error.md: Diagnosing FinalizerError
+          - troubleshooting/async-finalizer-in-sync-close-error.md: Diagnosing AsyncFinalizerInSyncCloseError
+          - troubleshooting/group-instantiation-error.md: Diagnosing GroupInstantiationError
         Migration:
           - migration/to-1.x.md: Migrating from modern-di 0.x to 1.x
           - migration/to-2.x.md: Migrating from modern-di 1.x to 2.x
