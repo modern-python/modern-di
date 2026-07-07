@@ -34,7 +34,7 @@ session = providers.Factory(
 )
 ```
 
-- **Caching.** With `cache=True`, the provider returns the same instance for every resolve inside that scope's container. Without `cache`, the provider creates a fresh instance every call.
+- **Caching.** With `cache=True`, the provider returns the same instance for every resolve inside that scope's container — this is the singleton idiom, see [Cached factories](factories.md#cached-factories). Without `cache`, the provider creates a fresh instance every call.
 - **Finalizer.** A callable that runs on the cached instance when the container is closed. Sync or async — `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance.
 
 ```python
@@ -111,7 +111,8 @@ above) and mark the container closed.
 
 While a container is closed, resolving a dependency — or building a child container — emits a
 `ContainerClosedWarning` and reopens the container so the call succeeds (transitional; modern-di
-3.0 will raise `ContainerClosedError` instead — see [Errors and exceptions](errors-and-exceptions.md)).
+3.0 will raise `ContainerClosedError` instead — see
+[Migration: To 3.x](../migration/to-3.x.md#1-closed-containers-raise-instead-of-self-healing)).
 Re-entering `with container:` reopens it cleanly, without a warning, and resolution works again:
 
 ```python
@@ -167,8 +168,10 @@ Framework integrations handle this automatically: they build the REQUEST child c
 
 `Container(groups=[...], validate=True)` runs the following checks at startup:
 
-- **Cycle detection.** Provider A depending on B depending on A raises `CircularDependencyError`.
-- **Scope chain check.** A provider that depends on a shorter-lived provider raises an error (see [Scopes](scopes.md)).
+- **Cycle detection.** Provider A depending on B depending on A raises `CircularDependencyError`
+  (see [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md)).
+- **Scope chain check.** A provider that depends on a shorter-lived provider raises an error (see
+  [The scope dependency rule](scopes.md#the-scope-dependency-rule)).
 - **Missing providers.** A creator parameter typed `Foo` with no registered `Foo` provider raises an error.
 
 Validation has no runtime cost after startup. Turn it on — it catches the bugs you don't want to discover under load.
