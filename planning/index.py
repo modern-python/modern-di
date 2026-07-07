@@ -1,6 +1,5 @@
-# ruff: noqa: INP001, D212  # planning/ is not a Python package; D212/D213 conflict differs from faststream-outbox
-"""
-Generate the planning index from frontmatter.
+# ruff: noqa: INP001  # planning/ is not a Python package (this file is vendored into consumers' planning/)
+"""Generate the planning index from frontmatter.
 
 Run via ``just index``. Globs ``planning/changes/*/`` (each bundle's
 ``design.md``, falling back to ``change.md``) and ``planning/decisions/*.md``,
@@ -17,12 +16,11 @@ import re
 import sys
 
 
-CHANGES_DIR = pathlib.Path(__file__).parent / "changes"
-DECISIONS_DIR = pathlib.Path(__file__).parent / "decisions"
+ROOT = pathlib.Path(__file__).parent
 VALID_DECISION_STATUS = {"accepted", "superseded"}
 BUNDLE_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\.\d{2}-(?P<slug>.+)$")
 DECISION_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})-(?P<slug>.+)$")
-ALLOWED_BUNDLE_FILES = {"design.md", "plan.md", "change.md"}
+ALLOWED_BUNDLE_FILES = {"design.md", "change.md"}
 SPEC_REQUIRED = ("summary",)
 DECISION_REQUIRED = ("status", "summary")
 
@@ -55,12 +53,13 @@ def _named(fields: dict[str, str], name: str, pattern: re.Pattern[str]) -> dict[
     return fields
 
 
-def load_bundles() -> list[dict[str, str]]:
+def load_bundles(root: pathlib.Path) -> list[dict[str, str]]:
     """Read each bundle's summary; derive date/slug from the directory name."""
+    changes_dir = root / "changes"
     bundles: list[dict[str, str]] = []
-    if not CHANGES_DIR.is_dir():
+    if not changes_dir.is_dir():
         return bundles
-    for bundle in sorted(CHANGES_DIR.iterdir()):
+    for bundle in sorted(changes_dir.iterdir()):
         if not bundle.is_dir():
             continue
         spec = bundle / "design.md"
@@ -75,12 +74,13 @@ def load_bundles() -> list[dict[str, str]]:
     return bundles
 
 
-def load_decisions() -> list[dict[str, str]]:
+def load_decisions(root: pathlib.Path) -> list[dict[str, str]]:
     """Read each decision's frontmatter; derive date/slug from the file name."""
+    decisions_dir = root / "decisions"
     decisions: list[dict[str, str]] = []
-    if not DECISIONS_DIR.is_dir():
+    if not decisions_dir.is_dir():
         return decisions
-    for path in sorted(DECISIONS_DIR.glob("*.md")):
+    for path in sorted(decisions_dir.glob("*.md")):
         if path.name == "README.md" or path.name.startswith("_"):
             continue
         fields = _named(parse_frontmatter(path.read_text(encoding="utf-8")), path.stem, DECISION_RE)
@@ -144,7 +144,6 @@ def _check_bundle(bundle: pathlib.Path, violations: list[str]) -> None:
     for spec_file in (design, change):
         if spec_file.exists():
             _check_spec_file(spec_file, f"{rel}/{spec_file.name}", violations)
-    # plan.md carries no frontmatter — its identity comes from the bundle dir.
 
 
 def _check_decision(path: pathlib.Path, violations: list[str]) -> None:
@@ -159,25 +158,29 @@ def _check_decision(path: pathlib.Path, violations: list[str]) -> None:
         violations.append(f"{rel}: invalid status '{status}' (allowed: {', '.join(sorted(VALID_DECISION_STATUS))})")
 
 
-def check() -> list[str]:
+def check(root: pathlib.Path) -> list[str]:
     """Validate every bundle and decision; return the list of violation strings."""
     violations: list[str] = []
-    if CHANGES_DIR.is_dir():
-        for bundle in sorted(CHANGES_DIR.iterdir()):
+    changes_dir = root / "changes"
+    decisions_dir = root / "decisions"
+    if changes_dir.is_dir():
+        for bundle in sorted(changes_dir.iterdir()):
             if bundle.is_dir():
                 _check_bundle(bundle, violations)
-    if DECISIONS_DIR.is_dir():
-        for path in sorted(DECISIONS_DIR.glob("*.md")):
+    if decisions_dir.is_dir():
+        for path in sorted(decisions_dir.glob("*.md")):
             if path.name == "README.md" or path.name.startswith("_"):
                 continue
             _check_decision(path, violations)
     return violations
 
 
-def main() -> int:
+def main(argv: list[str] | None = None, root: pathlib.Path | None = None) -> int:
     """Print the listing to stdout, or validate bundles with --check."""
-    if "--check" in sys.argv[1:]:
-        violations = check()
+    argv = sys.argv[1:] if argv is None else argv
+    root = ROOT if root is None else root
+    if "--check" in argv:
+        violations = check(root)
         if violations:
             sys.stderr.write(f"planning: {len(violations)} violation(s)\n")
             for violation in violations:
@@ -185,7 +188,7 @@ def main() -> int:
             return 1
         sys.stdout.write("planning: OK\n")
         return 0
-    sys.stdout.write(render(load_bundles(), load_decisions()))
+    sys.stdout.write(render(load_bundles(root), load_decisions(root)))
     return 0
 
 

@@ -4,6 +4,10 @@ summary: One line — shown in the generated index. Written at creation; finaliz
 
 # Design: One-line capitalized title
 
+<!-- The single home of this change's rationale: the PR body summarizes and
+links here, never restates. Delete any section that doesn't apply — an empty
+section is ceremony. Most designs fit well under ~700 words. -->
+
 ## Summary
 
 One paragraph. What changes, at the level a reader needs to decide if this
@@ -12,37 +16,23 @@ spec is worth reading in full.
 ## Motivation
 
 Why now. What is broken or missing. Concrete observations / numbers, not
-abstract complaints. Link to memory entries or earlier specs when relevant.
-
-## Non-goals
-
-What is deliberately out of scope and (when nontrivial) why. Each item is
-a sentence; one line each.
+abstract complaints.
 
 ## Design
 
-### 1. <First piece>
-
 What changes, in enough detail that a reader who has not seen the codebase
-can follow. Code samples / diagrams welcome.
+can follow. Sketches and interface fragments welcome; never the full
+diff-to-be. Reference rejected alternatives in `decisions/` instead of
+retelling them.
 
-### 2. <Second piece>
+## Non-goals
 
-...
-
-## Operations
-
-Out-of-repo steps (DNS, infra, external account changes). Omit if none.
-
-## Out of scope
-
-Already covered above under Non-goals if appropriate. Repeat-list of
-explicitly-excluded follow-ups belongs here when the list is long.
+What is deliberately out of scope and (when nontrivial) why. One line each.
 
 ## Testing
 
-How we know it landed correctly. New pytest? Smoke check on live URL?
-Lint pass? Be specific.
+How we know it landed correctly. Be specific: the command and the expected
+signal.
 
 ## Risk
 
