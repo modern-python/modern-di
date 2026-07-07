@@ -72,7 +72,7 @@ type hints and builds the graph for you — see the [Quickstart](../index.md#2-f
 
 Objects can have different lifetimes — singleton, per-request, or a fresh instance every call.
 `modern-di` expresses this with [Scopes](../providers/scopes.md): a provider's scope decides how
-long its container lives, and `cache=True` decides whether an instance is shared or rebuilt on each
+long its instances live, and `cache=True` decides whether an instance is shared or rebuilt on each
 resolve — see [Cached factories](../providers/factories.md#cached-factories).
 
 ## See also

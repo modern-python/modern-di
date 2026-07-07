@@ -116,7 +116,7 @@ def frozen_clock() -> Mock:
     container.reset_override(Dependencies.clock)
 ```
 
-**Caught by:** nothing automatic mid-suite — `reset_override()` (or `reset_override()` with no
+**Caught by:** nothing automatic mid-suite — `reset_override(provider)` (or `reset_override()` with no
 arguments, to clear everything) is the fix, and closing the **root** container clears every override
 in the shared registry as a last resort. See
 [Testing with overrides](testing-overrides.md#pitfalls).
