@@ -97,6 +97,6 @@ Combine with `container.override(...)` in a setup fixture to swap underlying pro
 
 ## See also
 
-- [Pytest integration](../integrations/pytest.md) and [Testing: fixtures](../testing/fixtures.md).
+- [Pytest integration](../integrations/pytest.md).
 - [Async SQLAlchemy recipe](sqlalchemy.md) — the engine/session/repository chain being overridden here.
 - Reference template: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template) — full transactional fixture setup.
