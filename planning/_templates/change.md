@@ -5,8 +5,8 @@ summary: One line — shown in the generated index. Written at creation; finaliz
 # Change: One-line capitalized title
 
 **Lane:** lightweight — ≲30 LOC net, ≤2 files, no new file, no public-API
-change, a single straightforward test. If it outgrows this, split into
-a `design.md`.
+change, a single straightforward test. If it outgrows this, rewrite it from
+the design template.
 
 ## Goal
 

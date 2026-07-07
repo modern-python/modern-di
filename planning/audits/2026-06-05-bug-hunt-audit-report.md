@@ -1,7 +1,7 @@
 # Bug-Hunt Audit Report — 2026-06-05
 
-**Spec:** planning/changes/2026-06-05.01-bug-hunt-audit/design.md
-**Plan:** planning/changes/2026-06-05.01-bug-hunt-audit/plan.md
+**Spec:** planning/changes/2026-06-05.01-bug-hunt-audit.md
+**Plan:** planning/changes/2026-06-05.01-bug-hunt-audit.md
 **Survivors:** 42 findings post-verify, 41 after dedup
 
 ## Summary

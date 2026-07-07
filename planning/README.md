@@ -12,24 +12,22 @@ root; this directory records *how it got there*.
 **1. Choose a lane — first matching rule wins:**
 
 1. Any of: needs design judgment · new file/module · public-API change ·
-   cross-cutting or multi-file · non-trivial test design → **Full** (`design.md`)
+   cross-cutting or multi-file · non-trivial test design → **Full** (design template)
 2. Purely mechanical: typo · dep bump · linter/formatter/CI tweak ·
-   mechanical rename · single-line config → **Tiny** (no bundle, conventional
+   mechanical rename · single-line config → **Tiny** (no change file, conventional
    commit)
 3. Small-but-real, none of the above: ≲30 LOC net · ≤2 files · no new file ·
-   no public-API change · one straightforward test → **Lightweight**
-   (`change.md`)
+   no public-API change · one straightforward test → **Lightweight** (change template)
 
-Ambiguous between two? Take the heavier. A `change.md` that outgrows its lane
-splits into a `design.md`.
+Ambiguous between two? Take the heavier. A lightweight change file that outgrows its lane is rewritten from the design template.
 
-**2. Create the bundle** (Full / Lightweight only):
-`planning/changes/YYYY-MM-DD.NN-<slug>/`, where `.NN` is a zero-padded
-intra-day counter. Copy the matching template from
+**2. Create the change file** (Full / Lightweight only):
+`planning/changes/YYYY-MM-DD.NN-<slug>.md`, where `.NN` is a zero-padded
+intra-day counter — copied from the matching template (design or change) in
 [`_templates/`](_templates/).
 
 **3. Ship in the implementing PR:** hand-edit the affected
-`architecture/<capability>.md`, finalize the bundle's `summary:` to the
+`architecture/<capability>.md`, finalize the change file's `summary:` to the
 realized result, and run `just check-planning` before pushing.
 
 ## Conventions
@@ -45,14 +43,14 @@ realized result, and run `just check-planning` before pushing.
 - **`architecture/` (repo root) — the present.** One file per capability, plus
   a single `glossary.md` (the ubiquitous language); living prose, updated in the
   same PR that ships the change. The truth home.
-- **`planning/changes/` — the past-and-pending.** One folder per change,
+- **`planning/changes/` — the past-and-pending.** One file per change,
   kept in place after ship.
 
 A change **promotes** its conclusions into the affected
 `architecture/<capability>.md` by hand **in the implementing PR, alongside the
 code** — the edit rides in the same diff and is reviewed with it, never applied
 as a separate post-merge step. That hand-edit is what keeps `architecture/`
-true; the bundle stays in `changes/` as the *why*.
+true; the change file stays in `changes/` as the *why*.
 
 ### Glossary
 
@@ -74,9 +72,9 @@ Keep it a glossary, not a spec — no implementation detail. A change that
 introduces or sharpens a term updates `glossary.md` in the same PR, the same way
 a behavior change promotes into a capability file.
 
-### Change bundles
+### Change files
 
-A change is a folder `changes/YYYY-MM-DD.NN-<slug>/`:
+A change is a file `changes/YYYY-MM-DD.NN-<slug>.md`:
 
 - `YYYY-MM-DD` — proposal date; `.NN` — zero-padded intra-day counter
   (`.01`, `.02`, …) that breaks same-date ties so the timeline sorts stably.
@@ -85,34 +83,33 @@ A change is a folder `changes/YYYY-MM-DD.NN-<slug>/`:
 `summary` is written when the change is created (the intent one-liner) and
 **finalized at ship** to state the realized result — set in the implementing
 PR, alongside the code and the `architecture/` promotion. No post-merge
-bookkeeping, no folder move. `date` and `slug` are never written — they are
-read from the bundle's directory name.
+bookkeeping, no file move. `date` and `slug` are never written — they are
+read from the file name.
 
 ### Three lanes
 
 | Lane | Artifacts | Use when |
 |------|-----------|----------|
-| **Full** | `design.md` | design judgment; new file/module; public-API change; cross-cutting/multi-file; non-trivial test design |
-| **Lightweight** | `change.md` | small-but-real: ≲30 LOC net, ≤2 files, no new file, no public-API change, single straightforward test |
+| **Full** | one change file from the design template | design judgment; new file/module; public-API change; cross-cutting/multi-file; non-trivial test design |
+| **Lightweight** | one change file from the change template | small-but-real: ≲30 LOC net, ≤2 files, no new file, no public-API change, single straightforward test |
 | **Tiny** | none — conventional commit | typo, dep bump, linter/formatter/CI tweak, mechanical rename, single-line config |
 
-Heavier lane wins on ambiguity. A `change.md` that outgrows its lane splits
-into a `design.md`.
+Heavier lane wins on ambiguity. A lightweight change file that outgrows its lane is rewritten from the design template.
 
 ### Plans are ephemeral
 
 The executable plan — task checklists, embedded code, commit sequences,
 whatever the executor needs — is a working artifact, not history. Keep it out
-of the bundle and out of version control (git-ignored scratch, e.g.
+of `changes/` and out of version control (git-ignored scratch, e.g.
 `.superpowers/`). Once the change ships, the diff and the PR are the record
 of execution; a committed plan duplicates them. `check-planning` rejects
-`plan.md` inside a bundle.
+anything in `changes/` that is not a flat change file.
 
 ### Lean specs
 
-`design.md` is the single home of a change's rationale:
+The change file is the single home of a change's rationale:
 
-- The PR body summarizes and links to the bundle — it never restates it.
+- The PR body summarizes and links to the change file — it never restates it.
 - Rejected alternatives live in `decisions/` and are referenced, not retold.
 - Show a sketch when the design needs code; never the full diff-to-be.
 - Delete template sections that don't apply — an empty section is ceremony.
@@ -120,9 +117,10 @@ of execution; a committed plan duplicates them. `check-planning` rejects
 
 ### Artifacts at a glance
 
-- **`design.md`** — the spec: the *thinking* (why, design, trade-offs, scope);
-  the change's single home of rationale (see [Lean specs](#lean-specs)).
-- **`change.md`** — the condensed spec for the lightweight lane.
+- **design template** — the spec: the *thinking* (why, design, trade-offs,
+  scope); the change file it produces is the single home of rationale (see
+  [Lean specs](#lean-specs)).
+- **change template** — the condensed spec for the lightweight lane.
 - **`releases/<semver>.md`** — per-release user-facing notes.
 - **`audits/<date>-<slug>.md`** — findings from a code/docs/bug-hunt sweep;
   spawns fix changes.
@@ -136,10 +134,10 @@ Templates live in [`_templates/`](_templates/).
 
 ### Frontmatter
 
-`date` and `slug` are **derived from the directory / file name** — never
+`date` and `slug` are **derived from the file name** — never
 repeated in frontmatter. So:
 
-- `design.md` / `change.md`: `summary` (single line) only.
+- `changes/*.md`: `summary` (single line) only.
 - `decisions/*.md`: `status` (accepted|superseded), `summary`, and optional
   `supersedes` / `superseded_by`.
 - Files in `architecture/` carry **no** frontmatter — living prose, dated by git.
@@ -151,7 +149,7 @@ only field the index renders.
 ## Index
 
 The listing is **generated**, not maintained — run `just index` to print it:
-changes then decisions, newest first. The frontmatter in each bundle / decision file is the
+changes then decisions, newest first. The frontmatter in each change / decision file is the
 single source of truth; there is no committed copy to drift.
 
 ## Other
