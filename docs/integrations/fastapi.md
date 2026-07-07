@@ -70,17 +70,10 @@ async def read_root(
 
 ## Websockets
 
-Usually our application uses only two scopes: `APP` and `REQUEST`.
-
-But when websockets are used, `SESSION` scope is used as well:
-
-- for the lifetime of websocket-connection we have `SESSION` scope
-- for each message we have `REQUEST` scope
-
-`APP` → `SESSION` → `REQUEST`
-
-`SESSION` scope is entered automatically.
-`REQUEST` scope must be entered manually:
+Websockets add `SESSION` scope between `APP` and `REQUEST` — see [the scope
+hierarchy](../providers/scopes.md#the-scope-dependency-rule). `SESSION` covers
+the lifetime of the websocket connection and is entered automatically;
+`REQUEST` covers one message and must be entered manually:
 
 ```python
 import typing
@@ -109,8 +102,10 @@ async def websocket_endpoint(
 
 ## Framework Context Objects
 
-Framework-specific context objects like `fastapi.Request` and `fastapi.WebSocket` are automatically made available by the integration.
-You can reference these context providers in your factories either implicitly through type annotations or explicitly by importing them.
+Framework-specific context objects like `fastapi.Request` and `fastapi.WebSocket`
+are automatically made available by the integration — see [Framework Context
+Objects](../providers/context.md#framework-context-objects) for how implicit
+and explicit resolution work.
 
 The following context providers are available for import:
 
@@ -118,8 +113,6 @@ The following context providers are available for import:
 - `fastapi_websocket_provider` - Provides the current `fastapi.WebSocket` object
 
 ### Implicit Usage (Type-based Resolution)
-
-In many cases, you can rely on automatic dependency resolution based on type annotations:
 
 ```python
 import fastapi
@@ -143,8 +136,6 @@ class AppGroup(Group):
 ```
 
 ### Explicit Usage (Provider-based Resolution)
-
-For more control, you can explicitly reference the context providers:
 
 ```python
 import fastapi

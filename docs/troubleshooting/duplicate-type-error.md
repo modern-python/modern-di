@@ -14,7 +14,7 @@ The full runtime message also embeds the numbered resolution steps (set `bound_t
 
 It descends from `RegistrationError` → `ModernDIError` → `RuntimeError`, so `except DuplicateProviderTypeError`, `except RegistrationError`, and `except RuntimeError` all catch it. See [Errors and exceptions](../providers/errors-and-exceptions.md).
 
-It means you have multiple providers that can provide the same type. This typically happens when:
+This typically happens when:
 
 1. You have multiple factories that return the same type
 2. You're using the same class in different contexts with different configurations

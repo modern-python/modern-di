@@ -93,10 +93,11 @@ Combine with `container.override(...)` in a setup fixture to swap underlying pro
 - **Overrides are global.** Override the root APP container and every child REQUEST container sees the replacement. Fine in tests; remember it if you also override in production code.
 - **`override` is keyed by provider reference.** Pass `Dependencies.user_repository` (the provider object), not the string `"user_repository"`.
 - **Always `reset_override` in the fixture teardown.** Leaking overrides between tests is a class of bug that doesn't fail loudly.
+- **Wrap session-scoped containers in a function-scoped override fixture.** If the `Container` fixture itself is session-scoped (built once for the whole test run), don't call `override`/`reset_override` directly in a test — wrap the pair in their own function-scoped fixture so the override is guaranteed to reset after each test, even on failure.
 - **Override the right level.** If you override the engine but tests resolve the session, the session's creator still runs — make sure the engine override produces something the creator can use. If the test relies on a specific session, override the session directly.
 
 ## See also
 
-- [Pytest integration](../integrations/pytest.md) and [Testing: fixtures](../testing/fixtures.md).
+- [Pytest integration](../integrations/pytest.md).
 - [Async SQLAlchemy recipe](sqlalchemy.md) — the engine/session/repository chain being overridden here.
 - Reference template: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template) — full transactional fixture setup.

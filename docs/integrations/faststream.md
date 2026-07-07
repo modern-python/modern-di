@@ -84,7 +84,7 @@ There is no `Scope.SESSION` for FastStream — message brokers don't have a sess
 
 ## Framework context objects
 
-`faststream.StreamMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the current message.
+`faststream.StreamMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the current message — see [Framework Context Objects](../providers/context.md#framework-context-objects) for how implicit and explicit resolution work.
 
 The following context provider is also available for explicit import:
 

@@ -5,6 +5,13 @@ callables cover the entire surface — `modern_di_fixture` for a single
 dependency and `expose` for bulk-generating one fixture per provider across
 one or more `Group` subclasses.
 
+Don't want the extra dependency? You don't need it: define `di_container` as
+a session-scoped pytest fixture around `Container(...)` used as a context
+manager, build a request-scoped child-container fixture from it, and resolve
+dependencies inside tests with `container.resolve(...)` directly. See the
+[testing-with-overrides recipe](../recipes/testing-overrides.md) for a worked
+example of that approach — the rest of this page assumes the plugin.
+
 ## How to use
 
 ### 1. Install

@@ -90,6 +90,40 @@ modern-di earns its place once you have a second entrypoint, or need typed,
 scoped, app-wide singletons with overrides that work everywhere, not just on the
 HTTP path.
 
+## that-depends or modern-di?
+
+[`that-depends`](https://github.com/modern-python/that-depends) is a sibling
+project from the same author, in the same
+[modern-python](https://github.com/modern-python) family — it isn't in the
+table above because the choice between the two isn't about features so much
+as which generation of the same design you want.
+
+- **Starting a new project?** Use **modern-di**. It has explicit scopes, no
+  global state, a small strictly-typed core, and separate framework adapters —
+  see [Design decisions](design-decisions.md).
+- **Already using that-depends?** It remains **actively maintained and
+  production-proven** — you don't need to migrate. Move when you want explicit
+  scopes or a no-global-state architecture; the
+  [migration guide](../migration/from-that-depends.md) maps every concept across.
+
+| | that-depends | modern-di |
+|---|---|---|
+| Resolution | async + sync (`AsyncFactory`, `await resolve`) | sync resolution (async finalizers supported) |
+| Container model | the container class is both schema and runtime | `Group` (schema) and `Container` (runtime) are separate |
+| Scopes | context-based lifetimes | explicit, enforced scope chain (APP→…→STEP) |
+| Global state | resolves directly from the container class | none — you create and pass containers explicitly |
+| Integrations | bundled | separate adapter packages (install only what you need) |
+
+Choose **that-depends** if you specifically want async resolution
+(`await container.resolve(...)` — modern-di is sync-only by design and won't
+add it), want the simplest setup for a single service without an explicit
+scope chain, or already run it in production with no reason to change.
+
+The [migration guide](../migration/from-that-depends.md) covers every
+provider type and concept, including the conceptual shifts: the
+schema/runtime split (`Group` vs `Container`), sync-only resolution, and
+explicit scopes.
+
 ## Where is Singleton? — cross-framework vocabulary
 
 modern-di deliberately has no `Singleton` class — "create once and reuse" is spelled via a scope
@@ -110,5 +144,3 @@ lifetime dialect, so here is how the same six concepts translate:
 - [Design decisions](design-decisions.md) — the reasoning behind sync-only
   resolution, no global state, a conservative core, and the deliberate
   [non-goals](design-decisions.md#non-goals) that keep it that way.
-- [that-depends or modern-di?](that-depends-or-modern-di.md) — choosing within
-  the modern-python family.

@@ -1,287 +1,76 @@
 # Migration Guide: Upgrading to modern-di 2.x
 
-This document describes the changes required to migrate from modern-di 1.x versions to modern-di 2.x.
+modern-di 2.x merges the container classes, moves providers to keyword-only arguments, removes four provider types in favor of `Factory`, and drops async resolution. Breaking changes, once:
 
-## Overview
+1. **`AsyncContainer`/`SyncContainer` → `Container`** (single class, both sync and async operations):
 
-The migration to modern-di 2.x involves several key changes in the API, including:
+    ```python
+    # Before (1.x)
+    from modern_di import AsyncContainer, SyncContainer
+    async_container = AsyncContainer(groups=ALL_GROUPS)
+    async_container.enter()
 
-- Simplified container architecture with a single `Container` class
-- Updated provider API with keyword-only arguments
-- Removal of several provider types (`Singleton`, `Resource`, `Dict`, `List`)
-- Changes in caching mechanism
-- Updated integration packages
+    # After (2.x)
+    from modern_di import Container
+    container = Container(groups=ALL_GROUPS, validate=True)  # no explicit enter() needed
+    container.close_sync()       # or: await container.close_async()
+    ```
 
-## Key Changes
+    `with`/`async with container.build_child_container(...)` still works for automatic cleanup; `close_sync()`/`close_async()` are also available for manual lifecycle control. The framework integration packages were updated with matching new APIs.
 
-### 1. Container Changes
+2. **All provider constructors are keyword-only.**
 
-The `AsyncContainer` and `SyncContainer` classes have been merged into a single `Container` class. The new container supports both synchronous and asynchronous operations.
+    ```python
+    # Before (1.x)
+    factory = providers.Factory(Scope.REQUEST, MyClass, arg1="value1")
 
-**Before (1.x):**
-```python
-from modern_di import AsyncContainer, SyncContainer
+    # After (2.x)
+    factory = providers.Factory(scope=Scope.REQUEST, creator=MyClass, kwargs={"arg1": "value1"})
+    ```
 
-# Asynchronous container
-async_container = AsyncContainer(groups=ALL_GROUPS)
-async_container.enter()
+3. **`Singleton`, `Resource`, `Dict`, `List` removed** — all four map onto `Factory`:
 
-# Synchronous container
-sync_container = SyncContainer(groups=ALL_GROUPS)
-sync_container.enter()
-```
+    ```python
+    # Before (1.x)
+    singleton = providers.Singleton(Scope.APP, create_singleton)
+    resource = providers.Resource(Scope.REQUEST, create_resource)
 
-**After (2.x):**
-```python
-from modern_di import Container
-
-# Single container for both sync and async operations
-container = Container(groups=ALL_GROUPS, validate=True)
-# No need to explicitly enter the container
-
-# For async cleanup
-await container.close_async()
-
-# For sync cleanup
-container.close_sync()
-```
-
-### 2. Provider API Changes
-
-All providers now use keyword-only arguments for better clarity and consistency.
-
-**Before (1.x):**
-```python
-from modern_di import Scope, providers
-
-
-factory = providers.Factory(Scope.REQUEST, MyClass, arg1="value1", arg2="value2")
-```
-
-**After (2.x):**
-```python
-from modern_di import Scope, providers
-
-
-factory = providers.Factory(scope=Scope.REQUEST, creator=MyClass, kwargs={"arg1": "value1", "arg2": "value2"})
-```
-
-### 3. Removed Provider Types
-
-Several provider types have been removed and their functionality consolidated into the `Factory` provider:
-
-#### Singleton Provider
-
-**Before (1.x):**
-```python
-singleton = providers.Singleton(Scope.APP, create_singleton)
-```
-
-**After (2.x):**
-```python
-# Use Factory with cache enabled
-singleton = providers.Factory(
-    scope=Scope.APP, 
-    creator=create_singleton,
-    cache=True
-)
-```
-
-#### Resource Provider
-
-**Before (1.x):**
-```python
-resource = providers.Resource(Scope.REQUEST, create_resource)
-```
-
-**After (2.x):**
-```python
-# Resources can be replaced with Factory with cache tuned with a finalizer
-resource = providers.Factory(
-    scope=Scope.REQUEST,
-    creator=create_resource,
-    cache=providers.CacheSettings(
-        finalizer=lambda resource: resource.close(),
+    # After (2.x)
+    singleton = providers.Factory(scope=Scope.APP, creator=create_singleton, cache=True)
+    resource = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=create_resource,
+        cache=providers.CacheSettings(finalizer=lambda r: r.close()),
     )
-)
-```
+    ```
 
-`clear_cache` defaults to `True`, which matches the old `Resource` semantics: the
-finalizer runs when the container is closed and the instance is rebuilt on the next
-resolve. Set `clear_cache=False` only for an instance whose identity must survive a
-close→reopen cycle — the cached instance is kept, so the *same object* is returned again
-after the container is re-entered (its finalizer runs once and is not re-run on later
-closes). Reach for that only when a single shared resource must stay stable across
-restarts; for ordinary per-scope resources keep the default.
+    `Dict`/`List` have no provider equivalent — write a plain creator function that returns the
+    collection and wrap it in a `Factory`. `clear_cache` defaults to `True` (old `Resource`
+    semantics: finalizer runs on close, instance rebuilt on next resolve); set `clear_cache=False`
+    only when the same object must survive a close→reopen cycle.
 
-#### Dict and List Providers
+4. **Resolution is sync-only** — no more `sync_` prefix, no `await` on resolution (async *finalizers* are still supported via `CacheSettings(finalizer=async_fn)` and `await container.close_async()`):
 
-These providers have been removed entirely. Use `Factory` providers with appropriate creator functions instead.
+    ```python
+    # Before (1.x)
+    instance = await container.resolve_provider(provider)
 
-**Before (1.x):**
-```python
-my_dict = providers.Dict(Scope.REQUEST, key1=provider1, key2=provider2)
-my_list = providers.List(Scope.REQUEST, provider1, provider2, provider3)
-```
+    # After (2.x)
+    instance = container.resolve_provider(provider)
+    ```
 
-**After (2.x):**
-```python
-from dataclasses import dataclass
-from typing import List
+5. **`.cast` removed** — wiring is by type instead:
 
-@dataclass(kw_only=True, slots=True, frozen=True)
-class UserService:
-    name: str
-    age: int
+    | 1.x | 2.x |
+    |---|---|
+    | `dep=other_provider.cast` (a provider dependency) | Drop the argument — annotate the creator parameter with the dependency's type. |
+    | `value=settings.host` (a static value) | Pass it in `kwargs={"value": ...}`. |
+    | a request/context value | Register a `ContextProvider` for that type (see [Context](../providers/context.md)). |
 
-@dataclass(kw_only=True, slots=True, frozen=True)
-class AuthService:
-    token: str
-    expiry: int
+    ```python
+    # 1.x
+    service = providers.Factory(MyService, db_engine=database_engine.cast)
 
-# Define providers for UserService and AuthService first.
-# Primitive fields (str/int) have no provider — supply them via kwargs.
-user_service_provider = providers.Factory(creator=UserService, kwargs={"name": "admin", "age": 30})
-auth_service_provider = providers.Factory(creator=AuthService, kwargs={"token": "secret", "expiry": 3600})
-
-# For dictionaries
-def create_services_dict(user_service: UserService, auth_service: AuthService) -> dict[str, object]:
-    return {
-        "user": user_service,
-        "auth": auth_service
-    }
-
-my_dict = providers.Factory(creator=create_services_dict)
-
-# For lists
-def create_service_list(user_service: UserService, auth_service: AuthService) -> List[object]:
-    return [user_service, auth_service]
-
-my_list = providers.Factory(creator=create_service_list)
-```
-
-### 4. Caching Changes
-
-Caching is now handled through `CacheSettings` in `Factory` providers.
-
-**Before (1.x):**
-```python
-# Singleton was automatically cached
-singleton = providers.Singleton(Scope.APP, create_singleton)
-```
-
-**After (2.x):**
-```python
-# Explicit cache
-singleton = providers.Factory(
-    creator=create_singleton,
-    cache=True
-)
-
-# Cache tuned with a finalizer
-cached_with_cleanup = providers.Factory(
-    creator=create_resource,
-    cache=providers.CacheSettings(
-        finalizer=lambda resource: resource.close(),
-    )
-)
-```
-
-With the default `clear_cache=True`, the cached instance is finalized when the container
-closes and rebuilt on the next resolve. Use `clear_cache=False` only when the same object
-must persist across a close→reopen cycle.
-
-### 5. Container Building and Scoping
-
-Child container creation continues to support context managers in 2.x — use `with` / `async with` for automatic cleanup. The explicit `close_sync()` / `close_async()` methods are also available for callers that need to manage the container lifecycle manually.
-
-**Before (1.x):**
-```python
-# Async container
-async with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
-    # Use request_container
-
-# Sync container
-with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
-    # Use request_container
-```
-
-**After (2.x):**
-```python
-# Same context-manager form continues to work
-with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
-    service = request_container.resolve(MyService)
-
-async with container.build_child_container(context=context, scope=Scope.REQUEST) as request_container:
-    service = request_container.resolve(MyService)
-
-# If you need manual lifecycle control, call close_sync() or await close_async() yourself
-request_container = container.build_child_container(context=context, scope=Scope.REQUEST)
-# Use request_container
-request_container.close_sync()  # or: await request_container.close_async()
-```
-
-### 6. Provider Resolution
-
-Resolution methods have been simplified.
-
-**Before (1.x):**
-```python
-# Async resolution
-instance = await container.resolve_provider(provider)
-instance = await container.resolve(SomeType)
-
-# Sync resolution
-instance = container.sync_resolve_provider(provider)
-instance = container.sync_resolve(SomeType)
-```
-
-**After (2.x):**
-```python
-# now resolving is sync only
-instance = container.resolve_provider(provider)
-instance = container.resolve(SomeType)
-```
-
-!!! note "Async finalizers are still supported"
-    Only *resolution* became sync-only in 2.x. Async *finalizers* (cleanup functions) are still fully supported via `CacheSettings(finalizer=async_cleanup_fn)` and `await container.close_async()`. The distinction: you cannot `await` during dependency resolution, but you can use async functions to clean up resources when a container is closed.
-
-### 7. Migrating `.cast`
-
-In 1.x, `.cast` wired one provider into another's dependency, e.g.
-`UserService(db_engine=database_engine.cast)`. There is no `.cast` in 2.x — wiring is by type.
-Map each 1.x usage:
-
-| 1.x | 2.x |
-|---|---|
-| `dep=other_provider.cast` (a provider dependency) | Drop the argument — annotate the creator parameter with the dependency's type; it's resolved by type automatically. |
-| `value=settings.host` (a static/literal value) | Pass it in `kwargs={"value": ...}`. |
-| a request/context value | Register a `ContextProvider` for that type (see [Context](../providers/context.md)). |
-
-```python
-# 1.x
-service = providers.Factory(MyService, db_engine=database_engine.cast)
-
-# 2.x — MyService.__init__(self, db_engine: DBEngine); db_engine resolved by type
-service = providers.Factory(scope=Scope.APP, creator=MyService)
-```
-
-## Migration Steps
-
-1. **Update Dependencies**: Ensure all modern-di packages are updated to 2.x versions
-2. **Update Container Initialization**: Replace `AsyncContainer`/`SyncContainer` with `Container`
-3. **Update Provider Definitions**: 
-   - Replace positional arguments with keyword arguments
-   - Replace `Singleton` and `Resource` with `Factory` using `CacheSettings`
-   - Remove `Dict` and `List` providers, replace with `Factory` creators
-4. **Update Container Building**: Continue to use `with` / `async with` for automatic cleanup; `close_sync()` / `close_async()` are also available for manual lifecycle control
-5. **Update Provider Resolution**: Remove `sync_` prefixes and `await` keywords
-
-## Breaking Changes
-
-1. `AsyncContainer` and `SyncContainer` classes removed (use `Container` instead)
-2. `Singleton`, `Resource`, `Dict`, and `List` provider types removed
-3. All provider constructors now use keyword-only arguments
-4. Provider resolution methods simplified (no `sync_` prefix)
-5. Integration packages updated with new APIs
-6. Provider casting mechanism changed (`.cast` attribute removed)
+    # 2.x — MyService.__init__(self, db_engine: DBEngine); resolved by type
+    service = providers.Factory(scope=Scope.APP, creator=MyService)
+    ```

@@ -11,7 +11,6 @@ nav:
       - Design decisions: introduction/design-decisions.md
       - Comparison: introduction/comparison.md
       - modern-di for FastAPI users: introduction/for-fastapi-users.md
-      - that-depends or modern-di?: introduction/that-depends-or-modern-di.md
   - Providers:
       - Scopes: providers/scopes.md
       - Lifecycle: providers/lifecycle.md
@@ -37,8 +36,6 @@ nav:
       - Testing with overrides: recipes/testing-overrides.md
       - Request-scoped engine selection: recipes/request-scoped-engine.md
       - Good and bad practices: recipes/good-and-bad-practices.md
-  - Testing:
-      - Fixtures: testing/fixtures.md
   - Troubleshooting:
       - Circular Dependency: troubleshooting/circular-dependency.md
       - Duplicate Type Error: troubleshooting/duplicate-type-error.md
@@ -132,9 +129,8 @@ plugins:
           - introduction/about-di.md: What dependency injection is and the problem it solves
           - introduction/resolving.md: Resolving dependencies by type or by provider reference
           - introduction/design-decisions.md: The deliberate API choices behind modern-di
-          - introduction/comparison.md: How modern-di compares to other DI approaches
+          - introduction/comparison.md: How modern-di compares to other DI approaches, including that-depends
           - introduction/for-fastapi-users.md: Translating FastAPI's Depends idioms to modern-di
-          - introduction/that-depends-or-modern-di.md: Choosing between that-depends and modern-di
         Providers:
           - providers/scopes.md: The five built-in scopes and the resolution rule
           - providers/lifecycle.md: How instances are created, cached, and cleaned up
@@ -151,7 +147,7 @@ plugins:
           - integrations/litestar.md: Usage with Litestar
           - integrations/starlette.md: Usage with Starlette
           - integrations/typer.md: Usage with Typer
-          - integrations/pytest.md: Usage with pytest via modern-di-pytest
+          - integrations/pytest.md: Usage with pytest, with and without modern-di-pytest
           - integrations/writing-integrations.md: Specification for building a new framework integration
         Recipes:
           - recipes/sqlalchemy.md: Wiring an async SQLAlchemy engine, session, and repositories
@@ -160,8 +156,6 @@ plugins:
           - recipes/testing-overrides.md: Swapping dependencies in tests with overrides
           - recipes/request-scoped-engine.md: Routing requests to different engines by scope
           - recipes/good-and-bad-practices.md: Common DI footguns and how modern-di catches them
-        Testing:
-          - testing/fixtures.md: Wiring modern-di into pytest, with and without modern-di-pytest
         Troubleshooting:
           - troubleshooting/circular-dependency.md: Diagnosing circular dependency errors
           - troubleshooting/duplicate-type-error.md: Diagnosing duplicate bound_type registration errors

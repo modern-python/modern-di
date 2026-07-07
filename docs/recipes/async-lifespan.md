@@ -55,7 +55,8 @@ lifespan.
 ## Pitfalls
 
 - **Set context *before* yielding.** The lifespan hands control to the app inside the `yield`. If you `set_context` after yielding, requests that arrive in between won't see the value.
-- **`set_context` never propagates between containers.** A `ContextProvider` reads the context registry of the container at its own scope, so `set_context` on the parent never reaches a child-scoped provider (regardless of build order). In the lifespan pattern above this is fine — the resource is APP-scoped, so the APP-scoped `ContextProvider` reads the value set on the APP container; per-request context is passed to each REQUEST child via `build_child_container(context={...})`.
+- **`set_context` never propagates between containers** — see [context propagation](../providers/context.md#context-propagation). In the lifespan pattern above this is fine — the resource is APP-scoped, so the APP-scoped `ContextProvider` reads the value set on the APP container; per-request context is passed to each REQUEST child via `build_child_container(context={...})`.
+- **Combining a hand-written lifespan with an integration's `setup_di`.** The integration (e.g. [`modern-di-fastapi`](../integrations/fastapi.md)'s `setup_di(app, container)`) already appends a lifespan that closes the container, and it merges with any `lifespan=` you pass. Keep the resource setup in your lifespan but drop the `async with container` wrapper — the integration owns the container close, and wrapping both closes it twice.
 - **Choose APP scope unless the resource is per-connection.** Redis/Kafka clients are process-singletons. For per-websocket-session resources, use `Scope.SESSION`.
 - **`async with container:` handles APP-scope finalizers.** If you also registered a `CacheSettings(finalizer=...)` somewhere, this runs it on exit. The lifespan-managed object isn't wrapped by a Factory, so its cleanup (`async with aiohttp.ClientSession()` in the example) is on you.
 

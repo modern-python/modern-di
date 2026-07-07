@@ -48,57 +48,14 @@ def test_user_service() -> None:
     mock_email.send_email.assert_called_once()
 ```
 
-### 2. Loose Coupling
+### 2. Loose coupling
 
-Depend on abstractions, not implementations:
+Depend on abstractions, not concrete implementations, so the class using them never changes when
+you swap `RedisCache` for `DictCache` in development or `MockCache` in tests.
 
-```python
-class UserService:
-    def __init__(self, cache: CacheBackend) -> None:
-        self.cache = cache
+## Manual wiring doesn't scale
 
-# Swap implementations easily
-service = UserService(cache=RedisCache())    # Production
-service = UserService(cache=DictCache())     # Development
-service = UserService(cache=MockCache())     # Testing
-```
-
-## Lifetime Management in DI
-
-Objects can have different lifetime cycles (singleton, scoped, transient). `modern-di` expresses this with [Scopes](../providers/scopes.md) — APP for process-wide singletons, REQUEST for per-request resources, and so on. In modern-di's own terms: a provider's scope (APP/SESSION/REQUEST/…) decides how long an instance lives, and the presence of `cache` means one shared instance is reused while its absence means a fresh instance is created on each resolve. Here are examples:
-
-```python
-
-import uuid
-
-from modern_di import Group, Scope, providers
-
-class AppGroup(Group):
-    # Cached for the whole app: one shared instance.
-    # cache=True makes the provider a cached singleton (see the Factories page).
-    config = providers.Factory(
-        scope=Scope.APP,
-        creator=AppConfig,
-        cache=True
-    )
-
-    # Cached per request: one shared instance per request
-    db_session = providers.Factory(
-        scope=Scope.REQUEST,
-        creator=DatabaseSession,
-        cache=True
-    )
-
-    # No cache: a fresh instance each resolve
-    request_id = providers.Factory(
-        scope=Scope.REQUEST,
-        creator=lambda: str(uuid.uuid4())
-    )
-```
-
-## Manual DI vs modern-di
-
-### Manual Wiring
+As an app grows, someone has to build every object by hand, in the right order:
 
 ```python
 config = AppConfig()
@@ -107,123 +64,19 @@ email = EmailService(config)
 user_service = UserService(db, email)
 ```
 
-**Problems:** Unwieldy at scale, no lifetime management, scattered configuration.
+This is unwieldy at scale, has no lifetime management, and scatters construction logic wherever a
+dependency is needed. A DI container takes over that construction: `modern-di` reads your classes'
+type hints and builds the graph for you — see the [Quickstart](../index.md#2-first-success).
 
-### Using modern-di
+## Lifetime management
 
-```python
-import dataclasses
-from modern_di import Container, Group, Scope, providers
+Objects can have different lifetimes — singleton, per-request, or a fresh instance every call.
+`modern-di` expresses this with [Scopes](../providers/scopes.md): a provider's scope decides how
+long its instances live, and `cache=True` decides whether an instance is shared or rebuilt on each
+resolve — see [Cached factories](../providers/factories.md#cached-factories).
 
+## See also
 
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class AppConfig:
-    db_host: str = "localhost"
-    db_port: int = 5432
-
-
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class DatabaseConnection:
-    config: AppConfig  # ✅ Auto-injected from type hint
-
-
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class UserService:
-    db: DatabaseConnection  # ✅ Auto-injected
-
-
-# Declare dependencies
-class AppGroup(Group):
-    config = providers.Factory(
-        scope=Scope.APP,
-        creator=AppConfig,
-        cache=True
-    )
-    db = providers.Factory(scope=Scope.REQUEST, creator=DatabaseConnection)
-    user_service = providers.Factory(scope=Scope.REQUEST, creator=UserService)
-
-
-# Build the app-level container, then a request-scoped child for per-request providers
-app_container = Container(scope=Scope.APP, groups=[AppGroup], validate=True)
-with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
-    user_service = request_container.resolve(UserService)
-```
-
-## Why Choose modern-di?
-
-### 1. Zero Boilerplate
-
-Type annotations auto-wire dependencies - no manual registration needed.
-
-### 2. Scope Management
-
-Hierarchical containers with automatic inheritance:
-
-```python
-app_container = Container(groups=[AppGroup], scope=Scope.APP, validate=True)
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-
-# Resolves from correct scope automatically
-db_pool = request_container.resolve(DatabasePool)      # APP scope
-db_session = request_container.resolve(DatabaseSession)  # REQUEST scope
-```
-
-### 3. Easy Testing
-
-Override any dependency:
-
-```python
-@pytest.fixture
-def test_container() -> Container:
-    container = Container(groups=[AppGroup], validate=True)
-    container.override(AppGroup.db, Mock(spec=DatabaseConnection))
-    return container
-```
-
-### 4. Resource Cleanup
-
-Define finalizers for automatic cleanup:
-
-```python
-class AppGroup(Group):
-    db_session = providers.Factory(
-        scope=Scope.REQUEST,
-        creator=DatabaseSession,
-        cache=providers.CacheSettings(
-            finalizer=lambda session: session.close()  # ✅ Define cleanup
-        )
-    )
-
-# Automatic finalizer execution
-with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
-    session = request_container.resolve(DatabaseSession)
-    # Finalizers called automatically on exit
-```
-
-### 5. Framework Integrations
-
-Works with [every official framework integration](comparison.md#the-landscape).
-For example, with FastAPI:
-
-```python
-from modern_di_fastapi import FromDI
-
-
-@app.get("/users/{user_id}")
-async def get_user(
-    user_id: int,
-    user_service: UserService = FromDI(UserService),
-) -> dict:
-    return {"user": user_service.get_user(user_id)}
-```
-
-## Summary
-
-Dependency Injection:
-
-- **Decouples** classes from dependencies
-- **Improves testability** with easy mocking
-- **Centralizes configuration**
-- **Manages lifetimes** automatically
-
-`modern-di` automates DI with minimal boilerplate through type annotations, providing scope management, testing utilities, and framework integrations.
+- [modern-di vs other libraries](comparison.md) — including whether you need a container at all.
+- [Quickstart](../index.md) — modern-di's own syntax, end to end.
+- [Design decisions](design-decisions.md) — the reasoning behind the API's choices.

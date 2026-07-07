@@ -67,10 +67,10 @@ Catch `ContainerError` for any container/scope failure.
   `enum.IntEnum`.
 - **`ContainerClosedError`** — raised in modern-di **3.0** when you resolve from, or build a child
   of, a closed container. Until then that reuse emits a **`ContainerClosedWarning`** (a
-  `DeprecationWarning`) and the container self-reopens. Re-enter the `with` block or call `open()`
-  to reuse it cleanly; escalate the warning with
-  `warnings.filterwarnings("error", category=exceptions.ContainerClosedWarning)` to fail fast today.
-  See [Migration: To 3.x](../migration/to-3.x.md).
+  `DeprecationWarning`) and the container self-reopens — see
+  [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening). Escalate the warning
+  today via the
+  [readiness recipe](../migration/to-3.x.md#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings).
 - **`ValidationFailedError`** — raised by `Container.validate()` (and `Container(..., validate=True)`)
   when the graph has problems. Catch this for validation results; its `.errors` attribute holds the
   list of individual issues (each itself a `ResolutionError` or `RegistrationError`), and `str()`
@@ -98,23 +98,20 @@ the same `dependency_path` — the breadcrumb machinery is shared, not duplicate
   matches its annotated type, or the parameter is unannotated. See
   [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
 - **`CircularDependencyError`** — raised when the provider graph contains a cycle (A → B → A); the
-  message shows the cycle path. `validate()` finds it up front, as part of its all-errors walk. The
-  runtime guard in `Container.resolve_provider` finds it too: an unvalidated cyclic graph's first
-  resolve overflows the stack, and the guard catches that `RecursionError`, re-walks the static
-  graph from the failing provider, and raises `CircularDependencyError` `from` it when a cycle is
-  reachable — a creator that recurses on its own (no static cycle) still raises the original
-  `RecursionError` untouched. See
-  [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md).
+  message shows the cycle path. Raised eagerly by `validate()`, and also by a bare `resolve()` on an
+  unvalidated cyclic graph via a runtime guard — see
+  [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 - **`CreatorCallError`** — raised when a creator's dependencies all resolved but the creator itself
   raised while being called. The original exception is preserved on `.original_error` (and as the
   `__cause__`).
 - **`ContextValueNotSetError`** — raised in modern-di **3.0** when an unset `ContextProvider` is
   resolved *directly* (`container.resolve(SomeContextType)` with no value set). Until then that
-  resolve emits **`ContextValueNoneWarning`** (a `DeprecationWarning`) and returns `None`; escalate
-  it with `warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)` to fail
-  fast today. Only the direct-resolve path is affected — a `Factory` parameter backed by the same
+  resolve emits **`ContextValueNoneWarning`** (a `DeprecationWarning`) and returns `None` —
+  escalate it today via the
+  [readiness recipe](../migration/to-3.x.md#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings).
+  Only the direct-resolve path is affected — a `Factory` parameter backed by the same
   `ContextProvider` keeps following its own default/nullable/required disposition. Inspect
-  `.context_type`. See [Migration: To 3.x](../migration/to-3.x.md).
+  `.context_type`.
 
 ## `RegistrationError` — declaration / registration problems
 

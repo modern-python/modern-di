@@ -21,13 +21,17 @@ It means the listed providers form a cycle that cannot be resolved.
 
 ## How to Detect
 
-**Without `validate()`**, resolving from an unvalidated cyclic graph still raises
-`CircularDependencyError`: the first resolve overflows the stack, and `Container.resolve_provider`
-catches that `RecursionError`, re-walks the static graph from the failing provider, and — since a
-cycle is reachable — raises `CircularDependencyError` (with the same cycle-path rendering shown
-above) `from` the original `RecursionError`. A creator that merely recurses on its own, with no
-actual cycle in the provider graph, still raises the original `RecursionError` unchanged — only a
-real static cycle gets converted.
+### The runtime cycle guard (without `validate()`)
+
+Resolving from an unvalidated cyclic graph still raises `CircularDependencyError`: the first
+resolve overflows the stack, and `Container.resolve_provider` catches that `RecursionError`,
+re-walks the static graph from the failing provider, and — since a cycle is reachable — raises
+`CircularDependencyError` (with the same cycle-path rendering shown above) `from` the original
+`RecursionError`. A creator that merely recurses on its own, with no actual cycle in the provider
+graph, still raises the original `RecursionError` unchanged — only a real static cycle gets
+converted. This guard runs on every resolve, whether or not `validate()` was ever called.
+
+### Cycle detection with `validate()`
 
 Calling `validate()` up front finds the *same* cycle earlier, and finds *every* issue in the graph
 in one pass (not just the one a particular resolve happens to hit) — prefer it in development:

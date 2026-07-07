@@ -52,7 +52,7 @@ Three things change in how you think about the framework. Most migration confusi
 
 - **`Group` is a schema, `Container` is the runtime.** In `that-depends`, a `BaseContainer` subclass is *both* the schema and the runtime — you resolve directly from the class. In `modern-di`, `Group` is a namespace-only class (you cannot instantiate it) and you create the runtime `Container(groups=[MyGroup])` separately, typically once at app start. All resolution, overrides, and lifecycle calls go through that `Container` instance.
 - **Resolution is sync-only.** `modern-di` does not have `AsyncFactory`, `AsyncSingleton`, or `await container.resolve(...)`. Async work happens in the framework's lifespan — see [§6](#6-async-resources). There is no plan to add async resolution back.
-- **Scopes are explicit.** `Scope.APP → SESSION → REQUEST → ACTION → STEP`. A provider can only depend on providers of equal-or-broader scope (a `REQUEST`-scoped provider may depend on `APP`-scoped providers, but not the other way around). Framework integrations create the per-request child container automatically.
+- **Scopes are explicit.** `Scope.APP → SESSION → REQUEST → ACTION → STEP`, with [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) enforced at validation time. Framework integrations create the per-request child container automatically.
 
 ## 3. Provider mapping
 
@@ -70,15 +70,15 @@ Use this table as the index for the rest of the guide.
 | `Object` | `providers.Factory` with a creator that returns the value | [§4](#4-migrate-the-dependency-graph) |
 | `List` | `providers.Factory` with a creator that returns a list | [§4](#4-migrate-the-dependency-graph) |
 | `Dict` | `providers.Factory` with a creator that returns a dict | [§4](#4-migrate-the-dependency-graph) |
-| `Selector` | No direct equivalent — see [§10](#10-no-direct-equivalent) |
-| `AttrGetter` (`provider.attr`) | No direct equivalent — see [§10](#10-no-direct-equivalent) |
-| `ThreadLocalSingleton` | No direct equivalent — see [§10](#10-no-direct-equivalent) |
+| `Selector` | No direct equivalent — see [§9](#9-no-direct-equivalent) |
+| `AttrGetter` (`provider.attr`) | No direct equivalent — see [§9](#9-no-direct-equivalent) |
+| `ThreadLocalSingleton` | No direct equivalent — see [§9](#9-no-direct-equivalent) |
 | `State` | `ContextProvider` + `set_context` | [§5](#5-context-resources-and-request-scope) |
 | `Provider.bind(Type)` | `providers.Alias(source_type=..., bound_type=...)` | [§4](#4-migrate-the-dependency-graph) |
-| `@inject` + `Provide[T]()` (web) | `FromDI(T)` from the framework integration | [§9](#9-routes) |
-| `@inject` + `Provide[T]()` (non-web) | Explicit `container.resolve(T)` | [§10](#10-no-direct-equivalent) |
+| `@inject` + `Provide[T]()` (web) | `FromDI(T)` from the framework integration | [§8](#8-framework-integration-and-routes) |
+| `@inject` + `Provide[T]()` (non-web) | Explicit `container.resolve(T)` | [§9](#9-no-direct-equivalent) |
 | `container_context()` | `container.build_child_container(scope=..., context=...)` | [§5](#5-context-resources-and-request-scope) |
-| `DIContextMiddleware` | `setup_di(app, container)` / `ModernDIPlugin(container)` | [§8](#8-framework-integration) |
+| `DIContextMiddleware` | `setup_di(app, container)` / `ModernDIPlugin(container)` | [§8](#8-framework-integration-and-routes) |
 | `fetch_context_item` / `_by_type` | `ContextProvider(context_type=T)` | [§5](#5-context-resources-and-request-scope) |
 | `init_resources()` | Lazy initialization — no equivalent needed | [§7](#7-lifecycle-and-testing) |
 | `tear_down()` / `tear_down_sync()` | `await container.close_async()` / `container.close_sync()` | [§7](#7-lifecycle-and-testing) |
@@ -162,18 +162,7 @@ some_singleton = providers.Factory(
 )
 ```
 
-**`Resource`** (sync generator or context manager) → cached `Factory` with a `finalizer`:
-
-```python
-# that-depends
-some_resource = providers.Resource(create_resource)  # sync generator
-
-# modern-di — split the generator into a creator and a finalizer
-some_resource = providers.Factory(
-    creator=create_resource,                # plain function returning the resource
-    cache=providers.CacheSettings(finalizer=close_resource),
-)
-```
+**`Resource`** (sync generator or context manager) → cached `Factory` with a `finalizer`, splitting the generator into a creator and a finalizer function — see `database_engine` in the worked example above.
 
 **`Object`** → `Factory` whose creator returns the value. Define a small typed function (lambdas have no return annotation, which prevents resolution by type):
 
@@ -218,31 +207,7 @@ abstract_repo = providers.Alias(source_type=PostgresRepository, bound_type=Repos
 
 ## 5. Context resources and request scope
 
-The `that-depends` `ContextResource` / `container_context()` / `State` / `fetch_context_item` family all collapse into two `modern-di` mechanisms: `Scope.REQUEST` (and below) providers, and `ContextProvider`.
-
-### Per-request providers with a framework
-
-The framework integration creates a `REQUEST`-scope child container per request and tears it down at the end (running any registered finalizers). You only need to declare the scope:
-
-```python
-session = providers.Factory(
-    scope=Scope.REQUEST,
-    creator=create_session,
-    cache=providers.CacheSettings(finalizer=close_session),
-    kwargs={"engine": database_engine},
-)
-```
-
-### Manual scope management (outside web frameworks)
-
-Replaces `container_context()`. Use the child container as a context manager — exiting it runs finalizers in reverse order:
-
-```python
-with container.build_child_container(scope=Scope.REQUEST) as request_container:
-    service = request_container.resolve(DecksService)
-    ...
-# finalizers (e.g. close_session) ran on exit
-```
+The `that-depends` `ContextResource` / `container_context()` / `State` / `fetch_context_item` family all collapse into two `modern-di` mechanisms: `Scope.REQUEST` (and below) providers, and `ContextProvider`. Declaring `scope=Scope.REQUEST` on a provider (e.g. `session` in the worked example above) is enough when a framework integration builds the per-request child container for you; `container_context()`'s manual case maps onto using that same child container as a context manager yourself. See [Building child containers](../providers/scopes.md#building-child-containers) for both forms.
 
 ### Injecting custom context (replaces `State`, `fetch_context_item`, `fetch_context_item_by_type`)
 
@@ -273,7 +238,7 @@ with container.build_child_container(
     repo = request_container.resolve(TenantScopedRepository)
 ```
 
-`ContextProvider` returns the value registered for that type on the container **at the provider's own scope** — there is no global lookup like `fetch_context_item`. Context never propagates between containers, so build order is irrelevant: setting context on a parent container never reaches a child-scoped provider. For a REQUEST-scoped `ContextProvider`, pass the value to the request container via `build_child_container(context={TenantId: tenant})` or `request_container.set_context(TenantId, tenant)`.
+`ContextProvider` returns the value registered for that type on the container **at the provider's own scope** — there is no global lookup like `fetch_context_item`, and [context never propagates between containers](../providers/context.md#context-propagation). For a REQUEST-scoped `ContextProvider`, pass the value to the request container via `build_child_container(context={TenantId: tenant})` or `request_container.set_context(TenantId, tenant)`.
 
 ## 6. Async resources
 
@@ -303,43 +268,13 @@ engine = providers.Factory(
 
 ### Async creator (e.g. `aiohttp.ClientSession`, `await asyncpg.create_pool(...)`)
 
-Do the async work in the framework's lifespan, then inject the result as context. `set_context` registers the live object so `ContextProvider` (or type-based resolution) can return it:
-
-```python
-import contextlib
-from collections.abc import AsyncIterator
-
-import aiohttp
-import fastapi
-from modern_di import Container, Group, Scope, providers
-
-
-class Dependencies(Group):
-    http_client = providers.ContextProvider(scope=Scope.APP, context_type=aiohttp.ClientSession)
-
-
-container = Container(groups=[Dependencies], validate=True)
-
-
-@contextlib.asynccontextmanager
-async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
-    async with container:                              # runs close_async on exit
-        async with aiohttp.ClientSession() as session:  # must be inside running loop
-            container.set_context(aiohttp.ClientSession, session)
-            yield
-
-
-app = fastapi.FastAPI(lifespan=lifespan)
-```
-
-> This hand-written `lifespan` manages the container yourself (`async with container` runs
-> `close_async` on exit). If you use the [`modern-di-fastapi` integration](../integrations/fastapi.md),
-> `setup_di(app, container)` already appends a lifespan that closes the container — and it **merges**
-> with any `lifespan=` you pass to `FastAPI(...)`. So when combining the integration with a custom
-> async resource, keep the `aiohttp.ClientSession` setup in your `lifespan` but **drop the
-> `async with container` wrapper** to avoid closing the container twice.
-
-Downstream factories declare `client: aiohttp.ClientSession` as a parameter and get the live instance via type-based resolution. Use this pattern for `aiohttp.ClientSession`, `asyncpg.create_pool`, or any resource whose constructor genuinely requires `await` or a running event loop. Resources that *look* async but construct synchronously (`redis.asyncio.Redis.from_url`, `sqlalchemy.ext.asyncio.create_async_engine`, `httpx.AsyncClient`) are better expressed as the previous case — sync creator with an async finalizer.
+`that-depends`' async `Resource`, `AsyncFactory`, and `AsyncSingleton` all map onto the same
+`modern-di` pattern: do the `await` in the framework's lifespan, then hand the live object to a
+`ContextProvider` via `set_context` so downstream factories can depend on its type. See
+[Async resources via lifespan](../recipes/async-lifespan.md) for the full pattern, the pitfalls
+(setting context before yielding, combining a hand-written lifespan with an integration's
+`setup_di`), and which resources construct synchronously enough to skip this and just use a
+sync creator with an async finalizer instead.
 
 ### Per-request async construction
 
@@ -349,15 +284,8 @@ If a per-request resource genuinely needs `await` at construction time, the simp
 
 ### Lifecycle
 
-- **No `init_resources()`.** `modern-di` initializes providers lazily on first resolve. If you need eager warmup at startup, call `container.resolve(SomeType)` for the providers you want pre-built — typically in the framework's startup hook.
-- **`tear_down()` / `tear_down_sync()`** → `await container.close_async()` / `container.close_sync()`. Both also work as (async) context managers:
-
-  ```python
-  async with container:
-      ...  # finalizers run on exit
-  ```
-
-  The framework integrations call `close_async()` automatically at app shutdown.
+- **No `init_resources()` equivalent** — providers initialize lazily on first resolve; see [Lazy initialization](../providers/lifecycle.md#lazy-initialization) for eager-warmup at startup.
+- **`tear_down()` / `tear_down_sync()` → `await container.close_async()` / `container.close_sync()`** (also usable as (async) context managers). The framework integrations call `close_async()` automatically at app shutdown.
 
 ### Overrides
 
@@ -373,122 +301,17 @@ container.override(Dependencies.decks_service, fake_decks_service)
 container.reset_override(Dependencies.decks_service)  # or reset_override() to clear all
 ```
 
-Overrides are shared across the container tree — overriding on the root container affects all child containers.
-
-### Pytest
-
-`modern-di-pytest` provides fixture-based wiring:
-
-```python
-from modern_di_pytest import expose, modern_di_fixture
-
-# Single fixture, resolved by type or provider
-decks_service = modern_di_fixture(DecksService)
-
-# Bulk-generate one fixture per provider in a Group
-expose(Dependencies)
-```
+See [Testing with overrides](../recipes/testing-overrides.md) for override mechanics (tree-wide sharing, reset). `modern-di-pytest` gives fixture-based wiring in place of hand-written overrides — see [the pytest integration](../integrations/pytest.md).
 
 ### Validation
 
 `Container(groups=[...], validate=True)` runs cycle detection and scope-chain checks at startup. Turn it on during migration — it catches missed scope changes and broken dependencies before the first request.
 
-## 8. Framework integration
+## 8. Framework integration and routes
 
-Replace `DIContextMiddleware` (`that-depends`) with the integration package's setup call. The integration creates per-request child containers and tears them down automatically; at app shutdown it calls `container.close_async()` to run finalizers.
+Replace `DIContextMiddleware` with the integration package's setup call ([FastAPI](../integrations/fastapi.md), [Litestar](../integrations/litestar.md), [FastStream](../integrations/faststream.md), [Typer](../integrations/typer.md)) — it creates per-request child containers, tears them down automatically, and calls `container.close_async()` at shutdown. On routes, `FromDI(T)` replaces both `fastapi.Depends(Provide[T]())` and `litestar.di.Provide`, resolving by type instead of by marker; see the integration pages for the full route examples.
 
-=== "fastapi"
-
-      ```python
-      import fastapi
-      import modern_di_fastapi
-      from modern_di import Container
-
-      from app.ioc import Dependencies
-
-
-      container = Container(groups=[Dependencies], validate=True)
-
-      app = fastapi.FastAPI()
-      modern_di_fastapi.setup_di(app, container)
-      ```
-
-      See [the FastAPI integration docs](../integrations/fastapi.md) for websockets and framework-provided context objects (`fastapi.Request`, `fastapi.WebSocket`).
-
-=== "litestar"
-
-      ```python
-      from litestar import Litestar
-      import modern_di_litestar
-      from modern_di import Container
-
-      from app.ioc import Dependencies
-
-
-      container = Container(groups=[Dependencies], validate=True)
-
-      app = Litestar(
-          route_handlers=[...],
-          plugins=[modern_di_litestar.ModernDIPlugin(container)],
-      )
-      ```
-
-      See [the Litestar integration docs](../integrations/litestar.md) for `autowired_groups` and websockets.
-
-=== "faststream"
-
-      See [the FastStream integration docs](../integrations/faststream.md) for the full setup.
-
-=== "typer"
-
-      See [the Typer integration docs](../integrations/typer.md) for the full setup.
-
-## 9. Routes
-
-`FromDI(T)` replaces both `fastapi.Depends(Provide[T]())` and `litestar.di.Provide`. Resolution is by type — the dependency's return type annotation drives the lookup.
-
-=== "fastapi"
-
-      ```python
-      import typing
-
-      import fastapi
-      from modern_di_fastapi import FromDI
-
-      from app import schemas
-      from app.repositories import DecksService
-
-
-      ROUTER: typing.Final = fastapi.APIRouter()
-
-
-      @ROUTER.get("/decks/")
-      async def list_decks(
-          decks_service: DecksService = FromDI(DecksService),
-      ) -> schemas.Decks:
-          objects = await decks_service.list()
-          return schemas.Decks(items=objects)
-      ```
-
-=== "litestar"
-
-      ```python
-      import litestar
-      from modern_di_litestar import FromDI
-
-      from app import schemas
-      from app.repositories import DecksService
-
-
-      @litestar.get("/decks/", dependencies={
-          "decks_service": FromDI(DecksService),
-      })
-      async def list_decks(decks_service: DecksService) -> schemas.Decks:
-          objects = await decks_service.list()
-          return schemas.Decks(items=objects)
-      ```
-
-## 10. No direct equivalent
+## 9. No direct equivalent
 
 A handful of `that-depends` features have no direct port. Workarounds:
 

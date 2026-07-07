@@ -5,9 +5,8 @@ mistakes the framework lets you make, each paired with the mechanism that catche
 
 ## 1. Captive dependency: a wide-scoped provider holding a narrow-scoped one
 
-A provider is a *captive dependency* when it lives longer than something it depends on — an
-APP-scoped provider that (directly or transitively) needs a REQUEST-scoped one. The REQUEST
-instance would have to outlive its request, so it can't actually be supplied.
+A *captive dependency* is a wide-scoped provider holding a narrow-scoped one it cannot actually
+outlive — see [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why.
 
 ```python
 class Dependencies(Group):
@@ -42,14 +41,11 @@ container = Container(groups=[Dependencies])
 container = Container(groups=[Dependencies], validate=True)
 ```
 
-**Caught by:** `validate=True` (or an explicit `container.validate()` call). Note that an
-unvalidated circular graph is *not* a silent hang or a bare traceback anymore: the first resolve
-that overflows the stack is caught and re-raised as `CircularDependencyError` with the cycle path
-attached (see [Circular Dependency Error](../troubleshooting/circular-dependency.md)) — but that
-runtime cycle guard is a backstop for the *one* cycle a particular resolve happened to hit, not a
-substitute for `validate()` finding *every* issue up front. Leaving `validate` unset on a root
-container also emits `UnvalidatedContainerWarning`, since modern-di 3.0 turns validation on by
-default.
+**Caught by:** `validate=True` (or an explicit `container.validate()` call), which finds every
+issue in the graph up front instead of one at a time. An unvalidated cyclic graph still isn't a
+silent hang — see [the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
+Leaving `validate` unset on a root container also emits `UnvalidatedContainerWarning`, since
+modern-di 3.0 turns validation on by default.
 
 ## 3. A cached factory resolved before `set_context`
 
@@ -100,9 +96,10 @@ introspecting the current scope), and declare everything else as a typed paramet
 
 ## 5. Override leaks across tests
 
-`container.override(provider, replacement)` is keyed by provider reference and shared across the
-*whole* container tree. Forgetting to reset it doesn't just affect the test that set it — every
-later test that shares the container inherits the replacement.
+`container.override(provider, replacement)` replacements are shared across the *whole* container
+tree — see [Testing with overrides](testing-overrides.md) for the mechanics. Forgetting to reset
+it doesn't just affect the test that set it — every later test that shares the container inherits
+the replacement.
 
 ```python
 # ❌ no reset: the next test that resolves Clock silently gets the fake
@@ -119,7 +116,7 @@ def frozen_clock() -> Mock:
     container.reset_override(Dependencies.clock)
 ```
 
-**Caught by:** nothing automatic mid-suite — `reset_override()` (or `reset_override()` with no
+**Caught by:** nothing automatic mid-suite — `reset_override(provider)` (or `reset_override()` with no
 arguments, to clear everything) is the fix, and closing the **root** container clears every override
 in the shared registry as a last resort. See
 [Testing with overrides](testing-overrides.md#pitfalls).

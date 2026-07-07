@@ -16,7 +16,7 @@ The error is an `ArgumentResolutionError` rendered as a chain: the top frame sho
 
 ### 1. `set_context` was called on the wrong container (scope mismatch)
 
-Context never propagates between containers. A `ContextProvider` reads the context registry of the container **at the provider's own scope**. For a REQUEST-scoped provider, only the request container's registry is ever consulted — setting the value on the parent has no effect, regardless of build order.
+Context never propagates between containers — see [context propagation](../providers/context.md#context-propagation) for why. For a REQUEST-scoped provider, only the request container's registry is ever consulted — setting the value on the parent has no effect, regardless of build order.
 
 ```python
 # ❌ Broken: TenantId provider has scope=Scope.REQUEST, so it reads the REQUEST
