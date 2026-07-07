@@ -30,6 +30,7 @@ ModernDIError (RuntimeError)
 │   └── ContextValueNotSetError
 ├── RegistrationError
 │   ├── DuplicateProviderTypeError
+│   ├── ChildContainerRegistrationError
 │   ├── UnknownFactoryKwargError
 │   ├── UnsupportedCreatorParameterError
 │   └── InvalidScopeDependencyError
@@ -120,6 +121,10 @@ Catch `RegistrationError` for declaration- and registration-time problems.
 - **`DuplicateProviderTypeError`** — raised when two providers are registered for the same bound type
   (within one group, across groups passed together, or against an already-registered type). See
   [Troubleshooting: Duplicate type](../troubleshooting/duplicate-type-error.md).
+- **`ChildContainerRegistrationError`** — raised by `Container.add_providers()` when called on a child
+  container; registration is root-only because the providers registry is shared tree-wide, so
+  registering from a child would mutate every container in the tree. Call `add_providers` on the root
+  container instead. See [Container: registering after construction](container.md#registering-providers-after-construction).
 - **`UnknownFactoryKwargError`** — raised when `Factory(kwargs={...})` contains a key that is not a
   parameter of the creator's signature; lists the known parameters and "did you mean" hints.
 - **`UnsupportedCreatorParameterError`** — raised when a creator's signature has a parameter

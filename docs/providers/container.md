@@ -67,6 +67,20 @@ The same holds for type-based injection: a creator with a `Container` parameter 
 container that is resolving it. This means request-scoped code reaches the request container (and its
 context/cache), while app-scoped code reaches the app container.
 
+## Registering providers after construction
+
+`container.add_providers(*providers)` registers additional providers on a **root** container after
+it's built — the blessed seam framework integrations use instead of reaching into
+`providers_registry` directly. Raises `ChildContainerRegistrationError` if called on a child
+container. See [Writing an integration](../integrations/writing-integrations.md#the-contract) for
+the full contract.
+
+## Resolving a provider or type
+
+`container.resolve_dependency(dep)` accepts either a provider reference or a type and dispatches to
+`resolve_provider` or `resolve` accordingly — the single entry point integrations use to resolve a
+`FromDI`-style marker. See [Writing an integration](../integrations/writing-integrations.md#the-contract).
+
 ## See also
 
 - **Context propagation** — how context values reach (and don't reach) a `ContextProvider` is
