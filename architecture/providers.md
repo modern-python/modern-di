@@ -53,12 +53,10 @@ of parameter names to `SignatureItem` descriptors. Dependency resolution is ther
 time each parameter is matched against the container's `providers_registry` by its annotated type.
 
 If `bound_type` is supplied explicitly it overrides the inferred return type (useful when the creator returns a
-protocol or base class narrower than the concrete type).
-
-A creator parameter that cannot be resolved by type raises `UnsupportedCreatorParameterError` at **declaration
-time**. This fires when a parameter is a parameterized generic (e.g. `list[int]`, `dict[str, Foo]`) or
-positional-only, has no default, and is not supplied via `kwargs`. The three escape hatches are: pass the value
-via `kwargs={...}`, give the parameter a default, or set `skip_creator_parsing=True`.
+protocol or base class narrower than the concrete type). See
+[docs/providers/factories.md](../docs/providers/factories.md#creator-signature-support-matrix) for the full
+per-parameter-shape behavior table (`UnsupportedCreatorParameterError` conditions, escape hatches, union
+resolution order).
 
 ### Recursive resolution
 
@@ -67,35 +65,21 @@ partitions it into the plan; `Factory` then recurses into `container.resolve_pro
 provider. The plan is built once and memoized on the `CacheItem`. Resolution errors are annotated with a breadcrumb
 describing the current factory, so the full chain appears in the exception.
 
-### Static kwargs
+### Static kwargs and `skip_creator_parsing`
 
-Pass `kwargs` to supply static (non-DI-resolved) arguments that bypass type-based resolution — for
-example `kwargs={"timeout": 30}` to pin a creator's `timeout` parameter. These are merged
-last, overriding any provider-resolved value for the same key. Supplying a key that does not appear in the
-creator's signature (and whose creator has no `**kwargs`) raises `UnknownFactoryKwargError` at declaration time.
-
-### `skip_creator_parsing=True`
-
-Disables signature introspection entirely — useful for callables whose signatures cannot be reflected (built-in C
-extensions, `functools.partial`, etc.). When set without an explicit `bound_type`, a `UserWarning` is emitted
-because the provider cannot be resolved by type.
+See [docs/providers/factories.md](../docs/providers/factories.md#kwargs) for `kwargs=` (static values,
+overriding provider-resolved ones for the same key; an unknown key raises `UnknownFactoryKwargError` at
+declaration time, unless the creator accepts `**kwargs` or its signature cannot be reflected) and
+`skip_creator_parsing=True` (disables signature introspection; a `UserWarning` is
+emitted if `bound_type` isn't given explicitly, since the provider then can't be resolved by type).
 
 ---
 
 ## `CacheSettings` — singleton behavior
 
-There is **no separate `Singleton` class**. Singleton behavior is opted into via the `cache` argument:
-`cache=True` enables caching with default settings, `cache=CacheSettings(...)` enables caching and tunes it
-(finalizer, `clear_cache`), and an absent, `None`, or `False` value means a fresh instance is created on every
-resolution.
-
-```python
-providers.Factory(scope=Scope.APP, creator=Database, cache=True)
-providers.Factory(scope=Scope.APP, creator=Database, cache=providers.CacheSettings(finalizer=close))
-```
-
-`cache_settings=` is a deprecated alias of `cache` (it emits a `DeprecationWarning` and will be removed in a
-future release); passing both `cache` and `cache_settings` raises `TypeError`.
+There is no separate `Singleton` class — see [docs/providers/factories.md](../docs/providers/factories.md)
+for the user-facing singleton idiom and `cache_settings=`'s deprecation
+([advanced-api.md#deprecated-cache_settings](../docs/providers/advanced-api.md#deprecated-cache_settings)).
 
 `CacheSettings` is a `dataclass` with the following fields:
 
@@ -103,10 +87,7 @@ future release); passing both `cache` and `cache_settings` raises `TypeError`.
 |---|---|---|---|
 | `clear_cache` | `bool` | `True` | Whether the cached instance is evicted when the container closes. |
 | `finalizer` | `Callable[[T], None \| Awaitable[None]] \| None` | `None` | Optional teardown called on container close, before cache eviction. |
-| `is_async_finalizer` | `bool` | *(computed)* | Set automatically in `__post_init__`; `True` when `finalizer` is a coroutine function. |
-
-`is_async_finalizer` is not an init parameter — it is derived by `inspect.iscoroutinefunction(finalizer)` in
-`__post_init__`. The container uses it to decide whether to `await` the finalizer.
+| `is_async_finalizer` | `bool` | *(computed)* | Not an init parameter — derived by `inspect.iscoroutinefunction(finalizer)` in `__post_init__`. The container uses it to decide whether to `await` the finalizer. |
 
 Without `cache`, `Factory.resolve` calls the creator on every resolution and returns a fresh instance
 each time.
@@ -150,11 +131,9 @@ and the two paths are independent:
 providers.Alias(source_type=ConcreteDatabase, bound_type=DatabaseProtocol)
 ```
 
-This lets code that depends on `DatabaseProtocol` receive the `ConcreteDatabase` instance without the registry
-needing a separate `Factory` for the protocol. `Alias.resolve` calls `container.resolve_provider(source_provider)`,
-so caching and lifecycle are fully governed by the source.
-
-`Alias` also accepts an optional `bound_type` that overrides the inferred bound type.
+`Alias.resolve` calls `container.resolve_provider(source_provider)` — it holds no cache of its own — and also
+accepts an optional `bound_type` override. See [docs/providers/alias.md](../docs/providers/alias.md) for the
+user-facing rationale and caching implications.
 
 `Alias.effective_scope` follows alias chains transitively to the terminal non-alias provider and returns that
 provider's scope. This is what `Container.validate()` and scope-error reporting use — the alias's own `scope`
@@ -162,13 +141,10 @@ attribute is only a stored default.
 
 ### Deprecated `scope=` parameter
 
-Passing `scope=` to `Alias.__init__` emits a `DeprecationWarning`:
-
-> "The `scope` parameter of Alias is deprecated and ignored: an alias's effective scope is derived from its
-> source. It will be removed in a future release."
-
-The parameter is accepted for backwards compatibility but has no effect on resolution. It will be removed in a
-future release.
+Passing `scope=` to `Alias.__init__` emits a `DeprecationWarning` and has no effect on resolution or validation
+(both are derived from the source, per above) — see [docs/providers/alias.md](../docs/providers/alias.md) for
+the user-facing note. The stored value is kept internally only so that cosmetic consumers (`__repr__`, registry
+suggestions) continue to display it; it is scheduled for removal in a future release.
 
 ---
 

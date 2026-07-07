@@ -28,20 +28,11 @@ root — the override is visible tree-wide. `close_async` and `close_sync` on th
 
 ### How overrides short-circuit resolution
 
-`resolve_provider` checks the registry before delegating to the provider:
-
-```python
-def resolve_provider(self, provider):
-    if self.overrides_registry.overrides and \
-       (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET:
-        return override          # returned immediately, no cache, no factory call
-    return provider.resolve(self)
-```
-
-The override value is returned directly, bypassing the scope check, cache lookup, and creator invocation. This
-means the override object does not need to be an instance of the provider's declared type at runtime (Python does
-not enforce it), but callers should pass a compatible object for type safety. See `resolution.md` for the full
-resolution flow that overrides short-circuit.
+`resolve_provider` checks the override registry before delegating to the provider — see
+[resolution.md](resolution.md)'s Step 1 for the mechanism. The override value is
+returned directly, bypassing the scope check, cache lookup, and creator invocation. This means the override
+object does not need to be an instance of the provider's declared type at runtime (Python does not enforce it),
+but callers should pass a compatible object for type safety.
 
 ### Scope behaviour under overrides
 
@@ -56,69 +47,15 @@ cached instance. After `reset_override`, the original cache entry (if any) is st
 
 ## Testing patterns
 
-### Declaring providers
-
-Define a `Group` subclass with providers as class-level attributes and pass it to `Container`:
-
-```python
-from modern_di import Container, Scope, providers, Group
-
-class MyGroup(Group):
-    service               = providers.Factory(scope=Scope.APP, creator=MyService)
-    repo                  = providers.Factory(scope=Scope.APP, creator=MyRepo)
-    request_scoped_service = providers.Factory(scope=Scope.REQUEST, creator=RequestScopedService)
-
-container = Container(scope=Scope.APP, groups=[MyGroup])
-```
-
-### Resolving in tests
-
-Resolve by provider reference (most precise — no type lookup):
-
-```python
-instance = container.resolve_provider(MyGroup.service)
-```
-
-Resolve by type (matches the type registered in `ProvidersRegistry`):
-
-```python
-instance = container.resolve(MyService)
-```
-
-Both methods go through `resolve_provider` and therefore respect overrides.
-
-### Testing scope chains
-
-Build child containers to test providers that require a deeper scope:
-
-```python
-app_container = Container(scope=Scope.APP, groups=[MyGroup])
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-instance = request_container.resolve_provider(MyGroup.request_scoped_service)
-request_container.close_sync()
-```
-
-Child containers share the parent's `providers_registry` and `overrides_registry` but have independent
-`cache_registry` instances, so each child starts with a cold cache.
-
-### Injecting overrides
-
-```python
-app_container = Container(scope=Scope.APP, groups=[MyGroup])
-app_container.override(MyGroup.repo, FakeRepo())
-
-result = app_container.resolve_provider(MyGroup.service)  # receives FakeRepo
-
-app_container.reset_override(MyGroup.repo)   # restore
-```
-
-Overrides set on the app container are visible in all child containers built afterward (shared registry), and in
-child containers already in existence too, since the registry object is the same reference.
-
-### Cleanup
-
-Call `container.reset_override()` (no argument) after a test to clear all overrides, or rely on
-`close_sync`/`close_async` on the root container — both clear the registry automatically.
+Declare providers as `Group` class attributes and pass the group to `Container` (see
+[containers.md](containers.md#creating-a-root-container)). Resolve by provider reference
+(`resolve_provider`, most precise) or by type (`resolve`) — both go through the override check.
+Test deeper scopes via `build_child_container`; each child gets its own cold `cache_registry` (see
+[Registry sharing](containers.md#registry-sharing)), so a request-scoped provider resolved in one
+child never leaks a cached instance into another. Inject overrides with
+`container.override(provider, obj)` — visible tree-wide immediately, since `OverridesRegistry` is
+shared (see above) — and reset with `reset_override()`, or rely on the root container's
+`close_sync`/`close_async` to clear all overrides automatically at teardown.
 
 ## modern-di-pytest integration
 

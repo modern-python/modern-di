@@ -25,23 +25,16 @@ Constructor parameters:
 | `validate` | `None` | Tri-state, see below. |
 
 A root container (no `parent_container`) creates fresh `ProvidersRegistry` and `OverridesRegistry`
-instances. It also auto-registers `container_provider` under the `Container` type so that any
-provider declaring `Container` as a dependency receives the resolving container instance directly.
+instances. It also auto-registers `container_provider` (see [below](#container_provider)) under the
+`Container` type.
 
 ### `validate`'s three states
 
-- `True` — runs `container.validate()` immediately after construction (see [validation](validation.md)).
-- `False` — explicit opt-out: never validates, never warns. This is the only way to stay silent
-  once modern-di 3.0 flips the default to `True`-like behavior (see below), so it remains a
-  supported, permanent choice, not just a 2.x shim.
-- `None` (the default) — behaves like `False` today (no validation), but on a **root** container
-  (`parent_container is None`) it also emits `UnvalidatedContainerWarning`
-  (a `FutureWarning`) pointing at the [migration guide](../docs/migration/to-3.x.md): modern-di 3.0
-  runs `validate()` at root construction by default, so leaving `validate` unset now is a
-  transitional state, not a permanent one. Child containers built via `build_child_container` never
-  pass `validate` explicitly, so they also reach the unset (`None`) branch — but the warning itself
-  additionally requires `parent_container is None`, which is false for every child, so children
-  never warn regardless of `validate`.
+See [validation.md](validation.md) for what each state does and why. The container-specific wrinkle:
+child containers built via `build_child_container` never pass `validate` explicitly, so they always
+land on the unset (`None`) branch — but `UnvalidatedContainerWarning` additionally requires
+`parent_container is None`, which is false for every child. So children never warn, regardless of
+`validate`'s value.
 
 Escalate the warning to catch it in CI ahead of the 3.0 upgrade:
 
@@ -87,12 +80,10 @@ tree.
 
 A singleton instance of `_ContainerProvider` is registered under the `Container` type in the
 `ProvidersRegistry` of every root container. Its `resolve` method returns the container passed to
-it, so resolving `Container` from any child yields that child container — not the root. This lets
-providers at any scope depth receive the container they are resolved from as a plain constructor
-dependency.
-
-`_ContainerProvider` has `scope=Scope.APP` and `bound_type=None` (it is registered explicitly
-under `Container` rather than inferred from a type annotation).
+it, so resolving `Container` from any child yields that child container — not the root; see
+[docs/providers/container.md](../docs/providers/container.md) for the user-facing behavior and
+examples. `_ContainerProvider` has `scope=Scope.APP` and `bound_type=None` (it is registered
+explicitly under `Container` rather than inferred from a type annotation).
 
 ## Lifecycle: close and reopen
 
@@ -133,21 +124,14 @@ alone.
 
 ### `clear_cache` per `CacheItem`
 
-After running a finalizer, each `CacheItem` calls `_clear()`. This checks the item's
-`CacheSettings.clear_cache` flag. If `True`, the cached instance is removed (`cache` is reset to
-`UNSET`) and `finalized` is reset to `False`, leaving the slot ready to be re-populated on the
-next resolution. If `False` (or no `CacheSettings`), the cached value is retained after
-finalization; the item is simply marked finalized.
+After running a finalizer, `CacheItem._clear()` evicts the cached instance (and resets `finalized`)
+only if `CacheSettings.clear_cache` is `True` (the default); otherwise the cached value survives
+close, ready to be returned again without re-running the creator.
 
 ### Reopen (context-manager protocol)
 
 `Container` implements both sync (`__enter__` / `__exit__`) and async (`__aenter__` / `__aexit__`)
-context managers.
-
-- `open()` sets `self.closed = False`. No other state is reset; `cache_registry` and
-  `context_registry` are left as-is. Reopening an already-open container is a no-op.
-- `__enter__` / `__aenter__` call `open()` and return `self`.
-- `__exit__` calls `close_sync()`; `__aexit__` calls `close_async()`.
+context managers; `open()` (documented on the method itself) is the reopen primitive they call.
 
 Concretely: using the same container object as a context manager a second time reopens it (clears
 `closed`), resolves providers fresh if `clear_cache=True` was set on their `CacheSettings` (since
@@ -161,13 +145,8 @@ exactly this: `app.on_startup(container.open)` paired with `app.after_shutdown(c
 
 ## `validate()`
 
-`container.validate()` runs a depth-first traversal of all providers in `ProvidersRegistry`,
-detecting circular dependencies and scope-ordering violations (a provider at a wider scope
-depending on one at a narrower scope). Pass `validate=True` to the constructor to run this at
-creation time, or call `container.validate()` explicitly at any point. It raises
-`ValidationFailedError` with all collected errors if any are found — see
-[validation](validation.md) for the DFS algorithm, the grouped error rendering, and the pending
-3.0 default flip.
+See [validation.md](validation.md) for what `container.validate()` checks, how it reports
+aggregated errors, and the pending 3.0 default flip.
 
 ## `set_context()`
 

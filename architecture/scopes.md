@@ -17,23 +17,12 @@ Every provider is bound to a scope at declaration time. The rule is:
 > (i.e., `container.scope >= provider.scope`).
 
 Attempting to resolve a provider from a container whose scope is shallower than the provider's scope raises one of
-two exceptions, depending on what went wrong:
+two exceptions, depending on what went wrong (see `exceptions.py` for the exact messages):
 
 - **`ScopeNotInitializedError`** — raised when the required scope is deeper than the resolving container's scope
-  (the child container for that scope has not been built yet). Message shape:
-
-  ```
-  Provider of scope {provider_scope} cannot be resolved in container of scope {container_scope}.
-  ```
-
+  (the child container for that scope has not been built yet).
 - **`ScopeSkippedError`** — raised when the required scope is shallower than the resolving container's scope but
-  is not present anywhere in the ancestor chain (i.e., the chain was started at a scope that skipped it). Message
-  shape:
-
-  ```
-  No {provider_scope}-scope container exists in this chain; this chain starts at {container_scope}.
-  Build a {provider_scope}-scope container as the root.
-  ```
+  is not present anywhere in the ancestor chain (i.e., the chain was started at a scope that skipped it).
 
 Both exceptions inherit from `ContainerError → ModernDIError → RuntimeError`.
 
@@ -41,8 +30,8 @@ Both also carry a breadcrumb `dependency_path` (via the shared `DependencyPathMi
 walk in [resolution.md](resolution.md)), so a **captive dependency** (a shallower-scoped provider that,
 directly or transitively, depends on a deeper-scoped one) reports both the capturing provider's name
 and the one that actually failed to resolve, in addition to the two scope names. Raised with an empty
-path (e.g. a bare `find_container` call with no provider frame involved) the message is unchanged from
-the shape shown above.
+path (e.g. a bare `find_container` call with no provider frame involved), the message falls back to
+the base one-liner with no breadcrumb prepended.
 
 ## How the container locates the right-scope container
 
@@ -66,49 +55,9 @@ parent-chain traversal during resolution.
 more levels (or different names) can define their own `IntEnum` and use it throughout. The same integer-ordering
 rules apply. Passing a non-`IntEnum` value raises `InvalidScopeTypeError`.
 
-## Worked example
+## See also
 
-```python
-from modern_di import Container, Group, Scope
-from modern_di import providers
-
-# DatabasePool and UserFromRequest are your own classes.
-class AppGroup(Group):
-    # Resolved once and cached for the lifetime of the app container.
-    db_pool = providers.Factory(scope=Scope.APP, creator=DatabasePool, cache=True)
-
-    # Resolved once per request container.
-    current_user = providers.Factory(scope=Scope.REQUEST, creator=UserFromRequest)
-
-# Root container at APP scope.
-app_container = Container(scope=Scope.APP, groups=[AppGroup])
-
-# Works: db_pool is APP-scoped, container is APP-scoped (same scope).
-pool = app_container.resolve(DatabasePool)
-
-# Fails: current_user is REQUEST-scoped, but the container is APP-scoped (too shallow).
-# Raises ScopeNotInitializedError:
-#   "Provider of scope REQUEST cannot be resolved in container of scope APP."
-app_container.resolve(UserFromRequest)  # raises
-
-# Build a child container for the request boundary.
-request_container = app_container.build_child_container(scope=Scope.REQUEST, context={...})
-
-# Works: current_user is REQUEST-scoped, container is REQUEST-scoped.
-user = request_container.resolve(UserFromRequest)
-
-# Works: db_pool is APP-scoped; find_container(APP) returns the parent app_container via scope_map.
-pool_again = request_container.resolve(DatabasePool)
-```
-
-`build_child_container` enforces that the child scope is strictly deeper than the parent scope. Passing a scope
-with a lower or equal integer value raises `InvalidChildScopeError`:
-
-```
-Scope of child container cannot be {child_scope} if parent scope is {parent_scope}
-(child scope value must be strictly greater than parent scope value).
-Possible scopes are {allowed_scopes}.
-```
-
-Calling `build_child_container()` with no `scope` argument auto-increments to the next integer in the same
-`IntEnum` class. If the parent is already at the maximum defined value, `MaxScopeReachedError` is raised.
+- [docs/providers/scopes.md](../docs/providers/scopes.md) for a worked, user-facing walk-through of
+  resolving across scopes and building child containers.
+- [containers.md](containers.md#child-containers) for `build_child_container`'s scope rules
+  (auto-increment, `MaxScopeReachedError`).
