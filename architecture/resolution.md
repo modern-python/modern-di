@@ -4,66 +4,32 @@ How `modern-di` wires an object graph from type hints — from the first `resolv
 
 ## Entry points
 
-There are two ways to trigger resolution from a `Container`:
-
-- `container.resolve(SomeType)` — resolves by type. Looks up `SomeType` in `providers_registry`; raises
-  `ProviderNotRegisteredError` (with closest-match suggestions) if no provider is registered for that type. Then
-  delegates to `resolve_provider`.
+- `container.resolve(SomeType)` — looks up `SomeType` in `providers_registry` (raising
+  `ProviderNotRegisteredError`, with closest-match suggestions, if none is registered), then delegates to
+  `resolve_provider`.
 - `container.resolve_provider(provider)` — resolves by provider reference directly, skipping the registry lookup.
 
 ## Step 1 — Override short-circuit
 
-`resolve_provider` is the single choke-point through which every resolution passes. Before touching scope or cache it
-checks the override registry:
-
-```python
-if (
-    self.overrides_registry.overrides
-    and (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET
-):
-    return override
-```
-
-The outer guard (`self.overrides_registry.overrides`) is a cheap truthiness check on a dict; `fetch_override` is only
-called when at least one override exists. If an override is registered for this provider, it is returned immediately —
+`resolve_provider` is the single choke-point every resolution passes through, and the override registry is
+checked first — before scope or cache. An override, if registered for this provider, is returned immediately:
 no scope walk, no cache check, no creator call.
 
 ## Step 2 — Scope walk (inside Factory.resolve)
 
-After the override check, `resolve_provider` calls `provider.resolve(self)`. For `Factory` the first thing `resolve`
-does is walk to the container at the provider's declared scope:
+`Factory.resolve` walks to the container at the provider's declared scope via `find_container`, raising
+`ScopeNotInitializedError` or `ScopeSkippedError` as appropriate — see [scopes.md](scopes.md) for the rule and
+error conditions. From this point all cache and context operations use the scope-correct container.
 
-```python
-container = container.find_container(self.scope)
-```
-
-`find_container` looks up `self.scope_map`, a dict built at container construction time that maps each scope level to
-the container at that level. If the scope is deeper than the current container (not yet initialized) a
-`ScopeNotInitializedError` is raised; if it was skipped when building the child chain, a `ScopeSkippedError` is raised.
-From this point all cache and context operations use the scope-correct container.
-
-Both scope errors carry the same breadcrumb `dependency_path` as `ResolutionError` (they share
-`DependencyPathMixin`, see below), so a runtime **captive dependency** — a shallower-scoped provider
-depending, directly or transitively, on a deeper-scoped one — names both ends: the provider that
-captured the dependency and the one that actually failed to resolve, not just the two scope names.
 `Factory.resolve` wraps its own `find_container` call and prepends its own step on a scope error before
-re-raising, so the failing provider's name makes it into the chain even though this call sits outside
-the try block that wraps the rest of `resolve` (see Step 5's `prepend_step` note for the general
-mechanism). `Alias.resolve`'s except is widened the same way.
+re-raising, so the failing provider's name makes it into the breadcrumb chain even though this call sits outside
+the try block that wraps the rest of `resolve` (see Step 5's `prepend_step` note for the general mechanism).
+`Alias.resolve`'s except is widened the same way.
 
 ## Step 3 — Cache hit
 
-With the correct container in hand, `Factory.resolve` fetches (or creates) a `CacheItem` for this provider:
-
-```python
-cache_item = container.cache_registry.fetch_cache_item(self)
-
-if self.cache_settings and cache_item.cache is not types.UNSET:
-    return cache_item.cache
-```
-
 If `cache_settings` is configured **and** the cache slot already holds a value, the cached instance is returned
-immediately. (A `Factory` with no `cache_settings` always re-runs the creator.)
+immediately. A `Factory` with no `cache_settings` always re-runs the creator.
 
 ## Step 4 — Wiring plan
 
@@ -94,7 +60,7 @@ map produced at provider-declaration time by `types_parser.parse_creator` — an
    > (Python ignores it at runtime); this asymmetry is intentional, not a wiring guarantee.
 
 3. **No provider found** — a static graph fact, decided once via the shared `absent_disposition(item)` helper (the
-   single home of the absent-value table):
+   single home of the absent-value table — also applied live in Step 5, for an unset context value):
    - If the parameter has a default, it is omitted (the creator's own default applies).
    - Else if `SignatureItem.is_nullable` is `True` (the annotation included `None`, e.g. `X | None` or `Optional[X]`),
      `None` is placed in `static_kwargs`.
@@ -108,51 +74,27 @@ reads `dependencies`, `iter_validation_issues` builds a fresh error per `unwirea
 
 ## Step 5 — Recursive resolution
 
-With the wiring plan in hand, `Factory` first surfaces any unwireable parameter: if `plan.unwireable` is non-empty it
-raises a **freshly built** `ArgumentResolutionError` from the first record before calling the creator. The error is
-built fresh on every raise (never memoized) because `prepend_step` (owned by the shared `DependencyPathMixin`, mixed
-into both `ResolutionError` and the two scope errors) *mutates* the exception as it propagates up the chain — a
-stored instance would accumulate and leak breadcrumbs across repeated or nested resolves.
+`Factory` first surfaces any unwireable parameter: if `plan.unwireable` is non-empty it raises a **freshly built**
+`ArgumentResolutionError` from the first record before calling the creator. The error is built fresh on every raise
+(never memoized) because `prepend_step` (owned by the shared `DependencyPathMixin`, mixed into both
+`ResolutionError` and the two scope errors) *mutates* the exception as it propagates up the chain — a stored
+instance would accumulate and leak breadcrumbs across repeated or nested resolves.
 
-```python
-resolved_kwargs = dict(plan.static_kwargs)
-for k, v in plan.provider_kwargs.items():
-    resolved_kwargs[k] = container.resolve_provider(v)
-for k, (context_provider, item) in plan.context_kwargs.items():
-    value = self._resolve_context_value(container, k, context_provider, item)
-    if value is not types.UNSET:
-        resolved_kwargs[k] = value
-```
+Each `provider_kwargs` entry is resolved by calling back into `container.resolve_provider`, re-entering this same
+sequence from Step 1. Each `context_kwargs` entry is resolved **live**, on every resolve, via
+`_resolve_context_value` — so a `set_context` after a factory has already resolved is still picked up (across
+scopes, for non-cached factories). `_resolve_context_value` mirrors `resolve_provider`'s override check, then reads
+the live context value; when it is absent, the shared `absent_disposition` helper applies — omit (default
+applies), `None` (nullable), or raise `ArgumentResolutionError` — the same three-way disposition Step 4 computes
+statically for a missing provider, just evaluated live instead of once at plan-build time.
 
-Regular dependency providers are resolved by calling back into `container.resolve_provider`, which re-enters this same
-sequence from Step 1 — override check, then `provider.resolve(container)`.
-
-Context-backed parameters are resolved **live on every resolve**, so a `set_context` after a factory has already
-resolved is always picked up (across scopes, for non-cached factories). `_resolve_context_value` mirrors
-`resolve_provider`'s override check, then reads the live context value; when the value is absent it applies the shared
-`absent_disposition` helper — omit (default applies), `None` (nullable), or raise `ArgumentResolutionError`.
-
-The recursion bottoms out at providers with
-no dependencies or at already-cached instances.
+The recursion bottoms out at providers with no dependencies or at already-cached instances.
 
 ## Step 6 — Creator call and caching
 
-```python
-instance = self._call_creator(resolved_kwargs)
-```
-
-If `cache_settings` is `None`, the instance is returned immediately with no caching. If `cache_settings` is set, a
-lock (when `use_lock=True`) guards a double-checked read of the cache slot to handle concurrent first-resolves, then
-the instance is stored and returned.
-
-## Nullable wiring
-
-`types_parser.SignatureItem` carries an `is_nullable: bool` field. It is set to `True` when the parameter annotation
-is a union that includes `NoneType` — that is, `X | None`, `Optional[X]`, or any union spelled with `typing.Union`
-that contains `None`. When no provider is found for the parameter (or a `ContextProvider` has no value set) and the
-parameter has no default, the shared `absent_disposition` helper returns `None` for `is_nullable=True` — at plan-build
-time (`WiringPlan.build`) for a missing provider, or live at resolve time (`_resolve_context_value`) for an unset
-context value — rather than raising an error.
+`Factory` calls the creator with `resolved_kwargs`. With no `cache_settings`, the instance is returned immediately.
+Otherwise the cache-write is guarded by the double-checked locking pattern described under
+[Thread safety](#thread-safety) below, then the instance is stored and returned.
 
 ## Thread safety
 
