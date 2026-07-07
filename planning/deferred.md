@@ -6,8 +6,10 @@ Items intentionally not actioned in the current work, kept here so they aren't l
 
 `Factory._ensure_plan` builds the `WiringPlan` outside the container lock and publishes it to
 `cache_item.wiring_plan` (`modern_di/providers/factory.py`). Under the GIL this is safe: the plan is a
-deterministic function of the fixed providers registry, so two threads that both see
-`wiring_plan is None` build identical plans — at worst the work is repeated once — and the GIL ensures a
+deterministic function of the providers registry's state as of the version it was built against (a
+`ProvidersRegistry.version` stamp, bumped on every `register`/`add_providers`/removal, is memoized
+alongside the plan so a later registration invalidates it), so two threads that both see the same
+`wiring_plan_version` build identical plans — at worst the work is repeated once — and the GIL ensures a
 thread seeing a non-`None` `wiring_plan` also sees the fully-built (frozen) object.
 
 Under free-threaded CPython that publication guarantee is lost: without a memory barrier a reader could

@@ -81,6 +81,7 @@ class Container:
     __slots__ = (
         "_lock",
         "_scope_map",
+        "_validated",
         "cache_registry",
         "closed",
         "context_registry",
@@ -119,6 +120,7 @@ class Container:
                 allowed_scopes=[x.name for x in type(parent_container.scope) if x > parent_container.scope],
             )
         self._lock = threading.RLock() if use_lock else None
+        self._validated = False
         self.closed = False
         self.scope = scope
         self.parent_container = parent_container
@@ -214,6 +216,17 @@ class Container:
 
         return self.resolve_provider(provider)
 
+    def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
+        """Resolve a provider reference or a type — the marker-dispatch entry point for integrations.
+
+        A provider argument goes to :meth:`resolve_provider`; a type argument goes to
+        :meth:`resolve`. Overrides, caching, and did-you-mean suggestions are inherited
+        from whichever of the two it dispatches to.
+        """
+        if isinstance(dependency, AbstractProvider):
+            return self.resolve_provider(dependency)
+        return self.resolve(dependency)
+
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
         self._warn_and_reopen_if_closed()
@@ -278,6 +291,35 @@ class Container:
 
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
+        self._validated = True
+
+    def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
+        """Register providers on this (root) container after construction.
+
+        This is the blessed seam for framework integrations that discover providers
+        after the container is built. Root-only: calling this on a child container
+        raises :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since
+        the providers registry is shared tree-wide. If validation has run **on this
+        container** (via ``validate=True`` at construction or a manual :meth:`validate`
+        call — ``_validated`` is per-container, not inherited from a parent), it is
+        re-validated after registering, so a newly-added provider that breaks the
+        graph raises :class:`~modern_di.exceptions.ValidationFailedError` here rather
+        than later. Atomic: if that re-validation raises *any* exception, the whole
+        batch is removed again before the error propagates — either the batch is
+        fully registered and valid, or the container is unchanged. Registration is a
+        startup-time operation: concurrent ``add_providers`` calls on the same root
+        are not coordinated beyond the registry's internal lock.
+        """
+        if self.parent_container is not None:
+            raise exceptions.ChildContainerRegistrationError(scope=self.scope)
+        self.providers_registry.add_providers(*providers)
+        if self._validated:
+            try:
+                self.validate()
+            except Exception:
+                added_types = [provider.bound_type for provider in providers if provider.bound_type]
+                self.providers_registry._remove_providers(*added_types)  # noqa: SLF001
+                raise
 
     async def close_async(self) -> None:
         if not self.parent_container:

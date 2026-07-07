@@ -355,6 +355,20 @@ class DuplicateProviderTypeError(RegistrationError):
         )
 
 
+class ChildContainerRegistrationError(RegistrationError):
+    """``add_providers`` was called on a child container; registration is root-only. Inspect ``.scope``."""
+
+    __slots__ = ("scope",)
+
+    def __init__(self, *, scope: enum.IntEnum) -> None:
+        self.scope = scope
+        super().__init__(
+            f"Container.add_providers can only be called on a root container: the providers "
+            f"registry is shared tree-wide, so registering on a child container (scope {scope.name}) "
+            "would mutate every container in the tree. Call add_providers on the root container instead."
+        )
+
+
 class UnknownFactoryKwargError(RegistrationError):
     """Factory kwargs had unknown keys. Attrs: ``creator``, ``unknown_keys``, ``known_keys``, ``suggestions``."""
 

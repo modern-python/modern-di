@@ -16,6 +16,8 @@ class CacheItem:
     cache: typing.Any = types.UNSET
     finalized: bool = False
     wiring_plan: "WiringPlan | None" = None
+    # `ProvidersRegistry.version` the memoized `wiring_plan` was built against; see `Factory._ensure_plan`.
+    wiring_plan_version: int | None = None
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:

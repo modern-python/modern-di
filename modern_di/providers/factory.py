@@ -151,14 +151,18 @@ class Factory(AbstractProvider[types.T_co]):
 
     def _ensure_plan(self, container: "Container", cache_item: "CacheItem") -> WiringPlan:
         # Plan runs outside the container lock — safe under the GIL since it's a deterministic
-        # function of the fixed providers registry (free-threaded/nogil caveat: planning/deferred.md).
-        if cache_item.wiring_plan is None:
+        # function of the providers registry as of the version it was built against (free-threaded/nogil
+        # caveat: planning/deferred.md). The version stamp on the registry lets a stale memoized plan
+        # (built before a later Container.add_providers call) be detected and rebuilt.
+        current_version = container.providers_registry.version
+        if cache_item.wiring_plan is None or cache_item.wiring_plan_version != current_version:
             cache_item.wiring_plan = WiringPlan.build(
                 parsed_kwargs=self._parsed_kwargs,
                 kwargs=self._kwargs,
                 registry=container.providers_registry,
                 owner=self,
             )
+            cache_item.wiring_plan_version = current_version
         return cache_item.wiring_plan
 
     def _resolve_context_value(

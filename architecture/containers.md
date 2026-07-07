@@ -67,7 +67,7 @@ The four registries split into two categories:
 
 | Registry | Shared across container tree? | Purpose |
 |---|---|---|
-| `ProvidersRegistry` | Yes — all containers share one instance | Maps `type → AbstractProvider`; populated once at root construction time from `groups`. |
+| `ProvidersRegistry` | Yes — all containers share one instance | Maps `type → AbstractProvider`; populated at root construction time from `groups`, and later via `Container.add_providers`. |
 | `OverridesRegistry` | Yes — all containers share one instance | Maps `provider_id → override object`; used by tests to substitute real instances. |
 | `CacheRegistry` | No — each container has its own | Maps `provider_id → CacheItem`; stores resolved singleton instances and the memoized `WiringPlan` for this scope level. |
 | `ContextRegistry` | No — each container has its own | Maps `type → runtime object`; populated via `context=` at construction or `container.set_context()` after the fact. |
@@ -75,6 +75,21 @@ The four registries split into two categories:
 Because `ProvidersRegistry` and `OverridesRegistry` are shared, registering a group or setting an
 override on any container in the tree is immediately visible to all other containers in the same
 tree.
+
+### Integration seam
+
+`add_providers` (registration) and `resolve_dependency` (provider-or-type
+dispatch) are the blessed integration seam — see
+[writing-integrations.md](../docs/integrations/writing-integrations.md).
+`add_providers` is **root-only**: called on a child, it raises
+`ChildContainerRegistrationError` (`modern_di/exceptions.py`), since the
+registry it mutates is shared tree-wide. `Container` tracks a private
+`_validated` flag, set once `validate()` succeeds (construction or a manual
+call); `add_providers` on an already-validated container re-runs `validate()`
+after registering and, if that fails, removes the just-added batch again —
+the container ends up either fully registered and valid, or unchanged.
+`resolve_dependency` carries no such restriction; it is a resolve verb,
+callable on any container regardless of validation state.
 
 ## `container_provider`
 

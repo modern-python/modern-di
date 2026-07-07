@@ -52,8 +52,8 @@ startup/shutdown. Return the container.
 
 ```python
 def setup_di(app: myfw.App, container: Container) -> Container:
-    app.state.di_container = container                              # attach
-    container.providers_registry.add_providers(*_CONNECTION_PROVIDERS)  # register
+    app.state.di_container = container            # attach
+    container.add_providers(*_CONNECTION_PROVIDERS)  # register
     # wire lifecycle (see "Lifecycle rules" below)
     return container
 ```
@@ -62,6 +62,10 @@ Frameworks with a plugin system realize this differently: Litestar ships a
 `ModernDIPlugin(InitPlugin)` whose `on_app_init` does the same three steps
 instead of a free `setup_di` function. Prefer the framework's idiomatic
 extension point.
+
+`add_providers` is a startup-time operation: concurrent calls on the same root
+container are not coordinated beyond the registry's internal lock, so don't
+call it from request-handling code running alongside other registrations.
 
 ### 3. `fetch_di_container(app_or_ctx) -> Container`
 
@@ -135,17 +139,17 @@ class Dependency(typing.Generic[T_co]):
     dependency: providers.AbstractProvider[T_co] | type[T_co]
 
     async def __call__(self, request_container: typing.Annotated[Container, myfw.Depends(build_di_container)]) -> T_co:
-        if isinstance(self.dependency, providers.AbstractProvider):
-            return request_container.resolve_provider(self.dependency)
-        return request_container.resolve(dependency_type=self.dependency)
+        return request_container.resolve_dependency(self.dependency)
 
 
 def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  # noqa: N802
     return typing.cast(T_co, myfw.Depends(Dependency(dependency)))
 ```
 
-The two dispatch arms are invariant across every integration and both modes:
-`resolve_provider` for an `AbstractProvider`, `resolve` for a bare type.
+The dispatch is a single call, invariant across every integration and both
+modes: `resolve_dependency` takes either an `AbstractProvider` or a bare type
+and routes to `resolve_provider`/`resolve` accordingly — overrides, caching,
+and did-you-mean suggestions are inherited from whichever it dispatches to.
 `FromDI` is spelled in PascalCase (with `# noqa: N802`) because it stands in for
 a type at call sites.
 
@@ -348,8 +352,8 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] Root container **reopens on startup** so restarts don't emit a
       `ContainerClosedWarning` (or, in 3.0, raise `ContainerClosedError`).
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
-- [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and dispatches
-      `resolve_provider` vs `resolve`.
+- [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves it via
+      `resolve_dependency`.
 - [ ] **No native DI?** `FromDI` is an inert marker and a decorator rewrites the
       handler signature (strips DI params, threads the context object, sets
       `wrapper.__signature__`), resolves at call time, and closes the per-call

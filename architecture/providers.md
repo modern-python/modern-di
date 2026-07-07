@@ -62,7 +62,8 @@ resolution order).
 
 When a `Factory` is resolved, `WiringPlan.build` (in `modern_di/wiring.py`) iterates the parsed parameter map and
 partitions it into the plan; `Factory` then recurses into `container.resolve_provider(dep_provider)` for each matched
-provider. The plan is built once and memoized on the `CacheItem`. Resolution errors are annotated with a breadcrumb
+provider. The plan is memoized on the `CacheItem` and rebuilt when the providers-registry version has changed
+(i.e. after `add_providers`). Resolution errors are annotated with a breadcrumb
 describing the current factory, so the full chain appears in the exception.
 
 ### Static kwargs and `skip_creator_parsing`

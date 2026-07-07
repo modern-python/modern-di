@@ -24,17 +24,27 @@ def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]
 
 
 class ProvidersRegistry:
-    __slots__ = ("_lock", "_providers")
+    __slots__ = ("_lock", "_providers", "_version")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
+        self._version = 0
 
     def __len__(self) -> int:
         return len(self._providers)
 
     def __iter__(self) -> typing.Iterator[AbstractProvider[typing.Any]]:
         return iter(list(self._providers.values()))
+
+    @property
+    def version(self) -> int:
+        """Monotonically increasing counter, bumped on every mutation.
+
+        Lets memoized `WiringPlan`s (see `Factory._ensure_plan`) detect that the registry
+        changed underneath them and rebuild instead of resolving against a stale plan.
+        """
+        return self._version
 
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
@@ -44,6 +54,7 @@ class ProvidersRegistry:
             if provider_type in self._providers:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers[provider_type] = provider
+            self._version += 1
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
         new_providers: dict[type, AbstractProvider[typing.Any]] = {}
@@ -59,6 +70,14 @@ class ProvidersRegistry:
                 if provider_type in self._providers:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
+            self._version += 1
+
+    def _remove_providers(self, *provider_types: type) -> None:
+        """Rollback helper for `Container.add_providers`; not part of the public API."""
+        with self._lock:
+            for provider_type in provider_types:
+                self._providers.pop(provider_type, None)
+            self._version += 1
 
     def build_suggestions(self, requested_type: type) -> list[str]:
         requested_is_class = inspect.isclass(requested_type)
