@@ -170,8 +170,7 @@ a type at call sites.
 ## Scope mapping
 
 Map each connection kind to the scope its child container opens at. Follow the
-[scope hierarchy](../providers/scopes.md) (`APP < SESSION < REQUEST < ACTION <
-STEP`):
+[scope hierarchy](../providers/scopes.md#the-scope-dependency-rule):
 
 | Unit of work | Scope | Rationale |
 |---|---|---|
@@ -259,10 +258,9 @@ either way.
 
 - **Call time** — bind incoming args against the rewritten signature, pull out
   the context object (deleting it again if the decorator added it implicitly),
-  build the per-call child container, resolve each marked parameter
-  (`resolve_provider` for providers, `resolve` for bare types), fill them into
-  the call by name, invoke the original function, and `close_sync` the container
-  in `finally`.
+  build the per-call child container, resolve each marked parameter by kind
+  (contract point 5), fill them into the call by name, invoke the original
+  function, and `close_sync` the container in `finally`.
 
 DI parameters coexist with ordinary framework parameters because the decorator
 strips **only** the marked ones; everything else still reaches the parser.

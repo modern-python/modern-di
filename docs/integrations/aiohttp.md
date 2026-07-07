@@ -56,9 +56,9 @@ setup_di(app, Container(groups=[AppGroup], validate=True))
 
 ### 3. Scopes
 
-An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
-opens a `Scope.SESSION` one. Providers resolve from the connection's child
-container, so `Scope.REQUEST` providers live for exactly one request.
+See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule) —
+an HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
+opens a `Scope.SESSION` one.
 
 Which scope gets opened is decided per-connection: the middleware checks the
 request's handshake headers (via aiohttp's `can_prepare`), not the route or

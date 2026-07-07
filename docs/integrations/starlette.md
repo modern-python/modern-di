@@ -58,19 +58,15 @@ setup_di(app, Container(groups=[AppGroup], validate=True))
 
 ### 3. Scopes
 
-An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
-opens a `Scope.SESSION` one. Providers resolve from the connection's child
-container, so `Scope.REQUEST` providers live for exactly one request.
-
-The `Scope.SESSION` child for a WebSocket connection is entered automatically —
-the middleware builds it before your handler runs, and it stays open for the
-whole life of the connection.
+See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule) —
+an HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
+opens a `Scope.SESSION` one, built by the middleware before your handler runs
+and kept open for the whole life of the connection.
 
 ## Websockets
 
-A WebSocket connection opens a `Scope.SESSION` child container automatically and
-keeps it for the whole connection. For per-message work, open a nested
-`Scope.REQUEST` child of that session container:
+For per-message work within a websocket's `Scope.SESSION` container, open a
+nested `Scope.REQUEST` child:
 
 ```python
 import typing
@@ -96,8 +92,8 @@ async def ws_handler(
 
 Framework-specific context objects like `starlette.requests.Request` and
 `starlette.websockets.WebSocket` are automatically made available by the
-integration. You can reference these context providers implicitly through type
-annotations or explicitly by importing them.
+integration — see [Framework Context Objects](../providers/context.md#framework-context-objects)
+for how implicit and explicit resolution work.
 
 The following context providers are available for import:
 
