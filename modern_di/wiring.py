@@ -1,14 +1,9 @@
 """Kwarg-wiring decision for Factory providers.
 
-``WiringPlan`` is the single authoritative place where a creator's parsed
-parameters are partitioned into provider lookups, static values, and context
-lookups.  It is a pure function of its inputs — no cache, no scope, no live
-context — so it is exercisable without a Container.
-
-``absent_disposition`` is the single copy of the absent-value table:
-    default is not UNSET  → OMIT (creator default applies)
-    is_nullable           → NULL (inject None)
-    else                  → UNWIRABLE (required, no provider)
+``WiringPlan`` partitions a creator's parsed parameters into provider
+lookups, static values, and context lookups. It is a pure function of its
+inputs — no cache, no scope, no live context — so it is exercisable without
+a Container.
 """
 
 import dataclasses
@@ -33,10 +28,9 @@ class _Absent(enum.Enum):
 
 
 def absent_disposition(item: SignatureItem) -> _Absent:
-    """Single copy of the absent-value table.
+    """Decide the disposition for a parameter with no matching provider.
 
-    Precedence: default before nullable before unwirable — matches today's
-    ``_compile_kwargs`` order exactly.
+    Precedence: default before nullable before unwirable.
     """
     if item.default is not UNSET:
         return _Absent.OMIT
@@ -52,8 +46,8 @@ def find_dep_provider(
 ) -> "AbstractProvider[typing.Any] | None":
     """Look up a dependency provider for *item* in *registry*, excluding *owner* itself.
 
-    Mirrors ``Factory._find_dep_provider`` exactly: prefers ``arg_type``,
-    falls back to the first matching type in ``args`` (union members).
+    Prefers ``arg_type``; falls back to the first matching type in ``args``
+    (union members).
     """
     if item.arg_type is not None:
         provider = registry.find_provider(item.arg_type)
@@ -79,10 +73,10 @@ class WiringPlan:
                           excluding providers supplied via ``kwargs={...}``.
                           Used by ``validate()``'s graph traversal.
         unwireable:       UNWIRABLE parameters as (param-name, SignatureItem)
-                          records; ``build`` never raises. Consumers construct
-                          fresh ``ArgumentResolutionError`` instances at
-                          raise/yield time so that ``prepend_step`` mutations
-                          do not compound across repeated resolves of the same
+                          records rather than pre-built exceptions, so a fresh
+                          ``ArgumentResolutionError`` can be constructed at
+                          each raise/yield site without ``prepend_step``
+                          mutations compounding across resolves of the same
                           memoized plan.
 
     """
@@ -102,19 +96,7 @@ class WiringPlan:
         registry: "ProvidersRegistry",
         owner: "Factory[typing.Any]",
     ) -> "WiringPlan":
-        """Partition *parsed_kwargs* into wiring buckets.
-
-        Pure function of its arguments — no cache, no scope, no live context —
-        runnable outside the container lock (GIL-determinism argument preserved
-        from ``_compile_kwargs``; free-threaded/nogil caveat tracked in
-        planning/deferred.md).
-
-        The plan never raises; unwireable parameters are recorded in
-        ``unwireable`` as raw (name, SignatureItem) records — NOT pre-built
-        exceptions — so that consumers can construct a fresh
-        ``ArgumentResolutionError`` at each raise/yield site without risk of
-        ``prepend_step`` mutations compounding across repeated resolves.
-        """
+        """Partition *parsed_kwargs* into wiring buckets. Never raises."""
         provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
         static_kwargs: dict[str, typing.Any] = {}
         context_kwargs: dict[str, tuple[ContextProvider[typing.Any], SignatureItem]] = {}

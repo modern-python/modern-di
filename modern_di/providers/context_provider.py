@@ -17,9 +17,8 @@ class ContextProvider(AbstractProvider[types.T_co]):
     The value is passed via ``build_child_container(context={SomeType: value})``
     and looked up from the context registry at this provider's bound scope.
     Resolving it directly when no value is set emits :class:`~modern_di.exceptions.ContextValueNoneWarning`
-    and returns ``None`` (modern-di 3.0 raises :class:`~modern_di.exceptions.ContextValueNotSetError` instead);
-    injecting it into a non-nullable, no-default ``Factory`` parameter instead raises
-    ``ArgumentResolutionError``.
+    and returns ``None``; injecting it into a non-nullable, no-default ``Factory``
+    parameter instead raises ``ArgumentResolutionError``.
     """
 
     __slots__ = ("context_type",)
@@ -34,8 +33,6 @@ class ContextProvider(AbstractProvider[types.T_co]):
         super().__init__(
             scope=scope, bound_type=context_type if isinstance(bound_type, types.UnsetType) else bound_type
         )
-        # Public, like its sibling ``bound_type`` — the type this provider supplies and
-        # the key its value is set under in ``context``.
         self.context_type = context_type
 
     def __repr__(self) -> str:

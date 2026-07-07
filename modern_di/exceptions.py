@@ -38,12 +38,9 @@ class DependencyPathMixin:
     caller. With an empty `dependency_path` (the error never passed through a resolution frame)
     `__str__` returns the base message unchanged.
 
-    Not itself an exception: it is not catchable via `except DependencyPathMixin` and is not
-    exported. Plain-`object` with empty `__slots__` so it never contributes instance layout of
-    its own — each concrete error (`ResolutionError`, `ScopeNotInitializedError`,
-    `ScopeSkippedError`) declares the `_base_message`/`dependency_path` slots itself alongside
-    its own attrs, avoiding the `TypeError: multiple bases have instance lay-out conflict` that
-    combining a slotted mixin with an `Exception` subclass would otherwise raise.
+    Empty `__slots__`: each concrete error declares the `_base_message`/`dependency_path` slots
+    itself, avoiding the `TypeError: multiple bases have instance lay-out conflict` that a slotted
+    mixin combined with an `Exception` subclass would otherwise raise.
     """
 
     __slots__ = ()
@@ -384,7 +381,6 @@ class UnknownFactoryKwargError(RegistrationError):
                 line += f" (did you mean {sug!r}?)"
             parts.append(line)
         parts.append(f"Known parameters: {known_keys}")
-        # message built dynamically; not templated
         super().__init__("\n".join(parts))
 
 
@@ -434,7 +430,6 @@ class ValidationFailedError(ContainerError):
     def __init__(self, *, errors: list[Exception]) -> None:
         self.errors = errors
         kinds = ", ".join(sorted({type(e).__name__ for e in errors}))
-        # message built dynamically; not templated
         super().__init__(f"Container.validate() found {len(errors)} issue(s): {kinds}")
 
     def __str__(self) -> str:
@@ -461,7 +456,6 @@ class FinalizerError(ModernDIError):
         self.finalizer_errors = finalizer_errors
         self.is_async = is_async
         kind = "async" if is_async else "sync"
-        # message built dynamically; not templated
         super().__init__(f"Errors during {kind} cleanup: {finalizer_errors}")
 
 

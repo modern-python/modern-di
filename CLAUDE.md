@@ -84,3 +84,7 @@ is quick orientation; `architecture/` holds the authoritative account.
 - `ruff` with `select = ["ALL"]` and minimal ignores; `ty` for type checking
 - Coverage excludes `TYPE_CHECKING` blocks
 - Design principle: conservative feature set; **resolution** is sync-only (async resolution was removed in 2.x), though **finalizers** may still be sync or async (`close_sync`/`close_async`); no global state
+- Docstrings: public API documents the contract; internal helpers get a
+  one-line contract, plus at most 1–2 lines for a genuinely non-obvious
+  constraint. Never narrate implementation or justify code to a reviewer —
+  cross-file rationale lives in `architecture/`.
