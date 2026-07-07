@@ -216,6 +216,17 @@ class Container:
 
         return self.resolve_provider(provider)
 
+    def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
+        """Resolve a provider reference or a type — the marker-dispatch entry point for integrations.
+
+        A provider argument goes to :meth:`resolve_provider`; a type argument goes to
+        :meth:`resolve`. Overrides, caching, and did-you-mean suggestions are inherited
+        from whichever of the two it dispatches to.
+        """
+        if isinstance(dependency, AbstractProvider):
+            return self.resolve_provider(dependency)
+        return self.resolve(dependency)
+
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
         self._warn_and_reopen_if_closed()

@@ -765,3 +765,69 @@ def test_add_providers_after_manual_validate_reraises_validation_failure() -> No
         container.add_providers(broken_factory)
     [issue] = exc.value.errors
     assert isinstance(issue, ArgumentResolutionError)
+
+
+def test_resolve_dependency_with_provider_returns_same_instance_as_resolve_provider() -> None:
+    class G(Group):
+        cached = providers.Factory(creator=lambda: "value", bound_type=str, cache=True)
+
+    container = Container(groups=[G])
+    via_dispatch = container.resolve_dependency(G.cached)
+    via_resolve_provider = container.resolve_provider(G.cached)
+    assert via_dispatch is via_resolve_provider
+
+
+def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None:
+    class G(Group):
+        cached = providers.Factory(creator=lambda: "value", bound_type=str, cache=True)
+
+    container = Container(groups=[G])
+    via_dispatch = container.resolve_dependency(str)
+    via_resolve = container.resolve(str)
+    assert via_dispatch is via_resolve
+
+
+def test_resolve_dependency_with_provider_returns_override() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Service:
+        name: str = "original"
+
+    class G(Group):
+        app_factory = providers.Factory(creator=Service)
+
+    container = Container(groups=[G])
+    override = Service(name="override")
+    container.override(G.app_factory, override)
+
+    assert container.resolve_dependency(G.app_factory) is override
+
+
+def test_resolve_dependency_with_unregistered_type_raises_with_suggestion() -> None:
+    class Database:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class PostgresDatabase(Database):
+        pass
+
+    class G(Group):
+        db = providers.Factory(creator=PostgresDatabase)
+
+    container = Container(groups=[G])
+    with pytest.raises(ProviderNotRegisteredError) as exc_info:
+        container.resolve_dependency(Database)
+
+    exc = exc_info.value
+    assert exc.provider_type is Database
+    assert exc.suggestions == ["  - PostgresDatabase (registered subclass, scope=APP)"]
+
+
+def test_resolve_dependency_works_on_child_container_for_both_arms() -> None:
+    class G(Group):
+        request_factory = providers.Factory(scope=Scope.REQUEST, creator=lambda: "value", bound_type=str)
+
+    app_container = Container(groups=[G])
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+
+    assert request_container.resolve_dependency(str) == "value"
+    assert request_container.resolve_dependency(G.request_factory) == "value"
