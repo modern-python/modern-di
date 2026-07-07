@@ -63,6 +63,10 @@ Frameworks with a plugin system realize this differently: Litestar ships a
 instead of a free `setup_di` function. Prefer the framework's idiomatic
 extension point.
 
+`add_providers` is a startup-time operation: concurrent calls on the same root
+container are not coordinated beyond the registry's internal lock, so don't
+call it from request-handling code running alongside other registrations.
+
 ### 3. `fetch_di_container(app_or_ctx) -> Container`
 
 Read the root container back out of framework state. This is where the

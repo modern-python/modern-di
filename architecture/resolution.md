@@ -34,12 +34,14 @@ immediately. A `Factory` with no `cache_settings` always re-runs the creator.
 ## Step 4 — Wiring plan
 
 If no cached instance is returned, `Factory` builds the **wiring plan**: the partition of the creator's parameters by
-how each is satisfied. This is done once per container per provider via `_ensure_plan`, which stores a single
-`WiringPlan` on the `CacheItem` so subsequent calls (within the same container lifetime) reuse it.
+how each is satisfied. `_ensure_plan` memoizes a single `WiringPlan` on the `CacheItem`, stamped with the
+`ProvidersRegistry.version` it was built against; subsequent calls (within the same container lifetime) reuse it while
+that stamp matches the registry's current version, and rebuild it when the registry has changed (i.e. after
+`add_providers`).
 
 `WiringPlan.build` (in `modern_di/wiring.py`) is a **pure function** of `(parsed_kwargs, kwargs, providers_registry,
-owner)` — it reads no cache, scope, or live context, so it runs outside the container lock and never goes stale (the
-providers registry is fixed after construction). It is **type matching only**: it decides *which* provider (if any)
+owner)` — it reads no cache, scope, or live context, so it runs outside the container lock; the version stamp keeps the
+memoized result from going stale against a mutated registry. It is **type matching only**: it decides *which* provider (if any)
 backs each parameter, not what value that provider currently holds. It iterates `_parsed_kwargs` — the `SignatureItem`
 map produced at provider-declaration time by `types_parser.parse_creator` — and sorts each parameter:
 

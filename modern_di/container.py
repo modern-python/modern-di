@@ -299,23 +299,26 @@ class Container:
         This is the blessed seam for framework integrations that discover providers
         after the container is built. Root-only: calling this on a child container
         raises :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since
-        the providers registry is shared tree-wide. If this container has already
-        been validated (via ``validate=True`` at construction or a manual
-        :meth:`validate` call), it is re-validated after registering, so a
-        newly-added provider that breaks the graph raises
-        :class:`~modern_di.exceptions.ValidationFailedError` here rather than later.
-        Atomic: if that re-validation fails, the whole batch is removed again —
-        either the batch is fully registered and valid, or the container is unchanged.
+        the providers registry is shared tree-wide. If validation has run **on this
+        container** (via ``validate=True`` at construction or a manual :meth:`validate`
+        call — ``_validated`` is per-container, not inherited from a parent), it is
+        re-validated after registering, so a newly-added provider that breaks the
+        graph raises :class:`~modern_di.exceptions.ValidationFailedError` here rather
+        than later. Atomic: if that re-validation raises *any* exception, the whole
+        batch is removed again before the error propagates — either the batch is
+        fully registered and valid, or the container is unchanged. Registration is a
+        startup-time operation: concurrent ``add_providers`` calls on the same root
+        are not coordinated beyond the registry's internal lock.
         """
         if self.parent_container is not None:
-            raise exceptions.ChildContainerRegistrationError
+            raise exceptions.ChildContainerRegistrationError(scope=self.scope)
         self.providers_registry.add_providers(*providers)
         if self._validated:
             try:
                 self.validate()
-            except exceptions.ValidationFailedError:
+            except Exception:
                 added_types = [provider.bound_type for provider in providers if provider.bound_type]
-                self.providers_registry.remove_providers(*added_types)
+                self.providers_registry._remove_providers(*added_types)  # noqa: SLF001
                 raise
 
     async def close_async(self) -> None:

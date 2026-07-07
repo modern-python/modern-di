@@ -660,6 +660,7 @@ def test_add_providers_on_child_container_raises() -> None:
     with pytest.raises(ChildContainerRegistrationError, match="root") as exc:
         child.add_providers(str_factory)
     assert isinstance(exc.value, exceptions.RegistrationError)
+    assert exc.value.scope is Scope.REQUEST
 
 
 def test_add_providers_on_validated_root_reraises_validation_failure() -> None:
@@ -775,6 +776,92 @@ def test_resolve_dependency_with_provider_returns_same_instance_as_resolve_provi
     via_dispatch = container.resolve_dependency(G.cached)
     via_resolve_provider = container.resolve_provider(G.cached)
     assert via_dispatch is via_resolve_provider
+
+
+def test_add_providers_rebuilds_stale_wiring_plan_for_optional_dependency() -> None:
+    """A memoized WiringPlan built before `add_providers` must not keep an optional dep as None."""
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Inner:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Outer:
+        inner: Inner | None = None
+
+    container = Container(scope=Scope.APP, validate=True)
+    outer_factory = providers.Factory(creator=Outer)  # not cached: second resolve rebuilds
+
+    first = container.resolve_provider(outer_factory)
+    assert first.inner is None
+
+    container.add_providers(providers.Factory(creator=Inner))
+
+    second = container.resolve_provider(outer_factory)
+    assert isinstance(second.inner, Inner)
+
+
+def test_add_providers_rebuilds_stale_wiring_plan_for_required_dependency() -> None:
+    """A memoized WiringPlan that recorded a required dep as unwireable must retry after registration."""
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Inner:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Outer:
+        inner: Inner
+
+    container = Container(scope=Scope.APP, validate=False)
+    outer_factory = providers.Factory(creator=Outer)
+
+    with pytest.raises(ArgumentResolutionError):
+        container.resolve_provider(outer_factory)
+
+    container.add_providers(providers.Factory(creator=Inner))
+
+    result = container.resolve_provider(outer_factory)
+    assert isinstance(result.inner, Inner)
+
+
+def test_add_providers_rolls_back_on_any_exception_from_revalidation() -> None:
+    """Rollback must not be tied to ValidationFailedError specifically — any exception rolls back."""
+    container = Container(scope=Scope.APP, validate=True)
+    str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
+
+    def _boom(_self: Container) -> None:
+        msg = "boom"
+        raise RuntimeError(msg)
+
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr(Container, "validate", _boom)
+        with pytest.raises(RuntimeError, match="boom"):
+            container.add_providers(str_factory)
+
+    with pytest.raises(ProviderNotRegisteredError):
+        container.resolve(str)
+
+
+def test_add_providers_on_validated_root_with_valid_batch_succeeds() -> None:
+    """Positive branch: a validated root re-validates successfully and the batch resolves afterwards."""
+    container = Container(scope=Scope.APP, validate=True)
+    str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
+
+    container.add_providers(str_factory)
+
+    assert container.resolve(str) == "added"
+
+
+def test_add_providers_on_closed_root_registers_fine() -> None:
+    """Ruled: no closed-state check on add_providers — registering on a closed root just works."""
+    container = Container(scope=Scope.APP, validate=False)
+    container.close_sync()
+    str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
+
+    container.add_providers(str_factory)  # no ContainerClosedWarning: registration doesn't touch closed state
+
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(str) == "added"
 
 
 def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None:
