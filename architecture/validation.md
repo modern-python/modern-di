@@ -118,3 +118,8 @@ Two edge cases in `Alias.effective_scope` are handled safely:
 | `CircularDependencyError` | `ResolutionError` | recorded inside `validate()` on cycle detection |
 | `InvalidScopeDependencyError` | `RegistrationError` | recorded inside `validate()` on inverted scope edge |
 | `ArgumentResolutionError` | `ResolutionError` | yielded by `Factory.iter_validation_issues()` |
+
+Every concrete `ModernDIError` subclass — these three included — carries a class-level `docs_slug`
+naming its page under `docs/troubleshooting/`; the census test (`tests/test_docs_slug_census.py`)
+pins both that every slug is set and unique and that its page actually exists, so a new exception
+cannot ship without a matching troubleshooting page.

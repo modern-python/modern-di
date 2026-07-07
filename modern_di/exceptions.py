@@ -4,6 +4,7 @@ import typing
 
 
 SUGGESTION_HEADER = "Did you mean:"
+_TROUBLESHOOTING_BASE_URL = "https://modern-di.modern-python.org/troubleshooting"
 
 
 if typing.TYPE_CHECKING:
@@ -25,18 +26,38 @@ class ResolutionStep:
 
 
 class ModernDIError(RuntimeError):
-    """Base class for all modern-di errors. Inherits from RuntimeError for backwards compatibility."""
+    """Base class for all modern-di errors. Inherits from RuntimeError for backwards compatibility.
+
+    ``docs_slug`` names this class's page under ``docs/troubleshooting/``; ``__str__`` appends it
+    as a trailing ``See: <url>`` line, always the final line of the rendered message. Base classes
+    (this one, :class:`ContainerError`, :class:`ResolutionError`, :class:`RegistrationError`) are
+    never raised directly and keep ``docs_slug`` unset; every concrete subclass sets one (enforced
+    by the census test in ``tests/test_docs_slug_census.py``).
+    """
+
+    docs_slug: typing.ClassVar[str | None] = None
 
     __slots__ = ()
+
+    def _render_body(self) -> str:
+        """Message body without the docs trailer. Subclasses with custom rendering override this, not `__str__`."""
+        return RuntimeError.__str__(self)
+
+    def __str__(self) -> str:
+        body = self._render_body()
+        if self.docs_slug is None:
+            return body
+        return f"{body}\nSee: {_TROUBLESHOOTING_BASE_URL}/{self.docs_slug}/"
 
 
 class DependencyPathMixin:
     """Breadcrumb machinery shared by :class:`ResolutionError` and the runtime scope errors.
 
-    Owns `prepend_step` and the chain-rendering `__str__`, so any error raised inside a
-    resolution frame can accumulate the chain of provider names as it propagates back up to the
-    caller. With an empty `dependency_path` (the error never passed through a resolution frame)
-    `__str__` returns the base message unchanged.
+    Owns `prepend_step` and the chain-rendering `_render_body` (the body `ModernDIError.__str__`
+    appends the docs trailer to), so any error raised inside a resolution frame can accumulate the
+    chain of provider names as it propagates back up to the caller. With an empty `dependency_path`
+    (the error never passed through a resolution frame) `_render_body` returns the base message
+    unchanged.
 
     Empty `__slots__`: each concrete error declares the `_base_message`/`dependency_path` slots
     itself, avoiding the `TypeError: multiple bases have instance lay-out conflict` that a slotted
@@ -56,7 +77,7 @@ class DependencyPathMixin:
         self.dependency_path.insert(0, step)
         self.args = (str(self),)
 
-    def __str__(self) -> str:
+    def _render_body(self) -> str:
         if not self.dependency_path:
             return self._base_message
 
@@ -78,6 +99,8 @@ class ContainerError(ModernDIError):
 class InvalidChildScopeError(ContainerError):
     """Child scope is not deeper than the parent. Inspect ``.parent_scope``, ``.child_scope``, ``.allowed_scopes``."""
 
+    docs_slug = "invalid-child-scope-error"
+
     __slots__ = ("allowed_scopes", "child_scope", "parent_scope")
 
     def __init__(self, *, parent_scope: enum.IntEnum, child_scope: enum.IntEnum, allowed_scopes: list[str]) -> None:
@@ -93,6 +116,8 @@ class InvalidChildScopeError(ContainerError):
 
 class MaxScopeReachedError(ContainerError):
     """No scope deeper than ``.parent_scope`` exists, so no child scope can be auto-derived."""
+
+    docs_slug = "max-scope-reached-error"
 
     __slots__ = ("parent_scope",)
 
@@ -111,6 +136,8 @@ class ScopeNotInitializedError(DependencyPathMixin, ContainerError):
     runtime dependency names both the failing provider and the one that captured it.
     """
 
+    docs_slug = "scope-not-initialized-error"
+
     __slots__ = ("_base_message", "container_scope", "dependency_path", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
@@ -128,6 +155,8 @@ class ScopeSkippedError(DependencyPathMixin, ContainerError):
     runtime dependency names both the failing provider and the one that captured it.
     """
 
+    docs_slug = "scope-skipped-error"
+
     __slots__ = ("_base_message", "container_scope", "dependency_path", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
@@ -142,6 +171,8 @@ class ScopeSkippedError(DependencyPathMixin, ContainerError):
 
 class InvalidScopeTypeError(ContainerError):
     """A non-``IntEnum`` value was passed as a scope. Inspect ``.scope_value``."""
+
+    docs_slug = "invalid-scope-type-error"
 
     __slots__ = ("scope_value",)
 
@@ -158,6 +189,8 @@ class ContainerClosedError(ContainerError):
     Raised in modern-di 3.0; until then reuse emits :class:`ContainerClosedWarning`
     and self-reopens.
     """
+
+    docs_slug = "container-closed-error"
 
     __slots__ = ("container_scope",)
 
@@ -207,6 +240,8 @@ class ResolutionError(DependencyPathMixin, ModernDIError):
 class ProviderNotRegisteredError(ResolutionError):
     """No provider registered for the requested type. Inspect ``.provider_type`` and ``.suggestions``."""
 
+    docs_slug = "missing-provider"
+
     __slots__ = ("provider_type", "suggestions")
 
     def __init__(
@@ -226,6 +261,8 @@ class ProviderNotRegisteredError(ResolutionError):
 class AliasSourceNotRegisteredError(ResolutionError):
     """An ``Alias`` points at a ``.source_type`` that has no registered provider."""
 
+    docs_slug = "alias-source-not-registered-error"
+
     __slots__ = ("source_type",)
 
     def __init__(self, *, source_type: type) -> None:
@@ -238,6 +275,8 @@ class AliasSourceNotRegisteredError(ResolutionError):
 
 class ArgumentResolutionError(ResolutionError):
     """Creator parameter could not be wired. Attrs: ``arg_name``, ``arg_type``, ``bound_type``, ``suggestions``."""
+
+    docs_slug = "argument-resolution-error"
 
     __slots__ = ("arg_name", "arg_type", "bound_type", "suggestions")
 
@@ -274,7 +313,9 @@ class ArgumentResolutionError(ResolutionError):
 
 
 class CreatorCallError(ResolutionError):
-    """A creator's dependencies resolved but the creator itself raised. Inspect ``.creator`` and ``.original_error``."""
+    """Argument binding failed when calling the creator (kwargs mismatch). Inspect ``.creator``, ``.original_error``."""
+
+    docs_slug = "creator-call-error"
 
     __slots__ = ("creator", "original_error")
 
@@ -294,6 +335,8 @@ class CircularDependencyError(ResolutionError):
     ``__cause__`` carries the original ``RecursionError``.
     """
 
+    docs_slug = "circular-dependency"
+
     __slots__ = ("cycle_path",)
 
     def __init__(self, *, cycle_path: list[str]) -> None:
@@ -311,6 +354,8 @@ class ContextValueNotSetError(ResolutionError):
     :class:`ContextValueNoneWarning` and returns ``None``. Inspect
     ``.context_type``.
     """
+
+    docs_slug = "context-not-set"
 
     __slots__ = ("context_type",)
 
@@ -342,6 +387,8 @@ class RegistrationError(ModernDIError):
 class DuplicateProviderTypeError(RegistrationError):
     """Two providers were registered for the same ``.provider_type``."""
 
+    docs_slug = "duplicate-type-error"
+
     __slots__ = ("provider_type",)
 
     def __init__(self, *, provider_type: type) -> None:
@@ -350,13 +397,14 @@ class DuplicateProviderTypeError(RegistrationError):
             f"Provider is duplicated by type {provider_type}. "
             "To resolve this issue:\n"
             "1. Set bound_type=None on one of the providers to make it unresolvable by type\n"
-            "2. Explicitly pass dependencies via the kwargs parameter to avoid automatic resolution\n"
-            "See https://modern-di.modern-python.org/troubleshooting/duplicate-type-error/ for more details"
+            "2. Explicitly pass dependencies via the kwargs parameter to avoid automatic resolution"
         )
 
 
 class ChildContainerRegistrationError(RegistrationError):
     """``add_providers`` was called on a child container; registration is root-only. Inspect ``.scope``."""
+
+    docs_slug = "child-container-registration-error"
 
     __slots__ = ("scope",)
 
@@ -371,6 +419,8 @@ class ChildContainerRegistrationError(RegistrationError):
 
 class UnknownFactoryKwargError(RegistrationError):
     """Factory kwargs had unknown keys. Attrs: ``creator``, ``unknown_keys``, ``known_keys``, ``suggestions``."""
+
+    docs_slug = "unknown-factory-kwarg-error"
 
     __slots__ = ("creator", "known_keys", "suggestions", "unknown_keys")
 
@@ -401,6 +451,8 @@ class UnknownFactoryKwargError(RegistrationError):
 class UnsupportedCreatorParameterError(RegistrationError):
     """A creator parameter cannot be wired by type. Inspect ``.creator``, ``.parameter_name``, ``.reason``."""
 
+    docs_slug = "unsupported-creator-parameter-error"
+
     __slots__ = ("creator", "parameter_name", "reason")
 
     def __init__(self, *, creator: typing.Any, parameter_name: str, reason: str) -> None:  # noqa: ANN401
@@ -413,6 +465,8 @@ class UnsupportedCreatorParameterError(RegistrationError):
 
 class InvalidScopeDependencyError(RegistrationError):
     """A provider depends on a deeper-scoped one. Inspect ``.provider``, ``.parameter_name``, ``.dep_provider``."""
+
+    docs_slug = "scope-chain"
 
     __slots__ = ("dep_provider", "parameter_name", "provider")
 
@@ -437,7 +491,15 @@ class InvalidScopeDependencyError(RegistrationError):
 
 
 class ValidationFailedError(ContainerError):
-    """``validate()`` found one or more issues. Inspect ``.errors`` (the list of underlying exceptions)."""
+    """``validate()`` found one or more issues. Inspect ``.errors`` (the list of underlying exceptions).
+
+    Sub-errors render trailer-free inside the grouped report below (see ``_render_body``) — only
+    this error's own docs trailer appears, as the report's final line. Repeating each sub-error's
+    "See: ..." line would be noise (the same URL once per error of a given kind) and would break
+    the "one trailer, always last line" rule.
+    """
+
+    docs_slug = "validation-failed-error"
 
     __slots__ = ("errors",)
 
@@ -446,8 +508,8 @@ class ValidationFailedError(ContainerError):
         kinds = ", ".join(sorted({type(e).__name__ for e in errors}))
         super().__init__(f"Container.validate() found {len(errors)} issue(s): {kinds}")
 
-    def __str__(self) -> str:
-        lines = [super().__str__()]
+    def _render_body(self) -> str:
+        lines = [RuntimeError.__str__(self)]
         by_kind: dict[str, list[Exception]] = {}
         for error in self.errors:
             by_kind.setdefault(type(error).__name__, []).append(error)
@@ -455,7 +517,8 @@ class ValidationFailedError(ContainerError):
             errors = by_kind[kind]
             lines.append(f"\n{kind} ({len(errors)}):")
             for error in errors:
-                first, *rest = str(error).splitlines() or [""]
+                rendered = error._render_body() if isinstance(error, ModernDIError) else str(error)  # noqa: SLF001
+                first, *rest = rendered.splitlines() or [""]
                 lines.append(f"  - {first}".rstrip())
                 lines.extend(f"    {line}" for line in rest)
         return "\n".join(lines)
@@ -463,6 +526,8 @@ class ValidationFailedError(ContainerError):
 
 class FinalizerError(ModernDIError):
     """One or more finalizers raised during close. Inspect ``.finalizer_errors`` and ``.is_async``."""
+
+    docs_slug = "finalizer-error"
 
     __slots__ = ("finalizer_errors", "is_async")
 
@@ -476,6 +541,8 @@ class FinalizerError(ModernDIError):
 class AsyncFinalizerInSyncCloseError(ModernDIError):
     """Raised when ``close_sync`` encounters a cached resource with an async finalizer."""
 
+    docs_slug = "async-finalizer-in-sync-close-error"
+
     __slots__ = ("finalizer_type",)
 
     def __init__(self, *, finalizer_type: type) -> None:
@@ -488,6 +555,8 @@ class AsyncFinalizerInSyncCloseError(ModernDIError):
 
 class GroupInstantiationError(ModernDIError):
     """A ``Group`` subclass was instantiated. Inspect ``.group_name``; groups are namespaces, never objects."""
+
+    docs_slug = "group-instantiation-error"
 
     __slots__ = ("group_name",)
 

@@ -49,6 +49,8 @@ def test_chain_appears_when_arg_unresolvable() -> None:
     assert "MyService" in rendered
     assert "└─> Repository" in rendered
     assert "caused by: Argument db" in rendered
+    # The trailer is always the final line, even when the message is the path-block rendering.
+    assert rendered.endswith("See: https://modern-di.modern-python.org/troubleshooting/argument-resolution-error/")
 
 
 def test_no_chain_when_top_level_provider_missing() -> None:
@@ -100,7 +102,10 @@ def test_scope_error_at_direct_container_call_has_empty_path() -> None:
 
     exc = exc_info.value
     assert exc.dependency_path == []
-    assert str(exc) == "Provider of scope REQUEST cannot be resolved in container of scope APP."
+    assert str(exc) == (
+        "Provider of scope REQUEST cannot be resolved in container of scope APP.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/scope-not-initialized-error/"
+    )
 
 
 def test_captive_dependency_names_both_ends() -> None:

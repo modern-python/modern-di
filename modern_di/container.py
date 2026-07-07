@@ -150,7 +150,8 @@ class Container:
                 "This root container was created without an explicit `validate` argument. "
                 "modern-di 3.0 runs validate() at root construction by default. Pass validate=True "
                 "to adopt the 3.0 behavior now, or validate=False to keep validation off. "
-                "See https://modern-di.modern-python.org/migration/to-3.x/.",
+                "See: https://modern-di.modern-python.org/migration/to-3.x/"
+                "#4-validate-runs-by-default-at-root-construction",
                 exceptions.UnvalidatedContainerWarning,
                 stacklevel=2,
             )
@@ -382,7 +383,9 @@ class Container:
         warnings.warn(
             f"Container (scope {self.scope.name}) is closed; resolving from it or building a child "
             "is deprecated and will raise ContainerClosedError in modern-di 3.0. Re-enter the "
-            "container with `with`/`async with`, or call `open()`, before reusing it.",
+            "container with `with`/`async with`, or call `open()`, before reusing it. "
+            "See: https://modern-di.modern-python.org/migration/to-3.x/"
+            "#1-closed-containers-raise-instead-of-self-healing",
             exceptions.ContainerClosedWarning,
             stacklevel=2,
         )

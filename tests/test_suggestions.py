@@ -33,7 +33,8 @@ def test_subclass_suggestion() -> None:
     assert str(exc_info.value) == (
         "Provider of type <class 'tests.test_suggestions.Database'> is not registered in providers registry.\n"
         "Did you mean:\n"
-        "  - PostgresDatabase (registered subclass, scope=APP)"
+        "  - PostgresDatabase (registered subclass, scope=APP)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
     )
 
 
@@ -48,7 +49,8 @@ def test_baseclass_suggestion() -> None:
     assert str(exc_info.value) == (
         "Provider of type <class 'tests.test_suggestions.PostgresDatabase'> is not registered in providers registry.\n"
         "Did you mean:\n"
-        "  - Database (registered base class, scope=APP)"
+        "  - Database (registered base class, scope=APP)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
     )
 
 
@@ -86,7 +88,8 @@ def test_suggestion_includes_provider_scope() -> None:
     assert str(exc_info.value) == (
         "Provider of type <class 'tests.test_suggestions.Database'> is not registered in providers registry.\n"
         "Did you mean:\n"
-        "  - PostgresDatabase (registered subclass, scope=REQUEST)"
+        "  - PostgresDatabase (registered subclass, scope=REQUEST)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
     )
 
 
@@ -95,7 +98,10 @@ def test_no_suggestions_when_nothing_matches() -> None:
     with pytest.raises(ProviderNotRegisteredError) as exc_info:
         container.resolve(int)
 
-    assert str(exc_info.value) == "Provider of type <class 'int'> is not registered in providers registry."
+    assert str(exc_info.value) == (
+        "Provider of type <class 'int'> is not registered in providers registry.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
+    )
 
 
 def test_suggestions_capped_at_three() -> None:
@@ -135,7 +141,8 @@ def test_suggestions_capped_at_three() -> None:
         "Did you mean:\n"
         "  - A1 (registered subclass, scope=APP)\n"
         "  - A2 (registered subclass, scope=APP)\n"
-        "  - A3 (registered subclass, scope=APP)"
+        "  - A3 (registered subclass, scope=APP)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
     )
 
 
@@ -244,5 +251,6 @@ def test_hierarchy_hint_preferred_over_typo() -> None:
         "Provider of type <class 'tests.test_suggestions.Database'> is not registered in providers registry.\n"
         "Did you mean:\n"
         "  - PostgresDatabase (registered subclass, scope=APP)\n"
-        "  - Databse (similar name, scope=APP)"
+        "  - Databse (similar name, scope=APP)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
     )
