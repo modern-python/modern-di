@@ -170,10 +170,6 @@ plugins:
           - migration/from-dependency-injector.md: Migrating an existing dependency-injector codebase to modern-di
         Development:
           - dev/contributing.md: Contributing guide for local setup and workflow
-  - redirects:
-      redirect_maps:
-        testing/fixtures.md: integrations/pytest.md
-        introduction/that-depends-or-modern-di.md: introduction/comparison.md
 
 extra:
   social:
