@@ -23,9 +23,7 @@ def _find_reachable_cycle(start: AbstractProvider[typing.Any], container: "Conta
 
     Explicit-stack DFS — no recursion, since this runs inside a ``RecursionError`` handler
     near CPython's stack limit (headroom for a recursive walk is not guaranteed there).
-    Mirrors ``Container.validate()``'s own cycle detection (`visiting`/`visited`/`path`, see
-    `validate` below): on a back-edge, renders the cycle as `display_name`s with the first
-    name repeated at the end. Returns `None` if no static cycle is reachable from `start`.
+    Returns `None` if no static cycle is reachable from `start`.
     """
     visiting: set[int] = {start.provider_id}
     visited: set[int] = set()
@@ -62,10 +60,8 @@ def _convert_recursion_error(
 ) -> typing.NoReturn:
     """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
 
-    Split out of `resolve_provider` into its own call: CPython suspends trace-function calls for
-    a few frames while unwinding a `RecursionError`, which (under coverage.py) can under-report
-    lines executed directly inside the `except` block; giving the tracer a fresh call boundary
-    to re-arm on before raising avoids that — a coverage-measurement concern, not a behavior one.
+    Split out of `resolve_provider` into its own call so the coverage tracer gets a fresh call
+    boundary to re-arm on before raising.
     """
     cycle = _find_reachable_cycle(provider, container)
     if cycle is None:
@@ -106,14 +102,12 @@ class Container:
         """Build a container at ``scope``.
 
         ``validate=True`` checks the provider graph (cycles plus scope ordering)
-        at construction time. ``validate=False`` skips the check silently.
+        at construction time; ``validate=False`` skips the check silently.
         Leaving ``validate`` unset (``None``, the default) skips the check but
         warns with :class:`~modern_di.exceptions.UnvalidatedContainerWarning` on
-        a root container — modern-di 3.0 will run ``validate()`` by default;
-        pass ``validate=True`` to adopt that now or ``validate=False`` to opt
-        out silently. Child containers (with ``parent_container`` set) never
-        warn regardless. ``context`` seeds this container's context registry.
-        A root container owns fresh registries; a child shares the parent's
+        a root container; child containers (with ``parent_container`` set) never
+        warn. ``context`` seeds this container's context registry. A root
+        container owns fresh registries; a child shares the parent's
         providers/overrides registries and inherits its scope map.
         """
         if not isinstance(scope, enum.IntEnum):
@@ -221,17 +215,7 @@ class Container:
         return self.resolve_provider(provider)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        """Resolve a specific provider by reference (enforces closed-state and applies overrides).
-
-        An unvalidated circular graph would otherwise die with a raw ``RecursionError`` on first
-        resolve; when one escapes ``provider.resolve``, this re-walks the static graph from
-        `provider` (iteratively — see `_find_reachable_cycle`) and, if a cycle is reachable,
-        raises `exceptions.CircularDependencyError` from it instead. A `RecursionError` from a
-        creator recursing on its own (no static cycle) is re-raised untouched. `resolve_provider`
-        is re-entrant (`Factory`/`Alias` call it per dependency edge), so it is the innermost frame
-        that converts; outer frames see a `ResolutionError` and the existing breadcrumb machinery
-        prepends steps as it propagates back up.
-        """
+        """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
         self._warn_and_reopen_if_closed()
 
         if (
@@ -320,18 +304,10 @@ class Container:
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
         """Register a runtime context value on *this* container.
 
-        A ``ContextProvider`` reads the context registry of the container at the
-        provider's own scope — context never propagates between parent and child
-        containers. Set the value on the container whose scope matches the
-        ``ContextProvider`` (for request-scoped context, pass ``context={...}``
-        to :meth:`build_child_container` or call ``set_context`` on the request
-        container).
-
-        Context values are resolved live, so a value set here is picked up by
-        subsequent resolves of **non-cached** providers — including factories in
-        deeper-scoped child containers that read this container's context. A
-        **cached** provider (``Factory(cache=...)``) is built once and
-        its instance is *not* rebuilt by a later ``set_context``; set the context
+        Context never propagates between parent and child containers — set it
+        on the container whose scope matches the ``ContextProvider``. A
+        **cached** provider (``Factory(cache=...)``) is built once and its
+        instance is *not* rebuilt by a later ``set_context``; set the context
         before its first resolve.
         """
         self.context_registry.set_context(context_type, obj)
@@ -355,13 +331,9 @@ class Container:
     def _warn_and_reopen_if_closed(self) -> None:
         """Transitional shim for reuse of a closed container.
 
-        Emits :class:`~modern_di.exceptions.ContainerClosedWarning` and reopens
-        (so pre-2.16 "close then resolve" code keeps working); modern-di 3.0
-        will raise :class:`~modern_di.exceptions.ContainerClosedError` here
-        instead. The warning fires once per container transitioning from closed
-        to reopened — a single resolve that crosses several distinct closed
-        containers (e.g. a closed ancestor scope) emits one warning per closed
-        container it reopens; an already-open container emits none.
+        Emits :class:`~modern_di.exceptions.ContainerClosedWarning` and reopens.
+        Fires once per container transitioning from closed to reopened; an
+        already-open container emits none.
         """
         if not self.closed:
             return

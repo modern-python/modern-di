@@ -137,9 +137,7 @@ class Factory(AbstractProvider[types.T_co]):
     def _argument_resolution_error(
         self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry | None" = None
     ) -> exceptions.ArgumentResolutionError:
-        # The single error-construction site: build the message and (when a registry is given and the
-        # argument has a resolvable type) the closest-match suggestions. The context path passes no
-        # registry, so absent-context errors carry no suggestions — as before.
+        # The context path passes no registry, so absent-context errors carry no suggestions.
         suggestions = (
             registry.build_suggestions(item.arg_type) if registry is not None and item.arg_type is not None else []
         )
@@ -152,10 +150,8 @@ class Factory(AbstractProvider[types.T_co]):
         )
 
     def _ensure_plan(self, container: "Container", cache_item: "CacheItem") -> WiringPlan:
-        # Plan runs outside the container lock (the lock guards only singleton creation).
-        # Under the GIL this is safe: the plan is a deterministic function of the fixed providers
-        # registry, so concurrent builds produce identical results and at worst recompute once.
-        # (Free-threaded/nogil caveat tracked in planning/deferred.md.)
+        # Plan runs outside the container lock — safe under the GIL since it's a deterministic
+        # function of the fixed providers registry (free-threaded/nogil caveat: planning/deferred.md).
         if cache_item.wiring_plan is None:
             cache_item.wiring_plan = WiringPlan.build(
                 parsed_kwargs=self._parsed_kwargs,
@@ -170,9 +166,8 @@ class Factory(AbstractProvider[types.T_co]):
     ) -> typing.Any:  # noqa: ANN401
         """Resolve a context-backed parameter live. Returns ``types.UNSET`` to omit the kwarg.
 
-        Mirrors ``Container.resolve_provider``'s override handling, then reads the live context
-        value; an absent value falls back to the creator default (omit), ``None`` (nullable),
-        or raises ``ArgumentResolutionError`` (required).
+        Absent value falls back to the creator default (omit), ``None`` (nullable), or raises
+        ``ArgumentResolutionError`` (required).
         """
         if container.overrides_registry.overrides:
             override = container.overrides_registry.fetch_override(provider.provider_id)
@@ -216,10 +211,8 @@ class Factory(AbstractProvider[types.T_co]):
         try:
             return self._creator(**resolved_kwargs)
         except TypeError as exc:
-            # Only argument-binding failures are a DI wiring problem (bad/missing kwargs); those
-            # raise at the call site, before entering the creator, so the traceback has no inner
-            # frame. A TypeError raised inside the creator body is the creator's own error and
-            # must propagate unchanged (consistent with ValueError/RuntimeError creator-failure).
+            # Argument-binding failures raise here with no inner traceback frame; a TypeError
+            # raised inside the creator body must propagate unchanged, like ValueError/RuntimeError.
             if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
                 raise
             error = exceptions.CreatorCallError(creator=self._creator, original_error=exc)
@@ -244,9 +237,7 @@ class Factory(AbstractProvider[types.T_co]):
         try:
             container = container.find_container(self.scope)
         except (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
-            # Name the failing end too: without this, a captive dependency's own step never
-            # makes it into the chain, and consumer frames alone would name every provider
-            # except the one that actually failed to resolve.
+            # Name the failing end too, or no frame ever names the provider that failed to resolve.
             exc.prepend_step(self._resolution_step())
             raise
         container._warn_and_reopen_if_closed()  # noqa: SLF001
