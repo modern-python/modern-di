@@ -42,7 +42,7 @@ Children share their parent's `providers_registry` (provider definitions) and `o
 
 **A provider can only depend on providers at the same scope or a broader (lower int) scope.** A REQUEST-scoped session can consume the APP-scoped engine. The engine cannot consume the session.
 
-Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state. `Container(groups=[...], validate=True)` enforces this at startup — turn it on.
+Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state — this is called a **captive dependency**: a wide-scoped (long-lived) provider "captive" to a narrower-scoped (shorter-lived) one it cannot actually hold onto. `Container(groups=[...], validate=True)` enforces this at startup — turn it on. See [Good and bad practices](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one) for a worked example of the mistake and the fix.
 
 ### How to choose a scope
 

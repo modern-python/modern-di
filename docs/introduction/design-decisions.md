@@ -2,7 +2,7 @@
 
 `modern-di` is opinionated. These are the deliberate choices behind the API so you can decide whether the framework matches your project.
 
-## 1. Resolution is sync only
+## 1. Resolution is sync-only; finalizers may be sync or async
 
 Since 2.x, `Container.resolve(...)` and `resolve_provider(...)` are synchronous. There is no `await container.resolve(...)`, no `AsyncFactory`, no `AsyncSingleton`. Async work belongs in the framework's lifespan and per-request hooks; the container holds the already-constructed objects (see [Async resources via lifespan](../recipes/async-lifespan.md)). Resolution being sync does not mean teardown is: finalizers may be sync or async (`close_sync` / `close_async`), so async cleanup is fully supported.
 

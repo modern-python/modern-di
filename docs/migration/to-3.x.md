@@ -6,7 +6,7 @@ This document describes the changes required to migrate from modern-di 2.x to mo
 
 modern-di 3.0 flips five switches from warn-then-continue to raise/validate-by-default. Every one
 of them already has a 2.x signal — a warning that fires today wherever the 3.0 behavior would
-differ. If your 2.x test suite is green with the [readiness recipe](#readiness-recipe) below
+differ. If your 2.x test suite is green with the [readiness recipe](#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings) below
 escalating those warnings to errors, the upgrade to 3.0 is a no-op for you.
 
 ## The five switches
@@ -152,7 +152,10 @@ Pass `context={SomeContextType: value}` to the container (or its ancestor at the
 `ContextProvider`'s scope), or call `container.set_context(SomeContextType, value)`, before
 resolving.
 
-## Readiness recipe
+## Readiness recipe: escalating warnings to errors with `filterwarnings`
+
+This is the one place in the docs that lists the full `filterwarnings` escalation recipe; every
+other page that mentions escalating a specific warning links back here.
 
 `ContainerClosedWarning` and `ContextValueNoneWarning` subclass `DeprecationWarning`;
 `UnvalidatedContainerWarning` subclasses `FutureWarning`; the `Alias(scope=)` and

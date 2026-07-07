@@ -3,12 +3,12 @@
 Often, scopes are connected with external events: HTTP requests, messages from a queue, callbacks from a framework.
 These events can be represented by objects which can be used for dependency creation.
 
-`ContextProvider` is a provider type that allows injecting context values into dependencies.
-This is particularly useful for injecting framework-specific objects like requests, websockets, etc.
+`ContextProvider` is a provider type that injects runtime context values — framework objects like
+requests or websockets, or your own custom context — into dependencies, extracting them from the
+container's context registry at resolve time.
 
-ContextProvider makes context data available to other providers in your dependency graph by extracting values from the container's context.
-
-In integrations, some context objects (like `fastapi.Request`, `litestar.WebSocket`, etc.) are automatically provided.
+In integrations, some context objects (like `fastapi.Request`, `litestar.WebSocket`, etc.) are
+automatically provided — see [Framework Context Objects](#framework-context-objects) below.
 
 ## Basic Usage
 
@@ -97,9 +97,19 @@ Context never propagates between containers. A `ContextProvider` reads the conte
 
     Setting context on the parent only works when the `ContextProvider`'s scope matches the parent's scope.
 
-## With a framework integration
+## Framework Context Objects
 
-Integrations register context providers for their own request/websocket objects, so you don't declare them yourself. With [FastAPI](../integrations/fastapi.md), the `fastapi.Request` is injected into each per-request child container automatically:
+Every framework integration auto-registers `ContextProvider`s for its own request/websocket-like
+objects — you never declare a `ContextProvider` for these yourself. Each integration builds a
+per-request (or per-message, or per-connection) child container and sets the framework object as
+context on it before your code resolves anything from it. There are two ways to consume that value:
+
+**Implicit usage (type-based resolution).** Annotate a factory parameter with the framework's
+type; because the integration already registered a matching `ContextProvider`, modern-di resolves
+it automatically — the same mechanism as [Basic Usage](#basic-usage) above, just with the
+`ContextProvider` declared by the integration instead of by you. With
+[FastAPI](../integrations/fastapi.md), the `fastapi.Request` is injected into each per-request
+child container automatically:
 
 ```python
 from modern_di import Group, Container, Scope, providers
@@ -134,6 +144,23 @@ modern_di_fastapi.setup_di(app, container)
 # automatically injects the fastapi.Request into its context. The factory
 # is resolved from the child container, not the APP-scope container.
 ```
+
+**Explicit usage (provider-based resolution).** Every integration also exports the underlying
+`ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,
+`aiohttp_request_provider`, `faststream_message_provider`) so you can wire it through `kwargs`
+instead of relying on type-based resolution — useful with `skip_creator_parsing=True`, or when the
+parameter name doesn't match the type:
+
+```python
+kwargs={"request": fastapi_request_provider}  # explicit wiring, see Factories: kwargs
+```
+
+Each integration's own page has its exact provider names, scopes, and API table:
+[FastAPI](../integrations/fastapi.md#framework-context-objects),
+[Litestar](../integrations/litestar.md#framework-context-objects),
+[Starlette](../integrations/starlette.md#framework-context-objects),
+[FastStream](../integrations/faststream.md#framework-context-objects),
+[aiohttp](../integrations/aiohttp.md#api).
 
 ## See also
 

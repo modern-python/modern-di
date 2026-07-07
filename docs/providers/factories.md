@@ -2,15 +2,13 @@
 
 Factories are providers that create instances of dependencies.
 
-## Types of factories 
-There are two types of factories:
+## Types of factories
 
-1. **Regular Factories** - Create a new instance on every call
-2. **Cached Factories** - Create an instance once and cache it for future calls
+There are two types of factories: **regular** and **cached**.
 
 ### Regular Factories
 
-Regular factories are initialized on every call.
+Regular factories create a new instance on every call — nothing is cached.
 
 ```python
 import dataclasses
@@ -45,6 +43,13 @@ assert isinstance(instance2, IndependentFactory)
 ### Cached Factories
 
 Cached factories resolve the dependency only once and cache the resolved instance for future injections.
+
+**This is modern-di's Singleton.** There is no separate `Singleton` provider class — `Factory(cache=True)`
+*is* the singleton idiom, at whatever scope you declare it (`Scope.APP` for one-per-process,
+`Scope.REQUEST` for one-per-request, etc.). Other DI frameworks name this concept `Singleton`,
+`provide(..., scope=...)`, `@injectable(lifetime="singleton")`, or `@lru_cache`; see
+[Where is Singleton?](../introduction/comparison.md#where-is-singleton-cross-framework-vocabulary)
+for the full cross-framework mapping.
 
 The caching mechanism is thread-safe by default, ensuring that even when multiple threads attempt to resolve the same cached factory simultaneously, only one instance will be created.
 
