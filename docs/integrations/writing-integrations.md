@@ -34,8 +34,8 @@ dispatches off them.
 ```python
 from modern_di import Scope, providers
 
-myfw_request_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=myfw.Request)
-myfw_websocket_provider = providers.ContextProvider(scope=Scope.SESSION, context_type=myfw.WebSocket)
+myfw_request_provider = providers.ContextProvider(myfw.Request, scope=Scope.REQUEST)
+myfw_websocket_provider = providers.ContextProvider(myfw.WebSocket, scope=Scope.SESSION)
 
 _CONNECTION_PROVIDERS = (myfw_request_provider, myfw_websocket_provider)
 ```

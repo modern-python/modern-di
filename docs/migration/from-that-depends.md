@@ -64,7 +64,7 @@ Use this table as the index for the rest of the guide.
 | `Singleton` | `providers.Factory(..., cache=True)` | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (sync gen / ctx mgr) | `providers.Factory(..., cache=CacheSettings(finalizer=...))` | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (async gen / ctx mgr) | Lifespan + `ContextProvider` (or sync creator + async finalizer) | [§6](#6-async-resources) |
-| `ContextResource` | `providers.Factory(scope=Scope.REQUEST, ...)` | [§5](#5-context-resources-and-request-scope) |
+| `ContextResource` | `providers.Factory(..., scope=Scope.REQUEST)` | [§5](#5-context-resources-and-request-scope) |
 | `AsyncFactory` | Lifespan-managed; expose via `ContextProvider` | [§6](#6-async-resources) |
 | `AsyncSingleton` | Lifespan-managed; expose via `ContextProvider` | [§6](#6-async-resources) |
 | `Object` | `providers.Factory` with a creator that returns the value | [§4](#4-migrate-the-dependency-graph) |
@@ -74,12 +74,12 @@ Use this table as the index for the rest of the guide.
 | `AttrGetter` (`provider.attr`) | No direct equivalent — see [§9](#9-no-direct-equivalent) |
 | `ThreadLocalSingleton` | No direct equivalent — see [§9](#9-no-direct-equivalent) |
 | `State` | `ContextProvider` + `set_context` | [§5](#5-context-resources-and-request-scope) |
-| `Provider.bind(Type)` | `providers.Alias(source_type=..., bound_type=...)` | [§4](#4-migrate-the-dependency-graph) |
+| `Provider.bind(Type)` | `providers.Alias(..., bound_type=...)` | [§4](#4-migrate-the-dependency-graph) |
 | `@inject` + `Provide[T]()` (web) | `FromDI(T)` from the framework integration | [§8](#8-framework-integration-and-routes) |
 | `@inject` + `Provide[T]()` (non-web) | Explicit `container.resolve(T)` | [§9](#9-no-direct-equivalent) |
 | `container_context()` | `container.build_child_container(scope=..., context=...)` | [§5](#5-context-resources-and-request-scope) |
 | `DIContextMiddleware` | `setup_di(app, container)` / `ModernDIPlugin(container)` | [§8](#8-framework-integration-and-routes) |
-| `fetch_context_item` / `_by_type` | `ContextProvider(context_type=T)` | [§5](#5-context-resources-and-request-scope) |
+| `fetch_context_item` / `_by_type` | `ContextProvider(T)` | [§5](#5-context-resources-and-request-scope) |
 | `init_resources()` | Lazy initialization — no equivalent needed | [§7](#7-lifecycle-and-testing) |
 | `tear_down()` / `tear_down_sync()` | `await container.close_async()` / `container.close_sync()` | [§7](#7-lifecycle-and-testing) |
 | `container.override_providers_sync({...})` | `container.override(provider, mock)` | [§7](#7-lifecycle-and-testing) |
@@ -121,24 +121,24 @@ When a provider is passed inside `kwargs={...}`, `modern-di` detects it and reso
 
       class Dependencies(Group):
           database_engine = providers.Factory(
-              creator=create_sa_engine,
+              create_sa_engine,
               cache=providers.CacheSettings(finalizer=close_sa_engine),
           )
           session = providers.Factory(
+              create_session,
               scope=Scope.REQUEST,
-              creator=create_session,
               cache=providers.CacheSettings(finalizer=close_session),
               kwargs={"engine": database_engine},
           )
 
           decks_service = providers.Factory(
+              repositories.DecksService,
               scope=Scope.REQUEST,
-              creator=repositories.DecksService,
               kwargs={"session": session},
           )
           cards_service = providers.Factory(
+              repositories.CardsService,
               scope=Scope.REQUEST,
-              creator=repositories.CardsService,
               kwargs={"session": session},
           )
 
@@ -157,7 +157,7 @@ some_singleton = providers.Singleton(SomeClass)
 
 # modern-di
 some_singleton = providers.Factory(
-    creator=SomeClass,
+    SomeClass,
     cache=True,
 )
 ```
@@ -176,7 +176,7 @@ class ApiKey(str): ...
 def _api_key() -> ApiKey:
     return ApiKey("secret-token")
 
-api_key = providers.Factory(creator=_api_key, cache=True)
+api_key = providers.Factory(_api_key, cache=True)
 ```
 
 If you only need the value passed into one downstream provider, skip the wrapper and put it directly in that provider's `kwargs`.
@@ -191,7 +191,7 @@ some_list = providers.List(provider1, provider2)
 def build_list(a: SomeType1, b: SomeType2) -> list[object]:
     return [a, b]
 
-some_list = providers.Factory(creator=build_list)
+some_list = providers.Factory(build_list)
 ```
 
 **`Provider.bind(Type)`** → `Alias`. Useful when you want an abstract type (`Protocol`, ABC) to resolve to a concrete registered provider:
@@ -201,8 +201,8 @@ some_list = providers.Factory(creator=build_list)
 repo = providers.Factory(PostgresRepository).bind(Repository)
 
 # modern-di
-repo = providers.Factory(creator=PostgresRepository, cache=True)
-abstract_repo = providers.Alias(source_type=PostgresRepository, bound_type=Repository)
+repo = providers.Factory(PostgresRepository, cache=True)
+abstract_repo = providers.Alias(PostgresRepository, bound_type=Repository)
 ```
 
 ## 5. Context resources and request scope
@@ -221,11 +221,11 @@ class TenantId(str): ...
 
 
 class Dependencies(Group):
-    tenant = providers.ContextProvider(scope=Scope.REQUEST, context_type=TenantId)
+    tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST)
 
     repo = providers.Factory(
+        TenantScopedRepository,                 # signature: (tenant: TenantId, ...)
         scope=Scope.REQUEST,
-        creator=TenantScopedRepository,         # signature: (tenant: TenantId, ...)
     )
 
 
@@ -261,7 +261,7 @@ async def close_engine(engine: sqlalchemy.ext.asyncio.AsyncEngine) -> None:
 
 
 engine = providers.Factory(
-    creator=create_engine,
+    create_engine,
     cache=providers.CacheSettings(finalizer=close_engine),
 )
 ```

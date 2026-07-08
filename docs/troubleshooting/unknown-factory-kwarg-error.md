@@ -23,12 +23,12 @@ def create_service(connection_string: str) -> Service: ...
 class Dependencies(Group):
     # Wrong: typo — raises UnknownFactoryKwargError, suggests "connection_string"
     service = providers.Factory(
-        scope=Scope.APP, creator=create_service, kwargs={"conection_string": "..."}
+        create_service, scope=Scope.APP, kwargs={"conection_string": "..."}
     )
 
     # Right
     service = providers.Factory(
-        scope=Scope.APP, creator=create_service, kwargs={"connection_string": "..."}
+        create_service, scope=Scope.APP, kwargs={"connection_string": "..."}
     )
 ```
 

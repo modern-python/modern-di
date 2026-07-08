@@ -46,29 +46,29 @@ class MyGroup(Group):
     # Step 1: Set bound_type=None on the secondary provider or for both providers
     # This provider can be resolved by type: container.resolve(DatabaseConfig)
     primary_db_config = providers.Factory(
+        DatabaseConfig,
         scope=Scope.APP,
-        creator=DatabaseConfig,
         kwargs={"connection_string": "postgresql://primary"}
     )
 
     # This provider cannot be resolved by type
     # Must use: container.resolve_provider(MyGroup.secondary_db_config)
     secondary_db_config = providers.Factory(
+        DatabaseConfig,
         scope=Scope.APP,
-        creator=DatabaseConfig,
         bound_type=None,  # <-- Step 1: Makes it unresolvable by type
         kwargs={"connection_string": "postgresql://secondary"}
     )
 
     # Step 2: Explicitly pass dependencies via kwargs for second repository or for both
     primary_repository = providers.Factory(
+        Repository,  # <-- Implicit dependency, no kwargs
         scope=Scope.APP,
-        creator=Repository,  # <-- Implicit dependency, no kwargs
     )
 
     secondary_repository = providers.Factory(
+        Repository,
         scope=Scope.APP,
-        creator=Repository,
         kwargs={"db_config": secondary_db_config}  # <-- Step 2: Explicit dependency
     )
 ```

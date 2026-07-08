@@ -28,18 +28,18 @@ Bump the depender's scope:
 ```python
 class Dependencies(Group):
     session = providers.Factory(
+        create_session,
         scope=Scope.REQUEST,
-        creator=create_session,
         cache=providers.CacheSettings(finalizer=close_session),
     )
 
     # ❌ APP-scoped — fails validation
-    user_repository = providers.Factory(creator=UserRepository)
+    user_repository = providers.Factory(UserRepository)
 
     # ✅ REQUEST-scoped — matches session's lifetime
     user_repository = providers.Factory(
+        UserRepository,
         scope=Scope.REQUEST,
-        creator=UserRepository,
     )
 ```
 

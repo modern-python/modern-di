@@ -45,30 +45,30 @@ class ReplicaEngine(sa_async.AsyncEngine): ...
 
 class Dependencies(Group):
     primary = providers.Factory(
+        create_primary_engine,
         scope=Scope.APP,
-        creator=create_primary_engine,
         bound_type=PrimaryEngine,
         cache=providers.CacheSettings(finalizer=close_engine),
     )
     replica = providers.Factory(
+        create_replica_engine,
         scope=Scope.APP,
-        creator=create_replica_engine,
         bound_type=ReplicaEngine,
         cache=providers.CacheSettings(finalizer=close_engine),
     )
 
     # REQUEST-scope: picks per-request, cached for the rest of that request
     engine = providers.Factory(
+        choose_engine,
         scope=Scope.REQUEST,
-        creator=choose_engine,
         kwargs={"primary": primary, "replica": replica},
         cache=True,
     )
 
     # Sessions and repositories use the REQUEST-scoped engine
     session = providers.Factory(
+        create_session,
         scope=Scope.REQUEST,
-        creator=create_session,
         cache=providers.CacheSettings(finalizer=close_session),
     )
 ```

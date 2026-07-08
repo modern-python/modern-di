@@ -42,35 +42,35 @@ async def close_redis(client: aioredis.Redis) -> None:
 
 class Database(Group):
     engine = providers.Factory(
+        create_engine,
         scope=Scope.APP,
-        creator=create_engine,
         cache=providers.CacheSettings(finalizer=close_engine),
     )
     session = providers.Factory(
+        create_session,
         scope=Scope.REQUEST,
-        creator=create_session,
         cache=providers.CacheSettings(finalizer=close_session),
     )
 
 
 class Cache(Group):
     redis_client = providers.Factory(
+        create_redis,
         scope=Scope.APP,
-        creator=create_redis,
         cache=providers.CacheSettings(finalizer=close_redis),
     )
 
 
 class Repositories(Group):
     # UserRepository signature: (session: AsyncSession)
-    users = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
-    orders = providers.Factory(scope=Scope.REQUEST, creator=OrderRepository)
+    users = providers.Factory(UserRepository, scope=Scope.REQUEST)
+    orders = providers.Factory(OrderRepository, scope=Scope.REQUEST)
 
 
 class UseCases(Group):
     # PlaceOrder signature: (users: UserRepository, orders: OrderRepository, cache: aioredis.Redis)
-    place_order = providers.Factory(scope=Scope.REQUEST, creator=PlaceOrder)
-    cancel_order = providers.Factory(scope=Scope.REQUEST, creator=CancelOrder)
+    place_order = providers.Factory(PlaceOrder, scope=Scope.REQUEST)
+    cancel_order = providers.Factory(CancelOrder, scope=Scope.REQUEST)
 
 
 ALL_GROUPS = [Database, Cache, Repositories, UseCases]

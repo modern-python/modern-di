@@ -19,7 +19,7 @@ def my_creator(di_container: Container) -> str:
     return f"Container scope: {di_container.scope.name}"
 
 class Dependencies(Group):
-    my_factory = providers.Factory(scope=Scope.APP, creator=my_creator)
+    my_factory = providers.Factory(my_creator, scope=Scope.APP)
 
 container = Container(groups=[Dependencies], validate=True)
 result = container.resolve(str)
@@ -39,8 +39,8 @@ def another_creator(di_container: Container) -> str:
 
 class Dependencies(Group):
     another_factory = providers.Factory(
+        another_creator,
         scope=Scope.APP,
-        creator=another_creator,
         kwargs={"di_container": providers.container_provider}
     )
 

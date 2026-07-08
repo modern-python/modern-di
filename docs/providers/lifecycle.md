@@ -28,8 +28,8 @@ container.resolve(Settings)
 
 ```python
 session = providers.Factory(
+    create_session,
     scope=Scope.REQUEST,
-    creator=create_session,
     cache=providers.CacheSettings(finalizer=close_session),
 )
 ```

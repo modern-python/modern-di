@@ -66,7 +66,7 @@ class Settings:
 
 
 class Dependencies(Group):
-    settings = providers.Factory(creator=Settings)
+    settings = providers.Factory(Settings)
 
 
 # Pass validate=True to detect cycles and scope-chain errors at startup
@@ -100,7 +100,7 @@ def close_settings(settings: Settings) -> None:
 
 class Dependencies(Group):
     settings = providers.Factory(
-        creator=Settings,
+        Settings,
         cache=providers.CacheSettings(finalizer=close_settings),
     )
 
@@ -150,11 +150,11 @@ class UserRepository:
 
 class Dependencies(Group):
     settings = providers.Factory(
-        creator=Settings,
+        Settings,
         cache=providers.CacheSettings(finalizer=close_settings),
     )
-    request_id = providers.ContextProvider(scope=Scope.REQUEST, context_type=RequestId)
-    user_repository = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
+    request_id = providers.ContextProvider(RequestId, scope=Scope.REQUEST)
+    user_repository = providers.Factory(UserRepository, scope=Scope.REQUEST)
 
 
 with Container(groups=[Dependencies], validate=True) as container:

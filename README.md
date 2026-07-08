@@ -57,8 +57,8 @@ class UserRepository:
 
 
 class Dependencies(Group):
-    settings = providers.Factory(scope=Scope.APP, creator=Settings)
-    user_repository = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
+    settings = providers.Factory(Settings, scope=Scope.APP)
+    user_repository = providers.Factory(UserRepository, scope=Scope.REQUEST)
 
 
 with Container(groups=[Dependencies], validate=True) as container:

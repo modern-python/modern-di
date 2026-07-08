@@ -105,7 +105,7 @@ class TenantContext:
 
 
 class MyGroup(Group):
-    tenant_provider = providers.Factory(scope=MyScope.TENANT, creator=TenantContext)
+    tenant_provider = providers.Factory(TenantContext, scope=MyScope.TENANT)
 
 
 container = Container(groups=[MyGroup], validate=True)

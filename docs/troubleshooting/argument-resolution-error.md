@@ -21,13 +21,13 @@ pass it explicitly via `kwargs`:
 ```python
 class Dependencies(Group):
     # missing: no provider for `Clock` anywhere
-    service = providers.Factory(scope=Scope.APP, creator=Service)  # Service(clock: Clock)
+    service = providers.Factory(Service, scope=Scope.APP)  # Service(clock: Clock)
 
     # fix option 1: register a provider
-    clock = providers.Factory(scope=Scope.APP, creator=SystemClock, bound_type=Clock)
+    clock = providers.Factory(SystemClock, scope=Scope.APP, bound_type=Clock)
 
     # fix option 2: pass explicitly
-    service2 = providers.Factory(scope=Scope.APP, creator=Service, kwargs={"clock": clock})
+    service2 = providers.Factory(Service, scope=Scope.APP, kwargs={"clock": clock})
 ```
 
 Check `.suggestions` on the caught exception for a "did you mean" hint when a similarly-named type is

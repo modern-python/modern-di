@@ -18,15 +18,17 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
 
     `with`/`async with container.build_child_container(...)` still works for automatic cleanup; `close_sync()`/`close_async()` are also available for manual lifecycle control. The framework integration packages were updated with matching new APIs.
 
-2. **All provider constructors are keyword-only.**
+2. **Provider constructor arguments became keyword-only.**
 
     ```python
     # Before (1.x)
     factory = providers.Factory(Scope.REQUEST, MyClass, arg1="value1")
 
     # After (2.x)
-    factory = providers.Factory(scope=Scope.REQUEST, creator=MyClass, kwargs={"arg1": "value1"})
+    factory = providers.Factory(MyClass, scope=Scope.REQUEST, kwargs={"arg1": "value1"})
     ```
+
+    Since 2.27, the subject argument (`creator` / `context_type` / `source_type`) is accepted positionally again; all other parameters remain keyword-only.
 
 3. **`Singleton`, `Resource`, `Dict`, `List` removed** — all four map onto `Factory`:
 
@@ -36,10 +38,10 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
     resource = providers.Resource(Scope.REQUEST, create_resource)
 
     # After (2.x)
-    singleton = providers.Factory(scope=Scope.APP, creator=create_singleton, cache=True)
+    singleton = providers.Factory(create_singleton, scope=Scope.APP, cache=True)
     resource = providers.Factory(
+        create_resource,
         scope=Scope.REQUEST,
-        creator=create_resource,
         cache=providers.CacheSettings(finalizer=lambda r: r.close()),
     )
     ```
@@ -72,5 +74,5 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
     service = providers.Factory(MyService, db_engine=database_engine.cast)
 
     # 2.x — MyService.__init__(self, db_engine: DBEngine); resolved by type
-    service = providers.Factory(scope=Scope.APP, creator=MyService)
+    service = providers.Factory(MyService, scope=Scope.APP)
     ```

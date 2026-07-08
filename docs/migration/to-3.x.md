@@ -62,14 +62,14 @@ from modern_di import Scope, providers
 # DeprecationWarning: The `scope` parameter of Alias is deprecated and ignored:
 # an alias's effective scope is derived from its source. It will be removed in
 # a future release.
-alias = providers.Alias(source_type=DatabaseProtocol, scope=Scope.APP)
+alias = providers.Alias(DatabaseProtocol, scope=Scope.APP)
 ```
 
 **After (3.0):**
 ```python
 from modern_di import providers
 
-alias = providers.Alias(source_type=DatabaseProtocol)
+alias = providers.Alias(DatabaseProtocol)
 ```
 
 ### 3. `Factory(cache_settings=)` removed
@@ -83,8 +83,8 @@ works but warns; in 3.0 only `cache=` is accepted.
 # cache=True for defaults, or cache=CacheSettings(...) to tune). It will be
 # removed in a future release.
 factory = providers.Factory(
+    create_resource,
     scope=Scope.REQUEST,
-    creator=create_resource,
     cache_settings=providers.CacheSettings(finalizer=lambda resource: resource.close()),
 )
 ```
@@ -92,8 +92,8 @@ factory = providers.Factory(
 **After (3.0):**
 ```python
 factory = providers.Factory(
+    create_resource,
     scope=Scope.REQUEST,
-    creator=create_resource,
     cache=providers.CacheSettings(finalizer=lambda resource: resource.close()),
 )
 ```

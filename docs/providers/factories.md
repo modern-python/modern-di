@@ -24,8 +24,8 @@ class IndependentFactory:
 
 class Dependencies(Group):
     independent_factory = providers.Factory(
+        IndependentFactory,
         scope=Scope.APP,
-        creator=IndependentFactory,
         kwargs={"dep1": "text", "dep2": 123}
     )
 
@@ -73,8 +73,8 @@ def generate_random_number() -> float:
 
 class Dependencies(Group):
     singleton = providers.Factory(
+        generate_random_number,
         scope=Scope.APP,
-        creator=generate_random_number,
         cache=True
     )
 
@@ -110,8 +110,8 @@ class Dependencies(Group):
     # Cache with cleanup — clear_cache=True (the default) ensures the closed
     # resource is evicted from cache so it cannot be returned again after close
     resource = providers.Factory(
+        create_resource,
         scope=Scope.APP,
-        creator=create_resource,
         cache=providers.CacheSettings(
             finalizer=lambda res: res.close(),  # Cleanup function
         )
@@ -119,6 +119,9 @@ class Dependencies(Group):
 ```
 
 ## Parameters
+
+`Factory(creator, *, scope=Scope.APP, bound_type=UNSET, kwargs=None, cache=None, cache_settings=UNSET, skip_creator_parsing=False)`
+— `creator` may also be passed as a keyword (`creator=`).
 
 When creating a Factory provider, you can configure several parameters:
 
@@ -191,7 +194,7 @@ class Service:
 
 
 class Dependencies(Group):
-    service = providers.Factory(scope=Scope.APP, creator=Service)
+    service = providers.Factory(Service, scope=Scope.APP)
 
 
 container = Container(groups=[Dependencies], validate=True)
@@ -237,10 +240,10 @@ def make_service(dep: object) -> object:
 
 
 class Dependencies(Group):
-    backend = providers.Factory(scope=Scope.APP, creator=Backend)
+    backend = providers.Factory(Backend, scope=Scope.APP)
     service = providers.Factory(
+        make_service,
         scope=Scope.APP,
-        creator=make_service,
         skip_creator_parsing=True,
         bound_type=None,
         kwargs={"dep": backend},  # provider object — resolved at resolve-time
@@ -280,8 +283,8 @@ def flaky_creator() -> object:
 
 class Dependencies(Group):
     svc = providers.Factory(
+        flaky_creator,
         scope=Scope.APP,
-        creator=flaky_creator,
         cache=True,
     )
 

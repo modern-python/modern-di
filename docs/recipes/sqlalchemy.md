@@ -41,18 +41,18 @@ class UserRepository:
 
 class Dependencies(Group):
     engine = providers.Factory(
+        create_engine,
         scope=Scope.APP,
-        creator=create_engine,
         cache=providers.CacheSettings(finalizer=close_engine),
     )
     session = providers.Factory(
+        create_session,
         scope=Scope.REQUEST,
-        creator=create_session,
         cache=providers.CacheSettings(finalizer=close_session),
     )
     user_repository = providers.Factory(
+        UserRepository,
         scope=Scope.REQUEST,
-        creator=UserRepository,
     )
 ```
 

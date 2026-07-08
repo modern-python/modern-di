@@ -1,6 +1,6 @@
 # ContextProvider has no value
 
-A `ContextProvider(context_type=SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly returns `None`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError` — **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly returns `None`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError` — **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
 
 ## Understanding the error
 
@@ -41,9 +41,9 @@ request_container.set_context(TenantId, TenantId("acme"))
 
 ### 2. The `ContextProvider`'s scope doesn't match where you set the context
 
-`ContextProvider(scope=Scope.APP, context_type=TenantId)` looks up the value on the APP container. If you `set_context` on the REQUEST child container, the APP-scope provider doesn't see it.
+`ContextProvider(TenantId, scope=Scope.APP)` looks up the value on the APP container. If you `set_context` on the REQUEST child container, the APP-scope provider doesn't see it.
 
-Fix: match the scope. If the value is per-request, declare `ContextProvider(scope=Scope.REQUEST, ...)` and `set_context` on the request container (or pass via `build_child_container(context=...)`).
+Fix: match the scope. If the value is per-request, declare `ContextProvider(TenantId, scope=Scope.REQUEST)` and `set_context` on the request container (or pass via `build_child_container(context=...)`).
 
 ### 3. Framework integration didn't inject the expected request
 
