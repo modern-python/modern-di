@@ -16,8 +16,8 @@ class Alias(AbstractProvider[types.T_co]):
 
     def __init__(
         self,
-        *,
         source_type: type[types.T_co],
+        *,
         scope: enum.IntEnum | types.UnsetType = types.UNSET,
         bound_type: type | None | types.UnsetType = types.UNSET,
     ) -> None:
