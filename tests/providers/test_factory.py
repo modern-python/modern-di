@@ -3,6 +3,7 @@ import dataclasses
 import functools
 import inspect
 import re
+import typing
 import unittest.mock
 import warnings
 
@@ -784,3 +785,46 @@ def test_definition_site_creator_without_module_is_none() -> None:
     creator.__module__ = None  # ty: ignore[invalid-assignment]
     factory = providers.Factory(creator, bound_type=str, skip_creator_parsing=True)
     assert factory.definition_site is None
+
+
+def test_definition_site_pathological_creator_is_none() -> None:
+    class _Pathological:
+        __module__ = "mymod"
+
+        def __getattr__(self, name: str) -> typing.NoReturn:
+            msg = f"boom on {name}"
+            raise RuntimeError(msg)
+
+        def __call__(self) -> int:
+            return 1
+
+    creator = _Pathological()
+    assert creator() == 1  # exercise body for coverage
+    factory = providers.Factory(creator, bound_type=None, skip_creator_parsing=True)
+    assert factory.definition_site is None
+
+
+def test_definition_site_recursion_error_propagates_for_guard_retry() -> None:
+    # A fresh RecursionError must NOT be swallowed (unlike every other exception): the runtime
+    # cycle guard computes anchors inside its own `except RecursionError` handler with the stack
+    # still near-exhausted, and its retry ladder (resolve_provider re-converting one frame up)
+    # only works if the fresh RecursionError propagates. Swallowing it here would memoize None
+    # and permanently strip the anchors off runtime-detected cycles.
+    class _StackExhausted:
+        __module__ = "mymod"
+
+        def __getattr__(self, name: str) -> typing.NoReturn:
+            raise RecursionError
+
+        def __call__(self) -> int:
+            return 1
+
+    creator = _StackExhausted()
+    assert creator() == 1  # exercise body for coverage
+    factory = providers.Factory(creator, bound_type=None, skip_creator_parsing=True)
+    with pytest.raises(RecursionError):
+        _ = factory.definition_site
+    # Nothing memoized on the raise path: a second access must recompute (and raise) again,
+    # so the guard's shallower retry gets a fresh computation, not a cached None.
+    with pytest.raises(RecursionError):
+        _ = factory.definition_site

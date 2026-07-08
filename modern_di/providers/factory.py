@@ -139,15 +139,22 @@ class Factory(AbstractProvider[types.T_co]):
         return self._cached_definition_site
 
     def _compute_definition_site(self) -> str | None:
-        module = getattr(self._creator, "__module__", None)
-        if module is None:
-            return None
-        code = getattr(self._creator, "__code__", None)
-        if code is not None:
-            return f"{module}:{code.co_firstlineno}"
+        # The anchor machinery's contract is "never raise": even a pathological creator whose
+        # attribute access blows up must degrade to an anchor-less step, not mask the real error.
+        # Sole carve-out: a fresh RecursionError propagates (nothing memoized), because the runtime
+        # cycle guard computes anchors inside its own RecursionError handler with the stack still
+        # near-exhausted, and its retry ladder re-converts one frame up with more headroom.
         try:
+            module = getattr(self._creator, "__module__", None)
+            if module is None:
+                return None
+            code = getattr(self._creator, "__code__", None)
+            if code is not None:
+                return f"{module}:{code.co_firstlineno}"
             _, lineno = inspect.getsourcelines(self._creator)
-        except (OSError, TypeError):
+        except RecursionError:
+            raise
+        except Exception:  # noqa: BLE001
             return None
         return f"{module}:{lineno}"
 
