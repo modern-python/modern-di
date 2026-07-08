@@ -16,6 +16,7 @@ translates the `Depends` idioms you already know into their modern-di equivalent
 | `yield`-based teardown (`def fn(): ...; yield x; ...cleanup...`) | `cache=CacheSettings(finalizer=cleanup_fn)` | modern-di has no generator-creator form (see [Design decisions](design-decisions.md)); teardown is a second, explicit object instead of code after `yield`. `finalizer` may be sync or async — see [Lifecycle](../providers/lifecycle.md). |
 | `@lru_cache`-wrapped dependency (process-wide singleton) | `Factory(fn, scope=Scope.APP, cache=True)`, optionally with a `finalizer` | `lru_cache` has no cleanup hook; the APP-scoped cached `Factory` adds one via `CacheSettings(finalizer=...)` if the singleton needs to release anything on shutdown. |
 | `app.dependency_overrides[fn] = fake` | `container.override(provider, fake)` | modern-di overrides are keyed by **provider reference**, not by callable, and apply across the whole container tree — see [Testing with overrides](../recipes/testing-overrides.md). Reset with `container.reset_override(provider)`. |
+| the manual `try`/`finally` reset FastAPI's docs recommend around `dependency_overrides` | `with container.override(provider, fake) as mock: ...` | Auto-resets on exit instead of a hand-written `finally`. See [Testing with overrides](../recipes/testing-overrides.md) for the full semantics. |
 
 ## Two meanings of "scope"
 

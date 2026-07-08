@@ -14,13 +14,19 @@ tree — all child containers hold a reference to the same registry instance.
 ### container.override and container.reset_override
 
 ```python
-container.override(provider: AbstractProvider[T], override_object: T) -> None
+container.override(provider: AbstractProvider[T], override_object: T) -> OverrideHandle[T]
 container.reset_override(provider: AbstractProvider[T] | None = None) -> None
 ```
 
-`container.override(provider, obj)` writes `obj` into the shared `OverridesRegistry` under the provider's id.
-`container.reset_override(provider)` removes that entry. Calling `reset_override()` with no argument (or `None`)
-clears **all** overrides from the registry.
+`container.override(provider, obj)` writes `obj` into the shared `OverridesRegistry` under the provider's id and
+returns an `OverrideHandle[T]`, generic over the override object's type. The override is active from the `override()`
+call itself, not from `__enter__` — imperative callers that discard the handle see identical behavior to before.
+Used as a context manager, the handle's `__exit__` restores the snapshot taken at the `override()` call — the
+provider's prior override if one existed, otherwise no override — unconditionally, even on exception and even if
+`reset_override()` ran inside the block. Nested overrides of the same provider unwind in order, each handle
+restoring what was active before it. The `OverridesRegistry` itself stays a flat dict; the stack lives in the
+handles, not the registry. `container.reset_override(provider)` removes that entry directly. Calling
+`reset_override()` with no argument (or `None`) clears **all** overrides from the registry.
 
 Because the registry is shared, calling either method on a child container has the same effect as calling it on the
 root — the override is visible tree-wide. `close_async` and `close_sync` on the root container also call
