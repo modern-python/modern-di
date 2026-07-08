@@ -61,20 +61,20 @@ Use this table as the index for the rest of the guide. Every provider class docu
 | `dependency-injector` | `modern-di` replacement | Where to look |
 |---|---|---|
 | `Factory` | `providers.Factory(...)` | [§4](#4-migrate-the-dependency-graph) |
-| `Callable` | `providers.Factory(creator=the_callable)` — `Factory`'s creator can be any callable, not just a class | [§4](#4-migrate-the-dependency-graph) |
+| `Callable` | `providers.Factory(the_callable)` — `Factory`'s creator can be any callable, not just a class | [§4](#4-migrate-the-dependency-graph) |
 | `Singleton` | `providers.Factory(..., cache=True)` | [§4](#4-migrate-the-dependency-graph) |
 | `ThreadSafeSingleton` | `providers.Factory(..., cache=True)` — `modern-di`'s cache is lock-guarded by default (`use_lock=True` on the container) | [§4](#4-migrate-the-dependency-graph) |
 | `ThreadLocalSingleton` | No direct equivalent — see [§11](#11-no-direct-equivalent) | [§11](#11-no-direct-equivalent) |
 | `Resource` (plain-function initializer — their docs' most common form; no shutdown step) | `providers.Factory(..., cache=True)` — same as `Singleton`; add a finalizer only when there is teardown | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (generator / context-manager initializer) | `providers.Factory(..., cache=CacheSettings(finalizer=...))` | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (async initializer) | Lifespan + `ContextProvider` (or sync creator + async finalizer) | [§4](#4-migrate-the-dependency-graph) |
-| `ContextLocalResource` | `providers.Factory(scope=Scope.REQUEST, ..., cache=CacheSettings(finalizer=...))` resolved from a per-request child container | [§4](#4-migrate-the-dependency-graph) |
+| `ContextLocalResource` | `providers.Factory(..., scope=Scope.REQUEST, cache=CacheSettings(finalizer=...))` resolved from a per-request child container | [§4](#4-migrate-the-dependency-graph) |
 | `Coroutine` | No direct equivalent — resolution is sync-only; do the `await` in the lifespan and inject the result, same as an async `Resource` | [§4](#4-migrate-the-dependency-graph) |
 | `Object` | `providers.Factory` with a creator that returns the value | [§4](#4-migrate-the-dependency-graph) |
 | `List` | `providers.Factory` with a creator that returns a list | [§4](#4-migrate-the-dependency-graph) |
 | `Dict` | `providers.Factory` with a creator that returns a dict | [§4](#4-migrate-the-dependency-graph) |
-| `Dependency` | `providers.ContextProvider(context_type=...)` | [§4](#4-migrate-the-dependency-graph) |
-| `AbstractFactory` | `providers.Alias(source_type=..., bound_type=...)` — pick the concrete implementation at declaration time instead of via `.override()` before first use | [§4](#4-migrate-the-dependency-graph) |
+| `Dependency` | `providers.ContextProvider(...)` | [§4](#4-migrate-the-dependency-graph) |
+| `AbstractFactory` | `providers.Alias(..., bound_type=...)` — pick the concrete implementation at declaration time instead of via `.override()` before first use | [§4](#4-migrate-the-dependency-graph) |
 | `Configuration` | A plain settings object registered as a provider — no config subsystem (`from_yaml`/`from_env`/etc.) | [§5](#5-configuration) |
 | `Selector` | No direct equivalent — see [§11](#11-no-direct-equivalent) | [§11](#11-no-direct-equivalent) |
 | `Aggregate` / `FactoryAggregate` | No direct equivalent — see [§11](#11-no-direct-equivalent) | [§11](#11-no-direct-equivalent) |
@@ -93,7 +93,7 @@ Use this table as the index for the rest of the guide. Every provider class docu
 2. Add an explicit `scope=` to each provider (defaults to `Scope.APP`).
 3. Create the runtime container with `Container(groups=[MyGroup], validate=True)`. In `modern-di`, `Group` is a schema only — you cannot resolve from it directly, unlike a `DeclarativeContainer` instance.
 
-**`Singleton` / `ThreadSafeSingleton`** → `providers.Factory(creator=SomeClass, cache=True)` — no separate thread-safe class, since `modern-di`'s cache is lock-guarded by default. See [Cached factories](../providers/factories.md#cached-factories).
+**`Singleton` / `ThreadSafeSingleton`** → `providers.Factory(SomeClass, cache=True)` — no separate thread-safe class, since `modern-di`'s cache is lock-guarded by default. See [Cached factories](../providers/factories.md#cached-factories).
 
 **`Resource`** → cached `Factory`, with or without a `finalizer` depending on the initializer form. Their docs call the plain-function initializer "the most common way to specify resource initialization" — and a plain-function `Resource` has no shutdown step, so it maps to exactly what `Singleton` maps to:
 
@@ -102,7 +102,7 @@ Use this table as the index for the rest of the guide. Every provider class docu
 thread_pool = providers.Resource(init_thread_pool, max_workers=4)
 
 # modern-di — same as the Singleton mapping
-thread_pool = providers.Factory(creator=init_thread_pool, kwargs={"max_workers": 4}, cache=True)
+thread_pool = providers.Factory(init_thread_pool, kwargs={"max_workers": 4}, cache=True)
 ```
 
 For the generator or context-manager initializer forms (the ones with a shutdown step), split init and teardown into a plain creator function and a separate finalizer function:
@@ -124,7 +124,7 @@ def close_resource(resource: SomeResource) -> None:
     ...  # shutdown code
 
 thread_pool = providers.Factory(
-    creator=create_resource,
+    create_resource,
     cache=providers.CacheSettings(finalizer=close_resource),
 )
 ```
@@ -137,8 +137,8 @@ db_session = providers.ContextLocalResource(AsyncSessionLocal)
 
 # modern-di — one instance per request container, finalizer on request end
 db_session = providers.Factory(
+    create_session,
     scope=Scope.REQUEST,
-    creator=create_session,
     cache=providers.CacheSettings(finalizer=close_session),
 )
 ```
@@ -152,7 +152,7 @@ hashed = container.password_hasher("super secret")  # "super secret" supplied at
 
 # modern-di — the value must be static (kwargs) or itself a resolvable dependency
 password_hasher = providers.Factory(
-    creator=passlib.hash.sha256_crypt.hash,
+    passlib.hash.sha256_crypt.hash,
     kwargs={"secret": "super secret", "salt_size": 16, "rounds": 10000},
 )
 ```
@@ -171,7 +171,7 @@ class ApiKey(str): ...
 def _api_key() -> ApiKey:
     return ApiKey("secret-token")
 
-api_key = providers.Factory(creator=_api_key, cache=True)
+api_key = providers.Factory(_api_key, cache=True)
 ```
 
 If you only need the value passed into one downstream provider, skip the wrapper and put it directly in that provider's `kwargs`.
@@ -189,7 +189,7 @@ modules = providers.List(
 def build_modules() -> list[Module]:
     return [Module("m1"), Module("m2")]
 
-modules = providers.Factory(creator=build_modules)
+modules = providers.Factory(build_modules)
 ```
 
 **`Dependency`** → `ContextProvider`. Both are a typed placeholder filled in at runtime rather than constructed by a factory:
@@ -200,7 +200,7 @@ database = providers.Dependency(instance_of=DbAdapter)
 # container = Container(database=providers.Singleton(SqliteDbAdapter))
 
 # modern-di
-database = providers.ContextProvider(scope=Scope.APP, context_type=DbAdapter)
+database = providers.ContextProvider(DbAdapter, scope=Scope.APP)
 # container = Container(groups=[AppGroup], context={DbAdapter: SqliteDbAdapter()})
 ```
 
@@ -212,8 +212,8 @@ cache_client_factory = providers.AbstractFactory(AbstractCacheClient)
 # container.cache_client_factory.override(providers.Factory(RedisCacheClient, host="localhost"))
 
 # modern-di
-redis_cache_client = providers.Factory(creator=RedisCacheClient, cache=True)
-cache_client = providers.Alias(source_type=RedisCacheClient, bound_type=AbstractCacheClient)
+redis_cache_client = providers.Factory(RedisCacheClient, cache=True)
+cache_client = providers.Alias(RedisCacheClient, bound_type=AbstractCacheClient)
 ```
 
 ## 5. Configuration
@@ -226,7 +226,7 @@ class Settings:
         self.database_url = os.environ["DATABASE_URL"]
 
 class AppGroup(Group):
-    settings = providers.Factory(creator=Settings, cache=True)
+    settings = providers.Factory(Settings, cache=True)
 ```
 
 If a value needs to be supplied by the caller rather than computed (e.g. it comes from a CLI flag or a request header), use `ContextProvider` instead — see [§4](#4-migrate-the-dependency-graph)'s `Dependency` mapping.
@@ -273,10 +273,10 @@ This also removes `dependency-injector`'s most-filed failure mode: an unwired fu
 ```python
 class AppGroup(Group):
     # one instance for the whole app's lifetime
-    db_pool = providers.Factory(scope=Scope.APP, creator=create_pool, cache=True)
+    db_pool = providers.Factory(create_pool, scope=Scope.APP, cache=True)
 
     # one instance per request; built by build_child_container(scope=Scope.REQUEST)
-    current_user = providers.Factory(scope=Scope.REQUEST, creator=UserFromRequest)
+    current_user = providers.Factory(UserFromRequest, scope=Scope.REQUEST)
 
 app_container = Container(scope=Scope.APP, groups=[AppGroup], validate=True)
 request_container = app_container.build_child_container(scope=Scope.REQUEST, context={...})

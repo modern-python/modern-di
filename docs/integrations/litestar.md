@@ -39,8 +39,8 @@ def create_singleton() -> datetime.datetime:
 
 class AppGroup(Group):
     singleton = providers.Factory(
+        create_singleton,
         scope=Scope.APP,
-        creator=create_singleton,
         cache=True
     )
 
@@ -77,7 +77,7 @@ class UserRepository:
 
 
 class AppGroup(Group):
-    user_repo = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
+    user_repo = providers.Factory(UserRepository, scope=Scope.REQUEST)
 
 
 ALL_GROUPS = [AppGroup]
@@ -114,7 +114,7 @@ class MyService:
 
 
 class Dependencies(Group):
-    my_service = providers.Factory(scope=Scope.REQUEST, creator=MyService)
+    my_service = providers.Factory(MyService, scope=Scope.REQUEST)
 
 
 ALL_GROUPS = [Dependencies]
@@ -168,8 +168,8 @@ def create_request_info(request: litestar.Request) -> dict[str, str]:
 class AppGroup(Group):
     # Factory automatically resolves the request dependency based on type annotation
     request_info = providers.Factory(
+        create_request_info,
         scope=Scope.REQUEST,
-        creator=create_request_info,
     )
 ```
 
@@ -192,8 +192,8 @@ def create_request_info(request: litestar.Request) -> dict[str, str]:
 class AppGroup(Group):
     # Factory explicitly uses the request provider from the integration
     request_info = providers.Factory(
+        create_request_info,
         scope=Scope.REQUEST,
-        creator=create_request_info,
         kwargs={"request": modern_di_litestar.litestar_request_provider}
     )
 ```

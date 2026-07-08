@@ -363,3 +363,17 @@ def test_alias_without_scope_emits_no_deprecation_warning() -> None:
         warnings.simplefilter("error")
         alias = providers.Alias(source_type=_DepSrc, bound_type=object)
     assert alias is not None
+
+
+def test_alias_accepts_positional_source_type() -> None:
+    class G(Group):
+        repo = providers.Factory(creator=PostgresRepository, cache=True)
+        abstract = providers.Alias(PostgresRepository, bound_type=AbstractRepository)
+
+    container = Container(groups=[G], validate=True)
+    assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
+
+
+def test_alias_rejects_source_type_passed_twice() -> None:
+    with pytest.raises(TypeError, match="source_type"):
+        providers.Alias(PostgresRepository, source_type=PostgresRepository)  # ty: ignore[parameter-already-assigned]

@@ -49,13 +49,13 @@ class OrderProcessor:
 
 class AppGroup(Group):
     settings = providers.Factory(
+        Settings,
         scope=Scope.APP,
-        creator=Settings,
         cache=True,
     )
     order_processor = providers.Factory(
+        OrderProcessor,
         scope=Scope.REQUEST,
-        creator=OrderProcessor,
     )
 
 
@@ -107,8 +107,8 @@ def create_message_info(message: faststream.StreamMessage) -> dict[str, str]:
 class AppGroup(Group):
     # The message dependency is resolved by type annotation
     message_info = providers.Factory(
+        create_message_info,
         scope=Scope.REQUEST,
-        creator=create_message_info,
     )
 ```
 
@@ -126,8 +126,8 @@ def create_message_info(message: faststream.StreamMessage) -> dict[str, str]:
 
 class AppGroup(Group):
     message_info = providers.Factory(
+        create_message_info,
         scope=Scope.REQUEST,
-        creator=create_message_info,
         kwargs={"message": modern_di_faststream.faststream_message_provider},
     )
 ```

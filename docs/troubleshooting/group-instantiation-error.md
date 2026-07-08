@@ -17,7 +17,7 @@ Use the class itself, not an instance:
 
 ```python
 class Dependencies(Group):
-    service = providers.Factory(scope=Scope.APP, creator=Service)
+    service = providers.Factory(Service, scope=Scope.APP)
 
 
 # Wrong

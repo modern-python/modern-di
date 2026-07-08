@@ -38,7 +38,7 @@ class Settings:
 
 
 class AppGroup(Group):
-    settings = providers.Factory(scope=Scope.APP, creator=Settings)
+    settings = providers.Factory(Settings, scope=Scope.APP)
 
 
 @inject

@@ -25,11 +25,11 @@ class Dependencies(Group):
     #    def create_thing(items: list[Item] = ()) -> Thing: ...
 
     # 2. Supply the value via kwargs at declaration time
-    thing = providers.Factory(scope=Scope.APP, creator=create_thing, kwargs={"items": []})
+    thing = providers.Factory(create_thing, scope=Scope.APP, kwargs={"items": []})
 
     # 3. Skip creator parsing entirely and supply every argument via kwargs
     thing2 = providers.Factory(
-        scope=Scope.APP, creator=create_thing, skip_creator_parsing=True, kwargs={"items": []}
+        create_thing, scope=Scope.APP, skip_creator_parsing=True, kwargs={"items": []}
     )
 ```
 

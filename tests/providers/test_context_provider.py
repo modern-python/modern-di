@@ -303,3 +303,15 @@ def test_set_context_provider_direct_resolve_does_not_warn() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert app_container.resolve_provider(MyGroup.context_provider) is now
+
+
+def test_context_provider_accepts_positional_context_type() -> None:
+    provider = providers.ContextProvider(datetime.datetime)
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app_container = Container(context={datetime.datetime: now})
+    assert app_container.resolve_provider(provider) is now
+
+
+def test_context_provider_rejects_context_type_passed_twice() -> None:
+    with pytest.raises(TypeError, match="context_type"):
+        providers.ContextProvider(datetime.datetime, context_type=datetime.datetime)  # ty: ignore[parameter-already-assigned]

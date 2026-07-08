@@ -15,8 +15,8 @@ attributes:
 from modern_di import providers, Group, Scope
 
 class AppProviders(Group):
-    db_pool = providers.Factory(scope=Scope.APP, creator=create_pool)
-    user_repo = providers.Factory(scope=Scope.REQUEST, creator=UserRepository)
+    db_pool = providers.Factory(create_pool, scope=Scope.APP)
+    user_repo = providers.Factory(UserRepository, scope=Scope.REQUEST)
 ```
 
 `Group.get_named_providers()` walks the MRO and returns a `dict[str, AbstractProvider]` mapping each declared
@@ -28,15 +28,18 @@ non-provider override mask the parent provider of the same name. `Group.get_prov
 
 ## `Factory` — the universal provider
 
-`Factory` is the main building block. Every provider that calls a creator callable (a constructor or factory function passed as `creator=`) is a `Factory`.
+`Factory` is the main building block. Every provider that calls a creator callable (a constructor or factory
+function passed as its `creator` argument) is a `Factory`. Each registerable provider's subject argument —
+`Factory.creator`, `ContextProvider.context_type`, `Alias.source_type` — is positional-or-keyword and leads its
+`__init__`; every other parameter stays keyword-only.
 
 ### Signature
 
 ```python
 Factory(
+    creator: Callable[..., T],
     *,
     scope: IntEnum = Scope.APP,
-    creator: Callable[..., T],
     bound_type: type | None = UNSET,
     kwargs: dict[str, Any] | None = None,
     cache: bool | CacheSettings[T] | None = None,
@@ -101,7 +104,7 @@ each time.
 being constructed by a factory:
 
 ```python
-providers.ContextProvider(scope=Scope.REQUEST, context_type=HttpRequest)
+providers.ContextProvider(HttpRequest, scope=Scope.REQUEST)
 ```
 
 At resolution time it looks the value up in the container's `context_registry` for the matching scope. What
@@ -129,7 +132,7 @@ and the two paths are independent:
 `Alias` delegates resolution to another registered provider, located by the source type:
 
 ```python
-providers.Alias(source_type=ConcreteDatabase, bound_type=DatabaseProtocol)
+providers.Alias(ConcreteDatabase, bound_type=DatabaseProtocol)
 ```
 
 `Alias.resolve` calls `container.resolve_provider(source_provider)` — it holds no cache of its own — and also

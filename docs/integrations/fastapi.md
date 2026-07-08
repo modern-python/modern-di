@@ -44,8 +44,8 @@ def create_singleton() -> datetime.datetime:
 
 class AppGroup(Group):
     singleton = providers.Factory(
+        create_singleton,
         scope=Scope.APP,
-        creator=create_singleton,
         cache=True
     )
 
@@ -130,8 +130,8 @@ def create_request_info(request: fastapi.Request) -> dict[str, str]:
 class AppGroup(Group):
     # Factory automatically resolves the request dependency based on type annotation
     request_info = providers.Factory(
+        create_request_info,
         scope=Scope.REQUEST,
-        creator=create_request_info,
     )
 ```
 
@@ -154,8 +154,8 @@ def create_request_info(request: fastapi.Request) -> dict[str, str]:
 class AppGroup(Group):
     # Factory explicitly uses the request provider from the integration
     request_info = providers.Factory(
+        create_request_info,
         scope=Scope.REQUEST,
-        creator=create_request_info,
         kwargs={"request": modern_di_fastapi.fastapi_request_provider}
     )
 ```

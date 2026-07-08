@@ -41,7 +41,7 @@ class Settings:
 
 
 class AppGroup(Group):
-    settings = providers.Factory(scope=Scope.APP, creator=Settings)
+    settings = providers.Factory(Settings, scope=Scope.APP)
 
 
 @inject
@@ -112,7 +112,7 @@ def create_request_info(request: Request) -> dict[str, str]:
 
 
 class AppGroup(Group):
-    request_info = providers.Factory(scope=Scope.REQUEST, creator=create_request_info)
+    request_info = providers.Factory(create_request_info, scope=Scope.REQUEST)
 ```
 
 ### Explicit Usage (Provider-based Resolution)
@@ -129,8 +129,8 @@ def create_request_info(request: Request) -> dict[str, str]:
 
 class AppGroup(Group):
     request_info = providers.Factory(
+        create_request_info,
         scope=Scope.REQUEST,
-        creator=create_request_info,
         kwargs={"request": modern_di_starlette.starlette_request_provider},
     )
 ```

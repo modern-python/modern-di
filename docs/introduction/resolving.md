@@ -30,11 +30,11 @@ class DatabaseConnection:
 
 class Dependencies(Group):
     db_config = providers.Factory(
+        DatabaseConfig,
         scope=Scope.APP,
-        creator=DatabaseConfig,
         kwargs={"host": "localhost", "port": 5432},
     )
-    db_connection = providers.Factory(scope=Scope.APP, creator=DatabaseConnection)
+    db_connection = providers.Factory(DatabaseConnection, scope=Scope.APP)
 
 
 container = Container(groups=[Dependencies], validate=True)

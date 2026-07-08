@@ -6,6 +6,9 @@ Resolving the alias delegates straight back through the container, so overrides 
 
 ## Parameters
 
+`Alias(source_type, *, scope=UNSET, bound_type=UNSET)` — `scope` is deprecated and ignored (see
+below). `source_type` may also be passed as a keyword (`source_type=`).
+
 ### source_type
 
 The type whose registered provider should answer the call. At resolution time, the alias looks up `source_type` in the providers registry and delegates to that provider. If `source_type` is not registered, an `AliasSourceNotRegisteredError` is raised.
@@ -41,11 +44,11 @@ class PostgresRepository:
 
 class Dependencies(Group):
     repo = providers.Factory(
-        creator=PostgresRepository,
+        PostgresRepository,
         cache=True,
     )
     abstract_repo = providers.Alias(
-        source_type=PostgresRepository,
+        PostgresRepository,
         bound_type=Repository,
     )
 

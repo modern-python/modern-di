@@ -4,7 +4,7 @@
 
 ## Solution
 
-Do the async construction in the framework's lifespan. Use `container.set_context(SomeType, instance)` to register the live object on the APP container, then declare a `ContextProvider(scope=Scope.APP, context_type=SomeType)` so downstream factories can depend on the type.
+Do the async construction in the framework's lifespan. Use `container.set_context(SomeType, instance)` to register the live object on the APP container, then declare a `ContextProvider(SomeType, scope=Scope.APP)` so downstream factories can depend on the type.
 
 ```python
 import contextlib
@@ -17,14 +17,14 @@ from modern_di import Container, Group, Scope, providers
 
 class Dependencies(Group):
     http_client = providers.ContextProvider(
+        aiohttp.ClientSession,
         scope=Scope.APP,
-        context_type=aiohttp.ClientSession,
     )
 
     # Downstream factories declare `client: aiohttp.ClientSession` and get the live instance
     weather_api = providers.Factory(
+        WeatherApi,                    # signature: (client: aiohttp.ClientSession)
         scope=Scope.REQUEST,
-        creator=WeatherApi,            # signature: (client: aiohttp.ClientSession)
     )
 
 

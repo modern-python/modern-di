@@ -714,3 +714,17 @@ def test_cache_and_cache_settings_together_raise() -> None:
 def test_repr_reports_cached_for_cache_true() -> None:
     provider = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=True)
     assert "cached=True" in repr(provider)
+
+
+def test_factory_accepts_positional_creator() -> None:
+    class G(Group):
+        factory = providers.Factory(SimpleCreator, kwargs={"dep1": "positional"})
+
+    container = Container(groups=[G], validate=True)
+    instance = container.resolve(SimpleCreator)
+    assert instance.dep1 == "positional"
+
+
+def test_factory_rejects_creator_passed_twice() -> None:
+    with pytest.raises(TypeError, match="creator"):
+        providers.Factory(SimpleCreator, creator=SimpleCreator)  # ty: ignore[parameter-already-assigned]

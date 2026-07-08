@@ -10,13 +10,13 @@ outlive — see [the scope dependency rule](../providers/scopes.md#the-scope-dep
 
 ```python
 class Dependencies(Group):
-    session = providers.Factory(scope=Scope.REQUEST, creator=Session)
+    session = providers.Factory(Session, scope=Scope.REQUEST)
 
     # ❌ forgot scope=Scope.REQUEST — defaults to Scope.APP, which cannot hold `session`
-    user_cache = providers.Factory(creator=UserCache)
+    user_cache = providers.Factory(UserCache)
 
     # ✅ matches the lifetime of what it consumes
-    user_cache = providers.Factory(scope=Scope.REQUEST, creator=UserCache)
+    user_cache = providers.Factory(UserCache, scope=Scope.REQUEST)
 ```
 
 **Caught by:** `Container(groups=[...], validate=True)` raises `InvalidScopeDependencyError` for
@@ -54,13 +54,13 @@ factory is built once, and a later `set_context` does not rebuild it.
 
 ```python
 class Dependencies(Group):
-    tenant_id = providers.ContextProvider(scope=Scope.REQUEST, context_type=str)
+    tenant_id = providers.ContextProvider(str, scope=Scope.REQUEST)
 
     # ❌ cached: built on first resolve and frozen from then on
-    tenant_config = providers.Factory(scope=Scope.REQUEST, creator=create_tenant_config, cache=True)
+    tenant_config = providers.Factory(create_tenant_config, scope=Scope.REQUEST, cache=True)
 
     # ✅ uncached: re-reads the live context on every resolve
-    tenant_config = providers.Factory(scope=Scope.REQUEST, creator=create_tenant_config)
+    tenant_config = providers.Factory(create_tenant_config, scope=Scope.REQUEST)
 ```
 
 If a request container resolves `tenant_config` before the real tenant ID is known (e.g. during
@@ -129,12 +129,12 @@ no idea what type the provider produces, so type-based resolution silently can't
 
 ```python
 # ❌ nothing else can resolve this provider by type — UserWarning at declaration time
-providers.Factory(scope=Scope.APP, creator=opaque_creator, skip_creator_parsing=True)
+providers.Factory(opaque_creator, scope=Scope.APP, skip_creator_parsing=True)
 
 # ✅ tell modern-di the type explicitly
 providers.Factory(
+    opaque_creator,
     scope=Scope.APP,
-    creator=opaque_creator,
     skip_creator_parsing=True,
     bound_type=MyClass,
 )

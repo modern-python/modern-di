@@ -27,13 +27,13 @@ def create_service(host: str, port: int) -> Service: ...
 class Dependencies(Group):
     # Wrong: skip_creator_parsing=True but kwargs misses `port`
     service = providers.Factory(
-        scope=Scope.APP, creator=create_service, skip_creator_parsing=True,
+        create_service, scope=Scope.APP, skip_creator_parsing=True,
         bound_type=Service, kwargs={"host": "localhost"},
     )
 
     # Right
     service = providers.Factory(
-        scope=Scope.APP, creator=create_service, skip_creator_parsing=True,
+        create_service, scope=Scope.APP, skip_creator_parsing=True,
         bound_type=Service, kwargs={"host": "localhost", "port": 5432},
     )
 ```

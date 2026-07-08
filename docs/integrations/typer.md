@@ -48,13 +48,13 @@ class HealthReporter:
 
 class AppGroup(Group):
     settings = providers.Factory(
+        Settings,
         scope=Scope.APP,
-        creator=Settings,
         cache=True,
     )
     health_reporter = providers.Factory(
+        HealthReporter,
         scope=Scope.REQUEST,
-        creator=HealthReporter,
     )
 
 
@@ -101,7 +101,7 @@ class Job:
 
 
 class AppGroup(Group):
-    job = providers.Factory(scope=Scope.ACTION, creator=Job, bound_type=None)
+    job = providers.Factory(Job, scope=Scope.ACTION, bound_type=None)
 
 
 @app.command()

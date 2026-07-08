@@ -10,6 +10,9 @@ container's context registry at resolve time.
 In integrations, some context objects (like `fastapi.Request`, `litestar.WebSocket`, etc.) are
 automatically provided — see [Framework Context Objects](#framework-context-objects) below.
 
+`ContextProvider(context_type, *, scope=Scope.APP, bound_type=UNSET)` — `context_type` may also be
+passed as a keyword (`context_type=`).
+
 ## Basic Usage
 
 Declare a `ContextProvider` for your context type, supply the value when you build the child container, and any [`Factory`](factories.md) that takes that type as a parameter receives it automatically:
@@ -33,12 +36,12 @@ def create_user_info(custom_context: CustomContext) -> dict[str, str]:
 
 class Dependencies(Group):
     # Manually defined ContextProvider for custom context
-    custom_context = providers.ContextProvider(scope=Scope.REQUEST, context_type=CustomContext)
+    custom_context = providers.ContextProvider(CustomContext, scope=Scope.REQUEST)
 
     # Factory uses the custom context
     user_info = providers.Factory(
+        create_user_info,
         scope=Scope.REQUEST,
-        creator=create_user_info,
     )
 
 
@@ -128,8 +131,8 @@ def create_request_info(request: fastapi.Request) -> dict[str, str]:
 class Dependencies(Group):
     # Factory uses the request from context (automatically provided by the integration)
     request_info = providers.Factory(
+        create_request_info,
         scope=Scope.REQUEST,
-        creator=create_request_info,
     )
 
 
