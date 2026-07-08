@@ -33,9 +33,9 @@ class Factory(AbstractProvider[types.T_co]):
 
     def __init__(  # noqa: C901, PLR0913
         self,
+        creator: typing.Callable[..., types.T_co],
         *,
         scope: enum.IntEnum = Scope.APP,
-        creator: typing.Callable[..., types.T_co],
         bound_type: type | None | types.UnsetType = types.UNSET,
         kwargs: dict[str, typing.Any] | None = None,
         cache: bool | CacheSettings[types.T_co] | None = None,
