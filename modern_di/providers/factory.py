@@ -7,7 +7,6 @@ import warnings
 from modern_di import exceptions, suggester, types
 from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
-from modern_di.scope import Scope
 from modern_di.types_parser import SignatureItem, parse_creator
 from modern_di.wiring import WiringPlan, _Absent, absent_disposition
 
@@ -35,7 +34,7 @@ class Factory(AbstractProvider[types.T_co]):
         self,
         creator: typing.Callable[..., types.T_co],
         *,
-        scope: enum.IntEnum = Scope.APP,
+        scope: enum.IntEnum | types.UnsetType = types.UNSET,
         bound_type: type | None | types.UnsetType = types.UNSET,
         kwargs: dict[str, typing.Any] | None = None,
         cache: bool | CacheSettings[types.T_co] | None = None,

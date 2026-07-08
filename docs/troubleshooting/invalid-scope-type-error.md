@@ -2,12 +2,16 @@
 
 **Symptom**
 
-Raised from the `Container` constructor, naming the value that was passed as `scope=` and its type.
+Raised when constructing a `Container` or when defining a `Group` subclass with a `scope=` class kwarg, naming the value that was passed as `scope=` and its type.
 
 **Cause**
 
-`scope=` must be an `enum.IntEnum` member. This fires when a plain `int`, a string, a regular
-`enum.Enum` (not `IntEnum`), or any other non-`IntEnum` value is passed instead.
+`scope=` must be an `enum.IntEnum` member. This fires in two contexts:
+
+1. When passed to the `Container` constructor — when a plain `int`, a string, a regular `enum.Enum` (not `IntEnum`), or any other non-`IntEnum` value is used.
+2. When passed to a `Group` subclass as a class kwarg — same validation applies.
+
+Example invalid uses: `Container(scope=1)`, `Container(scope="APP")`, `class MyGroup(Group, scope=1)`, `class MyGroup(Group, scope="REQUEST")`.
 
 **Fix**
 

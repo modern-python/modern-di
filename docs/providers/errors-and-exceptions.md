@@ -31,6 +31,7 @@ ModernDIError (RuntimeError)
 ├── RegistrationError
 │   ├── DuplicateProviderTypeError
 │   ├── ChildContainerRegistrationError
+│   ├── GroupScopeConflictError
 │   ├── UnknownFactoryKwargError
 │   ├── UnsupportedCreatorParameterError
 │   └── InvalidScopeDependencyError
@@ -136,6 +137,11 @@ Catch `RegistrationError` for declaration- and registration-time problems.
   container instead. Inspect `.scope` for the offending child container's scope. See
   [Container: registering after construction](container.md#registering-providers-after-construction) and
   [Troubleshooting: ChildContainerRegistrationError](../troubleshooting/child-container-registration-error.md).
+- **`GroupScopeConflictError`** — raised when a scope-defaulted provider (no explicit `scope=`) is
+  shared by two `Group` subclasses declared with different `scope=` kwargs; the provider's scope
+  cannot follow both defaults at once, and import order must never be what decides it. Inspect
+  `.provider_name`, `.first_group`/`.first_scope`, and `.second_group`/`.second_scope`. See
+  [Troubleshooting: GroupScopeConflictError](../troubleshooting/group-scope-conflict-error.md).
 - **`UnknownFactoryKwargError`** — raised when `Factory(kwargs={...})` contains a key that is not a
   parameter of the creator's signature; lists the known parameters and "did you mean" hints. See
   [Troubleshooting: UnknownFactoryKwargError](../troubleshooting/unknown-factory-kwarg-error.md).

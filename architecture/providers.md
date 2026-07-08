@@ -24,6 +24,20 @@ attribute name to its provider — respecting inheritance order, de-duplicating 
 non-provider override mask the parent provider of the same name. `Group.get_providers()` is derived from it as
 `list(cls.get_named_providers().values())`, so the traversal and de-duplication rules live in one place.
 
+### Group-level default scope
+
+A `Group` subclass may declare a default scope as a class kwarg — `class RequestGroup(Group, scope=Scope.REQUEST)`.
+At class creation, `Group.__init_subclass__` stamps that scope onto every scope-defaulted `Factory`/`ContextProvider`
+declared in that class body. Priority: an explicit `scope=` on the provider always wins; otherwise the nearest
+group `scope=` kwarg in the MRO applies (a subclass without its own kwarg inherits its ancestor's; a subclass with
+its own kwarg overrides it for its own body); otherwise the provider falls back to `Scope.APP`. `Alias` never
+participates in stamping — its scope is always derived from its source, never chosen (see below). A
+scope-defaulted provider instance shared between two group bodies with different defaults raises
+`GroupScopeConflictError` (a `RegistrationError` subclass) at the second group's class-creation time, rather than
+letting import order decide; sharing the same instance with the same default scope across groups is a no-op. See
+[docs/providers/scopes.md#group-level-default-scope](../docs/providers/scopes.md#group-level-default-scope) for
+the user-facing walkthrough.
+
 ---
 
 ## `Factory` — the universal provider
@@ -39,7 +53,7 @@ function passed as its `creator` argument) is a `Factory`. Each registerable pro
 Factory(
     creator: Callable[..., T],
     *,
-    scope: IntEnum = Scope.APP,
+    scope: IntEnum = UNSET,  # defaults to the group's scope, else Scope.APP
     bound_type: type | None = UNSET,
     kwargs: dict[str, Any] | None = None,
     cache: bool | CacheSettings[T] | None = None,

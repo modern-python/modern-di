@@ -4,7 +4,6 @@ import warnings
 
 from modern_di import exceptions, types
 from modern_di.providers import AbstractProvider
-from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
@@ -27,7 +26,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
         self,
         context_type: type[types.T_co],
         *,
-        scope: enum.IntEnum = Scope.APP,
+        scope: enum.IntEnum | types.UnsetType = types.UNSET,
         bound_type: type | None | types.UnsetType = types.UNSET,
     ) -> None:
         super().__init__(

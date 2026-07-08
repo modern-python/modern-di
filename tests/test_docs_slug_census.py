@@ -13,8 +13,9 @@ from modern_di import exceptions
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 _TROUBLESHOOTING_DIR = _REPO_ROOT / "docs" / "troubleshooting"
 
-# The 5 pre-existing troubleshooting pages plus the 16 new ones this change adds.
-_EXPECTED_CONCRETE_CLASS_COUNT = 21
+# The 5 pre-existing troubleshooting pages, the 16 added by the error-docs-registry change,
+# and GroupScopeConflictError (API-4).
+_EXPECTED_CONCRETE_CLASS_COUNT = 22
 
 _BASE_CLASSES = frozenset(
     {

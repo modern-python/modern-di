@@ -3,7 +3,12 @@ import dataclasses
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import DuplicateProviderTypeError, GroupInstantiationError
+from modern_di.exceptions import (
+    DuplicateProviderTypeError,
+    GroupInstantiationError,
+    GroupScopeConflictError,
+    InvalidScopeTypeError,
+)
 
 
 def test_group_cannot_be_instantiated() -> None:
@@ -147,3 +152,98 @@ def test_get_providers_matches_named_provider_values() -> None:
         b = providers.Factory(creator=_B)
 
     assert Child.get_providers() == list(Child.get_named_providers().values())
+
+
+class _Svc: ...
+
+
+class _Ctx: ...
+
+
+def test_group_scope_stamps_defaulted_providers() -> None:
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        svc = providers.Factory(_Svc)
+        ctx = providers.ContextProvider(_Ctx)
+
+    assert RequestGroup.svc.scope is Scope.REQUEST
+    assert RequestGroup.ctx.scope is Scope.REQUEST
+    app_container = Container(groups=[RequestGroup], validate=True)
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    assert isinstance(request_container.resolve(_Svc), _Svc)
+
+
+def test_group_scope_explicit_provider_scope_wins() -> None:
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        app_svc = providers.Factory(_Svc, scope=Scope.APP)
+
+    assert RequestGroup.app_svc.scope is Scope.APP
+
+
+def test_group_scope_alias_keeps_derived_scope() -> None:
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        svc = providers.Factory(_Svc)
+        alias = providers.Alias(_Svc)
+
+    assert RequestGroup.alias.scope is Scope.APP  # stored scope untouched; effective scope derives from source
+
+
+def test_group_scope_inherited_by_subclass_body() -> None:
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        svc = providers.Factory(_Svc)
+
+    class SubGroup(RequestGroup):
+        ctx = providers.ContextProvider(_Ctx)
+
+    assert SubGroup.ctx.scope is Scope.REQUEST
+
+
+def test_group_scope_subclass_kwarg_overrides_inherited_default() -> None:
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        svc = providers.Factory(_Svc)
+
+    class ActionGroup(RequestGroup, scope=Scope.ACTION):
+        deep = providers.Factory(_Ctx)
+
+    assert ActionGroup.deep.scope is Scope.ACTION
+    assert RequestGroup.svc.scope is Scope.REQUEST  # parent stamp untouched
+
+
+def test_group_scope_shared_provider_same_scope_ok() -> None:
+    shared = providers.Factory(_Svc)
+
+    class GroupA(Group, scope=Scope.REQUEST):
+        svc = shared
+
+    class GroupB(Group, scope=Scope.REQUEST):
+        svc = shared
+
+    assert shared.scope is Scope.REQUEST
+
+
+def test_group_scope_shared_provider_conflicting_scopes_raises() -> None:
+    shared = providers.Factory(_Svc)
+
+    class GroupA(Group, scope=Scope.REQUEST):
+        svc = shared
+
+    with pytest.raises(GroupScopeConflictError, match=r"GroupA.*GroupB|GroupB.*GroupA") as exc_info:
+
+        class GroupB(Group, scope=Scope.ACTION):
+            svc = shared
+
+    assert exc_info.value.first_scope is Scope.REQUEST
+    assert exc_info.value.second_scope is Scope.ACTION
+
+
+def test_group_without_scope_kwarg_keeps_app_default() -> None:
+    class PlainGroup(Group):
+        svc = providers.Factory(_Svc)
+
+    assert PlainGroup.svc.scope is Scope.APP
+
+
+def test_group_scope_rejects_non_intenum() -> None:
+    with pytest.raises(InvalidScopeTypeError, match="99"):
+
+        class BadGroup(Group, scope=99):  # ty: ignore[invalid-argument-type]
+            svc = providers.Factory(_Svc)

@@ -178,9 +178,7 @@ class InvalidScopeTypeError(ContainerError):
 
     def __init__(self, *, scope_value: typing.Any) -> None:  # noqa: ANN401
         self.scope_value = scope_value
-        super().__init__(
-            f"Container scope must be an enum.IntEnum member; got {scope_value!r} ({type(scope_value).__name__})."
-        )
+        super().__init__(f"Scope must be an enum.IntEnum member; got {scope_value!r} ({type(scope_value).__name__}).")
 
 
 class ContainerClosedError(ContainerError):
@@ -414,6 +412,37 @@ class ChildContainerRegistrationError(RegistrationError):
             f"Container.add_providers can only be called on a root container: the providers "
             f"registry is shared tree-wide, so registering on a child container (scope {scope.name}) "
             "would mutate every container in the tree. Call add_providers on the root container instead."
+        )
+
+
+class GroupScopeConflictError(RegistrationError):
+    """A scope-defaulted provider is shared by two groups with different default scopes.
+
+    Inspect ``.provider_name``, ``.first_group``/``.first_scope``, ``.second_group``/``.second_scope``.
+    """
+
+    docs_slug = "group-scope-conflict-error"
+
+    __slots__ = ("first_group", "first_scope", "provider_name", "second_group", "second_scope")
+
+    def __init__(
+        self,
+        *,
+        provider_name: str,
+        first_group: str,
+        first_scope: enum.IntEnum,
+        second_group: str,
+        second_scope: enum.IntEnum,
+    ) -> None:
+        self.provider_name = provider_name
+        self.first_group = first_group
+        self.first_scope = first_scope
+        self.second_group = second_group
+        self.second_scope = second_scope
+        super().__init__(
+            f"Provider {provider_name} is shared by groups with conflicting default scopes: "
+            f"{first_group} (scope {first_scope.name}) and {second_group} (scope {second_scope.name}). "
+            f"Set scope= explicitly on the provider, or align the group defaults."
         )
 
 
