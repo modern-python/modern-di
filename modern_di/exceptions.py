@@ -18,11 +18,13 @@ class ResolutionStep:
     Attributes:
         scope: the scope of the provider at this step of the resolution chain.
         name: the provider's display name (bound type or creator name).
+        location: the provider's declaration site as ``module:line``, when known.
 
     """
 
     scope: enum.IntEnum
     name: str
+    location: str | None = None
 
 
 class ModernDIError(RuntimeError):
@@ -85,7 +87,8 @@ class DependencyPathMixin:
         lines = ["Cannot resolve dependency chain:"]
         for i, step in enumerate(self.dependency_path):
             prefix = "" if i == 0 else "    " * (i - 1) + "└─> "
-            lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{step.name}")
+            label = f"{step.name} ({step.location})" if step.location else step.name
+            lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{label}")
         lines.append(f"  caused by: {self._base_message}")
         return "\n".join(lines)
 

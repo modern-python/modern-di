@@ -128,6 +128,11 @@ def test_alias_repr() -> None:
     )
 
 
+def test_alias_has_no_definition_site() -> None:
+    alias = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
+    assert alias.definition_site is None
+
+
 class _NotRegisteredSource: ...
 
 

@@ -54,6 +54,11 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         """
         return self.bound_type.__name__ if self.bound_type else repr(self)
 
+    @property
+    def definition_site(self) -> str | None:
+        """``module:line`` of the provider's declaration when known; None by default (no creator)."""
+        return None
+
     @abc.abstractmethod
     def resolve(self, container: "Container") -> typing.Any: ...  # noqa: ANN401
 

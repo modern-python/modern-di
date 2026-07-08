@@ -1,4 +1,5 @@
 import dataclasses
+import inspect
 
 import pytest
 
@@ -7,7 +8,6 @@ from modern_di.exceptions import (
     ArgumentResolutionError,
     ContainerError,
     ProviderNotRegisteredError,
-    ResolutionStep,
     ScopeNotInitializedError,
 )
 
@@ -40,9 +40,11 @@ def test_chain_appears_when_arg_unresolvable() -> None:
     exc = exc_info.value
     # The structured path is the stable contract; the rendered string is checked via substrings
     # rather than exact whitespace so cosmetic formatting can evolve without churning this test.
-    assert exc.dependency_path == [
-        ResolutionStep(scope=Scope.APP, name="MyService"),
-        ResolutionStep(scope=Scope.APP, name="Repository"),
+    # `location` is asserted separately (test_breadcrumb_line_carries_definition_site); ignored
+    # here so this test doesn't hardcode fixture line numbers.
+    assert [(step.scope, step.name) for step in exc.dependency_path] == [
+        (Scope.APP, "MyService"),
+        (Scope.APP, "Repository"),
     ]
     rendered = str(exc)
     assert rendered.startswith("Cannot resolve dependency chain:")
@@ -157,3 +159,18 @@ def test_scope_error_still_caught_as_container_error() -> None:
 def test_dependency_path_mixin_is_not_an_exception() -> None:
     # Guards the ruling: DependencyPathMixin must never become except-catchable on its own.
     assert not issubclass(exceptions.DependencyPathMixin, BaseException)
+
+
+def test_breadcrumb_line_carries_definition_site() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+    class _Anchored:
+        pass
+
+    class _G(Group):
+        anchored = providers.Factory(_Anchored, scope=Scope.REQUEST)
+
+    container = Container(groups=[_G], validate=False)
+    with pytest.raises(ScopeNotInitializedError) as exc_info:
+        container.resolve(_Anchored)
+    lineno = inspect.getsourcelines(_Anchored)[1]
+    assert f"({_Anchored.__module__}:{lineno})" in str(exc_info.value)

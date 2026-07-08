@@ -1,5 +1,7 @@
 import contextlib
 import dataclasses
+import functools
+import inspect
 import re
 import unittest.mock
 import warnings
@@ -728,3 +730,57 @@ def test_factory_accepts_positional_creator() -> None:
 def test_factory_rejects_creator_passed_twice() -> None:
     with pytest.raises(TypeError, match="creator"):
         providers.Factory(SimpleCreator, creator=SimpleCreator)  # ty: ignore[parameter-already-assigned]
+
+
+def _definition_site_func() -> str:
+    return "x"
+
+
+def test_definition_site_function_creator() -> None:
+    assert _definition_site_func() == "x"  # exercise body for coverage
+    factory = providers.Factory(_definition_site_func, bound_type=None)
+    expected = f"{_definition_site_func.__module__}:{_definition_site_func.__code__.co_firstlineno}"
+    assert factory.definition_site == expected
+
+
+def test_definition_site_class_creator() -> None:
+    factory = providers.Factory(SimpleCreator, kwargs={"dep1": "x"})
+    lineno = inspect.getsourcelines(SimpleCreator)[1]
+    assert factory.definition_site == f"{SimpleCreator.__module__}:{lineno}"
+
+
+def test_definition_site_c_callable_is_none() -> None:
+    factory = providers.Factory(dict, bound_type=None, skip_creator_parsing=True)
+    assert factory.definition_site is None
+
+
+def test_definition_site_partial_is_none() -> None:
+    factory = providers.Factory(functools.partial(SimpleCreator, dep1="x"), bound_type=None, skip_creator_parsing=True)
+    assert factory.definition_site is None
+
+
+def test_definition_site_memoized(monkeypatch: pytest.MonkeyPatch) -> None:
+    factory = providers.Factory(SimpleCreator, kwargs={"dep1": "x"})
+    first = factory.definition_site
+    assert first is not None
+
+    def _boom(_obj: object) -> tuple[list[str], int]:
+        raise AssertionError  # pragma: no cover — must not run; memoization short-circuits before inspect
+
+    monkeypatch.setattr("modern_di.providers.factory.inspect.getsourcelines", _boom)
+    assert factory.definition_site == first  # cached; inspect not called again
+
+
+class _NoModuleCreator:
+    def __call__(self) -> str:
+        return "x"
+
+
+def test_definition_site_creator_without_module_is_none() -> None:
+    # A creator whose __module__ can't be determined (e.g. a dynamically built callable):
+    # _compute_definition_site must bail out before touching __code__/inspect.
+    creator = _NoModuleCreator()
+    assert creator() == "x"  # exercise body for coverage
+    creator.__module__ = None  # ty: ignore[invalid-assignment]
+    factory = providers.Factory(creator, bound_type=str, skip_creator_parsing=True)
+    assert factory.definition_site is None
