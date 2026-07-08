@@ -332,19 +332,24 @@ class CreatorCallError(ResolutionError):
 class CircularDependencyError(ResolutionError):
     """A dependency cycle was detected by ``validate()`` or the runtime resolve guard.
 
-    Inspect ``.cycle_path`` (the loop as type names). When raised at resolve time,
-    ``__cause__`` carries the original ``RecursionError``.
+    Inspect ``.cycle_path`` (the loop as type names) and ``.cycle_locations`` (parallel
+    ``module:line`` anchors, when known). When raised at resolve time, ``__cause__`` carries
+    the original ``RecursionError``.
     """
 
     docs_slug = "circular-dependency"
 
-    __slots__ = ("cycle_path",)
+    __slots__ = ("cycle_locations", "cycle_path")
 
-    def __init__(self, *, cycle_path: list[str]) -> None:
+    def __init__(self, *, cycle_path: list[str], cycle_locations: list[str | None] | None = None) -> None:
         self.cycle_path = cycle_path
-        rendered = "\n".join(
-            f"  {'    ' * (i - 1)}└─> {name}" if i else f"  {name}" for i, name in enumerate(cycle_path)
-        )
+        self.cycle_locations = cycle_locations
+        locations = cycle_locations if cycle_locations is not None else [None] * len(cycle_path)
+        lines = []
+        for i, (name, location) in enumerate(zip(cycle_path, locations, strict=True)):
+            label = f"{name} ({location})" if location else name
+            lines.append(f"  {'    ' * (i - 1)}└─> {label}" if i else f"  {label}")
+        rendered = "\n".join(lines)
         super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
 
 

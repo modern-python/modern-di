@@ -18,12 +18,15 @@ if typing.TYPE_CHECKING:
     import typing_extensions
 
 
-def _find_reachable_cycle(start: AbstractProvider[typing.Any], container: "Container") -> list[str] | None:
+def _find_reachable_cycle(
+    start: AbstractProvider[typing.Any], container: "Container"
+) -> list[AbstractProvider[typing.Any]] | None:
     """Re-walk the static graph from `start`, looking for a cycle reachable from it.
 
     Explicit-stack DFS — no recursion, since this runs inside a ``RecursionError`` handler
     near CPython's stack limit (headroom for a recursive walk is not guaranteed there).
-    Returns `None` if no static cycle is reachable from `start`.
+    Returns the cycle's providers (closed by repeating the first), or `None` if no static
+    cycle is reachable from `start`.
     """
     visiting: set[int] = {start.provider_id}
     visited: set[int] = set()
@@ -42,9 +45,7 @@ def _find_reachable_cycle(start: AbstractProvider[typing.Any], container: "Conta
 
         if dep.provider_id in visiting:
             cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep.provider_id)
-            cycle_names = [p.display_name for p in path[cycle_start:]]
-            cycle_names.append(cycle_names[0])
-            return cycle_names
+            return [*path[cycle_start:], path[cycle_start]]
         if dep.provider_id in visited:
             continue
 
@@ -66,7 +67,10 @@ def _convert_recursion_error(
     cycle = _find_reachable_cycle(provider, container)
     if cycle is None:
         raise exc
-    raise exceptions.CircularDependencyError(cycle_path=cycle) from exc
+    raise exceptions.CircularDependencyError(
+        cycle_path=[p.display_name for p in cycle],
+        cycle_locations=[p.definition_site for p in cycle],
+    ) from exc
 
 
 class Container:
@@ -255,9 +259,13 @@ class Container:
                 return
             if pid in visiting:
                 cycle_start = next(i for i, p in enumerate(path) if p.provider_id == pid)
-                cycle_names = [p.display_name for p in path[cycle_start:]]
-                cycle_names.append(cycle_names[0])
-                validation_errors.append(exceptions.CircularDependencyError(cycle_path=cycle_names))
+                cycle_providers = [*path[cycle_start:], path[cycle_start]]
+                validation_errors.append(
+                    exceptions.CircularDependencyError(
+                        cycle_path=[p.display_name for p in cycle_providers],
+                        cycle_locations=[p.definition_site for p in cycle_providers],
+                    )
+                )
                 return
 
             visiting.add(pid)

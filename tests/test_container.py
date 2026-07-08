@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import inspect
 import pathlib
 import re
 import typing
@@ -140,6 +141,14 @@ def test_validate_on_creation() -> None:
         Container(groups=[CycleGroup], validate=True)
     [issue] = exc.value.errors
     assert isinstance(issue, CircularDependencyError)
+
+
+def test_cycle_path_carries_definition_sites() -> None:
+    with pytest.raises(ValidationFailedError) as exc_info:
+        Container(groups=[CycleGroup], validate=True)
+    rendered = str(exc_info.value)
+    lineno = inspect.getsourcelines(CycleA)[1]
+    assert f"({CycleA.__module__}:{lineno})" in rendered
 
 
 def test_validate_detects_cycle() -> None:
