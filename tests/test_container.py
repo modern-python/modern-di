@@ -938,3 +938,63 @@ def test_resolve_dependency_works_on_child_container_for_both_arms() -> None:
 
     assert request_container.resolve_dependency(str) == "value"
     assert request_container.resolve_dependency(G.request_factory) == "value"
+
+
+class _OverrideSvc: ...
+
+
+class _OverrideGroup(Group):
+    svc = providers.Factory(_OverrideSvc)
+
+
+def test_override_context_manager_applies_and_resets() -> None:
+    container = Container(groups=[_OverrideGroup], validate=False)
+    mock = _OverrideSvc()
+    with container.override(_OverrideGroup.svc, mock) as bound:
+        assert bound is mock
+        assert container.resolve(_OverrideSvc) is mock
+    assert container.resolve(_OverrideSvc) is not mock
+
+
+def test_override_context_manager_restores_prior_imperative_override() -> None:
+    container = Container(groups=[_OverrideGroup], validate=False)
+    first = _OverrideSvc()
+    second = _OverrideSvc()
+    container.override(_OverrideGroup.svc, first)
+    with container.override(_OverrideGroup.svc, second):
+        assert container.resolve(_OverrideSvc) is second
+    assert container.resolve(_OverrideSvc) is first
+
+
+def test_override_context_manager_nested_unwinds_in_order() -> None:
+    container = Container(groups=[_OverrideGroup], validate=False)
+    outer = _OverrideSvc()
+    inner = _OverrideSvc()
+    with container.override(_OverrideGroup.svc, outer):
+        with container.override(_OverrideGroup.svc, inner):
+            assert container.resolve(_OverrideSvc) is inner
+        assert container.resolve(_OverrideSvc) is outer
+    resolved = container.resolve(_OverrideSvc)
+    assert resolved is not outer
+    assert resolved is not inner
+
+
+def test_override_context_manager_restores_on_exception() -> None:
+    container = Container(groups=[_OverrideGroup], validate=False)
+    mock = _OverrideSvc()
+    msg = "boom"
+    with pytest.raises(RuntimeError), container.override(_OverrideGroup.svc, mock):
+        raise RuntimeError(msg)
+    assert container.resolve(_OverrideSvc) is not mock
+
+
+def test_override_context_manager_exit_restores_snapshot_after_inner_reset() -> None:
+    container = Container(groups=[_OverrideGroup], validate=False)
+    first = _OverrideSvc()
+    second = _OverrideSvc()
+    container.override(_OverrideGroup.svc, first)
+    with container.override(_OverrideGroup.svc, second):
+        container.reset_override(_OverrideGroup.svc)
+        assert container.resolve(_OverrideSvc) is not first
+        assert container.resolve(_OverrideSvc) is not second
+    assert container.resolve(_OverrideSvc) is first  # exit restores the snapshot taken at override() time
