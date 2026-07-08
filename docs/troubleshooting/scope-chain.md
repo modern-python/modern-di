@@ -15,6 +15,8 @@ InvalidScopeDependencyError (1):
 
 The fix is always to make the depender's scope equal to or shorter than the dependee's. In the example above, `UserCache` should be REQUEST-scoped, not APP-scoped.
 
+This particular message is a single static check with no chain attached; if the same violation instead surfaces at runtime as `ScopeNotInitializedError` or `ScopeSkippedError`, their breadcrumb lines may end with a pointer to where the offending provider was declared (module and line number).
+
 ## Common cases
 
 1. **Forgot `scope=Scope.REQUEST` on a repository.** Defaults to `Scope.APP` if omitted. A repository that holds a session needs `scope=Scope.REQUEST`.

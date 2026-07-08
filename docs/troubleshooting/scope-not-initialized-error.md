@@ -3,7 +3,9 @@
 **Symptom**
 
 A resolution fails naming a provider's scope and the current container's scope, optionally with a
-dependency-path breadcrumb when the failing provider was captured by a shallower one.
+dependency-path breadcrumb when the failing provider was captured by a shallower one. Each
+breadcrumb line may end with a pointer to where that provider was declared (module and line
+number), so you can jump straight to the declaration.
 
 **Cause**
 

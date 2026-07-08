@@ -17,7 +17,7 @@ CircularDependencyError (1):
     Check your provider graph for unintended cycles.
 ```
 
-It means the listed providers form a cycle that cannot be resolved.
+It means the listed providers form a cycle that cannot be resolved. Each hop in the arrow chain may also end with a pointer to where that provider was declared (module and line number), making it easier to locate the offending provider in a large codebase.
 
 ## How to Detect
 

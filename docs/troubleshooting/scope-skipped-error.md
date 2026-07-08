@@ -4,7 +4,9 @@
 
 A resolution fails naming a provider's scope and the current container's scope, optionally with a
 dependency-path breadcrumb — the requested scope is shallower than the current container, but no
-container at that scope exists anywhere in this chain.
+container at that scope exists anywhere in this chain. Each breadcrumb line may end with a pointer
+to where that provider was declared (module and line number), so you can jump straight to the
+declaration.
 
 **Cause**
 

@@ -49,6 +49,13 @@ type names showing the loop (e.g., `["A", "B", "A"]`). The recursive walk does *
 but the rest of the graph continues to be checked. `CircularDependencyError.__str__` renders `.cycle_path` as a
 multi-line arrow chain, not an inline `A -> B -> A` string — see `CircularDependencyError` in `exceptions.py`.
 
+Each node in that chain may also carry an optional definition site — the creator's declaration
+point — rendered as a trailing `module:line` anchor alongside the provider name, using the same
+lazy, memoized, best-effort capture described for breadcrumb steps in
+[resolution.md](resolution.md#breadcrumb-definition-sites). The public `.cycle_path` stays the bare
+list of type names; the parallel locations live on a separate `.cycle_locations` attribute, kept in
+sync at both construction sites (the DFS above and the runtime `RecursionError` conversion below).
+
 > **Runtime resolution has a cycle guard too — but `validate()` remains the way to see all errors up front.**
 > `Container.resolve_provider` wraps the final `provider.resolve(self)` in `try/except RecursionError`. When an
 > unvalidated circular graph's first resolve overflows the stack, the handler iteratively re-walks the static
