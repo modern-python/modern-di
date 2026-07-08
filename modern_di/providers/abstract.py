@@ -3,7 +3,8 @@ import enum
 import itertools
 import typing
 
-from modern_di import types
+from modern_di import exceptions, types
+from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
@@ -13,17 +14,36 @@ _provider_id_counter = itertools.count()
 
 
 class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
-    __slots__ = ("bound_type", "provider_id", "scope")
+    __slots__ = ("_scope_defaulted", "_stamping_group", "bound_type", "provider_id", "scope")
 
     def __init__(
         self,
         *,
-        scope: enum.IntEnum,
+        scope: enum.IntEnum | types.UnsetType,
         bound_type: type | None,
     ) -> None:
-        self.scope = scope
+        self._scope_defaulted = isinstance(scope, types.UnsetType)
+        self.scope: enum.IntEnum = Scope.APP if isinstance(scope, types.UnsetType) else scope
+        self._stamping_group: str | None = None
         self.bound_type = bound_type
         self.provider_id: typing.Final = next(_provider_id_counter)
+
+    def _stamp_group_scope(self, scope: enum.IntEnum, group_name: str) -> None:
+        """Apply a Group-level default scope; no-op when the provider's scope was chosen explicitly."""
+        if not self._scope_defaulted:
+            return
+        if self._stamping_group is not None:
+            if self.scope != scope:
+                raise exceptions.GroupScopeConflictError(
+                    provider_name=self.display_name,
+                    first_group=self._stamping_group,
+                    first_scope=self.scope,
+                    second_group=group_name,
+                    second_scope=scope,
+                )
+            return
+        self.scope = scope
+        self._stamping_group = group_name
 
     @property
     def display_name(self) -> str:

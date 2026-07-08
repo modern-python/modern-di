@@ -52,6 +52,7 @@ nav:
       - ContextProvider Has No Value: troubleshooting/context-not-set.md
       - Duplicate Type Error: troubleshooting/duplicate-type-error.md
       - Child Container Registration: troubleshooting/child-container-registration-error.md
+      - Group Scope Conflict: troubleshooting/group-scope-conflict-error.md
       - Unknown Factory Kwarg: troubleshooting/unknown-factory-kwarg-error.md
       - Unsupported Creator Parameter: troubleshooting/unsupported-creator-parameter-error.md
       - Scope Chain Violation: troubleshooting/scope-chain.md
@@ -188,6 +189,7 @@ plugins:
           - troubleshooting/context-not-set.md: Diagnosing ContextProvider-has-no-value errors
           - troubleshooting/duplicate-type-error.md: Diagnosing duplicate bound_type registration errors
           - troubleshooting/child-container-registration-error.md: Diagnosing ChildContainerRegistrationError
+          - troubleshooting/group-scope-conflict-error.md: Diagnosing GroupScopeConflictError
           - troubleshooting/unknown-factory-kwarg-error.md: Diagnosing UnknownFactoryKwargError
           - troubleshooting/unsupported-creator-parameter-error.md: Diagnosing UnsupportedCreatorParameterError
           - troubleshooting/scope-chain.md: Diagnosing scope chain violation errors
