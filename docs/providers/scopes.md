@@ -115,6 +115,42 @@ with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
 
 The child scope's integer value must be strictly greater than its parent's. When `scope=` is omitted from `build_child_container`, the auto-derived next scope only advances within the parent's own enum class — to cross enum boundaries (e.g. jump from a built-in `Scope` to `MyScope.TENANT`), pass `scope=` explicitly.
 
+## Group-level default scope
+
+When declaring providers in a `Group` subclass, you can assign a default scope to all members using the class kwarg:
+
+```python
+from modern_di import Container, Group, Scope, providers
+
+
+class UserRepository:
+    pass
+
+
+class AuditLog:
+    pass
+
+
+class RequestGroup(Group, scope=Scope.REQUEST):
+    repo = providers.Factory(UserRepository)              # inherits group default: REQUEST
+    audit = providers.Factory(AuditLog, scope=Scope.APP)  # explicit scope wins
+
+
+app_container = Container(groups=[RequestGroup], validate=True)
+with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
+    repo = request_container.resolve(UserRepository)
+```
+
+Scope resolution follows a priority order:
+
+1. **Explicit `scope=` on the provider** — always wins
+2. **The group's `scope=` kwarg** — inherited via MRO by subclasses; subclasses may override with their own `scope=` kwarg
+3. **`Scope.APP`** — the final default
+
+`Alias` providers do not participate in group-level scope defaults — an alias's scope always derives from its source.
+
+A scope-defaulted provider instance that is shared between two `Group` subclasses with different defaults raises [`GroupScopeConflictError`](../troubleshooting/group-scope-conflict-error.md) at class-creation time. Sharing the same provider instance with the same default scope across multiple groups is allowed.
+
 ## See also
 
 - [Lifecycle](lifecycle.md) — finalizers and `close_async()` work per-scope.

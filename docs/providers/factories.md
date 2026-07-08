@@ -129,6 +129,8 @@ When creating a Factory provider, you can configure several parameters:
 
 Defines the lifetime (scope) of the dependency. Defaults to `Scope.APP`. The available scopes are `APP → SESSION → REQUEST → ACTION → STEP`; see [Scopes](scopes.md) for the full mental model and the dependency rule.
 
+Groups can declare a default scope for all their members — see [Group-level default scope](scopes.md#group-level-default-scope).
+
 ### creator
 
 The callable (function or class) that will be invoked to create instances of the dependency.
