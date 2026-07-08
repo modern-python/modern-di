@@ -31,6 +31,8 @@ class Alias(AbstractProvider[types.T_co]):
             stored_scope: enum.IntEnum = scope
         else:
             stored_scope = Scope.APP
+        # Always a concrete IntEnum (never UNSET), so `_scope_defaulted` stays False and
+        # group-default stamping skips aliases.
         super().__init__(
             scope=stored_scope, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type
         )

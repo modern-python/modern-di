@@ -144,7 +144,7 @@ with app_container.build_child_container(scope=Scope.REQUEST) as request_contain
 Scope resolution follows a priority order:
 
 1. **Explicit `scope=` on the provider** — always wins
-2. **The group's `scope=` kwarg** — inherited via MRO by subclasses; subclasses may override with their own `scope=` kwarg
+2. **The group's `scope=` kwarg** — inherited via MRO by subclasses; subclasses may override with their own `scope=` kwarg. A subclass's `scope=` applies to providers declared in its own body; inherited providers keep the scope their declaring class gave them.
 3. **`Scope.APP`** — the final default
 
 `Alias` providers do not participate in group-level scope defaults — an alias's scope always derives from its source.
