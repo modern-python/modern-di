@@ -25,9 +25,9 @@ class ContextProvider(AbstractProvider[types.T_co]):
 
     def __init__(
         self,
+        context_type: type[types.T_co],
         *,
         scope: enum.IntEnum = Scope.APP,
-        context_type: type[types.T_co],
         bound_type: type | None | types.UnsetType = types.UNSET,
     ) -> None:
         super().__init__(
