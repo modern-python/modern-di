@@ -1,6 +1,9 @@
 import contextlib
 import dataclasses
+import functools
+import inspect
 import re
+import typing
 import unittest.mock
 import warnings
 
@@ -728,3 +731,100 @@ def test_factory_accepts_positional_creator() -> None:
 def test_factory_rejects_creator_passed_twice() -> None:
     with pytest.raises(TypeError, match="creator"):
         providers.Factory(SimpleCreator, creator=SimpleCreator)  # ty: ignore[parameter-already-assigned]
+
+
+def _definition_site_func() -> str:
+    return "x"
+
+
+def test_definition_site_function_creator() -> None:
+    assert _definition_site_func() == "x"  # exercise body for coverage
+    factory = providers.Factory(_definition_site_func, bound_type=None)
+    expected = f"{_definition_site_func.__module__}:{_definition_site_func.__code__.co_firstlineno}"
+    assert factory.definition_site == expected
+
+
+def test_definition_site_class_creator() -> None:
+    factory = providers.Factory(SimpleCreator, kwargs={"dep1": "x"})
+    lineno = inspect.getsourcelines(SimpleCreator)[1]
+    assert factory.definition_site == f"{SimpleCreator.__module__}:{lineno}"
+
+
+def test_definition_site_c_callable_is_none() -> None:
+    factory = providers.Factory(dict, bound_type=None, skip_creator_parsing=True)
+    assert factory.definition_site is None
+
+
+def test_definition_site_partial_is_none() -> None:
+    factory = providers.Factory(functools.partial(SimpleCreator, dep1="x"), bound_type=None, skip_creator_parsing=True)
+    assert factory.definition_site is None
+
+
+def test_definition_site_memoized(monkeypatch: pytest.MonkeyPatch) -> None:
+    factory = providers.Factory(SimpleCreator, kwargs={"dep1": "x"})
+    first = factory.definition_site
+    assert first is not None
+
+    def _boom(_obj: object) -> tuple[list[str], int]:
+        raise AssertionError  # pragma: no cover — must not run; memoization short-circuits before inspect
+
+    monkeypatch.setattr("modern_di.providers.factory.inspect.getsourcelines", _boom)
+    assert factory.definition_site == first  # cached; inspect not called again
+
+
+class _NoModuleCreator:
+    def __call__(self) -> str:
+        return "x"
+
+
+def test_definition_site_creator_without_module_is_none() -> None:
+    # A creator whose __module__ can't be determined (e.g. a dynamically built callable):
+    # _compute_definition_site must bail out before touching __code__/inspect.
+    creator = _NoModuleCreator()
+    assert creator() == "x"  # exercise body for coverage
+    creator.__module__ = None  # ty: ignore[invalid-assignment]
+    factory = providers.Factory(creator, bound_type=str, skip_creator_parsing=True)
+    assert factory.definition_site is None
+
+
+def test_definition_site_pathological_creator_is_none() -> None:
+    class _Pathological:
+        __module__ = "mymod"
+
+        def __getattr__(self, name: str) -> typing.NoReturn:
+            msg = f"boom on {name}"
+            raise RuntimeError(msg)
+
+        def __call__(self) -> int:
+            return 1
+
+    creator = _Pathological()
+    assert creator() == 1  # exercise body for coverage
+    factory = providers.Factory(creator, bound_type=None, skip_creator_parsing=True)
+    assert factory.definition_site is None
+
+
+def test_definition_site_recursion_error_propagates_for_guard_retry() -> None:
+    # A fresh RecursionError must NOT be swallowed (unlike every other exception): the runtime
+    # cycle guard computes anchors inside its own `except RecursionError` handler with the stack
+    # still near-exhausted, and its retry ladder (resolve_provider re-converting one frame up)
+    # only works if the fresh RecursionError propagates. Swallowing it here would memoize None
+    # and permanently strip the anchors off runtime-detected cycles.
+    class _StackExhausted:
+        __module__ = "mymod"
+
+        def __getattr__(self, name: str) -> typing.NoReturn:
+            raise RecursionError
+
+        def __call__(self) -> int:
+            return 1
+
+    creator = _StackExhausted()
+    assert creator() == 1  # exercise body for coverage
+    factory = providers.Factory(creator, bound_type=None, skip_creator_parsing=True)
+    with pytest.raises(RecursionError):
+        _ = factory.definition_site
+    # Nothing memoized on the raise path: a second access must recompute (and raise) again,
+    # so the guard's shallower retry gets a fresh computation, not a cached None.
+    with pytest.raises(RecursionError):
+        _ = factory.definition_site

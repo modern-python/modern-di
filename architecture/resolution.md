@@ -92,6 +92,17 @@ statically for a missing provider, just evaluated live instead of once at plan-b
 
 The recursion bottoms out at providers with no dependencies or at already-cached instances.
 
+### Breadcrumb definition sites
+
+Each step a `Factory` prepends onto a breadcrumb chain may carry an optional definition site — the
+creator's declaration point, rendered as a trailing `module:line` anchor — alongside the provider
+name. The site is captured lazily, only when a step is actually being built on an error path, and
+memoized per provider so a repeated failure never re-inspects the creator. Capture is best-effort:
+a plain function or method resolves for free from its code object, a class falls back to source
+inspection, and anything without an inspectable source (C callables, `functools.partial`, and the
+like) yields no site rather than raising. `Alias` steps never carry a definition site, since an
+alias has no creator of its own to anchor.
+
 ## Step 6 — Creator call and caching
 
 `Factory` calls the creator with `resolved_kwargs`. With no `cache_settings`, the instance is returned immediately.

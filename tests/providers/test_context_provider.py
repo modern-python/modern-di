@@ -73,6 +73,11 @@ def test_context_provider_exposes_context_type() -> None:
     assert provider.context_type is datetime.datetime
 
 
+def test_context_provider_has_no_definition_site() -> None:
+    provider = providers.ContextProvider(context_type=datetime.datetime, scope=Scope.REQUEST)
+    assert provider.definition_site is None
+
+
 @pytest.mark.parametrize("value", [0, False, "", [], {}, 0.0])
 def test_context_provider_returns_falsy_values(value: object) -> None:
     context_type = type(value)

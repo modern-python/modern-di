@@ -7,6 +7,7 @@ provider, leaving genuinely recursive (non-cyclic) creators untouched.
 """
 
 import dataclasses
+import inspect
 import sys
 
 import pytest
@@ -82,6 +83,11 @@ def _assert_simple_cycle(exc: exceptions.CircularDependencyError) -> None:
     assert exc.cycle_path[0] == exc.cycle_path[-1]
     assert set(exc.cycle_path) == {"NodeA", "NodeB"}
     assert isinstance(exc.__cause__, RecursionError)
+    # Isolate the cycle's own rendering (after "caused by: ") from the breadcrumb prefix, which
+    # already carries per-hop anchors (ERR-6 task 1) and would make this assertion pass regardless.
+    lineno = inspect.getsourcelines(NodeA)[1]
+    cycle_rendering = str(exc).rsplit("caused by: ", 1)[-1]
+    assert f"({NodeA.__module__}:{lineno})" in cycle_rendering
 
 
 def test_unvalidated_cycle_raises_circular_dependency_error() -> None:

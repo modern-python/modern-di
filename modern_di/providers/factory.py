@@ -28,7 +28,7 @@ class CacheSettings(typing.Generic[types.T_co]):
 
 
 class Factory(AbstractProvider[types.T_co]):
-    __slots__ = ("_creator", "_kwargs", "_parsed_kwargs", "cache_settings")
+    __slots__ = ("_cached_definition_site", "_creator", "_kwargs", "_parsed_kwargs", "cache_settings")
 
     def __init__(  # noqa: C901, PLR0913
         self,
@@ -92,6 +92,7 @@ class Factory(AbstractProvider[types.T_co]):
         self._creator = creator
         self.cache_settings = resolved_cache
         self._kwargs = kwargs
+        self._cached_definition_site: str | None | types.UnsetType = types.UNSET
 
     @staticmethod
     def _validate_kwargs_against_signature(
@@ -130,8 +131,35 @@ class Factory(AbstractProvider[types.T_co]):
             return self.bound_type.__name__
         return getattr(self._creator, "__name__", repr(self._creator))
 
+    @property
+    def definition_site(self) -> str | None:
+        """The creator's declaration site as ``module:line``; None when undeterminable. Memoized."""
+        if isinstance(self._cached_definition_site, types.UnsetType):
+            self._cached_definition_site = self._compute_definition_site()
+        return self._cached_definition_site
+
+    def _compute_definition_site(self) -> str | None:
+        # The anchor machinery's contract is "never raise": even a pathological creator whose
+        # attribute access blows up must degrade to an anchor-less step, not mask the real error.
+        # Sole carve-out: a fresh RecursionError propagates (nothing memoized), because the runtime
+        # cycle guard computes anchors inside its own RecursionError handler with the stack still
+        # near-exhausted, and its retry ladder re-converts one frame up with more headroom.
+        try:
+            module = getattr(self._creator, "__module__", None)
+            if module is None:
+                return None
+            code = getattr(self._creator, "__code__", None)
+            if code is not None:
+                return f"{module}:{code.co_firstlineno}"
+            _, lineno = inspect.getsourcelines(self._creator)
+        except RecursionError:
+            raise
+        except Exception:  # noqa: BLE001
+            return None
+        return f"{module}:{lineno}"
+
     def _resolution_step(self) -> exceptions.ResolutionStep:
-        return exceptions.ResolutionStep(scope=self.scope, name=self.display_name)
+        return exceptions.ResolutionStep(scope=self.scope, name=self.display_name, location=self.definition_site)
 
     def _argument_resolution_error(
         self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry | None" = None
