@@ -84,7 +84,7 @@ Use this table as the index for the rest of the guide. Every provider class docu
 | `DeclarativeContainer` | `Group` (schema) + `Container(groups=[...], validate=True)` (runtime) | [§2](#2-key-conceptual-shifts) |
 | `container.init_resources()` | Lazy initialization — no equivalent needed | [§9](#9-testing-and-overrides) |
 | `container.shutdown_resources()` / `provider.shutdown()` | `container.close_sync()` / `await container.close_async()` | [§9](#9-testing-and-overrides) |
-| `provider.override(...)` / `with provider.override(...):` | `container.override(provider, mock)` (no context-manager form yet — see [§9](#9-testing-and-overrides)) | [§9](#9-testing-and-overrides) |
+| `provider.override(...)` / `with provider.override(...):` | `container.override(provider, mock)` / `with container.override(provider, mock):` — see [§9](#9-testing-and-overrides) | [§9](#9-testing-and-overrides) |
 | `provider.reset_override()` / `provider.reset_last_overriding()` | `container.reset_override(provider)` | [§9](#9-testing-and-overrides) |
 
 ## 4. Migrate the dependency graph
@@ -306,7 +306,15 @@ container.override(AppGroup.api_client_factory, unittest.mock.Mock(ApiClient))
 container.reset_override(AppGroup.api_client_factory)  # or reset_override() to clear all
 ```
 
-`dependency-injector` also has a context-manager override form (`with container.api_client_factory.override(mock):`) that auto-resets on exit. **`modern-di` does not have this form yet** — `container.override()`/`reset_override()` is imperative-only today; pair the calls manually (e.g. in a pytest fixture's teardown, or `try`/`finally`). See [Testing with overrides](../recipes/testing-overrides.md) for tree-wide sharing and reset mechanics.
+`dependency-injector` also has a context-manager override form (`with container.api_client_factory.override(mock):`) that auto-resets on exit. `modern-di` has the same shape — `with container.override(provider, mock) as m:` applies the override for the block and restores the prior state on exit, including on exception:
+
+```python
+# modern-di
+with container.override(AppGroup.api_client_factory, unittest.mock.Mock(ApiClient)) as mock_factory:
+    ...
+```
+
+See [Testing with overrides](../recipes/testing-overrides.md) for tree-wide sharing, nesting, and reset mechanics.
 
 ### Lifecycle
 

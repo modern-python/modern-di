@@ -9,7 +9,7 @@ from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
 from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
-from modern_di.registries.overrides_registry import OverridesRegistry
+from modern_di.registries.overrides_registry import OverrideHandle, OverridesRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
@@ -338,8 +338,19 @@ class Container:
         finally:
             self.closed = True
 
-    def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> None:
+    def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
+        """Apply an override immediately.
+
+        Use the returned handle as a context manager to auto-restore the prior state.
+        """
+        prior = self.overrides_registry.fetch_override(provider.provider_id)
         self.overrides_registry.override(provider.provider_id, override_object)
+        return OverrideHandle(
+            registry=self.overrides_registry,
+            provider_id=provider.provider_id,
+            prior=prior,
+            override_object=override_object,
+        )
 
     def reset_override(self, provider: AbstractProvider[types.T] | None = None) -> None:
         self.overrides_registry.reset_override(provider.provider_id if provider else None)

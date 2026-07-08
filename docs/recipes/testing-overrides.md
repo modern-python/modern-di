@@ -4,7 +4,16 @@
 
 ## Solution
 
-`container.override(provider, replacement)` replaces what the provider resolves to. The replacement is keyed by **provider reference** (not name) and is shared across the container tree, so an override on the root APP container applies to all child REQUEST containers too. Reset with `container.reset_override(provider)` (or `container.reset_override()` to clear all).
+`container.override(provider, replacement)` replaces what the provider resolves to, immediately, and returns an `OverrideHandle`. Used as a context manager, it auto-resets on exit — this is the primary spelling for tests:
+
+```python
+with container.override(MyGroup.api_client, mock_client) as client:
+    ...  # resolution returns mock_client; prior state restored on exit
+```
+
+The override applies at the `override()` call, not at `__enter__`. `__exit__` restores the snapshot taken at that call — a previously stacked override if there was one, otherwise no override — even on exception, and even if `reset_override()` — or a root `close_sync()`/`close_async()`, which clears all overrides — ran inside the block; exit still restores the snapshot. Nested overrides of the same provider unwind in order: each handle restores whatever was active before it. Handles are expected to exit in reverse order of creation — `with`-block nesting does this naturally; manually exiting handles out of order can restore stale state.
+
+`container.override(provider, replacement)` also works as a plain imperative call: reset with `container.reset_override(provider)` (or `container.reset_override()` to clear all). This pair remains fully supported — see the patterns below — and `close_sync`/`close_async` on the root container also clear all overrides automatically. Either way, the replacement is keyed by **provider reference** (not name) and is shared across the container tree, so an override on the root APP container applies to all child REQUEST containers too.
 
 ## Pattern 1: Simple mock override
 
