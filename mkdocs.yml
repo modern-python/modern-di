@@ -24,6 +24,7 @@ nav:
       - aiohttp: integrations/aiohttp.md
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
+      - taskiq: integrations/taskiq.md
       - Litestar: integrations/litestar.md
       - Starlette: integrations/starlette.md
       - Typer: integrations/typer.md
@@ -161,6 +162,7 @@ plugins:
           - integrations/aiohttp.md: Usage with aiohttp
           - integrations/fastapi.md: Usage with FastAPI
           - integrations/faststream.md: Usage with FastStream
+          - integrations/taskiq.md: Usage with taskiq
           - integrations/litestar.md: Usage with Litestar
           - integrations/starlette.md: Usage with Starlette
           - integrations/typer.md: Usage with Typer
