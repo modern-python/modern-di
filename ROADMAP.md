@@ -17,11 +17,32 @@ item, or want to build one, please open or comment in
 ## Under consideration
 
 ### More official integrations — "one wiring, every entrypoint"
-Each new entrypoint lets your existing container cover more of your stack:
-- **Taskiq** — async task queue
-- **aiogram** — Telegram bots
-- **AIOHTTP**
-- *Later:* gRPC, Click, Celery
+Each new entrypoint lets your existing container cover more of your stack.
+Already shipped: aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer
+(plus the `modern-di-pytest` plugin). The gap below is drawn from Dishka's
+integration set and sorted by community demand — exploratory, not a queue.
+
+**Next up — highest demand, clear fit:**
+- **Taskiq** — async task queue; sync resolution fits cleanly (resolve deps
+  synchronously inside an async task).
+- **Celery** — the largest task-queue install base in Python.
+- **aiogram** — dominant async Telegram-bot framework; a new entrypoint class.
+
+**Second wave — high value:**
+- **Flask** — enormous WSGI install base; its sync model fits sync resolution.
+- **arq** — async Redis task/job queue, common in FastAPI stacks.
+- **gRPC** (`grpcio`) — steady enterprise demand; a new RPC entrypoint.
+
+**Lower / niche demand:**
+- **aiogram-dialog** — aiogram addon; only after aiogram lands.
+- **Sanic** — async web is already covered by FastAPI/Litestar/Starlette.
+- **pyTelegramBotAPI** (`telebot`) — older sync Telegram library.
+
+*Not planned:* **Click** — Typer already covers the CLI entrypoint and is
+built on Click, so a separate adapter would be redundant.
+
+*Community-maintained if contributed* (as Dishka treats them): Pyramid,
+Strawberry, Quart, RQ, APScheduler, Jobify, Flet, ag2.
 
 ### Developer experience
 - **Deeper pytest plugin** — parametrized overrides, autouse scope helpers,
