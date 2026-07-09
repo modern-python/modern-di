@@ -18,13 +18,12 @@ item, or want to build one, please open or comment in
 
 ### More official integrations — "one wiring, every entrypoint"
 Each new entrypoint lets your existing container cover more of your stack.
-Already shipped: aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer
-(plus the `modern-di-pytest` plugin). The gap below is drawn from Dishka's
-integration set and sorted by community demand — exploratory, not a queue.
+Already shipped: aiohttp, FastAPI, Litestar, FastStream, Starlette, taskiq,
+Typer (plus the `modern-di-pytest` plugin). The gap below is drawn from
+Dishka's integration set and sorted by community demand — exploratory, not a
+queue.
 
 **Next up — highest demand, clear fit:**
-- **Taskiq** — async task queue; sync resolution fits cleanly (resolve deps
-  synchronously inside an async task).
 - **Celery** — the largest task-queue install base in Python.
 - **aiogram** — dominant async Telegram-bot framework; a new entrypoint class.
 
