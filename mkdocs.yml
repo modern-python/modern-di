@@ -24,9 +24,9 @@ nav:
       - aiohttp: integrations/aiohttp.md
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
-      - taskiq: integrations/taskiq.md
       - Litestar: integrations/litestar.md
       - Starlette: integrations/starlette.md
+      - taskiq: integrations/taskiq.md
       - Typer: integrations/typer.md
       - Pytest: integrations/pytest.md
       - Writing an integration: integrations/writing-integrations.md
@@ -162,9 +162,9 @@ plugins:
           - integrations/aiohttp.md: Usage with aiohttp
           - integrations/fastapi.md: Usage with FastAPI
           - integrations/faststream.md: Usage with FastStream
-          - integrations/taskiq.md: Usage with taskiq
           - integrations/litestar.md: Usage with Litestar
           - integrations/starlette.md: Usage with Starlette
+          - integrations/taskiq.md: Usage with taskiq
           - integrations/typer.md: Usage with Typer
           - integrations/pytest.md: Usage with pytest, with and without modern-di-pytest
           - integrations/writing-integrations.md: Specification for building a new framework integration
