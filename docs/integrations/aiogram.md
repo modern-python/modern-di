@@ -77,8 +77,17 @@ import typing
 
 from aiogram import Dispatcher, Router
 from aiogram.types import Message
-from modern_di import Container
+from modern_di import Container, Group, Scope, providers
 from modern_di_aiogram import FromDI, setup_di
+
+
+class Settings:
+    def __init__(self) -> None:
+        self.greeting = "hello"
+
+
+class AppGroup(Group):
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
 
 
 router = Router()
