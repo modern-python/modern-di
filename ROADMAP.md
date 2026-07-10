@@ -18,13 +18,12 @@ item, or want to build one, please open or comment in
 
 ### More official integrations — "one wiring, every entrypoint"
 Each new entrypoint lets your existing container cover more of your stack.
-Already shipped: aiogram, aiohttp, Celery, FastAPI, Litestar, FastStream,
+Already shipped: aiogram, aiohttp, Celery, FastAPI, FastStream, Flask, Litestar,
 Starlette, taskiq, Typer (plus the `modern-di-pytest` plugin). The gap below is
 drawn from Dishka's integration set and sorted by community demand —
 exploratory, not a queue.
 
 **Next up — highest demand, clear fit:**
-- **Flask** — enormous WSGI install base; its sync model fits sync resolution.
 - **arq** — async Redis task/job queue, common in FastAPI stacks.
 - **gRPC** (`grpcio`) — steady enterprise demand; a new RPC entrypoint.
 
