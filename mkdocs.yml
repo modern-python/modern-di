@@ -21,6 +21,7 @@ nav:
       - Errors and exceptions: providers/errors-and-exceptions.md
       - Advanced / low-level API: providers/advanced-api.md
   - Integrations:
+      - aiogram: integrations/aiogram.md
       - aiohttp: integrations/aiohttp.md
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
@@ -159,6 +160,7 @@ plugins:
           - providers/errors-and-exceptions.md: The ModernDIError exception hierarchy
           - providers/advanced-api.md: Low-level extension points for library authors
         Integrations:
+          - integrations/aiogram.md: Usage with aiogram
           - integrations/aiohttp.md: Usage with aiohttp
           - integrations/fastapi.md: Usage with FastAPI
           - integrations/faststream.md: Usage with FastStream
