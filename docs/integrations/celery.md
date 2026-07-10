@@ -123,6 +123,26 @@ def greet(name: str, settings: typing.Annotated[Settings, FromDI(Settings)]) -> 
 Or apply it to a single task instead of the whole app:
 
 ```python
+import typing
+
+from celery import Celery
+from modern_di import Container, Group, Scope, providers
+from modern_di_celery import DITask, FromDI, setup_di
+
+
+class Settings:
+    def __init__(self) -> None:
+        self.greeting = "hello"
+
+
+class AppGroup(Group):
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+
+
+app = Celery("myapp", broker="redis://localhost")
+setup_di(app, Container(groups=[AppGroup], validate=True))
+
+
 @app.task(base=DITask)
 def greet(name: str, settings: typing.Annotated[Settings, FromDI(Settings)]) -> str:
     return f"{settings.greeting}, {name}"
