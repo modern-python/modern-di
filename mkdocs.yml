@@ -26,6 +26,7 @@ nav:
       - celery: integrations/celery.md
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
+      - Flask: integrations/flask.md
       - Litestar: integrations/litestar.md
       - Starlette: integrations/starlette.md
       - taskiq: integrations/taskiq.md
@@ -166,6 +167,7 @@ plugins:
           - integrations/celery.md: Usage with Celery
           - integrations/fastapi.md: Usage with FastAPI
           - integrations/faststream.md: Usage with FastStream
+          - integrations/flask.md: Usage with Flask
           - integrations/litestar.md: Usage with Litestar
           - integrations/starlette.md: Usage with Starlette
           - integrations/taskiq.md: Usage with taskiq
