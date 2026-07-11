@@ -19,12 +19,9 @@ item, or want to build one, please open or comment in
 ### More official integrations — "one wiring, every entrypoint"
 Each new entrypoint lets your existing container cover more of your stack.
 Already shipped: aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask,
-Litestar, Starlette, taskiq, Typer (plus the `modern-di-pytest` plugin). The gap below is
-drawn from Dishka's integration set and sorted by community demand —
-exploratory, not a queue.
-
-**Next up — highest demand, clear fit:**
-- **gRPC** (`grpcio`) — steady enterprise demand; a new RPC entrypoint.
+gRPC, Litestar, Starlette, taskiq, Typer (plus the `modern-di-pytest` plugin).
+The gap below is drawn from Dishka's integration set and sorted by community
+demand — exploratory, not a queue.
 
 **Lower / niche demand:**
 - **aiogram-dialog** — aiogram addon; only after aiogram lands.
