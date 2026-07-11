@@ -23,6 +23,7 @@ nav:
   - Integrations:
       - aiogram: integrations/aiogram.md
       - aiohttp: integrations/aiohttp.md
+      - arq: integrations/arq.md
       - celery: integrations/celery.md
       - FastAPI: integrations/fastapi.md
       - FastStream: integrations/faststream.md
@@ -164,6 +165,7 @@ plugins:
         Integrations:
           - integrations/aiogram.md: Usage with aiogram
           - integrations/aiohttp.md: Usage with aiohttp
+          - integrations/arq.md: Usage with arq
           - integrations/celery.md: Usage with Celery
           - integrations/fastapi.md: Usage with FastAPI
           - integrations/faststream.md: Usage with FastStream
