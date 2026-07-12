@@ -382,3 +382,30 @@ def test_alias_accepts_positional_source_type() -> None:
 def test_alias_rejects_source_type_passed_twice() -> None:
     with pytest.raises(TypeError, match="source_type"):
         providers.Alias(PostgresRepository, source_type=PostgresRepository)  # ty: ignore[parameter-already-assigned]
+
+
+# redirect_target — node hook for transparent redirects
+
+
+def test_redirect_target_default_none() -> None:
+    class X: ...
+
+    factory = providers.Factory(scope=Scope.APP, creator=X)
+    assert factory.redirect_target(None) is None  # ty: ignore[invalid-argument-type]
+
+
+def test_alias_redirect_target_returns_source() -> None:
+    container = Container(groups=[MyGroup])
+    source = container.providers_registry.find_provider(PostgresRepository)
+    assert source is not None
+    target = MyGroup.abstract_repo.redirect_target(container)
+    assert target is not None
+    assert target.provider_id == source.provider_id
+
+
+def test_alias_redirect_target_none_when_dangling() -> None:
+    class G(Group):
+        abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
+
+    container = Container(groups=[G])
+    assert G.abstract.redirect_target(container) is None

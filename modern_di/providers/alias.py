@@ -53,6 +53,12 @@ class Alias(AbstractProvider[types.T_co]):
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         return {"source": self._find_source(container)}
 
+    def redirect_target(self, container: "Container") -> "AbstractProvider[typing.Any] | None":
+        try:
+            return self._find_source(container)
+        except exceptions.AliasSourceNotRegisteredError:
+            return None
+
     def effective_scope(self, container: "Container") -> enum.IntEnum:
         # Follow the alias chain to its terminal (non-alias) source and report that scope.
         seen: set[int] = set()
