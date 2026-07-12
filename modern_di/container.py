@@ -26,6 +26,23 @@ if typing.TYPE_CHECKING:
     import typing_extensions
 
 
+def _handle_recursion_error(
+    provider: AbstractProvider[typing.Any], container: "Container", exc: RecursionError
+) -> typing.NoReturn:
+    """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
+
+    Split out of `resolve_provider` into its own call so the coverage tracer gets a fresh call
+    boundary to re-arm on before raising.
+    """
+    reg = container.providers_registry
+    if reg.validated_version == reg.version:
+        raise exc  # validated => acyclic static graph => genuine self-recursion
+    cycle = DependencyGraph().find_cycle_from(provider, container)
+    if cycle is None:
+        raise exc
+    raise build_cycle_error(cycle) from exc
+
+
 class Container:
     """DI container — the central object that resolves providers within a scope.
 
@@ -198,13 +215,7 @@ class Container:
         try:
             return provider.resolve(self)
         except RecursionError as exc:
-            reg = self.providers_registry
-            if reg.validated_version == reg.version:
-                raise  # validated => acyclic static graph => genuine self-recursion
-            cycle = DependencyGraph().find_cycle_from(provider, self)
-            if cycle is None:
-                raise
-            raise build_cycle_error(cycle) from exc
+            _handle_recursion_error(provider, self, exc)
 
     def validate(self) -> None:
         reg = self.providers_registry
