@@ -4,6 +4,7 @@ import typing
 import warnings
 
 from modern_di import exceptions, types
+from modern_di.dependency_graph import Cycle, DependenciesError, DependencyGraph, Edge, NodeEntered
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -248,59 +249,42 @@ class Container:
             _convert_recursion_error(provider, self, exc)
 
     def validate(self) -> None:
+        reg = self.providers_registry
+        if reg.validated_version == reg.version:
+            self._validated = True
+            return  # already validated at this registry version — no re-walk
+
         validation_errors: list[Exception] = []
-        visiting: set[int] = set()
-        visited: set[int] = set()
-        path: list[AbstractProvider[typing.Any]] = []
-
-        def _visit(provider: AbstractProvider[typing.Any]) -> None:
-            pid = provider.provider_id
-            if pid in visited:
-                return
-            if pid in visiting:
-                cycle_start = next(i for i, p in enumerate(path) if p.provider_id == pid)
-                cycle_providers = [*path[cycle_start:], path[cycle_start]]
-                validation_errors.append(
-                    exceptions.CircularDependencyError(
-                        cycle_path=[p.display_name for p in cycle_providers],
-                        cycle_locations=[p.definition_site for p in cycle_providers],
-                    )
-                )
-                return
-
-            visiting.add(pid)
-            path.append(provider)
-            validation_errors.extend(provider.iter_validation_issues(self))
-
-            try:
-                dependencies = provider.get_dependencies(self)
-            except exceptions.ResolutionError as exc:
-                validation_errors.append(exc)
-                dependencies = {}
-            provider_scope = provider.effective_scope(self)
-            for dep_name, dep_provider in dependencies.items():
-                dep_scope = dep_provider.effective_scope(self)
-                if dep_scope > provider_scope:
+        graph = DependencyGraph()
+        for event in graph.walk(reg, self):
+            match event:
+                case NodeEntered(provider):
+                    validation_errors.extend(provider.iter_validation_issues(self))
+                case DependenciesError(_, error):
+                    validation_errors.append(error)
+                case Edge(parent, name, dep):
+                    dep_scope = graph.terminal_scope(dep, self)
+                    if dep_scope > graph.terminal_scope(parent, self):
+                        validation_errors.append(
+                            exceptions.InvalidScopeDependencyError(
+                                provider=parent,
+                                parameter_name=name,
+                                dep_provider=dep,
+                                dep_scope=dep_scope,
+                            )
+                        )
+                case Cycle(providers):
                     validation_errors.append(
-                        exceptions.InvalidScopeDependencyError(
-                            provider=provider,
-                            parameter_name=dep_name,
-                            dep_provider=dep_provider,
-                            dep_scope=dep_scope,
+                        exceptions.CircularDependencyError(
+                            cycle_path=[p.display_name for p in providers],
+                            cycle_locations=[p.definition_site for p in providers],
                         )
                     )
-                _visit(dep_provider)
-
-            path.pop()
-            visiting.discard(pid)
-            visited.add(pid)
-
-        for one_provider in self.providers_registry:
-            _visit(one_provider)
 
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
         self._validated = True
+        reg.validated_version = reg.version
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
         """Register providers on this (root) container after construction.

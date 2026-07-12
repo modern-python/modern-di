@@ -4,6 +4,7 @@ import warnings
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
+from modern_di.dependency_graph import DependencyGraph
 from modern_di.exceptions import (
     AliasSourceNotRegisteredError,
     CircularDependencyError,
@@ -346,9 +347,9 @@ class _MutualAliasGroup(Group):
 
 
 def test_effective_scope_handles_mutual_alias_cycle() -> None:
-    # Mutual aliases: effective_scope must terminate via the `seen` guard and fall back to self.scope.
-    container = Container(scope=Scope.APP, groups=[_MutualAliasGroup])
-    assert _MutualAliasGroup.a.effective_scope(container) is _MutualAliasGroup.a.scope
+    # Mutual aliases: terminal_scope must terminate via the `seen` guard and fall back to `a`'s own scope.
+    container = Container(scope=Scope.APP, groups=[_MutualAliasGroup], validate=False)
+    assert DependencyGraph().terminal_scope(_MutualAliasGroup.a, container) is _MutualAliasGroup.a.scope
     # validate() also reports the cycle separately.
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()

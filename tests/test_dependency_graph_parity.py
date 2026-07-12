@@ -1,6 +1,6 @@
 import pytest
 
-from modern_di import Container, Scope, exceptions
+from modern_di import Container, Scope, dependency_graph, exceptions
 from modern_di.group import Group
 from modern_di.providers import Factory
 
@@ -35,13 +35,37 @@ def test_validate_collects_all_error_kinds_once() -> None:
     class Needs:
         def __init__(self, dep: Dep) -> None: ...
 
+    class Deep: ...
+
+    class Shallow:  # APP-scoped, depends on REQUEST-scoped Deep -> scope inversion
+        def __init__(self, deep: Deep) -> None: ...
+
     class G(Group):
         needs = Factory(scope=Scope.APP, creator=Needs)  # dep unregistered -> ArgumentResolutionError
+        deep = Factory(scope=Scope.REQUEST, creator=Deep)
+        shallow = Factory(scope=Scope.APP, creator=Shallow)  # deeper dep -> InvalidScopeDependencyError
 
     container = Container(scope=Scope.APP, groups=[G], validate=False)
     with pytest.raises(exceptions.ValidationFailedError) as ei:
         container.validate()
     assert any(isinstance(e, exceptions.ArgumentResolutionError) for e in ei.value.errors)
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in ei.value.errors)
+
+
+def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch) -> None:
+    class X: ...
+
+    class G(Group):
+        x = Factory(scope=Scope.APP, creator=X)
+
+    container = Container(scope=Scope.APP, groups=[G], validate=True)
+
+    def _explode(*_: object, **__: object) -> object:
+        msg = "re-walked"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(dependency_graph.DependencyGraph, "walk", _explode)
+    container.validate()  # short-circuited on validated_version == version -> no walk
 
 
 def test_runtime_guard_converts_unvalidated_cycle() -> None:
