@@ -117,6 +117,53 @@ def test_walk_root_already_visited_is_skipped_entirely() -> None:
     assert sum(isinstance(e, NodeEntered) and e.provider is G.leaf for e in events) == 1
 
 
+def test_find_cycle_from_returns_none_when_acyclic() -> None:
+    class G(Group):
+        leaf = Factory(scope=Scope.APP, creator=Leaf)
+
+    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    assert DependencyGraph().find_cycle_from(G.leaf, c) is None
+
+
+def test_find_cycle_from_returns_loop() -> None:
+    class G(Group):
+        a = Factory(scope=Scope.APP, creator=CycA)
+        b = Factory(scope=Scope.APP, creator=CycB)
+
+    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    cycle = DependencyGraph().find_cycle_from(G.a, c)
+    assert cycle == [G.a, G.b, G.a]
+
+
+def test_terminal_scope_follows_alias_chain() -> None:
+    class ChainTerminal: ...
+
+    class ChainMid: ...
+
+    class ChainTop: ...
+
+    class G(Group):
+        terminal = Factory(scope=Scope.REQUEST, creator=ChainTerminal)
+        mid = Alias(source_type=ChainTerminal, bound_type=ChainMid)
+        top = Alias(source_type=ChainMid, bound_type=ChainTop)
+
+    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    assert DependencyGraph().terminal_scope(G.top, c) == Scope.REQUEST
+
+
+def test_terminal_scope_alias_cycle_falls_back_to_self_scope() -> None:
+    class MutualX: ...
+
+    class MutualY: ...
+
+    class G(Group):
+        a = Alias(source_type=MutualY, bound_type=MutualX)
+        b = Alias(source_type=MutualX, bound_type=MutualY)
+
+    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    assert DependencyGraph().terminal_scope(G.a, c) == G.a.scope
+
+
 def test_walk_dangling_dep_emits_dependencies_error() -> None:
     class Missing: ...
 

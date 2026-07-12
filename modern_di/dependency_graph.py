@@ -11,6 +11,7 @@ Import discipline: this module must not import ``Container`` (nor any concrete p
 at runtime — ``container.py`` imports this module, so a runtime back-import would cycle.
 """
 
+import enum
 import typing
 from typing import NamedTuple
 
@@ -70,6 +71,35 @@ class DependencyGraph:
         visited: set[int] = set()
         for root in roots:
             yield from self._walk_from(root, container, visiting, visited)
+
+    def find_cycle_from(
+        self,
+        start: "AbstractProvider[typing.Any]",
+        container: "Container",
+    ) -> "list[AbstractProvider[typing.Any]] | None":
+        """Return the first cycle reachable from ``start``, or None when that subgraph is acyclic.
+
+        Built on the iterative ``walk``, so it is safe to call from a ``RecursionError``
+        handler near CPython's stack limit.
+        """
+        for event in self.walk([start], container):
+            if isinstance(event, Cycle):
+                return event.providers
+        return None
+
+    def terminal_scope(self, provider: "AbstractProvider[typing.Any]", container: "Container") -> enum.IntEnum:
+        """Follow ``redirect_target`` hops to the terminal provider and return its scope.
+
+        A redirect cycle is broken via the ``seen`` guard, falling back to the starting
+        provider's own scope instead of looping forever; ``walk()`` reports that cycle separately.
+        """
+        seen: set[int] = set()
+        while (nxt := provider.redirect_target(container)) is not None:
+            if provider.provider_id in seen:
+                break
+            seen.add(provider.provider_id)
+            provider = nxt
+        return provider.scope
 
     def _walk_from(
         self,
