@@ -60,7 +60,7 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
 
     container = Container(scope=Scope.APP, groups=[G], validate=True)
 
-    def _explode(*_: object, **__: object) -> object:
+    def _explode(*_: object, **__: object) -> object:  # pragma: no cover
         msg = "re-walked"
         raise AssertionError(msg)
 

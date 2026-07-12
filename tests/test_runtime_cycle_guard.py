@@ -161,7 +161,7 @@ def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytes
 
     container = Container(scope=Scope.APP, groups=[G], validate=True)
 
-    def _explode(*_: object, **__: object) -> object:
+    def _explode(*_: object, **__: object) -> object:  # pragma: no cover
         msg = "walked"
         raise AssertionError(msg)
 
