@@ -4,7 +4,14 @@ import typing
 import warnings
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import Cycle, DependenciesError, DependencyGraph, Edge, NodeEntered
+from modern_di.dependency_graph import (
+    Cycle,
+    DependenciesError,
+    DependencyGraph,
+    Edge,
+    NodeEntered,
+    build_cycle_error,
+)
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -17,61 +24,6 @@ from modern_di.scope import Scope
 
 if typing.TYPE_CHECKING:
     import typing_extensions
-
-
-def _find_reachable_cycle(
-    start: AbstractProvider[typing.Any], container: "Container"
-) -> list[AbstractProvider[typing.Any]] | None:
-    """Re-walk the static graph from `start`, looking for a cycle reachable from it.
-
-    Explicit-stack DFS — no recursion, since this runs inside a ``RecursionError`` handler
-    near CPython's stack limit (headroom for a recursive walk is not guaranteed there).
-    Returns the cycle's providers (closed by repeating the first), or `None` if no static
-    cycle is reachable from `start`.
-    """
-    visiting: set[int] = {start.provider_id}
-    visited: set[int] = set()
-    path: list[AbstractProvider[typing.Any]] = [start]
-    stack: list[typing.Iterator[AbstractProvider[typing.Any]]] = [iter(start.get_dependencies(container).values())]
-
-    while stack:
-        try:
-            dep = next(stack[-1])
-        except StopIteration:
-            finished = path.pop()
-            stack.pop()
-            visiting.discard(finished.provider_id)
-            visited.add(finished.provider_id)
-            continue
-
-        if dep.provider_id in visiting:
-            cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep.provider_id)
-            return [*path[cycle_start:], path[cycle_start]]
-        if dep.provider_id in visited:
-            continue
-
-        visiting.add(dep.provider_id)
-        path.append(dep)
-        stack.append(iter(dep.get_dependencies(container).values()))
-
-    return None
-
-
-def _convert_recursion_error(
-    provider: AbstractProvider[typing.Any], container: "Container", exc: RecursionError
-) -> typing.NoReturn:
-    """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
-
-    Split out of `resolve_provider` into its own call so the coverage tracer gets a fresh call
-    boundary to re-arm on before raising.
-    """
-    cycle = _find_reachable_cycle(provider, container)
-    if cycle is None:
-        raise exc
-    raise exceptions.CircularDependencyError(
-        cycle_path=[p.display_name for p in cycle],
-        cycle_locations=[p.definition_site for p in cycle],
-    ) from exc
 
 
 class Container:
@@ -246,7 +198,13 @@ class Container:
         try:
             return provider.resolve(self)
         except RecursionError as exc:
-            _convert_recursion_error(provider, self, exc)
+            reg = self.providers_registry
+            if reg.validated_version == reg.version:
+                raise  # validated => acyclic static graph => genuine self-recursion
+            cycle = DependencyGraph().find_cycle_from(provider, self)
+            if cycle is None:
+                raise
+            raise build_cycle_error(cycle) from exc
 
     def validate(self) -> None:
         reg = self.providers_registry
@@ -274,12 +232,7 @@ class Container:
                             )
                         )
                 case Cycle(providers):
-                    validation_errors.append(
-                        exceptions.CircularDependencyError(
-                            cycle_path=[p.display_name for p in providers],
-                            cycle_locations=[p.definition_site for p in providers],
-                        )
-                    )
+                    validation_errors.append(build_cycle_error(providers))
 
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)

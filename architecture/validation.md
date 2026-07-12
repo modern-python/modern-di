@@ -53,25 +53,28 @@ Each node in that chain may also carry an optional definition site — the creat
 point — rendered as a trailing `module:line` anchor alongside the provider name, using the same
 lazy, memoized, best-effort capture described for breadcrumb steps in
 [resolution.md](resolution.md#breadcrumb-definition-sites). The public `.cycle_path` stays the bare
-list of type names; the parallel locations live on a separate `.cycle_locations` attribute, kept in
-sync at both construction sites (the DFS above and the runtime `RecursionError` conversion below).
+list of type names; the parallel locations live on a separate `.cycle_locations` attribute. Both
+`validate()` and the runtime guard build the error through the one `dependency_graph.build_cycle_error`
+helper, so the two attributes stay in sync by construction rather than by parallel edit.
 
 > **Runtime resolution has a cycle guard too — but `validate()` remains the way to see all errors up front.**
-> `Container.resolve_provider` wraps the final `provider.resolve(self)` in `try/except RecursionError`. When an
-> unvalidated circular graph's first resolve overflows the stack, the handler iteratively re-walks the static
-> graph from the failing provider (an explicit-stack DFS — the walk must stay flat, since it runs close to the
-> recursion limit) and, if a static cycle is reachable, raises `CircularDependencyError` with the cycle path,
-> `from` the original `RecursionError`. `resolve_provider` is re-entrant (`Factory`/`Alias` call it per dependency
-> edge), so it is the innermost frame that converts; outer frames see a `ResolutionError` and the existing
-> breadcrumb machinery (see [resolution.md](resolution.md)) prepends steps as it propagates back up, so the
-> converted error arrives with the dependency chain attached. A `RecursionError` from a creator that recurses on
-> its own (no static cycle in the graph) is re-raised untouched, not misreported as a circular dependency. This is
-> a deliberate duplication of cycle detection, not a refactor of the one DFS above into two callers: `validate()`
-> collects *all* errors of *all* kinds in one walk, while the runtime guard only answers "is a cycle reachable
-> from here" on an exhausted stack — unifying them would couple the resolve hot path to the all-errors walker for
-> no user benefit. Run with `validate=True` (or call `container.validate()`) in development to surface *every*
-> cycle (and other wiring bugs) before the first resolve, rather than only the one a particular resolve happens
-> to hit.
+> `Container.resolve_provider` wraps the final `provider.resolve(self)` in `try/except RecursionError`. The
+> handler first short-circuits: if the registry is already validated (`validated_version == version`), the static
+> graph is known acyclic, so the overflow is genuine self-recursion and the `RecursionError` re-raises untouched
+> without any walk. Otherwise, when an unvalidated circular graph's first resolve overflows the stack, the handler
+> re-walks the static graph from the failing provider via `DependencyGraph().find_cycle_from` — the same
+> iterative, explicit-stack `walk` that `validate()` uses (it must stay flat, since it runs close to the recursion
+> limit) — and, if a static cycle is reachable, raises `CircularDependencyError` (built by
+> `dependency_graph.build_cycle_error`) with the cycle path, `from` the original `RecursionError`.
+> `resolve_provider` is re-entrant (`Factory`/`Alias` call it per dependency edge), so it is the innermost frame
+> that converts; outer frames see a `ResolutionError` and the existing breadcrumb machinery (see
+> [resolution.md](resolution.md)) prepends steps as it propagates back up, so the converted error arrives with the
+> dependency chain attached. A `RecursionError` from a creator that recurses on its own (no static cycle in the
+> graph) is re-raised untouched, not misreported as a circular dependency. Both the guard and `validate()` consume
+> the one `DependencyGraph` walker: `validate()` collects *all* errors of *all* kinds up front, while the guard
+> only answers "is a cycle reachable from here" on an already-exhausted stack. Run with `validate=True` (or call
+> `container.validate()`) in development to surface *every* cycle (and other wiring bugs) before the first resolve,
+> rather than only the one a particular resolve happens to hit.
 
 ### Inverted scope dependencies
 

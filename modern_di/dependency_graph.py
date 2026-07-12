@@ -53,6 +53,16 @@ class DependenciesError(NamedTuple):
 Event = NodeEntered | Edge | Cycle | DependenciesError
 
 
+def build_cycle_error(
+    providers: "list[AbstractProvider[typing.Any]]",
+) -> "exceptions.CircularDependencyError":
+    """Build a ``CircularDependencyError`` from a cycle's providers (first node repeated last)."""
+    return exceptions.CircularDependencyError(
+        cycle_path=[p.display_name for p in providers],
+        cycle_locations=[p.definition_site for p in providers],
+    )
+
+
 class DependencyGraph:
     """Stateless walker over the static provider graph rooted at a container's registry."""
 
