@@ -153,8 +153,11 @@ providers.Alias(ConcreteDatabase, bound_type=DatabaseProtocol)
 accepts an optional `bound_type` override. See [docs/providers/alias.md](../docs/providers/alias.md) for the
 user-facing rationale and caching implications.
 
-`Alias.effective_scope` follows alias chains transitively to the terminal non-alias provider and returns that
-provider's scope. This is what `Container.validate()` and scope-error reporting use — the alias's own `scope`
+`Alias` overrides the `redirect_target(container)` node hook to return its source provider (`None` when the
+source type is unregistered), marking the alias as a transparent redirect. `DependencyGraph.terminal_scope`
+follows that hook down an alias chain to the terminal non-alias provider and returns that provider's scope —
+which is what `Container.validate()` and scope-error reporting compare against (see
+[validation.md](validation.md#terminal-scope-and-alias-transparency)). The alias's own `scope`
 attribute is only a stored default.
 
 ### Deprecated `scope=` parameter

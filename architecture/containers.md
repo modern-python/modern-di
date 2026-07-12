@@ -84,10 +84,17 @@ dispatch) are the blessed integration seam — see
 `add_providers` is **root-only**: called on a child, it raises
 `ChildContainerRegistrationError` (`modern_di/exceptions.py`), since the
 registry it mutates is shared tree-wide. `Container` tracks a private
-`_validated` flag, set once `validate()` succeeds (construction or a manual
-call); `add_providers` on an already-validated container re-runs `validate()`
+`_validated` flag, set once `validate()` succeeds on **this** container
+(construction or a manual call); it is the per-container gate for
+`add_providers`, which on an already-validated container re-runs `validate()`
 after registering and, if that fails, removes the just-added batch again —
 the container ends up either fully registered and valid, or unchanged.
+Whether the graph is *currently* validation-clean is tracked separately and
+registry-level, by `ProvidersRegistry.validated_version` (see
+[validation.md](validation.md#what-validate-checks)). Because that registry is
+shared tree-wide, validating any container in the tree marks the whole graph
+clean, so a child's `resolve` benefits from the root's validation — its runtime
+cycle guard short-circuits — without the child ever calling `validate()` itself.
 `resolve_dependency` carries no such restriction; it is a resolve verb,
 callable on any container regardless of validation state.
 

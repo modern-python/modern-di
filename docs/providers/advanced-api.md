@@ -21,10 +21,11 @@ To implement a custom provider, subclass `AbstractProvider` and implement:
   traversal.
 - **`iter_validation_issues(container)`** *(optional)* — yields `Exception` instances for
   validation-time problems found in this provider; default yields nothing.
-- **`effective_scope(container)`** *(optional override)* — override this method to report the
-  scope of whatever the provider ultimately resolves to. A transparent or redirect provider (like
-  `Alias`) should override it to follow the source chain so that `Container.validate()` checks
-  callers against the real target scope rather than any nominal scope on the wrapper itself.
+- **`redirect_target(container)`** *(optional override)* — return the provider this one
+  transparently forwards to, or `None` (the default) when resolution terminates here. A transparent
+  or redirect provider (like `Alias`) overrides it to point at its source, so that `Container.validate()`
+  follows the redirect to the real target and checks callers against that target's scope rather than any
+  nominal scope on the wrapper itself.
 
 ### `CacheSettings.is_async_finalizer`
 
