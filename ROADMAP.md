@@ -20,11 +20,11 @@ item, or want to build one, please open or comment in
 Each new entrypoint lets your existing container cover more of your stack.
 Already shipped: aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask,
 gRPC, Litestar, Starlette, taskiq, Typer (plus the `modern-di-pytest` plugin).
-The gap below is drawn from Dishka's integration set and sorted by community
-demand — exploratory, not a queue.
+aiogram-dialog getters and callbacks are supported via the
+`modern_di_aiogram.dialog` submodule. The gap below is drawn from Dishka's
+integration set and sorted by community demand — exploratory, not a queue.
 
 **Lower / niche demand:**
-- **aiogram-dialog** — aiogram addon; only after aiogram lands.
 - **Sanic** — async web is already covered by FastAPI/Litestar/Starlette.
 - **pyTelegramBotAPI** (`telebot`) — older sync Telegram library.
 

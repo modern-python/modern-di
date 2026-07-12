@@ -205,3 +205,62 @@ async def log_message(
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher. |
 | `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (REQUEST scope). |
 | `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (REQUEST scope) — the concrete event unwrapped from the `Update`. |
+
+## Usage with `aiogram-dialog`
+
+[aiogram-dialog](https://github.com/Tishka17/aiogram_dialog) runs inside
+aiogram's dispatch, so the per-update child container that `setup_di`'s
+middleware already builds is reachable from dialog code. `modern_di_aiogram.dialog`
+adds a dialog-aware `inject` for **getters** and **callbacks** (`on_click`,
+`on_start`/`on_close`, `on_process_result`) — install it with the normal
+`setup_di(...)` and decorate your dialog functions:
+
+```python
+import typing
+
+from aiogram_dialog import DialogManager
+from modern_di import Group, Scope, providers
+from modern_di_aiogram.dialog import FromDI, inject
+
+
+class Settings:
+    def __init__(self) -> None:
+        self.greeting = "hello"
+
+
+class AppGroup(Group):
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+
+
+@inject
+async def getter(
+    dialog_manager: DialogManager,
+    settings: typing.Annotated[Settings, FromDI(Settings)],   # resolve by type
+    **kwargs: typing.Any,                                     # required by aiogram-dialog
+) -> dict[str, str]:
+    return {"greeting": settings.greeting}
+
+
+@inject
+async def on_click(
+    callback: typing.Any,
+    button: typing.Any,
+    manager: DialogManager,
+    settings: typing.Annotated[Settings, FromDI(Settings)],
+) -> None:
+    await manager.done(result=settings.greeting)
+```
+
+The container is found by call shape: a getter receives it via
+`**manager.middleware_data` (aiogram-dialog calls `getter(**middleware_data)`),
+and a callback via the positional `DialogManager`'s `.middleware_data`. Dialog DI
+requires the normal `setup_di(dispatcher, container)` — its middleware provides
+the per-update container.
+
+- `modern_di_aiogram.dialog` has **no runtime dependency** on `aiogram-dialog`;
+  install `aiogram-dialog` yourself.
+- The `FromDI` marker is the same one used for handlers — it is re-exported from
+  `modern_di_aiogram.dialog` for convenience.
+- An `@inject` getter must still declare `**kwargs` (aiogram-dialog always calls
+  getters with the full `middleware_data`), and a `FromDI` getter parameter must
+  not share a name with a `middleware_data` key (e.g. `bot`, `event`).
