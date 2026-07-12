@@ -226,6 +226,7 @@ class Container:
         validation_errors: list[Exception] = []
         graph = DependencyGraph()
         for event in graph.walk(reg, self):
+            # Event is a closed 4-variant union — every variant handled below.
             match event:
                 case NodeEntered(provider):
                     validation_errors.extend(provider.iter_validation_issues(self))

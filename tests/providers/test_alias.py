@@ -346,7 +346,7 @@ class _MutualAliasGroup(Group):
     b = providers.Alias(source_type=_MutualA, bound_type=_MutualB)
 
 
-def test_effective_scope_handles_mutual_alias_cycle() -> None:
+def test_terminal_scope_handles_mutual_alias_cycle() -> None:
     # Mutual aliases: terminal_scope must terminate via the `seen` guard and fall back to `a`'s own scope.
     container = Container(scope=Scope.APP, groups=[_MutualAliasGroup], validate=False)
     assert DependencyGraph().terminal_scope(_MutualAliasGroup.a, container) is _MutualAliasGroup.a.scope
