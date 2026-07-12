@@ -52,7 +52,7 @@ Beyond the choices above, three more things are deliberately out of scope. Namin
 
 ### In-package framework integrations
 
-**What:** The core `modern-di` package ships no aiohttp/FastAPI/FastStream/Litestar/Starlette/Typer/pytest code. Each integration is a separate `modern-di-*` package with its own release cadence.
+**What:** The core `modern-di` package ships no framework-specific code. Each integration (aiohttp, FastAPI, FastStream, Litestar, Starlette, Typer, Flask, gRPC, Celery, arq, taskiq, aiogram, pytest) is a separate `modern-di-*` package with its own release cadence.
 
 **Why:** Bundling integrations into core would couple the library's release cadence to every framework's own churn, and would erode the zero-dependency guarantee that lets `modern-di` itself stay dependency-free. The separate-repo model is a standing architectural decision (see [`writing-integrations.md`](../integrations/writing-integrations.md)), not an oversight.
 

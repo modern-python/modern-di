@@ -23,8 +23,9 @@ Reach for a container when one of these is true:
   (HTTP, worker, CLI, direct unit tests) see it, not just code reached through
   the HTTP layer.
 
-modern-di's core promise is exactly that: **one typed wiring shared across
-aiohttp, FastAPI, Litestar, FastStream, Starlette, and Typer.**
+modern-di's core promise is exactly that: **one typed wiring shared across a
+dozen frameworks — aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer,
+Flask, gRPC, Celery, arq, taskiq, and aiogram.**
 
 ## The landscape
 
@@ -34,7 +35,7 @@ aiohttp, FastAPI, Litestar, FastStream, Starlette, and Typer.**
 | Scopes | APP→…→STEP + any IntEnum | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
 | Resolution | sync (async finalizers supported) | sync + async | sync + async | sync | async |
 | First-party pytest plugin | ✅ | ✘ | ✘ | ✘ | n/a |
-| Official integrations | 7 (aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer, pytest) | ~20+ | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
+| Official integrations | 13 (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer, pytest) | ~20+ | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
 | Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
 | License | MIT | Apache-2.0 | BSD-3 | BSD | — |
 | Adoption | newest, very active | established, large community | most popular, mature | mature | built into FastAPI |
