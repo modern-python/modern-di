@@ -14,7 +14,7 @@
 - Scopes and context management
 - Python 3.10+ support
 - Fully typed and tested
-- Integrations with `aiohttp`, `FastAPI`, `FastStream`, `Litestar`, `Starlette`, `Typer`, and `pytest`
+- Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, `Typer`, and `pytest`
 
 Reference templates:
 
@@ -47,7 +47,7 @@ For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqla
     poetry add modern-di
     ```
 
-If you want a framework integration, install the matching adapter — e.g. `modern-di-aiohttp`, `modern-di-fastapi`, `modern-di-litestar`, `modern-di-faststream`, `modern-di-starlette`, `modern-di-typer`. For pytest support, install `modern-di-pytest`.
+If you want a framework integration, install the matching adapter — one `modern-di-*` package per framework (`modern-di-fastapi`, `modern-di-aiohttp`, `modern-di-litestar`, …); see the Integrations section for the full list. For pytest support, install `modern-di-pytest`.
 
 ## 2. First success
 
@@ -174,11 +174,13 @@ child container for you automatically. Resolution itself is always synchronous; 
 
 ## Where to next
 
-- Framework integrations — [aiohttp](integrations/aiohttp.md), [FastAPI](integrations/fastapi.md),
-  [FastStream](integrations/faststream.md), [Litestar](integrations/litestar.md),
-  [Starlette](integrations/starlette.md), [Typer](integrations/typer.md),
-  [Pytest](integrations/pytest.md) — each builds the per-request child container automatically and
-  closes the APP container at shutdown.
+- Framework integrations — [aiogram](integrations/aiogram.md), [aiohttp](integrations/aiohttp.md),
+  [arq](integrations/arq.md), [Celery](integrations/celery.md), [FastAPI](integrations/fastapi.md),
+  [FastStream](integrations/faststream.md), [Flask](integrations/flask.md), [gRPC](integrations/grpc.md),
+  [Litestar](integrations/litestar.md), [Starlette](integrations/starlette.md),
+  [taskiq](integrations/taskiq.md), [Typer](integrations/typer.md), [Pytest](integrations/pytest.md) —
+  each builds a scoped child container per request/task/call automatically and closes the APP
+  container at shutdown.
 - [Resolving](introduction/resolving.md) — how type-based auto-injection works.
 - [Factories](providers/factories.md) — the provider you just used.
 - [Scopes](providers/scopes.md) — the APP → REQUEST lifetime model in one page.
