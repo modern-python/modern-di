@@ -74,3 +74,28 @@ def from_di(dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
     define their own factory instead; the rest re-export this one.
     """
     return typing.cast(types.T, Marker(dependency))
+
+
+def parse_markers(func: typing.Callable[..., typing.Any]) -> dict[str, Marker[typing.Any]]:
+    """Scan `func`'s `Annotated` parameter hints for `Marker`s.
+
+    Call once at decoration time, not per call. The first `Marker` found in a
+    parameter's metadata wins; `return` is never scanned. Unresolvable forward
+    references propagate `get_type_hints`'s own error unchanged.
+    """
+    hints = typing.get_type_hints(func, include_extras=True)
+    markers: dict[str, Marker[typing.Any]] = {}
+    for name, hint in hints.items():
+        if name == "return":
+            continue
+        if typing.get_origin(hint) is typing.Annotated:
+            for meta in typing.get_args(hint)[1:]:
+                if isinstance(meta, Marker):
+                    markers[name] = meta
+                    break
+    return markers
+
+
+def resolve_markers(container: "Container", markers: typing.Mapping[str, Marker[typing.Any]]) -> dict[str, typing.Any]:
+    """Resolve every marker in `markers` from `container`, keyed by parameter name."""
+    return {name: marker.resolve(container) for name, marker in markers.items()}
