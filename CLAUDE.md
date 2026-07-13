@@ -35,6 +35,7 @@ Where the detail lives — read the matching capability file before changing beh
 | [architecture/resolution.md](architecture/resolution.md) | how `resolve()` wires deps from type hints |
 | [architecture/validation.md](architecture/validation.md) | `validate()` cycle + scope checks |
 | [architecture/testing-and-overrides.md](architecture/testing-and-overrides.md) | overrides + the `modern-di-pytest` integration |
+| [architecture/integration-kit.md](architecture/integration-kit.md) | framework-agnostic primitives for building an integration adapter |
 
 ### Key files
 
