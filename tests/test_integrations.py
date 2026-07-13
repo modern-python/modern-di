@@ -163,3 +163,10 @@ def test_integrations_accessible_from_top_level_namespace() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "bind" in result.stdout
+
+
+def test_parse_markers_ignores_annotated_metadata_that_is_not_a_marker() -> None:
+    def handler(a: typing.Annotated[int, "not a marker"]) -> None:
+        pass  # pragma: no cover
+
+    assert parse_markers(handler) == {}
