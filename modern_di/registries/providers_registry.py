@@ -24,12 +24,13 @@ def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]
 
 
 class ProvidersRegistry:
-    __slots__ = ("_lock", "_providers", "_version")
+    __slots__ = ("_lock", "_providers", "_version", "validated_version")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
         self._version = 0
+        self.validated_version: int | None = None
 
     def __len__(self) -> int:
         return len(self._providers)
@@ -55,6 +56,7 @@ class ProvidersRegistry:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers[provider_type] = provider
             self._version += 1
+            self.validated_version = None
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
         new_providers: dict[type, AbstractProvider[typing.Any]] = {}
@@ -71,6 +73,7 @@ class ProvidersRegistry:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
             self._version += 1
+            self.validated_version = None
 
     def _remove_providers(self, *provider_types: type) -> None:
         """Rollback helper for `Container.add_providers`; not part of the public API."""
@@ -78,6 +81,7 @@ class ProvidersRegistry:
             for provider_type in provider_types:
                 self._providers.pop(provider_type, None)
             self._version += 1
+            self.validated_version = None
 
     def build_suggestions(self, requested_type: type) -> list[str]:
         requested_is_class = inspect.isclass(requested_type)

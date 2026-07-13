@@ -65,14 +65,10 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
         return {}
 
+    def redirect_target(self, container: "Container") -> "AbstractProvider[typing.Any] | None":  # noqa: ARG002
+        """Return the provider this transparently forwards to, or None if resolution terminates here."""
+        return None
+
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:  # noqa: ARG002
         """Yield validation-time issues for this provider. Default: no issues."""
         return iter(())
-
-    def effective_scope(self, container: "Container") -> enum.IntEnum:  # noqa: ARG002
-        """Scope used for validate()'s scope-ordering check.
-
-        Transparent redirects (Alias) override this to report the scope of what they
-        ultimately resolve to, so callers are checked against the real target's scope.
-        """
-        return self.scope

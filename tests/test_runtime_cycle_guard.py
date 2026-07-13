@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-from modern_di import Container, Group, exceptions, providers
+from modern_di import Container, Group, Scope, dependency_graph, exceptions, providers
 
 
 # Lowering the recursion limit (from CPython's default of 1000) triggers the RecursionError much
@@ -147,3 +147,24 @@ def test_self_recursing_creator_passes_through_recursion_error() -> None:
     container = Container(groups=[RecursiveGroup])
     with pytest.raises(RecursionError):
         container.resolve(str)
+
+
+def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A self-recursive creator on a validated (acyclic-static) graph must re-raise the
+    # RecursionError untouched, short-circuiting before find_cycle_from is ever consulted.
+    class SelfRec:
+        def __init__(self) -> None:
+            raise RecursionError
+
+    class G(Group):
+        s = providers.Factory(scope=Scope.APP, creator=SelfRec)
+
+    container = Container(scope=Scope.APP, groups=[G], validate=True)
+
+    def _explode(*_: object, **__: object) -> object:  # pragma: no cover
+        msg = "walked"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(dependency_graph.DependencyGraph, "find_cycle_from", _explode)
+    with pytest.raises(RecursionError):
+        container.resolve(SelfRec)

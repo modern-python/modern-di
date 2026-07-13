@@ -4,6 +4,7 @@ import warnings
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
+from modern_di.dependency_graph import DependencyGraph
 from modern_di.exceptions import (
     AliasSourceNotRegisteredError,
     CircularDependencyError,
@@ -345,10 +346,10 @@ class _MutualAliasGroup(Group):
     b = providers.Alias(source_type=_MutualA, bound_type=_MutualB)
 
 
-def test_effective_scope_handles_mutual_alias_cycle() -> None:
-    # Mutual aliases: effective_scope must terminate via the `seen` guard and fall back to self.scope.
-    container = Container(scope=Scope.APP, groups=[_MutualAliasGroup])
-    assert _MutualAliasGroup.a.effective_scope(container) is _MutualAliasGroup.a.scope
+def test_terminal_scope_handles_mutual_alias_cycle() -> None:
+    # Mutual aliases: terminal_scope must terminate via the `seen` guard and fall back to `a`'s own scope.
+    container = Container(scope=Scope.APP, groups=[_MutualAliasGroup], validate=False)
+    assert DependencyGraph().terminal_scope(_MutualAliasGroup.a, container) is _MutualAliasGroup.a.scope
     # validate() also reports the cycle separately.
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
@@ -382,3 +383,30 @@ def test_alias_accepts_positional_source_type() -> None:
 def test_alias_rejects_source_type_passed_twice() -> None:
     with pytest.raises(TypeError, match="source_type"):
         providers.Alias(PostgresRepository, source_type=PostgresRepository)  # ty: ignore[parameter-already-assigned]
+
+
+# redirect_target — node hook for transparent redirects
+
+
+def test_redirect_target_default_none() -> None:
+    class X: ...
+
+    factory = providers.Factory(scope=Scope.APP, creator=X)
+    assert factory.redirect_target(None) is None  # ty: ignore[invalid-argument-type]
+
+
+def test_alias_redirect_target_returns_source() -> None:
+    container = Container(groups=[MyGroup])
+    source = container.providers_registry.find_provider(PostgresRepository)
+    assert source is not None
+    target = MyGroup.abstract_repo.redirect_target(container)
+    assert target is not None
+    assert target.provider_id == source.provider_id
+
+
+def test_alias_redirect_target_none_when_dangling() -> None:
+    class G(Group):
+        abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
+
+    container = Container(groups=[G])
+    assert G.abstract.redirect_target(container) is None

@@ -4,6 +4,14 @@ import typing
 import warnings
 
 from modern_di import exceptions, types
+from modern_di.dependency_graph import (
+    Cycle,
+    DependenciesError,
+    DependencyGraph,
+    Edge,
+    NodeEntered,
+    build_cycle_error,
+)
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -18,45 +26,7 @@ if typing.TYPE_CHECKING:
     import typing_extensions
 
 
-def _find_reachable_cycle(
-    start: AbstractProvider[typing.Any], container: "Container"
-) -> list[AbstractProvider[typing.Any]] | None:
-    """Re-walk the static graph from `start`, looking for a cycle reachable from it.
-
-    Explicit-stack DFS — no recursion, since this runs inside a ``RecursionError`` handler
-    near CPython's stack limit (headroom for a recursive walk is not guaranteed there).
-    Returns the cycle's providers (closed by repeating the first), or `None` if no static
-    cycle is reachable from `start`.
-    """
-    visiting: set[int] = {start.provider_id}
-    visited: set[int] = set()
-    path: list[AbstractProvider[typing.Any]] = [start]
-    stack: list[typing.Iterator[AbstractProvider[typing.Any]]] = [iter(start.get_dependencies(container).values())]
-
-    while stack:
-        try:
-            dep = next(stack[-1])
-        except StopIteration:
-            finished = path.pop()
-            stack.pop()
-            visiting.discard(finished.provider_id)
-            visited.add(finished.provider_id)
-            continue
-
-        if dep.provider_id in visiting:
-            cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep.provider_id)
-            return [*path[cycle_start:], path[cycle_start]]
-        if dep.provider_id in visited:
-            continue
-
-        visiting.add(dep.provider_id)
-        path.append(dep)
-        stack.append(iter(dep.get_dependencies(container).values()))
-
-    return None
-
-
-def _convert_recursion_error(
+def _handle_recursion_error(
     provider: AbstractProvider[typing.Any], container: "Container", exc: RecursionError
 ) -> typing.NoReturn:
     """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
@@ -64,13 +34,13 @@ def _convert_recursion_error(
     Split out of `resolve_provider` into its own call so the coverage tracer gets a fresh call
     boundary to re-arm on before raising.
     """
-    cycle = _find_reachable_cycle(provider, container)
+    reg = container.providers_registry
+    if reg.validated_version == reg.version:
+        raise exc  # validated => acyclic static graph => genuine self-recursion
+    cycle = DependencyGraph().find_cycle_from(provider, container)
     if cycle is None:
         raise exc
-    raise exceptions.CircularDependencyError(
-        cycle_path=[p.display_name for p in cycle],
-        cycle_locations=[p.definition_site for p in cycle],
-    ) from exc
+    raise build_cycle_error(cycle) from exc
 
 
 class Container:
@@ -245,62 +215,41 @@ class Container:
         try:
             return provider.resolve(self)
         except RecursionError as exc:
-            _convert_recursion_error(provider, self, exc)
+            _handle_recursion_error(provider, self, exc)
 
     def validate(self) -> None:
+        reg = self.providers_registry
+        if reg.validated_version == reg.version:
+            self._validated = True
+            return  # already validated at this registry version — no re-walk
+
         validation_errors: list[Exception] = []
-        visiting: set[int] = set()
-        visited: set[int] = set()
-        path: list[AbstractProvider[typing.Any]] = []
-
-        def _visit(provider: AbstractProvider[typing.Any]) -> None:
-            pid = provider.provider_id
-            if pid in visited:
-                return
-            if pid in visiting:
-                cycle_start = next(i for i, p in enumerate(path) if p.provider_id == pid)
-                cycle_providers = [*path[cycle_start:], path[cycle_start]]
-                validation_errors.append(
-                    exceptions.CircularDependencyError(
-                        cycle_path=[p.display_name for p in cycle_providers],
-                        cycle_locations=[p.definition_site for p in cycle_providers],
-                    )
-                )
-                return
-
-            visiting.add(pid)
-            path.append(provider)
-            validation_errors.extend(provider.iter_validation_issues(self))
-
-            try:
-                dependencies = provider.get_dependencies(self)
-            except exceptions.ResolutionError as exc:
-                validation_errors.append(exc)
-                dependencies = {}
-            provider_scope = provider.effective_scope(self)
-            for dep_name, dep_provider in dependencies.items():
-                dep_scope = dep_provider.effective_scope(self)
-                if dep_scope > provider_scope:
-                    validation_errors.append(
-                        exceptions.InvalidScopeDependencyError(
-                            provider=provider,
-                            parameter_name=dep_name,
-                            dep_provider=dep_provider,
-                            dep_scope=dep_scope,
+        graph = DependencyGraph()
+        for event in graph.walk(reg, self):
+            # Event is a closed 4-variant union — every variant handled below.
+            match event:
+                case NodeEntered(provider):
+                    validation_errors.extend(provider.iter_validation_issues(self))
+                case DependenciesError(_, error):
+                    validation_errors.append(error)
+                case Edge(parent, name, dep):
+                    dep_scope = graph.terminal_scope(dep, self)
+                    if dep_scope > graph.terminal_scope(parent, self):
+                        validation_errors.append(
+                            exceptions.InvalidScopeDependencyError(
+                                provider=parent,
+                                parameter_name=name,
+                                dep_provider=dep,
+                                dep_scope=dep_scope,
+                            )
                         )
-                    )
-                _visit(dep_provider)
-
-            path.pop()
-            visiting.discard(pid)
-            visited.add(pid)
-
-        for one_provider in self.providers_registry:
-            _visit(one_provider)
+                case Cycle(providers):
+                    validation_errors.append(build_cycle_error(providers))
 
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
         self._validated = True
+        reg.validated_version = reg.version
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
         """Register providers on this (root) container after construction.

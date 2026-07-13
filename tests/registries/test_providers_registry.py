@@ -14,6 +14,20 @@ def test_providers_registry_find_provider_not_found() -> None:
     assert providers_registry.find_provider(str) is None
 
 
+def test_validated_version_defaults_none() -> None:
+    assert ProvidersRegistry().validated_version is None
+
+
+def test_mutation_invalidates_validated_version() -> None:
+    registry = ProvidersRegistry()
+    registry.validated_version = registry.version
+
+    class _MutationTarget: ...
+
+    registry.add_providers(providers.Factory(scope=Scope.APP, creator=_MutationTarget))
+    assert registry.validated_version is None
+
+
 def test_providers_registry_add_provider_duplicates() -> None:
     str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
 
