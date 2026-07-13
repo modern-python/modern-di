@@ -14,8 +14,12 @@ import dataclasses
 import enum
 import typing
 
+from modern_di import types
+
 
 if typing.TYPE_CHECKING:
+    from modern_di.container import Container
+    from modern_di.providers.abstract import AbstractProvider
     from modern_di.providers.context_provider import ContextProvider
 
 
@@ -49,3 +53,24 @@ def classify_connection(
         if isinstance(connection, provider.context_type):
             return bind(provider, connection)
     return None
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Marker(typing.Generic[types.T_co]):
+    """What `resolve_dependency` should resolve for one `Annotated` parameter."""
+
+    dependency: "AbstractProvider[types.T_co] | type[types.T_co]"
+
+    def resolve(self, container: "Container") -> types.T_co:
+        """Resolve this marker's dependency from `container`."""
+        return container.resolve_dependency(self.dependency)
+
+
+def from_di(dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
+    """Marker factory for dependency injection.
+
+    Default factory: `Annotated[T, from_di(dep)]` type-checks as `T`.
+    Integrations with their own per-handler injection seam (native `Depends`)
+    define their own factory instead; the rest re-export this one.
+    """
+    return typing.cast(types.T, Marker(dependency))
