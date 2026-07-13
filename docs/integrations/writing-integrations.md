@@ -146,12 +146,59 @@ def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  
     return typing.cast(T_co, myfw.Depends(Dependency(dependency)))
 ```
 
+`Dependency.__call__`'s body — `return request_container.resolve_dependency(self.dependency)`
+— is `modern_di.integrations.Marker.resolve`. Hold a `Marker` instead of a
+hand-rolled dataclass:
+
+```python
+from modern_di import integrations
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class Dependency(typing.Generic[T_co]):
+    marker: integrations.Marker[T_co]
+
+    async def __call__(self, request_container: typing.Annotated[Container, myfw.Depends(build_di_container)]) -> T_co:
+        return self.marker.resolve(request_container)
+
+
+def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  # noqa: N802
+    return typing.cast(T_co, myfw.Depends(Dependency(integrations.Marker(dependency))))
+```
+
 The dispatch is a single call, invariant across every integration and both
 modes: `resolve_dependency` takes either an `AbstractProvider` or a bare type
 and routes to `resolve_provider`/`resolve` accordingly — overrides, caching,
 and did-you-mean suggestions are inherited from whichever it dispatches to.
 `FromDI` is spelled in PascalCase (with `# noqa: N802`) because it stands in for
 a type at call sites.
+
+### Deriving scope and context with the integration kit
+
+The isinstance loop above is `modern_di.integrations.classify_connection`.
+Use it instead of hand-rolling the loop:
+
+```python
+from modern_di import integrations
+
+async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
+    match = integrations.classify_connection(connection, _CONNECTION_PROVIDERS)
+    container = fetch_di_container(connection.app).build_child_container(
+        scope=match.scope if match else None,
+        context=match.context if match else None,
+    )
+    try:
+        yield container
+    finally:
+        await container.close_async()
+```
+
+For a single connection kind with no dispatch to do, call `integrations.bind`
+directly instead: `match = integrations.bind(my_provider, connection)`. Some
+adapters have nothing to derive at all (a CLI command with no connection
+object) and call `build_child_container(scope=...)` directly, with no
+integration-kit call in the middle — see
+[architecture/integration-kit.md](https://github.com/modern-python/modern-di/blob/main/architecture/integration-kit.md)
+for which shape fits which adapter.
 
 ## Lifecycle rules
 
@@ -243,9 +290,9 @@ either way.
 
 ### How it works
 
-- **`FromDI` is inert.** It returns a frozen `_FromDI(provider)` dataclass, cast
-  to the resolved type so checkers still see `T`. On its own it does nothing; the
-  decorator interprets it.
+- **`FromDI` is inert.** Returns `integrations.from_di(dependency)` — a
+  `Marker` cast to the resolved type so checkers still see `T`. On its own it
+  does nothing; the decorator interprets it.
 
   ```python
   service: typing.Annotated[MyService, FromDI(Dependencies.service)]
@@ -259,6 +306,15 @@ either way.
   if the handler didn't declare one. Assign the cleaned signature to
   `wrapper.__signature__` — the parser reads that, and `functools.wraps` alone
   won't set it.
+
+- **Use the integration kit instead of hand-rolling the scan and resolve.**
+  `integrations.parse_markers(func)` is the decoration-time scan;
+  `integrations.resolve_markers(container, markers)` is the call-time resolve.
+  Both are framework-agnostic — only the signature-rewriting and
+  argument-binding around them (below) is yours to write. If your adapter
+  sweeps an existing app/router to auto-inject handlers (rather than one
+  `@inject` per handler), guard against double-wrapping with
+  `integrations.is_injected(func)` / `integrations.mark_injected(wrapper)`.
 
 - **Call time** — bind incoming args against the rewritten signature, pull out
   the context object (deleting it again if the decorator added it implicitly),
@@ -353,7 +409,8 @@ Each official integration is its own repository and PyPI package, mirroring the
       `ContainerClosedWarning` (or, in 3.0, raise `ContainerClosedError`).
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves it via
-      `resolve_dependency`.
+      `resolve_dependency` — use `modern_di.integrations.from_di` (or a
+      factory wrapping `integrations.Marker`) rather than hand-rolling it.
 - [ ] **No native DI?** `FromDI` is an inert marker and a decorator rewrites the
       handler signature (strips DI params, threads the context object, sets
       `wrapper.__signature__`), resolves at call time, and closes the per-call
