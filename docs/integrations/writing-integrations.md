@@ -99,12 +99,15 @@ depends on how the framework runs handlers:
               context[provider.context_type] = connection
               scope = provider.scope
               break
-      container = fetch_di_container(connection.app).build_child_container(context=context, scope=scope)
-      try:
+      async with fetch_di_container(connection.app).build_child_container(context=context, scope=scope) as container:
           yield container
-      finally:
-          await container.close_async()
   ```
+
+  `Container` implements both sync and async context-manager protocols
+  (`__enter__`/`__exit__`, `__aenter__`/`__aexit__`) — `async with`/`with` on a
+  freshly built child opens it (a no-op, since a new child is already open) and
+  closes it on exit, equivalent to a `try`/`finally` around `close_async`/`close_sync`
+  but without hand-writing it.
 
 - **Middleware** (FastStream) — a `BaseMiddleware` whose `consume_scope` builds
   the child, stashes it in the framework context for the duration of the call,
@@ -182,14 +185,11 @@ from modern_di import integrations
 
 async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
     match = integrations.classify_connection(connection, _CONNECTION_PROVIDERS)
-    container = fetch_di_container(connection.app).build_child_container(
+    async with fetch_di_container(connection.app).build_child_container(
         scope=match.scope if match else None,
         context=match.context if match else None,
-    )
-    try:
+    ) as container:
         yield container
-    finally:
-        await container.close_async()
 ```
 
 For a single connection kind with no dispatch to do, call `integrations.bind`
