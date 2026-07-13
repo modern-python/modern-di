@@ -7,6 +7,8 @@ from modern_di.integrations import (
     bind,
     classify_connection,
     from_di,
+    is_injected,
+    mark_injected,
     parse_markers,
     resolve_markers,
 )
@@ -130,3 +132,16 @@ def test_resolve_markers_empty_input_returns_empty_dict() -> None:
     container = Container(groups=[_Deps], validate=True)
 
     assert resolve_markers(container, {}) == {}
+
+
+def test_mark_injected_then_is_injected_round_trips() -> None:
+    def handler() -> None:
+        pass  # pragma: no cover
+
+    assert is_injected(handler) is False
+    mark_injected(handler)
+    assert is_injected(handler) is True
+
+
+def test_is_injected_defaults_false_for_unmarked_callable() -> None:
+    assert is_injected(lambda: None) is False

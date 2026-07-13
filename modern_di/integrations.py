@@ -17,6 +17,9 @@ import typing
 from modern_di import types
 
 
+_INJECTED_ATTR = "__modern_di_injected__"
+
+
 if typing.TYPE_CHECKING:
     from modern_di.container import Container
     from modern_di.providers.abstract import AbstractProvider
@@ -99,3 +102,13 @@ def parse_markers(func: typing.Callable[..., typing.Any]) -> dict[str, Marker[ty
 def resolve_markers(container: "Container", markers: typing.Mapping[str, Marker[typing.Any]]) -> dict[str, typing.Any]:
     """Resolve every marker in `markers` from `container`, keyed by parameter name."""
     return {name: marker.resolve(container) for name, marker in markers.items()}
+
+
+def is_injected(func: typing.Callable[..., typing.Any]) -> bool:
+    """Whether `mark_injected` has already been applied to `func`."""
+    return bool(getattr(func, _INJECTED_ATTR, False))
+
+
+def mark_injected(wrapper: typing.Callable[..., typing.Any]) -> None:
+    """Mark `wrapper` as already injected, so a later sweep skips re-wrapping it."""
+    setattr(wrapper, _INJECTED_ATTR, True)
