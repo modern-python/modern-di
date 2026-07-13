@@ -60,3 +60,73 @@ prevents.
 **Revisit trigger:** after INT-1 (`Container.add_providers`) and INT-2 (`resolve_dependency`) land in
 core and the sibling repos migrate to those seams — the contract surface changes with them.
 See [2026-07-05 3.0 UX research, INT-6](audits/2026-07-05-v3-ux-research-report.md).
+
+## Framework-default status: the beachhead — from 2026-06-18 adoption research (A1)
+
+The research's central thesis: adoption compounds by *being depended upon inside a host framework*
+(the Pydantic finding — 466k dependent repos, won transitively via anchor projects), not by feature
+count. The play is to become the path-of-least-resistance DI inside one host framework, so that
+framework's users adopt modern-di without ever shopping for a container.
+
+**Pick Litestar + FastStream, not FastAPI.** FastAPI is saturated by its own `Depends`; Litestar and
+FastStream have less DI incumbency and modern-di already ships integrations for both. Target: a
+referenced mention of `modern-di-litestar` / `modern-di-faststream` in those frameworks' own
+ecosystem / third-party docs. Outreach is maintainer-driven.
+
+**Revisit trigger:** when there is data to choose with — see the download-figures gap below. Note the
+live tension: the org launch playbook's Show HN post opens with a FastAPI story (for relatability,
+not targeting). Reconcile before launch.
+See [2026-06-18 adoption research, §5](audits/2026-06-18-adoption-strategy-report.md).
+
+## Make the integrations "blessed-ready" — from 2026-06-18 adoption research (A2)
+
+One-import setup, a single canonical "recommended DI" example per framework, lifespan wiring handled
+for the user, sub-5-minute onboarding. The integration's own README is the conversion surface — a
+framework will only bless what a newcomer can adopt in one sitting. Never audited; worth doing now
+that there are 12 integrations, and worth pairing with the `@inject` asymmetry (7 of 12 integrations
+require it, 4 do not — see the report's §1).
+
+**Revisit trigger:** before any A1 outreach. Blessing requests fail against a rough on-ramp.
+See [2026-06-18 adoption research, §1](audits/2026-06-18-adoption-strategy-report.md).
+
+## Reference templates as funnels — from 2026-06-18 adoption research (A3)
+
+Frameworks and blog posts link to *starters*, not to libraries. The org has
+`fastapi-sqlalchemy-template` and `litestar-sqlalchemy-template` — but **no FastStream or Typer
+template**, and FastStream is half the A1 beachhead.
+
+**Revisit trigger:** alongside A1 — the template is the thing the beachhead framework's docs would
+actually link to.
+See [2026-06-18 adoption research, §5](audits/2026-06-18-adoption-strategy-report.md).
+
+## Get listed where newcomers look — from 2026-06-18 adoption research (A4)
+
+`awesome-dependency-injection-in-python`, each host framework's third-party/ecosystem page, and rival
+comparison pages (dishka publishes an `alternatives.html`). Zero-cost, durable discovery surfaces.
+Drafted as §6 of the org launch playbook; never executed.
+
+**Revisit trigger:** the launch window.
+See [2026-06-18 adoption research, §5](audits/2026-06-18-adoption-strategy-report.md).
+
+## Publish the benchmarks page — from 2026-06-18 adoption research (B3)
+
+`benchmarks/RESULTS.md` exists but is **not in the mkdocs nav** — there is no public benchmarks page.
+The "fast + zero-dependency" story is currently unevidenced in public.
+
+**Verify every number before publishing.** The research caught rivals shipping unverified
+vendor-self-reported perf claims; modern-di must not join them. Anything published needs a
+reproducible method stated alongside it.
+
+**Revisit trigger:** when the benchmark suite is stable enough that a published number won't need
+retracting.
+See [2026-06-18 adoption research](audits/2026-06-18-adoption-strategy-report.md).
+
+## Size the DI market with real download data — from 2026-06-18 adoption research (evidence gap)
+
+The research verified **no PyPI download figures for any framework** — its own single biggest gap, and
+the reason A1's beachhead choice currently rests on intuition. Pull real download trends for
+`modern-di`, `dishka`, `dependency-injector`, `wireup`, `svcs`, `that-depends` (and the integration
+packages), then revisit the beachhead call with data.
+
+**Revisit trigger:** before committing outreach effort to a beachhead framework.
+See [2026-06-18 adoption research, open questions](audits/2026-06-18-adoption-strategy-report.md).
