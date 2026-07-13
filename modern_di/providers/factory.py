@@ -5,8 +5,8 @@ import typing
 import warnings
 
 from modern_di import exceptions, suggester, types
-from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.context_provider import ContextProvider
 from modern_di.types_parser import SignatureItem, parse_creator
 from modern_di.wiring import WiringPlan, _Absent, absent_disposition
 

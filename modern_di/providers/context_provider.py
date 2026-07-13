@@ -3,7 +3,7 @@ import typing
 import warnings
 
 from modern_di import exceptions, types
-from modern_di.providers import AbstractProvider
+from modern_di.providers.abstract import AbstractProvider
 
 
 if typing.TYPE_CHECKING:
