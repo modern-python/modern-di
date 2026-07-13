@@ -20,6 +20,8 @@ These files carry **no frontmatter** — they are prose, dated by git.
 - [validation.md](validation.md) — `validate()` cycle and scope checks.
 - [testing-and-overrides.md](testing-and-overrides.md) — overrides and the
   `modern-di-pytest` integration.
+- [integration-kit.md](integration-kit.md) — framework-agnostic primitives for
+  building a framework integration adapter.
 
 ## Promotion rule
 
