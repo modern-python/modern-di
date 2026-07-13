@@ -145,3 +145,9 @@ def test_mark_injected_then_is_injected_round_trips() -> None:
 
 def test_is_injected_defaults_false_for_unmarked_callable() -> None:
     assert is_injected(lambda: None) is False
+
+
+def test_integrations_accessible_from_top_level_namespace() -> None:
+    import modern_di  # noqa: PLC0415
+
+    assert modern_di.integrations.bind is bind
