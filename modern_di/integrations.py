@@ -34,3 +34,18 @@ def bind(provider: "ContextProvider[typing.Any]", connection: object) -> Connect
     `build_child_container(context=...)` expects.
     """
     return ConnectionMatch(scope=provider.scope, context={provider.context_type: connection})
+
+
+def classify_connection(
+    connection: object, providers: "tuple[ContextProvider[typing.Any], ...]"
+) -> ConnectionMatch | None:
+    """Pick the first provider `connection` is an instance of and `bind` it.
+
+    Returns `None` on no match rather than raising — the caller decides the
+    fallback, matching every dispatch adapter's existing behavior of building
+    an auto-scoped, context-less child when nothing matches.
+    """
+    for provider in providers:
+        if isinstance(connection, provider.context_type):
+            return bind(provider, connection)
+    return None
