@@ -300,7 +300,7 @@ either way.
 
 - **Decoration time** — the decorator introspects
   `typing.get_type_hints(func, include_extras=True)`, finds parameters whose
-  `Annotated` metadata holds a `_FromDI`, then **rewrites the signature**:
+  `Annotated` metadata holds a `Marker`, then **rewrites the signature**:
   *remove* those parameters (so the arg parser never treats them as CLI options)
   and *insert* the framework's context parameter (`typer.Context`) at position 0
   if the handler didn't declare one. Assign the cleaned signature to
@@ -329,7 +329,7 @@ strips **only** the marked ones; everything else still reaches the parser.
 
 | Contract point | Native DI | Decorator |
 |---|---|---|
-| `FromDI` returns | framework marker (`Depends` / `Provide`) | inert `_FromDI` marker |
+| `FromDI` returns | framework marker (`Depends` / `Provide`) | inert `Marker` |
 | Child container built by | framework, via your resolver | the decorator wrapper |
 | Handler receives value via | framework's DI | signature rewrite + fill-by-name at call time |
 | Root-container access | connection object passed in | framework's per-call context, injected into the signature if absent |
