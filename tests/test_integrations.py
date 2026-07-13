@@ -1,3 +1,5 @@
+import subprocess
+import sys
 import typing
 
 from modern_di import Container, Group, Scope, providers
@@ -148,6 +150,16 @@ def test_is_injected_defaults_false_for_unmarked_callable() -> None:
 
 
 def test_integrations_accessible_from_top_level_namespace() -> None:
-    import modern_di  # noqa: PLC0415
+    """`modern_di.integrations` must be reachable via `import modern_di` alone.
 
-    assert modern_di.integrations.bind is bind
+    Runs in a fresh subprocess — this file's own top-level
+    `from modern_di.integrations import ...` would otherwise attach the
+    submodule to the package as a side effect, masking a regression in
+    `modern_di/__init__.py`'s own import.
+    """
+    code = "import modern_di\nprint(modern_di.integrations.bind.__name__)\n"
+    result = subprocess.run(  # noqa: S603 — fixed literal command, no untrusted input
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    assert "bind" in result.stdout
