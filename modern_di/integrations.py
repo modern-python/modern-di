@@ -1,0 +1,36 @@
+"""Framework-agnostic primitives for building a modern-di integration.
+
+Layer 1 (`bind`, `classify_connection`) derives a child container's scope and
+context from one or more `ContextProvider`s. Neither wraps
+`build_child_container` — the caller's own call to it stays the single
+blessed way to open a child; these functions only decide what to pass it.
+Layer 2 (`Marker`, `from_di`, `parse_markers`, `resolve_markers`) is the
+`Annotated`-marker injector shared by every integration without a native
+per-handler injection seam. `is_injected`/`mark_injected` guard against
+double-wrapping a handler an auto-inject sweep visits more than once.
+"""
+
+import dataclasses
+import enum
+import typing
+
+
+if typing.TYPE_CHECKING:
+    from modern_di.providers.context_provider import ContextProvider
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class ConnectionMatch:
+    """A child container's scope and context, derived from one connection."""
+
+    scope: enum.IntEnum
+    context: dict[type[typing.Any], typing.Any]
+
+
+def bind(provider: "ContextProvider[typing.Any]", connection: object) -> ConnectionMatch:
+    """Derive a child's scope and context from one connection bound to one provider.
+
+    `context` is keyed by `provider.context_type` — the same convention
+    `build_child_container(context=...)` expects.
+    """
+    return ConnectionMatch(scope=provider.scope, context={provider.context_type: connection})
