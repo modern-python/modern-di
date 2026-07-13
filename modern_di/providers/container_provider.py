@@ -1,6 +1,6 @@
 import typing
 
-from modern_di.providers import AbstractProvider
+from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
 
 

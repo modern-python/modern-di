@@ -10,8 +10,8 @@ import dataclasses
 import enum
 import typing
 
-from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.context_provider import ContextProvider
 from modern_di.types import UNSET
 from modern_di.types_parser import SignatureItem
 
