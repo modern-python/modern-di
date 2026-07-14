@@ -828,3 +828,33 @@ def test_definition_site_recursion_error_propagates_for_guard_retry() -> None:
     # so the guard's shallower retry gets a fresh computation, not a cached None.
     with pytest.raises(RecursionError):
         _ = factory.definition_site
+
+
+def test_nonetype_param_with_default_uses_the_default() -> None:
+    """A `None`-annotated parameter with a default is OMIT, not UNWIRABLE."""
+
+    class Svc:
+        def __init__(self, hook: None = None) -> None:
+            self.hook = hook
+
+    factory = providers.Factory(scope=Scope.APP, creator=Svc)
+    container = Container()
+    container.providers_registry.add_providers(factory)
+
+    result = container.resolve(Svc)
+    assert result.hook is None
+
+
+def test_nonetype_param_without_default_injects_none() -> None:
+    """A bare `None` annotation is nullable: its only legal value is None, so inject it."""
+
+    class Svc:
+        def __init__(self, hook: None) -> None:
+            self.hook = hook
+
+    factory = providers.Factory(scope=Scope.APP, creator=Svc)
+    container = Container()
+    container.providers_registry.add_providers(factory)
+
+    result = container.resolve(Svc)
+    assert result.hook is None
