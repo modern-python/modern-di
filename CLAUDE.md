@@ -47,7 +47,7 @@ Where the detail lives — read the matching capability file before changing beh
 - `modern_di/suggester.py` — `close_matches`, the shared difflib fuzzy-match used by registry type suggestions and factory kwarg "did you mean"
 - `modern_di/scope.py` — Scope enum
 - `modern_di/group.py` — Group base class for provider namespaces
-- `modern_di/exceptions.py` — exception class hierarchy (`ModernDIError` → `ContainerError`/`ResolutionError`/`RegistrationError` subclasses); each error message is an inline f-string in the class that raises it
+- `modern_di/exceptions.py` — exception class hierarchy (`ModernDIError` → `ContainerError`/`ResolutionError`/`RegistrationError` subclasses). Each error owns its own message: the raise site passes only structured keyword attrs, and the class's `__init__` renders the f-string and stores those attrs. Every concrete class sets a `docs_slug` (its page under `docs/troubleshooting/`, appended by `__str__` as a trailing `See: <url>` line, enforced by `tests/test_docs_slug_census.py`). **Add a message or a class here, not at the raise site.**
 
 ### Testing patterns
 
