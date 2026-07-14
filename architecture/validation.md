@@ -51,6 +51,13 @@ by class name so a report mixing several error kinds reads as one section per ki
 `providers_registry`, so a root APP-scope container validates deeper-scoped providers without building
 child containers.
 
+**The graph it walks is the graph that resolves.** Edges come from `WiringPlan.edges`, a view *derived*
+from the same buckets `resolve()` reads (`provider_kwargs` + `context_kwargs`) rather than assembled
+separately — so the validated graph cannot drift from the resolved one. In particular a provider supplied
+via a declaration-time `kwargs={...}` is an edge like any type-matched one, and a cycle or scope inversion
+routed through it is caught here rather than surfacing at resolve time as a bare `RecursionError` or a
+`ScopeNotInitializedError`. See [resolution.md](resolution.md) for how the buckets are filled.
+
 **Validated-version short-circuit.** `ProvidersRegistry` carries a `validated_version: int | None`. On a
 successful walk `validate()` stamps `validated_version = version`; a later `validate()` whose
 `validated_version == version` returns immediately without re-walking, so a repeat `validate()` is free.

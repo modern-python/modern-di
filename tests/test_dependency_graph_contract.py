@@ -1,3 +1,10 @@
+"""Contract tests for the single graph traversal: cycle shape, error kinds, and the walk short-circuits.
+
+(Formerly `test_dependency_graph_parity.py`, from when validate() and the runtime guard each
+had their own walk to keep in sync. PR #308 unified them; there is no second implementation
+to be at parity with.)
+"""
+
 import pytest
 
 from modern_di import Container, Scope, dependency_graph, exceptions

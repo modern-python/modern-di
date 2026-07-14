@@ -224,7 +224,7 @@ class Factory(AbstractProvider[types.T_co]):
             kwargs=self._kwargs,
             registry=container.providers_registry,
             owner=self,
-        ).dependencies
+        ).edges
 
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
