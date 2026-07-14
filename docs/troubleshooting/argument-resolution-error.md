@@ -30,6 +30,14 @@ class Dependencies(Group):
     service2 = providers.Factory(Service, scope=Scope.APP, kwargs={"clock": clock})
 ```
 
+**Integration-supplied context types.** If the missing type is one a framework
+integration provides at runtime (`fastapi.Request`, `taskiq.TaskiqMessage`, …), its
+`ContextProvider` is registered by `setup_di()` — which runs *after* the container
+is built, so `validate=True` (and the modern-di 3.0 validate-by-default) sees no
+provider for it yet. Make the parameter optional (`request: fastapi.Request | None = None`)
+so validation skips it; the integration still injects the real value at runtime. See
+[Framework Context Objects](../providers/context.md#framework-context-objects).
+
 Check `.suggestions` on the caught exception for a "did you mean" hint when a similarly-named type is
 registered instead.
 

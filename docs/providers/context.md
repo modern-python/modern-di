@@ -120,12 +120,10 @@ import fastapi
 import modern_di_fastapi
 
 
-def create_request_info(request: fastapi.Request) -> dict[str, str]:
-    return {
-        "method": request.method,
-        "url": str(request.url),
-        "timestamp": "2023-01-01T00:00:00Z"
-    }
+def create_request_info(request: fastapi.Request | None = None) -> dict[str, str]:
+    if request is None:  # only at validate() time; the integration always sets it at runtime
+        return {}
+    return {"method": request.method, "url": str(request.url)}
 
 
 class Dependencies(Group):
@@ -138,15 +136,27 @@ class Dependencies(Group):
 
 ALL_GROUPS = [Dependencies]
 app = fastapi.FastAPI()
-# validate=False: request_info depends on fastapi.Request, whose ContextProvider
-# is registered by setup_di() below — validating before that call would raise
-# ArgumentResolutionError for a dependency the integration hasn't wired in yet.
-container = Container(groups=ALL_GROUPS, validate=False)
+# validate=True stays on: the optional `request` parameter (| None = None) lets
+# validation skip it, since fastapi.Request's ContextProvider is only registered
+# by setup_di() below — after the container (and its validate()) is built.
+container = Container(groups=ALL_GROUPS, validate=True)
 modern_di_fastapi.setup_di(app, container)
 # The integration creates a REQUEST-scoped child container per request and
-# automatically injects the fastapi.Request into its context. The factory
-# is resolved from the child container, not the APP-scope container.
+# injects the fastapi.Request into its context, so `request` is the real object
+# at runtime — never None.
 ```
+
+The `| None = None` on `request` is what keeps `validate=True` usable. `validate()`
+runs inside the `Container(...)` call, *before* `setup_di()` registers
+`fastapi.Request`'s `ContextProvider`; a required parameter with no provider would
+raise [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md).
+A defaulted parameter is skipped by that check, and at runtime the integration has
+registered the provider and set the per-request context, so the real `Request` is
+injected. The default is load-bearing only at validation time — in modern-di 3.0 an
+unset context still raises `ContextValueNotSetError` at resolve, so the annotation
+does not hide a missing-context bug. Prefer this to `validate=False`, which silences
+*all* validation; reach for `validate=False` (and validate after `setup_di()`
+instead) only if you'd rather keep the parameter required.
 
 **Explicit usage (provider-based resolution).** Every integration also exports the underlying
 `ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,
