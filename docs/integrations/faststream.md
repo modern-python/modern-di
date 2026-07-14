@@ -36,44 +36,32 @@ from modern_di import Container, Group, Scope, providers
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    feature_flag: bool = False
+    service_name: str = "catalog"
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class OrderProcessor:
-    settings: Settings        # auto-injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
-    def process(self, payload: dict) -> dict:
-        return {"ok": True, "feature_flag": self.settings.feature_flag}
+    def as_dict(self) -> dict[str, str]:
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
-    settings = providers.Factory(
-        Settings,
-        scope=Scope.APP,
-        cache=True,
-    )
-    order_processor = providers.Factory(
-        OrderProcessor,
-        scope=Scope.REQUEST,
-    )
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 broker = NatsBroker()
 app = faststream.FastStream(broker=broker)
-
 modern_di_faststream.setup_di(app, Container(groups=[AppGroup], validate=True))
 
 
 @broker.subscriber("orders.in")
 async def handle_order(
-    payload: dict,
-    processor: typing.Annotated[
-        OrderProcessor,
-        modern_di_faststream.FromDI(OrderProcessor),    # resolve by type
-    ],
-) -> dict:
-    return processor.process(payload)
+    report: typing.Annotated[Report, modern_di_faststream.FromDI(Report)],
+) -> dict[str, str]:
+    return report.as_dict()
 ```
 
 ## Scopes
@@ -131,6 +119,13 @@ class AppGroup(Group):
         kwargs={"message": modern_di_faststream.faststream_message_provider},
     )
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Async resources via lifespan](../recipes/async-lifespan.md) — constructing async resources with finalizers.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

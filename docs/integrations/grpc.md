@@ -41,20 +41,22 @@ from myapp import greeter_pb2, greeter_pb2_grpc   # your generated stubs
 
 class Settings:
     def __init__(self) -> None:
-        self.greeting = "hello"
+        self.service_name = "catalog"
 
 
-class Greeter:
-    def __init__(self, settings: Settings) -> None:   # auto-injected by type
-        self._settings = settings
+class RpcReport:
+    def __init__(self, settings: Settings, context: grpc.ServicerContext | None = None) -> None:
+        self._settings = settings                  # APP-scoped, injected by type
+        self._context = context                    # REQUEST context object, injected by type
 
-    def greet(self, name: str) -> str:
-        return f"{self._settings.greeting}, {name}"
+    def line(self) -> str:
+        peer = self._context.peer() if self._context is not None else "unknown"
+        return f"{self._settings.service_name} <- {peer}"
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    greeter = providers.Factory(Greeter, scope=Scope.REQUEST)
+    rpc_report = providers.Factory(RpcReport, scope=Scope.REQUEST)
 
 
 class GreeterService(greeter_pb2_grpc.GreeterServicer):
@@ -63,9 +65,9 @@ class GreeterService(greeter_pb2_grpc.GreeterServicer):
         self,
         request: greeter_pb2.HelloRequest,
         context: grpc.ServicerContext,
-        greeter: typing.Annotated[Greeter, FromDI(Greeter)],   # resolve by type
+        report: typing.Annotated[RpcReport, FromDI(RpcReport)],   # resolve by type
     ) -> greeter_pb2.HelloReply:
-        return greeter_pb2.HelloReply(message=greeter.greet(request.name))
+        return greeter_pb2.HelloReply(message=report.line())
 
 
 container = Container(groups=[AppGroup], validate=True)
@@ -175,6 +177,12 @@ container = fetch_di_container()   # raises LookupError outside an intercepted R
 Unlike the Celery/Typer decorator integrations, gRPC always calls a servicer
 method as `(request, context)`, so `@inject` needs no signature rewrite and
 imposes no restriction on the method signature beyond the injected parameters.
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

@@ -35,27 +35,20 @@ from taskiq import InMemoryBroker
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    greeting: str = "hello"
+    service_name: str = "catalog"
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class Greeter:
-    settings: Settings        # auto-injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
-    def greet(self, name: str) -> str:
-        return f"{self.settings.greeting}, {name}"
+    def as_dict(self) -> dict[str, str]:
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
-    settings = providers.Factory(
-        Settings,
-        scope=Scope.APP,
-        cache=True,
-    )
-    greeter = providers.Factory(
-        Greeter,
-        scope=Scope.REQUEST,
-    )
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 broker = InMemoryBroker()
@@ -63,14 +56,10 @@ setup_di(broker, Container(groups=[AppGroup], validate=True))
 
 
 @broker.task
-async def greet(
-    name: str,
-    greeter: typing.Annotated[
-        Greeter,
-        FromDI(Greeter),    # resolve by type
-    ],
-) -> str:
-    return greeter.greet(name)
+async def get_report(
+    report: typing.Annotated[Report, FromDI(Report)],
+) -> dict[str, str]:
+    return report.as_dict()
 ```
 
 `setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it — those fire when the broker's worker process starts and stops, so a script that just calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.
@@ -134,6 +123,13 @@ class AppGroup(Group):
         kwargs={"message": modern_di_taskiq.taskiq_message_provider},
     )
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Async resources via lifespan](../recipes/async-lifespan.md) — constructing async resources with finalizers.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

@@ -21,6 +21,12 @@ per-connection child container automatically.
       pip install modern-di-starlette
       ```
 
+=== "poetry"
+
+      ```bash
+      poetry add modern-di-starlette
+      ```
+
 ### 2. Apply to your application
 
 ```python
@@ -35,24 +41,33 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 
-@dataclasses.dataclass(kw_only=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    debug: bool = True
+    service_name: str = "catalog"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class Report:
+    settings: Settings   # APP-scoped, injected by type
+
+    def as_dict(self) -> dict[str, str]:
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
-    settings = providers.Factory(Settings, scope=Scope.APP)
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 @inject
-async def homepage(
+async def get_report(
     request: Request,
-    settings: typing.Annotated[Settings, FromDI(AppGroup.settings)],
+    report: typing.Annotated[Report, FromDI(Report)],
 ) -> JSONResponse:
-    return JSONResponse({"debug": settings.debug})
+    return JSONResponse(report.as_dict())
 
 
-app = Starlette(routes=[Route("/", homepage)])
+app = Starlette(routes=[Route("/report", get_report)])
 setup_di(app, Container(groups=[AppGroup], validate=True))
 ```
 
@@ -134,6 +149,13 @@ class AppGroup(Group):
         kwargs={"request": modern_di_starlette.starlette_request_provider},
     )
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

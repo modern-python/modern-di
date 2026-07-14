@@ -25,6 +25,7 @@
 ### 2. Apply to your application
 
 ```python
+import dataclasses
 import typing
 
 from arq.connections import RedisSettings
@@ -32,35 +33,34 @@ from modern_di import Container, Group, Scope, providers
 from modern_di_arq import FromDI, inject, setup_di
 
 
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    def __init__(self) -> None:
-        self.greeting = "hello"
+    service_name: str = "catalog"
 
 
-class Greeter:
-    def __init__(self, settings: Settings) -> None:   # auto-injected by type
-        self._settings = settings
+@dataclasses.dataclass(kw_only=True, slots=True)
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
-    def greet(self, name: str) -> str:
-        return f"{self._settings.greeting}, {name}"
+    def render(self) -> str:
+        return f"service={self.settings.service_name}"
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    greeter = providers.Factory(Greeter, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 @inject
-async def greet(
-    ctx: dict[str, typing.Any],       # arq passes its context dict as the first argument
-    name: str,
-    greeter: typing.Annotated[Greeter, FromDI(Greeter)],   # resolve by type
+async def run_report(
+    ctx: dict[str, typing.Any],      # arq passes its context dict as the first argument
+    report: typing.Annotated[Report, FromDI(Report)],
 ) -> str:
-    return greeter.greet(name)
+    return report.render()
 
 
 class WorkerSettings:
-    functions = [greet]
+    functions = [run_report]
     redis_settings = RedisSettings(host="localhost")
 
 
@@ -77,7 +77,7 @@ from arq.connections import RedisSettings
 
 async def main() -> None:
     pool = await create_pool(RedisSettings(host="localhost"))
-    await pool.enqueue_job("greet", "world")    # pass only real args; DI params are resolved for you
+    await pool.enqueue_job("run_report")
 ```
 
 `setup_di(worker_settings, container)` seeds the container into arq's `ctx` dict
@@ -139,6 +139,13 @@ with `*args` or `**kwargs` cannot be bound unambiguously, so `@inject` raises a
 `TypeError` **at decoration time** rather than silently misrouting arguments.
 Give an `@inject` task explicit named parameters. (A task with no `FromDI`
 parameter is untouched and may use `*args`/`**kwargs` freely.)
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Async resources via lifespan](../recipes/async-lifespan.md) — constructing async resources with finalizers.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

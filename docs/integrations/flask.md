@@ -22,9 +22,16 @@ Resolution is **sync-only** — the child container is closed with `close_sync()
       pip install modern-di-flask
       ```
 
+=== "poetry"
+
+      ```bash
+      poetry add modern-di-flask
+      ```
+
 ### 2. Apply to your application
 
 ```python
+import dataclasses
 import typing
 
 from flask import Flask
@@ -32,25 +39,34 @@ from modern_di import Container, Group, Scope, providers
 from modern_di_flask import FromDI, inject, setup_di
 
 
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    def __init__(self) -> None:
-        self.greeting = "hello"
+    service_name: str = "catalog"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class Report:
+    settings: Settings   # APP-scoped, injected by type
+
+    def as_dict(self) -> dict[str, str]:
+        return {"service": self.settings.service_name}
 
 
 class Dependencies(Group):
-    settings = providers.Factory(scope=Scope.APP, creator=Settings)
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 app = Flask(__name__)
 
 
-@app.route("/hello/<name>")
+@app.route("/report")
 @inject
-def hello(name: str, settings: typing.Annotated[Settings, FromDI(Dependencies.settings)]) -> str:
-    return f"{settings.greeting}, {name}"
+def get_report(report: typing.Annotated[Report, FromDI(Report)]) -> dict[str, str]:
+    return report.as_dict()
 
 
-# call setup_di AFTER registering routes — required when using auto_inject
+# call setup_di AFTER registering routes
 setup_di(app, Container(groups=[Dependencies], validate=True))
 ```
 
@@ -172,6 +188,13 @@ class AppGroup(Group):
         kwargs={"request": flask_request_provider},
     )
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Multi-Group organization](../recipes/multi-group.md) — structuring a larger container.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

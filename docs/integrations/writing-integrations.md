@@ -353,7 +353,21 @@ Each official integration is its own repository and PyPI package, mirroring the
   home. Keep resolution sync-only and add no runtime dependency beyond the
   framework and `modern-di`.
 - **Docs.** Add a `docs/integrations/<framework>.md` usage page **in the
-  `modern-di` repo** and a nav entry for it in `mkdocs.yml`; integrations do not
+  `modern-di` repo** and a nav entry for it in `mkdocs.yml` (under the matching
+  family group: Web / Tasks & events / Bots / RPC / CLI / Testing). Follow the
+  canonical page shape the existing pages use: a single realistic-but-compact
+  example — an APP-scoped `Settings` plus one work-scoped service (two providers,
+  no more) that depends on `Settings` by type — built with `validate=True`. Keep
+  the connection/message object **out** of that validated example: its
+  `ContextProvider` is registered by `setup_di` *after* the container is
+  constructed, so a service that requires it by type fails `validate=True` at
+  construction. Demonstrate context injection in a dedicated "Framework Context
+  Objects" section instead (unvalidated, or with an optional `| None = None`
+  parameter as the [gRPC page](grpc.md) does). Follow the example with any
+  framework-specific sections, a tailored `## See also` block linking
+  [Testing with overrides](../recipes/testing-overrides.md),
+  [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and
+  the most relevant recipe, and the `## API` table last. Integrations do not
   ship their own docs site.
 - **Release.** Tag-driven, mirroring `modern-di`: write release notes and push a
   bare semver tag off green `main`.
