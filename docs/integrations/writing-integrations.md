@@ -361,9 +361,13 @@ Each official integration is its own repository and PyPI package, mirroring the
   the connection/message object **out** of that validated example: its
   `ContextProvider` is registered by `setup_di` *after* the container is
   constructed, so a service that requires it by type fails `validate=True` at
-  construction. Demonstrate context injection in a dedicated "Framework Context
-  Objects" section instead (unvalidated, or with an optional `| None = None`
-  parameter as the [gRPC page](grpc.md) does). Follow the example with any
+  construction. Demonstrate context injection in a dedicated "Framework
+  Context Objects" section instead. To show it inside a `validate=True` container,
+  make the context parameter optional (`request: FrameworkType | None = None`) so
+  validation skips it while the integration still injects the real value at runtime —
+  the pattern the [gRPC page](grpc.md) uses and
+  [Framework Context Objects](../providers/context.md#framework-context-objects)
+  documents. Follow the example with any
   framework-specific sections, a tailored `## See also` block linking
   [Testing with overrides](../recipes/testing-overrides.md),
   [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and
