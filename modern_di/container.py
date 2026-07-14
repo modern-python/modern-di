@@ -206,10 +206,8 @@ class Container:
         """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
         self._warn_and_reopen_if_closed()
 
-        if (
-            self.overrides_registry.overrides
-            and (override := self.overrides_registry.fetch_override(provider.provider_id)) is not types.UNSET
-        ):
+        override = self.overrides_registry.fetch_override(provider.provider_id)
+        if override is not types.UNSET:
             return override  # ty: ignore[invalid-return-type]
 
         try:

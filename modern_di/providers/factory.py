@@ -200,10 +200,9 @@ class Factory(AbstractProvider[types.T_co]):
         Absent value falls back to the creator default (omit), ``None`` (nullable), or raises
         ``ArgumentResolutionError`` (required).
         """
-        if container.overrides_registry.overrides:
-            override = container.overrides_registry.fetch_override(provider.provider_id)
-            if override is not types.UNSET:
-                return override
+        override = container.overrides_registry.fetch_override(provider.provider_id)
+        if override is not types.UNSET:
+            return override
         value = provider.fetch_context_value(container)
         if value is not types.UNSET:
             return value
