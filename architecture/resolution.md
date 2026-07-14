@@ -55,17 +55,6 @@ map produced at provider-declaration time by `types_parser.parse_creator` — an
    excluded. A matching `ContextProvider` goes to `context_kwargs` (resolved live, see Step 5); any other provider goes
    to `provider_kwargs`.
 
-> **One edge set.** The plan's `edges` view — what `validate()` traverses — is *derived* from `provider_kwargs` and
-> `context_kwargs`, the same buckets `resolve()` reads. The validated graph therefore cannot drift from the resolved
-> one. What differs between the two routes above is *how the edge is declared*, never *whether it exists*: a cycle or a
-> scope inversion routed through `kwargs={...}` is reported by `validate()` exactly as a type-matched one is.
->
-> Self-reference is the one asymmetry, and it is not an exception to the rule. `find_dep_provider` excludes the owner,
-> so a *type-matched* self-reference is not an edge and falls through to the creator default — inference declining to
-> wire a provider to itself. The `kwargs` overlay has no such exclusion, because a provider cannot be passed to its own
-> constructor: a `kwargs` value is always a backward reference to an already-built provider. (For the same reason, a
-> cycle through `kwargs` always contains at least one type-matched edge to forward-reference through.)
-
    > **Union vs. single parameterized generics.** A bare parameterized generic (e.g. `list[str]`) is *rejected at
    > declaration* — it cannot be resolved by type. Inside a union, however, each member degrades to its origin for
    > matching, so `int | list[str]` matches a provider registered for plain `list`. The element type is not enforced
@@ -87,9 +76,21 @@ map produced at provider-declaration time by `types_parser.parse_creator` — an
    > `bound_type`.
 
 The plan's buckets — `provider_kwargs` (regular providers, resolved recursively), `static_kwargs` (plain values), and
-`context_kwargs` (`ContextProvider` + its `SignatureItem`, resolved live) — plus the `dependencies` view and the
-`unwireable` records are memoized on the `CacheItem`. The same `WiringPlan.build` backs `validate()`: `get_dependencies`
-reads `dependencies`, `iter_validation_issues` builds a fresh error per `unwireable` record.
+`context_kwargs` (`ContextProvider` + its `SignatureItem`, resolved live) — plus the `unwireable` records make up the
+`WiringPlan` memoized on the `CacheItem`. The same `WiringPlan.build` backs `validate()`: `get_dependencies` returns
+`plan.edges`, `iter_validation_issues` builds a fresh error per `unwireable` record.
+
+> **One edge set.** `WiringPlan.edges` is a *derived* view — `provider_kwargs` merged with the providers out of
+> `context_kwargs` — not a fourth bucket `build` fills in. Because it is computed from the same buckets `resolve()`
+> reads, the graph `validate()` traverses cannot drift from the graph that actually resolves: a provider named in a
+> declaration-time `kwargs={...}` is an edge exactly like a type-matched one. (Before this was unified, such an edge
+> was invisible to `validate()`, so a cycle routed through `kwargs=` passed validation and then died at resolve time
+> with a raw `RecursionError`.)
+>
+> A provider cannot be passed to *its own* `kwargs=` — the reference does not exist yet at declaration — so a cycle
+> made purely of static kwargs is unconstructible; every `kwargs=` cycle needs at least one type-matched edge to
+> close it. That is why `find_dep_provider` excludes the owner (a self-reference by type is dropped, not an edge)
+> while `kwargs=` needs no such exclusion.
 
 ## Step 5 — Recursive resolution
 
