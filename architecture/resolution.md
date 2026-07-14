@@ -47,14 +47,24 @@ map produced at provider-declaration time by `types_parser.parse_creator` — an
 
 1. **Static kwarg shadows** — if the parameter was supplied via the provider's declaration-time `kwargs`, it is taken
    from there. Provider-valued static kwargs go to the plan's `provider_kwargs`; plain values go to `static_kwargs`.
-   These bypass type-based wiring and are *not* recorded in the plan's `dependencies` view, so `validate()` does not
-   traverse them.
+   These bypass *type-based wiring* — the declaration names the provider outright instead of inferring it — but they are
+   dependencies like any other, and `validate()` traverses them.
 
 2. **Provider lookup** — otherwise `find_dep_provider` searches `providers_registry` for a provider matching the
    parameter's resolved type (`arg_type`) or, for union types, any of the union members (`args`); self-references are
    excluded. A matching `ContextProvider` goes to `context_kwargs` (resolved live, see Step 5); any other provider goes
-   to `provider_kwargs`. Type-matched providers are also recorded in the plan's `dependencies` view, which `validate()`
-   reads.
+   to `provider_kwargs`.
+
+> **One edge set.** The plan's `edges` view — what `validate()` traverses — is *derived* from `provider_kwargs` and
+> `context_kwargs`, the same buckets `resolve()` reads. The validated graph therefore cannot drift from the resolved
+> one. What differs between the two routes above is *how the edge is declared*, never *whether it exists*: a cycle or a
+> scope inversion routed through `kwargs={...}` is reported by `validate()` exactly as a type-matched one is.
+>
+> Self-reference is the one asymmetry, and it is not an exception to the rule. `find_dep_provider` excludes the owner,
+> so a *type-matched* self-reference is not an edge and falls through to the creator default — inference declining to
+> wire a provider to itself. The `kwargs` overlay has no such exclusion, because a provider cannot be passed to its own
+> constructor: a `kwargs` value is always a backward reference to an already-built provider. (For the same reason, a
+> cycle through `kwargs` always contains at least one type-matched edge to forward-reference through.)
 
    > **Union vs. single parameterized generics.** A bare parameterized generic (e.g. `list[str]`) is *rejected at
    > declaration* — it cannot be resolved by type. Inside a union, however, each member degrades to its origin for

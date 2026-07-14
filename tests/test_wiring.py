@@ -155,7 +155,7 @@ def test_wiring_plan_unwireable_no_raise() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 3: dependencies excludes static-supplied providers
+# Test 3: edges include static-supplied providers
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +164,7 @@ class _MixedOwner:
         pass  # pragma: no cover
 
 
-def test_wiring_plan_dependencies_excludes_static_supplied_providers() -> None:
+def test_wiring_plan_edges_include_static_supplied_providers() -> None:
     factory_a = providers.Factory(scope=Scope.APP, creator=_ServiceA)
     factory_b = providers.Factory(scope=Scope.APP, creator=_ServiceB)
 
@@ -185,13 +185,15 @@ def test_wiring_plan_dependencies_excludes_static_supplied_providers() -> None:
         owner=owner,
     )
 
-    # `x` is in provider_kwargs (resolved live), but NOT in dependencies
+    # `x` is supplied via the kwargs overlay: resolved live AND visible to validate().
     assert "x" in plan.provider_kwargs
-    assert "x" not in plan.dependencies
+    assert plan.edges["x"] is factory_a
 
-    # `y` is type-matched → IS in dependencies
-    assert "y" in plan.dependencies
-    assert plan.dependencies["y"] is factory_b
+    # `y` is type-matched → an edge like any other.
+    assert plan.edges["y"] is factory_b
+
+    # The edge set is exactly what the runtime resolves — however the edge was declared.
+    assert set(plan.edges) == {"x", "y"}
 
     assert plan.unwireable == []
 

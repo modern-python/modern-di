@@ -254,6 +254,32 @@ def test_validate_raises_on_inverted_scope_dependency() -> None:
     assert issue.dep_provider.scope == Scope.REQUEST
 
 
+def test_validate_raises_on_inverted_scope_dependency_supplied_via_kwargs() -> None:
+    """A `kwargs=`-supplied provider is a real edge: its scope is checked like any other."""
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Inner:
+        pass
+
+    class Outer:
+        # `inner: object` never type-matches; the edge exists only via the kwargs overlay.
+        def __init__(self, inner: object = None) -> None: ...
+
+    inner = providers.Factory(scope=Scope.REQUEST, creator=Inner)
+    outer = providers.Factory(scope=Scope.APP, creator=Outer, kwargs={"inner": inner})
+
+    container = Container(validate=False)
+    container.providers_registry.add_providers(inner, outer)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    [issue] = exc.value.errors
+    assert isinstance(issue, InvalidScopeDependencyError)
+    assert issue.parameter_name == "inner"
+    assert issue.provider.scope == Scope.APP
+    assert issue.dep_provider.scope == Scope.REQUEST
+
+
 def test_validate_raises_on_missing_required_dependency() -> None:
     @dataclasses.dataclass(kw_only=True, slots=True)
     class Missing:

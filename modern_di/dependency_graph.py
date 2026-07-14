@@ -3,9 +3,12 @@
 ``DependencyGraph.walk`` is the single traversal that other capabilities (validation,
 the runtime cycle guard) consume. It is deliberately *explicit-stack* — no recursion —
 because a later caller runs it inside a ``RecursionError`` handler near CPython's stack
-limit, where headroom for a recursive walk is not guaranteed. The event order mirrors
-``Container.validate``'s recursive ``_visit`` exactly, so a consumer can reproduce
-validate()'s output byte-for-byte.
+limit, where headroom for a recursive walk is not guaranteed.
+
+The graph it walks is ``WiringPlan.edges``: every provider a plan resolves, however that
+dependency was declared. Type-matched parameters and providers supplied via
+``kwargs={...}`` are edges alike — so what ``validate()`` traverses is exactly what
+``resolve()`` follows.
 
 Import discipline: this module must not import ``Container`` (nor any concrete provider)
 at runtime — ``container.py`` imports this module, so a runtime back-import would cycle.

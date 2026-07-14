@@ -69,9 +69,6 @@ class WiringPlan:
         provider_kwargs:  name → provider resolved live each resolve call.
         static_kwargs:    name → literal value (including nullable-None).
         context_kwargs:   name → (ContextProvider, SignatureItem) looked up live.
-        dependencies:     type-matched providers only (regular + context),
-                          excluding providers supplied via ``kwargs={...}``.
-                          Used by ``validate()``'s graph traversal.
         unwireable:       UNWIRABLE parameters as (param-name, SignatureItem)
                           records rather than pre-built exceptions, so a fresh
                           ``ArgumentResolutionError`` can be constructed at
@@ -84,8 +81,20 @@ class WiringPlan:
     provider_kwargs: dict[str, "AbstractProvider[typing.Any]"]
     static_kwargs: dict[str, typing.Any]
     context_kwargs: dict[str, "tuple[ContextProvider[typing.Any], SignatureItem]"]
-    dependencies: dict[str, "AbstractProvider[typing.Any]"]
     unwireable: "list[tuple[str, SignatureItem]]"
+
+    @property
+    def edges(self) -> dict[str, "AbstractProvider[typing.Any]"]:
+        """Every provider this plan resolves — the graph ``validate()`` traverses.
+
+        Derived from the buckets ``resolve()`` reads, so the validated graph cannot
+        drift from the resolved one. Providers supplied via ``kwargs={...}`` are edges
+        like any other: only the *declaration* differs, not the dependency.
+        """
+        return {
+            **self.provider_kwargs,
+            **{name: provider for name, (provider, _item) in self.context_kwargs.items()},
+        }
 
     @classmethod
     def build(
@@ -100,7 +109,6 @@ class WiringPlan:
         provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
         static_kwargs: dict[str, typing.Any] = {}
         context_kwargs: dict[str, tuple[ContextProvider[typing.Any], SignatureItem]] = {}
-        dependencies: dict[str, AbstractProvider[typing.Any]] = {}
         unwireable: list[tuple[str, SignatureItem]] = []
 
         for name, item in parsed_kwargs.items():
@@ -109,7 +117,6 @@ class WiringPlan:
 
             provider = find_dep_provider(registry, owner, item)
             if provider is not None:
-                dependencies[name] = provider  # validate-visible (type-matched only)
                 if isinstance(provider, ContextProvider):
                     context_kwargs[name] = (provider, item)
                 else:
@@ -125,7 +132,7 @@ class WiringPlan:
             # UNWIRABLE: record the (name, item) pair but do not raise
             unwireable.append((name, item))
 
-        if kwargs:  # static overlay — NOT added to `dependencies`
+        if kwargs:  # static overlay
             for name, value in kwargs.items():
                 if isinstance(value, AbstractProvider):
                     provider_kwargs[name] = value
@@ -136,6 +143,5 @@ class WiringPlan:
             provider_kwargs=provider_kwargs,
             static_kwargs=static_kwargs,
             context_kwargs=context_kwargs,
-            dependencies=dependencies,
             unwireable=unwireable,
         )

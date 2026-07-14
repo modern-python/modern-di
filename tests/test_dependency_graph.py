@@ -181,3 +181,28 @@ def test_walk_dangling_dep_emits_dependencies_error() -> None:
     assert events[1].provider is G.alias
     # dangling alias contributes no edges past the error
     assert not any(isinstance(e, Edge) for e in events)
+
+
+# A cycle that closes through the declaration-time `kwargs=` overlay.
+# It needs one type-matched edge to forward-reference: a `kwargs=` value is always a
+# backward reference to an already-built provider, so a pure-`kwargs=` cycle cannot
+# be constructed at all.
+class KwCycA:
+    def __init__(self, b: "KwCycB") -> None: ...  # type-matched edge A -> B
+
+
+class KwCycB:
+    def __init__(self, a: object = None) -> None: ...  # `object` never type-matches
+
+
+def test_walk_emits_cycle_closed_through_kwargs_overlay() -> None:
+    a = Factory(scope=Scope.APP, creator=KwCycA)
+    b = Factory(scope=Scope.APP, creator=KwCycB, kwargs={"a": a})  # kwargs edge B -> A
+
+    c = Container(scope=Scope.APP, validate=False)
+    c.providers_registry.add_providers(a, b)
+
+    events = list(DependencyGraph().walk([a], c))
+    cycles = [e for e in events if isinstance(e, Cycle)]
+    assert len(cycles) == 1
+    assert [p.display_name for p in cycles[0].providers] == ["KwCycA", "KwCycB", "KwCycA"]
