@@ -198,7 +198,7 @@ class AppGroup(Group):
 
 - [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
 - [Multi-Group organization](../recipes/multi-group.md) — structuring a larger container.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
 - [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
