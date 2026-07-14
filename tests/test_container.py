@@ -8,7 +8,7 @@ import warnings
 
 import pytest
 
-from modern_di import Container, Group, Scope, exceptions, providers
+from modern_di import Container, Group, Scope, exceptions, providers, suggester
 from modern_di.exceptions import (
     ArgumentResolutionError,
     ChildContainerRegistrationError,
@@ -961,7 +961,9 @@ def test_resolve_dependency_with_unregistered_type_raises_with_suggestion() -> N
 
     exc = exc_info.value
     assert exc.provider_type is Database
-    assert exc.suggestions == ["  - PostgresDatabase (registered subclass, scope=APP)"]
+    assert exc.suggestions == [
+        suggester.Suggestion(name="PostgresDatabase", reason="registered subclass", scope=Scope.APP)
+    ]
 
 
 def test_resolve_dependency_works_on_child_container_for_both_arms() -> None:

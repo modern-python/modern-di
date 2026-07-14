@@ -121,6 +121,34 @@ inspection, and anything without an inspectable source (C callables, `functools.
 like) yields no site rather than raising. `Alias` steps never carry a definition site, since an
 alias has no creator of its own to anchor.
 
+### One renderer
+
+Every glyph in every message lives in `exceptions.py`, and nowhere else. Two private drawers own the
+formatting the errors share:
+
+- `_render_chain(steps)` draws a `list[ResolutionStep]` as the indented arrow tree with an aligned
+  scope column. It is the single home of the chain glyphs, used by both `DependencyPathMixin`
+  (a resolution breadcrumb) and `CircularDependencyError` (a cycle) — which is why the two read
+  identically and cannot drift.
+- `_render_suggestions(items)` draws the `Did you mean:` block from `list[suggester.Suggestion]`.
+  It is the single home of the suggestion glyphs, used by `ProviderNotRegisteredError`,
+  `ArgumentResolutionError`, and `UnknownFactoryKwargError`.
+
+What crosses into an error is **facts, never formatting**. `ProvidersRegistry.build_suggestions`
+returns `Suggestion` records — `(name, reason, scope)` — not rendered bullets, so `.suggestions` on a
+caught exception is data a caller can act on rather than glyphs it would have to parse back apart.
+An error also derives whatever it can from what it was already handed: `InvalidChildScopeError`
+computes `.allowed_scopes` from `parent_scope`, and `UnknownFactoryKwargError` runs its own
+`close_matches` over the `unknown_keys`/`known_keys` it receives. Neither is computed at a raise site.
+
+`suggester` owns what a suggestion *is* (the `Suggestion` record) and how to *find* one
+(`close_matches`); `exceptions` owns how everything *looks*. The messages themselves stay inline
+f-strings in the class that raises them — only the shared glyph logic is factored out, not the
+message catalog (see [2026-06-23.02-inline-error-messages](../planning/changes/2026-06-23.02-inline-error-messages.md)).
+
+Rendered error text is diagnostic, not a public contract; the structured attributes and the class
+hierarchy are. See [2026-07-14-error-text-is-not-a-contract](../planning/decisions/2026-07-14-error-text-is-not-a-contract.md).
+
 ## Step 6 — Creator call and caching
 
 `Factory` calls the creator with `resolved_kwargs`. With no `cache_settings`, the instance is returned immediately.

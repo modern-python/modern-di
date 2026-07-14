@@ -4,7 +4,7 @@ import inspect
 import typing
 import warnings
 
-from modern_di import exceptions, suggester, types
+from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.types_parser import SignatureItem, parse_creator
@@ -110,16 +110,10 @@ class Factory(AbstractProvider[types.T_co]):
         unknown = sorted(set(kwargs) - known)
         if not unknown:
             return
-        suggestions: dict[str, str] = {}
-        for bad in unknown:
-            matches = suggester.close_matches(bad, known, n=1)
-            if matches:
-                suggestions[bad] = matches[0]
         raise exceptions.UnknownFactoryKwargError(
             creator=creator,
             unknown_keys=unknown,
             known_keys=sorted(known),
-            suggestions=suggestions,
         )
 
     def __repr__(self) -> str:

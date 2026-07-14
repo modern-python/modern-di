@@ -3,7 +3,7 @@ import typing
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, providers, suggester
 from modern_di.exceptions import ArgumentResolutionError, ProviderNotRegisteredError
 from modern_di.registries.providers_registry import _hierarchy_hint
 
@@ -70,7 +70,8 @@ def test_typo_suggestion() -> None:
     # which would otherwise embed the brittle `<locals>.Repostory` repr (couples to this test's name).
     exc = exc_info.value
     assert exc.provider_type is Repostory
-    assert exc.suggestions == ["  - Repository (similar name, scope=APP)"]
+    # .suggestions is data, not glyphs: a caller can act on it without parsing a bullet back apart.
+    assert exc.suggestions == [suggester.Suggestion(name="Repository", reason="similar name", scope=Scope.APP)]
     rendered = str(exc)
     assert "is not registered in providers registry" in rendered
     assert "Did you mean:" in rendered
@@ -175,7 +176,9 @@ def test_argument_resolution_subclass_suggestion() -> None:
     rendered = str(exc_info.value)
     assert "Did you mean:" in rendered
     assert "PostgresDatabase (registered subclass, scope=APP)" in rendered
-    assert exc_info.value.suggestions == ["  - PostgresDatabase (registered subclass, scope=APP)"]
+    assert exc_info.value.suggestions == [
+        suggester.Suggestion(name="PostgresDatabase", reason="registered subclass", scope=Scope.APP)
+    ]
 
 
 def test_argument_resolution_baseclass_suggestion() -> None:
