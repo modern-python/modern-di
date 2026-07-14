@@ -88,11 +88,7 @@ class Container:
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
-            raise exceptions.InvalidChildScopeError(
-                parent_scope=parent_container.scope,
-                child_scope=scope,
-                allowed_scopes=[x.name for x in type(parent_container.scope) if x > parent_container.scope],
-            )
+            raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         self._lock = threading.RLock() if use_lock else None
         self._validated = False
         self.closed = False
@@ -139,11 +135,7 @@ class Container:
         self._warn_and_reopen_if_closed()
 
         if scope is not None and scope <= self.scope:
-            raise exceptions.InvalidChildScopeError(
-                parent_scope=self.scope,
-                child_scope=scope,
-                allowed_scopes=[x.name for x in type(self.scope) if x > self.scope],
-            )
+            raise exceptions.InvalidChildScopeError(parent_scope=self.scope, child_scope=scope)
 
         if scope is None:
             # Derive the next scope as the smallest member deeper than the current one, so

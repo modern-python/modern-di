@@ -61,8 +61,9 @@ def build_cycle_error(
 ) -> "exceptions.CircularDependencyError":
     """Build a ``CircularDependencyError`` from a cycle's providers (first node repeated last)."""
     return exceptions.CircularDependencyError(
-        cycle_path=[p.display_name for p in providers],
-        cycle_locations=[p.definition_site for p in providers],
+        steps=[
+            exceptions.ResolutionStep(scope=p.scope, name=p.display_name, location=p.definition_site) for p in providers
+        ]
     )
 
 

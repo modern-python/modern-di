@@ -9,18 +9,20 @@ from modern_di.providers.abstract import AbstractProvider
 _MAX_SUGGESTIONS = 3
 
 
-def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]) -> str | None:
+def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]) -> "suggester.Suggestion | None":
     registered = provider.bound_type
     if registered is None or not inspect.isclass(registered):
         return None
     try:
         if issubclass(registered, requested_type):
-            return f"  - {registered.__name__} (registered subclass, scope={provider.scope.name})"
-        if issubclass(requested_type, registered):
-            return f"  - {registered.__name__} (registered base class, scope={provider.scope.name})"
+            reason = "registered subclass"
+        elif issubclass(requested_type, registered):
+            reason = "registered base class"
+        else:
+            return None
     except TypeError:
         return None
-    return None
+    return suggester.Suggestion(name=registered.__name__, reason=reason, scope=provider.scope)
 
 
 class ProvidersRegistry:
@@ -83,11 +85,12 @@ class ProvidersRegistry:
             self._version += 1
             self.validated_version = None
 
-    def build_suggestions(self, requested_type: type) -> list[str]:
+    def build_suggestions(self, requested_type: type) -> "list[suggester.Suggestion]":
+        """Candidates the caller may have meant, as data — rendering belongs to ``exceptions``."""
         requested_is_class = inspect.isclass(requested_type)
         requested_name = getattr(requested_type, "__name__", str(requested_type))
 
-        hierarchy_hints: list[str] = []
+        hierarchy_hints: list[suggester.Suggestion] = []
         name_to_provider: dict[str, AbstractProvider[typing.Any]] = {}
 
         for provider in list(self._providers.values()):
@@ -108,7 +111,7 @@ class ProvidersRegistry:
 
         remaining = _MAX_SUGGESTIONS - len(hierarchy_hints)
         typo_hints = [
-            f"  - {name} (similar name, scope={name_to_provider[name].scope.name})"
+            suggester.Suggestion(name=name, reason="similar name", scope=name_to_provider[name].scope)
             for name in suggester.close_matches(requested_name, name_to_provider.keys(), n=remaining)
         ]
         return hierarchy_hints + typo_hints

@@ -71,18 +71,20 @@ graph clean for every container in the tree.
 When the walk follows an edge to a provider still on the active path (tracked in the walk's internal
 `visiting` set), it emits a `Cycle` event whose `providers` list closes the loop by repeating the first
 node last (e.g., `[A, B, A]`). `validate()` maps that event to a `CircularDependencyError` (built via
-`dependency_graph.build_cycle_error`) whose `.cycle_path` is the list of type names showing the loop
-(e.g., `["A", "B", "A"]`). The walk does **not** descend into the cycle, but the rest of the graph
-continues to be checked. `CircularDependencyError.__str__` renders `.cycle_path` as a multi-line arrow
-chain, not an inline `A -> B -> A` string — see `CircularDependencyError` in `exceptions.py`.
+`dependency_graph.build_cycle_error`), which carries the loop as `.steps` — one `ResolutionStep`
+(scope, name, optional definition site) per node. The walk does **not** descend into the cycle, but the
+rest of the graph continues to be checked. `CircularDependencyError.__str__` renders those steps as a
+multi-line arrow chain, not an inline `A -> B -> A` string.
 
-Each node in that chain may also carry an optional definition site — the creator's declaration
-point — rendered as a trailing `module:line` anchor alongside the provider name, using the same
-lazy, memoized, best-effort capture described for breadcrumb steps in
-[resolution.md](resolution.md#breadcrumb-definition-sites). The public `.cycle_path` stays the bare
-list of type names; the parallel locations live on a separate `.cycle_locations` attribute. Both
-`validate()` and the runtime guard build the error through the one `dependency_graph.build_cycle_error`
-helper, so the two attributes stay in sync by construction rather than by parallel edit.
+`.cycle_path` (the bare list of type names, e.g. `["A", "B", "A"]`) and `.cycle_locations` (the parallel
+`module:line` anchors) are **views derived from `.steps`**, so they cannot fall out of step with each
+other or with what is rendered — the equal-length invariant is structural rather than enforced at render
+time. Definition sites use the same lazy, memoized, best-effort capture described for breadcrumb steps in
+[resolution.md](resolution.md#breadcrumb-definition-sites).
+
+Because a `ResolutionStep` carries its provider's scope, the cycle renders through the *same* chain drawer
+as a resolution breadcrumb — including the aligned scope column — so a cycle and a failed resolution path
+read identically. See [resolution.md](resolution.md#one-renderer) for that drawer.
 
 > **Runtime resolution has a cycle guard too — but `validate()` remains the way to see all errors up front.**
 > `Container.resolve_provider` wraps the final `provider.resolve(self)` in `try/except RecursionError`. The

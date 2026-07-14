@@ -2,6 +2,8 @@ import dataclasses
 import enum
 import typing
 
+from modern_di import suggester
+
 
 SUGGESTION_HEADER = "Did you mean:"
 _TROUBLESHOOTING_BASE_URL = "https://modern-di.modern-python.org/troubleshooting"
@@ -13,10 +15,13 @@ if typing.TYPE_CHECKING:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ResolutionStep:
-    """One entry in a :class:`ResolutionError`'s ``dependency_path``.
+    """One entry in a chain-shaped error: a provider, as this module needs to draw it.
+
+    Used both for a :class:`ResolutionError`'s ``dependency_path`` and for a
+    :class:`CircularDependencyError`'s cycle, so both render through ``_render_chain``.
 
     Attributes:
-        scope: the scope of the provider at this step of the resolution chain.
+        scope: the scope of the provider at this step of the chain.
         name: the provider's display name (bound type or creator name).
         location: the provider's declaration site as ``module:line``, when known.
 
@@ -25,6 +30,42 @@ class ResolutionStep:
     scope: enum.IntEnum
     name: str
     location: str | None = None
+
+
+def _render_chain(steps: "list[ResolutionStep]") -> list[str]:
+    """Draw a provider chain as an indented arrow tree, one line per step.
+
+    The single home of the chain glyphs — used by every chain-shaped error, so a
+    resolution path and a dependency cycle cannot drift apart in how they read.
+    """
+    scope_width = max(len(step.scope.name) for step in steps)
+    lines = []
+    for i, step in enumerate(steps):
+        prefix = "" if i == 0 else "    " * (i - 1) + "└─> "
+        label = f"{step.name} ({step.location})" if step.location else step.name
+        lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{label}")
+    return lines
+
+
+def _render_suggestion_lines(suggestions: "list[suggester.Suggestion]") -> list[str]:
+    """Draw each suggestion as a bullet. The single home of the suggestion glyphs."""
+    lines = []
+    for suggestion in suggestions:
+        details = [x for x in (suggestion.reason, _scope_detail(suggestion.scope)) if x]
+        suffix = f" ({', '.join(details)})" if details else ""
+        lines.append(f"  - {suggestion.name}{suffix}")
+    return lines
+
+
+def _scope_detail(scope: enum.IntEnum | None) -> str | None:
+    return None if scope is None else f"scope={scope.name}"
+
+
+def _render_suggestions(suggestions: "list[suggester.Suggestion]") -> str:
+    """Render the full ``Did you mean:`` block, or an empty string when there is nothing to suggest."""
+    if not suggestions:
+        return ""
+    return "\n".join([SUGGESTION_HEADER, *_render_suggestion_lines(suggestions)])
 
 
 class ModernDIError(RuntimeError):
@@ -83,13 +124,11 @@ class DependencyPathMixin:
         if not self.dependency_path:
             return self._base_message
 
-        scope_width = max(len(step.scope.name) for step in self.dependency_path)
-        lines = ["Cannot resolve dependency chain:"]
-        for i, step in enumerate(self.dependency_path):
-            prefix = "" if i == 0 else "    " * (i - 1) + "└─> "
-            label = f"{step.name} ({step.location})" if step.location else step.name
-            lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{label}")
-        lines.append(f"  caused by: {self._base_message}")
+        lines = [
+            "Cannot resolve dependency chain:",
+            *_render_chain(self.dependency_path),
+            f"  caused by: {self._base_message}",
+        ]
         return "\n".join(lines)
 
 
@@ -106,14 +145,17 @@ class InvalidChildScopeError(ContainerError):
 
     __slots__ = ("allowed_scopes", "child_scope", "parent_scope")
 
-    def __init__(self, *, parent_scope: enum.IntEnum, child_scope: enum.IntEnum, allowed_scopes: list[str]) -> None:
+    def __init__(self, *, parent_scope: enum.IntEnum, child_scope: enum.IntEnum) -> None:
         self.parent_scope = parent_scope
         self.child_scope = child_scope
-        self.allowed_scopes = allowed_scopes
+        # Derived, not handed over: the allowed scopes are a pure function of the parent's own
+        # enum class, so a raise site has nothing to add. Drawn from type(parent_scope) so a
+        # custom IntEnum reports its own members.
+        self.allowed_scopes = [x.name for x in type(parent_scope) if x > parent_scope]
         super().__init__(
             f"Scope of child container cannot be {child_scope.name} if parent scope is {parent_scope.name} "
             f"(child scope value must be strictly greater than parent scope value). "
-            f"Possible scopes are {allowed_scopes}."
+            f"Possible scopes are {self.allowed_scopes}."
         )
 
 
@@ -249,13 +291,13 @@ class ProviderNotRegisteredError(ResolutionError):
         self,
         *,
         provider_type: type,
-        suggestions: list[str] | None = None,
+        suggestions: "list[suggester.Suggestion] | None" = None,
     ) -> None:
         self.provider_type = provider_type
         self.suggestions = suggestions or []
         message = f"Provider of type {provider_type} is not registered in providers registry."
-        if self.suggestions:
-            message += "\n" + SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
+        if block := _render_suggestions(self.suggestions):
+            message += "\n" + block
         super().__init__(message)
 
 
@@ -287,7 +329,7 @@ class ArgumentResolutionError(ResolutionError):
         arg_name: str,
         arg_type: typing.Any,  # noqa: ANN401
         bound_type: typing.Any,  # noqa: ANN401
-        suggestions: list[str] | None = None,
+        suggestions: "list[suggester.Suggestion] | None" = None,
         member_types: list[type] | None = None,
     ) -> None:
         self.arg_name = arg_name
@@ -308,8 +350,8 @@ class ArgumentResolutionError(ResolutionError):
                 f"Argument {arg_name} has no usable type annotation, so it cannot be resolved by type. "
                 f"Pass it via the kwargs parameter or add a type annotation. Trying to build dependency {bound_type}."
             )
-        if self.suggestions:
-            message += "\n" + SUGGESTION_HEADER + "\n" + "\n".join(self.suggestions)
+        if block := _render_suggestions(self.suggestions):
+            message += "\n" + block
         super().__init__(message)
 
 
@@ -332,25 +374,29 @@ class CreatorCallError(ResolutionError):
 class CircularDependencyError(ResolutionError):
     """A dependency cycle was detected by ``validate()`` or the runtime resolve guard.
 
-    Inspect ``.cycle_path`` (the loop as type names) and ``.cycle_locations`` (parallel
-    ``module:line`` anchors, when known). When raised at resolve time, ``__cause__`` carries
-    the original ``RecursionError``.
+    Inspect ``.steps`` (the loop, first provider repeated last), or the ``.cycle_path`` /
+    ``.cycle_locations`` views derived from it. When raised at resolve time, ``__cause__``
+    carries the original ``RecursionError``.
     """
 
     docs_slug = "circular-dependency"
 
-    __slots__ = ("cycle_locations", "cycle_path")
+    __slots__ = ("steps",)
 
-    def __init__(self, *, cycle_path: list[str], cycle_locations: list[str | None] | None = None) -> None:
-        self.cycle_path = cycle_path
-        self.cycle_locations = cycle_locations
-        locations = cycle_locations if cycle_locations is not None else [None] * len(cycle_path)
-        lines = []
-        for i, (name, location) in enumerate(zip(cycle_path, locations, strict=True)):
-            label = f"{name} ({location})" if location else name
-            lines.append(f"  {'    ' * (i - 1)}└─> {label}" if i else f"  {label}")
-        rendered = "\n".join(lines)
+    def __init__(self, *, steps: list[ResolutionStep]) -> None:
+        self.steps = steps
+        rendered = "\n".join(_render_chain(steps))
         super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
+
+    @property
+    def cycle_path(self) -> list[str]:
+        """The cycle as provider names."""
+        return [step.name for step in self.steps]
+
+    @property
+    def cycle_locations(self) -> list[str | None]:
+        """The cycle's ``module:line`` anchors, positionally parallel to ``cycle_path``."""
+        return [step.location for step in self.steps]
 
 
 class ContextValueNotSetError(ResolutionError):
@@ -467,21 +513,27 @@ class UnknownFactoryKwargError(RegistrationError):
         creator: typing.Any,  # noqa: ANN401
         unknown_keys: list[str],
         known_keys: list[str],
-        suggestions: dict[str, str] | None = None,
     ) -> None:
         self.creator = creator
         self.unknown_keys = unknown_keys
         self.known_keys = known_keys
-        self.suggestions = suggestions or {}
+        # Derived, not handed over: matching the unknown keys against the known ones needs
+        # nothing the error was not already given. A kwarg has no provider, so no scope.
+        self.suggestions = [
+            suggester.Suggestion(
+                name=repr(key),
+                reason=f"did you mean {matches[0]!r}?"
+                if (matches := suggester.close_matches(key, known_keys, n=1))
+                else None,
+            )
+            for key in unknown_keys
+        ]
         creator_name = getattr(creator, "__name__", repr(creator))
-        parts = [f"Factory kwargs contain unknown key(s) not in {creator_name} signature:"]
-        for key in unknown_keys:
-            sug = self.suggestions.get(key)
-            line = f"  - {key!r}"
-            if sug:
-                line += f" (did you mean {sug!r}?)"
-            parts.append(line)
-        parts.append(f"Known parameters: {known_keys}")
+        parts = [
+            f"Factory kwargs contain unknown key(s) not in {creator_name} signature:",
+            *_render_suggestion_lines(self.suggestions),
+            f"Known parameters: {known_keys}",
+        ]
         super().__init__("\n".join(parts))
 
 
