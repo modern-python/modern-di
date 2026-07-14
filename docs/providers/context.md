@@ -152,11 +152,14 @@ runs inside the `Container(...)` call, *before* `setup_di()` registers
 raise [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md).
 A defaulted parameter is skipped by that check, and at runtime the integration has
 registered the provider and set the per-request context, so the real `Request` is
-injected. The default is load-bearing only at validation time — in modern-di 3.0 an
-unset context still raises `ContextValueNotSetError` at resolve, so the annotation
-does not hide a missing-context bug. Prefer this to `validate=False`, which silences
-*all* validation; reach for `validate=False` (and validate after `setup_di()`
-instead) only if you'd rather keep the parameter required.
+injected — the parameter is `None` only when resolved with no context set, which the
+integration never does per request. The default is load-bearing only at validation
+time; it does not change runtime behaviour. (A defaulted `Factory` parameter keeps
+its own disposition in modern-di 3.0 — the 3.0 `ContextValueNotSetError` affects only
+a *direct* resolve of an unset context type, not a defaulted parameter, which still
+falls back to its default.) Prefer this to `validate=False`, which silences *all*
+validation; reach for `validate=False` (and validate after `setup_di()` instead)
+only if you'd rather keep the parameter required so a missing context fails loudly.
 
 **Explicit usage (provider-based resolution).** Every integration also exports the underlying
 `ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,
