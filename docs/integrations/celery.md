@@ -35,27 +35,20 @@ from modern_di_celery import FromDI, inject, setup_di
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    greeting: str = "hello"
+    service_name: str = "catalog"
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class Greeter:
-    settings: Settings        # auto-injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
-    def greet(self, name: str) -> str:
-        return f"{self.settings.greeting}, {name}"
+    def render(self) -> str:
+        return f"service={self.settings.service_name}"
 
 
 class AppGroup(Group):
-    settings = providers.Factory(
-        Settings,
-        scope=Scope.APP,
-        cache=True,
-    )
-    greeter = providers.Factory(
-        Greeter,
-        scope=Scope.REQUEST,
-    )
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 app = Celery("myapp", broker="redis://localhost")
@@ -64,14 +57,8 @@ setup_di(app, Container(groups=[AppGroup], validate=True))
 
 @app.task
 @inject
-def greet(
-    name: str,
-    greeter: typing.Annotated[
-        Greeter,
-        FromDI(Greeter),    # resolve by type
-    ],
-) -> str:
-    return greeter.greet(name)
+def run_report(report: typing.Annotated[Report, FromDI(Report)]) -> str:
+    return report.render()
 ```
 
 `setup_di(app, container)` stores the container on `app.conf` and registers `worker_process_init`/`worker_process_shutdown` signal handlers that open/close it — those fire when a real `celery worker` process starts and stops, so a script or test that calls tasks without spinning one up (e.g. with `task_always_eager = True`) must drive the container lifecycle itself; see [Worker-process lifecycle](#worker-process-lifecycle) below.
@@ -186,6 +173,13 @@ signals.worker_process_init.send(sender=None)    # a real worker fires this on s
 print(ping.delay().get())    # -> "pong"
 signals.worker_process_shutdown.send(sender=None)    # a real worker fires this on shutdown
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Multi-Group organization](../recipes/multi-group.md) — structuring a larger container.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 
