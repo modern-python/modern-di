@@ -39,30 +39,25 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class RequestReport:
-    settings: Settings           # APP-scoped, injected by type
-    request: litestar.Request    # REQUEST context object, injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "method": self.request.method,
-            "path": self.request.url.path,
-        }
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
-@litestar.get("/report", dependencies={"report": modern_di_litestar.FromDI(RequestReport)})
-async def report(report: RequestReport) -> dict[str, str]:
+@litestar.get("/report", dependencies={"report": modern_di_litestar.FromDI(Report)})
+async def get_report(report: Report) -> dict[str, str]:
     return report.as_dict()
 
 
 app = litestar.Litestar(
-    route_handlers=[report],
+    route_handlers=[get_report],
     plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=[AppGroup], validate=True))],
 )
 ```

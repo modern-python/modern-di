@@ -40,21 +40,16 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class RequestReport:
+class Report:
     settings: Settings              # APP-scoped, injected by type
-    request: fastapi.Request        # REQUEST context object, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "method": self.request.method,
-            "path": self.request.url.path,
-        }
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 app = fastapi.FastAPI()
@@ -62,10 +57,10 @@ modern_di_fastapi.setup_di(app, Container(groups=[AppGroup], validate=True))
 
 
 @app.get("/report")
-async def report(
-    request_report: typing.Annotated[RequestReport, modern_di_fastapi.FromDI(RequestReport)],
+async def get_report(
+    report: typing.Annotated[Report, modern_di_fastapi.FromDI(Report)],
 ) -> dict[str, str]:
-    return request_report.as_dict()
+    return report.as_dict()
 ```
 
 ## Websockets

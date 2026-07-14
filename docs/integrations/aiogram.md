@@ -35,7 +35,7 @@ import dataclasses
 import typing
 
 from aiogram import Dispatcher
-from aiogram.types import Message, Update
+from aiogram.types import Message
 from modern_di import Container, Group, Scope, providers
 from modern_di_aiogram import FromDI, inject, setup_di
 
@@ -46,20 +46,16 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class UpdateReport:
+class Report:
     settings: Settings   # APP-scoped, injected by type
-    update: Update       # per-update context object, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "update_id": str(self.update.update_id),
-        }
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    update_report = providers.Factory(UpdateReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 dispatcher = Dispatcher()
@@ -68,11 +64,11 @@ setup_di(dispatcher, Container(groups=[AppGroup], validate=True))
 
 @dispatcher.message()
 @inject
-async def report(
+async def greet(
     message: Message,
-    update_report: typing.Annotated[UpdateReport, FromDI(UpdateReport)],
+    report: typing.Annotated[Report, FromDI(Report)],
 ) -> None:
-    await message.answer(str(update_report.as_dict()))
+    await message.answer(str(report.as_dict()))
 ```
 
 `setup_di(dispatcher, container)` stores the container on the dispatcher,

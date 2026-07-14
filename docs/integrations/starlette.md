@@ -47,32 +47,27 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class RequestReport:
-    settings: Settings      # APP-scoped, injected by type
-    request: Request        # REQUEST context object, injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "method": self.request.method,
-            "path": self.request.url.path,
-        }
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 @inject
-async def report(
+async def get_report(
     request: Request,
-    request_report: typing.Annotated[RequestReport, FromDI(RequestReport)],
+    report: typing.Annotated[Report, FromDI(Report)],
 ) -> JSONResponse:
-    return JSONResponse(request_report.as_dict())
+    return JSONResponse(report.as_dict())
 
 
-app = Starlette(routes=[Route("/report", report)])
+app = Starlette(routes=[Route("/report", get_report)])
 setup_di(app, Container(groups=[AppGroup], validate=True))
 ```
 

@@ -44,33 +44,28 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class RequestReport:
-    settings: Settings      # APP-scoped, injected by type
-    request: web.Request    # REQUEST context object, injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "method": self.request.method,
-            "path": self.request.path,
-        }
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 @inject
-async def report(
+async def get_report(
     request: web.Request,
-    request_report: typing.Annotated[RequestReport, FromDI(RequestReport)],
+    report: typing.Annotated[Report, FromDI(Report)],
 ) -> web.Response:
-    return web.json_response(request_report.as_dict())
+    return web.json_response(report.as_dict())
 
 
 app = web.Application()
-app.router.add_get("/report", report)
+app.router.add_get("/report", get_report)
 setup_di(app, Container(groups=[AppGroup], validate=True))
 ```
 

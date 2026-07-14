@@ -30,7 +30,7 @@ import typing
 
 from modern_di import Container, Group, Scope, providers
 from modern_di_taskiq import FromDI, setup_di
-from taskiq import InMemoryBroker, TaskiqMessage
+from taskiq import InMemoryBroker
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -39,20 +39,16 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class TaskReport:
-    settings: Settings          # APP-scoped, injected by type
-    message: TaskiqMessage      # per-task context object, injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "task": self.message.task_name,
-        }
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    task_report = providers.Factory(TaskReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 broker = InMemoryBroker()
@@ -60,10 +56,10 @@ setup_di(broker, Container(groups=[AppGroup], validate=True))
 
 
 @broker.task
-async def report(
-    task_report: typing.Annotated[TaskReport, FromDI(TaskReport)],
+async def get_report(
+    report: typing.Annotated[Report, FromDI(Report)],
 ) -> dict[str, str]:
-    return task_report.as_dict()
+    return report.as_dict()
 ```
 
 `setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it — those fire when the broker's worker process starts and stops, so a script that just calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.

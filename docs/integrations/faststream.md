@@ -40,20 +40,16 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class MessageReport:
-    settings: Settings                    # APP-scoped, injected by type
-    message: faststream.StreamMessage     # per-message context object, injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "message_id": str(self.message.message_id),
-        }
+        return {"service": self.settings.service_name}
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    message_report = providers.Factory(MessageReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 broker = NatsBroker()
@@ -63,7 +59,7 @@ modern_di_faststream.setup_di(app, Container(groups=[AppGroup], validate=True))
 
 @broker.subscriber("orders.in")
 async def handle_order(
-    report: typing.Annotated[MessageReport, modern_di_faststream.FromDI(MessageReport)],
+    report: typing.Annotated[Report, modern_di_faststream.FromDI(Report)],
 ) -> dict[str, str]:
     return report.as_dict()
 ```

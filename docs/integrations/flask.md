@@ -34,7 +34,7 @@ Resolution is **sync-only** — the child container is closed with `close_sync()
 import dataclasses
 import typing
 
-from flask import Flask, Request
+from flask import Flask
 from modern_di import Container, Group, Scope, providers
 from modern_di_flask import FromDI, inject, setup_di
 
@@ -45,21 +45,16 @@ class Settings:
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class RequestReport:
+class Report:
     settings: Settings   # APP-scoped, injected by type
-    request: Request     # REQUEST context object, injected by type
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "service": self.settings.service_name,
-            "method": self.request.method,
-            "path": self.request.path,
-        }
+        return {"service": self.settings.service_name}
 
 
 class Dependencies(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
-    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 app = Flask(__name__)
@@ -67,8 +62,8 @@ app = Flask(__name__)
 
 @app.route("/report")
 @inject
-def report(request_report: typing.Annotated[RequestReport, FromDI(RequestReport)]) -> dict[str, str]:
-    return request_report.as_dict()
+def get_report(report: typing.Annotated[Report, FromDI(Report)]) -> dict[str, str]:
+    return report.as_dict()
 
 
 # call setup_di AFTER registering routes

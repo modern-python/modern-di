@@ -357,8 +357,13 @@ Each official integration is its own repository and PyPI package, mirroring the
   family group: Web / Tasks & events / Bots / RPC / CLI / Testing). Follow the
   canonical page shape the existing pages use: a single realistic-but-compact
   example — an APP-scoped `Settings` plus one work-scoped service (two providers,
-  no more) that depends on `Settings` by type and, where the framework exposes a
-  connection/message object, reads one field of it — followed by any
+  no more) that depends on `Settings` by type — built with `validate=True`. Keep
+  the connection/message object **out** of that validated example: its
+  `ContextProvider` is registered by `setup_di` *after* the container is
+  constructed, so a service that requires it by type fails `validate=True` at
+  construction. Demonstrate context injection in a dedicated "Framework Context
+  Objects" section instead (unvalidated, or with an optional `| None = None`
+  parameter as the [gRPC page](grpc.md) does). Follow the example with any
   framework-specific sections, a tailored `## See also` block linking
   [Testing with overrides](../recipes/testing-overrides.md),
   [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and
