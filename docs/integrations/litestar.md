@@ -26,37 +26,44 @@
 
 ### 2. Apply to your application
 ```python
-import datetime
+import dataclasses
 
-from litestar import Litestar, get
+import litestar
 import modern_di_litestar
 from modern_di import Container, Group, Scope, providers
 
 
-def create_singleton() -> datetime.datetime:
-    return datetime.datetime.now(tz=datetime.timezone.utc)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    service_name: str = "catalog"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class RequestReport:
+    settings: Settings           # APP-scoped, injected by type
+    request: litestar.Request    # REQUEST context object, injected by type
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "service": self.settings.service_name,
+            "method": self.request.method,
+            "path": self.request.url.path,
+        }
 
 
 class AppGroup(Group):
-    singleton = providers.Factory(
-        create_singleton,
-        scope=Scope.APP,
-        cache=True
-    )
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
 
 
-# Register your groups
-ALL_GROUPS = [AppGroup]
+@litestar.get("/report", dependencies={"report": modern_di_litestar.FromDI(RequestReport)})
+async def report(report: RequestReport) -> dict[str, str]:
+    return report.as_dict()
 
 
-@get("/", dependencies={"injected": modern_di_litestar.FromDI(datetime.datetime)})  # Resolve by type
-async def index(injected: datetime.datetime) -> str:
-    return injected.isoformat()
-
-
-app = Litestar(
-    route_handlers=[index],
-    plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS, validate=True))],
+app = litestar.Litestar(
+    route_handlers=[report],
+    plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=[AppGroup], validate=True))],
 )
 ```
 
@@ -197,6 +204,13 @@ class AppGroup(Group):
         kwargs={"request": modern_di_litestar.litestar_request_provider}
     )
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

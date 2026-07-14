@@ -21,6 +21,12 @@ opens a per-connection child container automatically.
       pip install modern-di-aiohttp
       ```
 
+=== "poetry"
+
+      ```bash
+      poetry add modern-di-aiohttp
+      ```
+
 ### 2. Apply to your application
 
 ```python
@@ -32,25 +38,39 @@ from modern_di import Container, Group, Scope, providers
 from modern_di_aiohttp import FromDI, inject, setup_di
 
 
-@dataclasses.dataclass(kw_only=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    debug: bool = True
+    service_name: str = "catalog"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class RequestReport:
+    settings: Settings      # APP-scoped, injected by type
+    request: web.Request    # REQUEST context object, injected by type
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "service": self.settings.service_name,
+            "method": self.request.method,
+            "path": self.request.path,
+        }
 
 
 class AppGroup(Group):
-    settings = providers.Factory(Settings, scope=Scope.APP)
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
 
 
 @inject
-async def homepage(
+async def report(
     request: web.Request,
-    settings: typing.Annotated[Settings, FromDI(AppGroup.settings)],
+    request_report: typing.Annotated[RequestReport, FromDI(RequestReport)],
 ) -> web.Response:
-    return web.json_response({"debug": settings.debug})
+    return web.json_response(request_report.as_dict())
 
 
 app = web.Application()
-app.router.add_get("/", homepage)
+app.router.add_get("/report", report)
 setup_di(app, Container(groups=[AppGroup], validate=True))
 ```
 
@@ -102,6 +122,13 @@ async def ws_handler(
                 ...  # resolve REQUEST-scoped providers for this message
     return ws
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 
