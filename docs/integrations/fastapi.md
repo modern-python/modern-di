@@ -26,8 +26,7 @@
 
 ### 2. Apply to your application
 ```python
-import datetime
-import contextlib
+import dataclasses
 import typing
 
 import fastapi
@@ -35,37 +34,38 @@ import modern_di_fastapi
 from modern_di import Container, Group, Scope, providers
 
 
-app = fastapi.FastAPI()
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    service_name: str = "catalog"
 
 
-def create_singleton() -> datetime.datetime:
-    return datetime.datetime.now(tz=datetime.timezone.utc)
+@dataclasses.dataclass(kw_only=True, slots=True)
+class RequestReport:
+    settings: Settings              # APP-scoped, injected by type
+    request: fastapi.Request        # REQUEST context object, injected by type
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "service": self.settings.service_name,
+            "method": self.request.method,
+            "path": self.request.url.path,
+        }
 
 
 class AppGroup(Group):
-    singleton = providers.Factory(
-        create_singleton,
-        scope=Scope.APP,
-        cache=True
-    )
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    request_report = providers.Factory(RequestReport, scope=Scope.REQUEST)
 
 
-# Register your groups
-ALL_GROUPS = [AppGroup]
-
-# Setup DI with your groups
-modern_di_fastapi.setup_di(app, Container(groups=ALL_GROUPS, validate=True))
+app = fastapi.FastAPI()
+modern_di_fastapi.setup_di(app, Container(groups=[AppGroup], validate=True))
 
 
-@app.get("/")
-async def read_root(
-    instance: typing.Annotated[
-        datetime.datetime,
-        modern_di_fastapi.FromDI(datetime.datetime),  # Resolve by type instead of provider
-    ],
-) -> datetime.datetime:
-    return instance
-
+@app.get("/report")
+async def report(
+    request_report: typing.Annotated[RequestReport, modern_di_fastapi.FromDI(RequestReport)],
+) -> dict[str, str]:
+    return request_report.as_dict()
 ```
 
 ## Websockets
@@ -159,6 +159,13 @@ class AppGroup(Group):
         kwargs={"request": modern_di_fastapi.fastapi_request_provider}
     )
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 
