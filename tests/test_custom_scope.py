@@ -10,6 +10,7 @@ from modern_di.exceptions import (
     ScopeNotInitializedError,
     ScopeSkippedError,
 )
+from modern_di.scope import _deeper_members, _next_deeper
 
 
 class MyScope(enum.IntEnum):
@@ -85,6 +86,26 @@ def test_invalid_child_scope_with_conflicting_value() -> None:
         app_container.build_child_container(scope=ConflictingScope.SAME_AS_APP)
     assert exc.value.parent_scope is Scope.APP
     assert exc.value.child_scope is ConflictingScope.SAME_AS_APP
+
+
+def test_scope_algebra_answers_deeper_members_for_any_int_enum() -> None:
+    # The rule has one home and takes ANY IntEnum: Python forbids extending an enum that
+    # has members (`class MyScope(Scope)` -> TypeError), so a custom scope is a standalone
+    # IntEnum and the algebra cannot be methods on Scope without silently skipping it.
+    assert _deeper_members(MyScope.TENANT) == [MyScope.BACKGROUND_JOB]
+    assert _deeper_members(MyScope.BACKGROUND_JOB) == []
+    assert _deeper_members(Scope.ACTION) == [Scope.STEP]
+
+
+def test_scope_algebra_next_deeper_is_the_shallowest_deeper_member() -> None:
+    # Non-contiguous values: the next scope is the smallest member greater than the current
+    # one, never current.value + 1 (which need not be a member at all).
+    assert _next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB
+    assert _next_deeper(Scope.APP) is Scope.SESSION
+    # None at the deepest member: `scope.py` stays dependency-free, so raising
+    # MaxScopeReachedError here would cycle (exceptions imports scope for allowed_scopes).
+    assert _next_deeper(GappedScope.BACKGROUND_JOB) is None
+    assert _next_deeper(Scope.STEP) is None
 
 
 def test_caching_isolated_across_tenant_containers() -> None:

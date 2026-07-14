@@ -19,7 +19,7 @@ from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverrideHandle, OverridesRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.scope import Scope
+from modern_di.scope import Scope, _next_deeper
 
 
 if typing.TYPE_CHECKING:
@@ -134,17 +134,15 @@ class Container:
     ) -> "typing_extensions.Self":
         self._warn_and_reopen_if_closed()
 
-        if scope is not None and scope <= self.scope:
-            raise exceptions.InvalidChildScopeError(parent_scope=self.scope, child_scope=scope)
-
         if scope is None:
-            # Derive the next scope as the smallest member deeper than the current one, so
-            # non-contiguous custom enums (e.g. TENANT=6, JOB=10) work, not just `value + 1`.
-            deeper_scopes = [member for member in type(self.scope) if member > self.scope]
-            if not deeper_scopes:
+            # `_next_deeper` is the smallest member deeper than this one, so non-contiguous
+            # custom enums (e.g. TENANT=6, JOB=10) work, not just `value + 1`.
+            scope = _next_deeper(self.scope)
+            if scope is None:
                 raise exceptions.MaxScopeReachedError(parent_scope=self.scope)
-            scope = min(deeper_scopes)
 
+        # An explicitly-passed scope is not checked here: __init__ rejects a scope that is not
+        # deeper than its parent's, raising an identical InvalidChildScopeError.
         return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self._lock is not None)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":

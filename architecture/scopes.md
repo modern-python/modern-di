@@ -55,6 +55,31 @@ parent-chain traversal during resolution.
 more levels (or different names) can define their own `IntEnum` and use it throughout. The same integer-ordering
 rules apply. Passing a non-`IntEnum` value raises `InvalidScopeTypeError`.
 
+A custom scope is a **standalone** `IntEnum`, never a subclass of `Scope` — Python forbids extending an enum
+that has members (`class MyScope(Scope)` raises `TypeError: cannot extend enumeration 'Scope'`).
+
+## The scope algebra
+
+The one rule that is not just an integer comparison — *"which members of my enum are deeper than me"* — lives in
+`scope.py`, next to the concept it belongs to:
+
+- `_deeper_members(scope)` — the members of `scope`'s own enum deeper than it, shallowest first.
+- `_next_deeper(scope)` — the shallowest of those, or `None` at the deepest member.
+
+Both take **any** `IntEnum`, which the custom-scope contract forces: since a custom scope cannot subclass
+`Scope`, an algebra expressed as methods on `Scope` would silently apply to the five built-in members and to
+nothing else. Free functions apply uniformly, so custom scopes get the rule for free.
+
+`scope.py` imports only `enum` and stays that way by necessity: `exceptions.py` imports `_deeper_members` (to
+derive `InvalidChildScopeError.allowed_scopes`), so `_next_deeper` returns `None` at the deepest member rather
+than raising `MaxScopeReachedError` itself — raising it here would make `scope` import `exceptions` and the two
+would cycle. `Container.build_child_container` owns that raise.
+
+Both consumers read the rule from this one home: `build_child_container` derives an omitted child scope with
+`_next_deeper`, and `InvalidChildScopeError` reports the valid choices with `_deeper_members`. The plain
+ordering checks (`scope <= parent.scope`, `scope > self.scope`) stay as they are — `IntEnum` already gives
+comparison for free, and wrapping it would add an interface without adding a rule.
+
 ## See also
 
 - [docs/providers/scopes.md](../docs/providers/scopes.md) for a worked, user-facing walk-through of
