@@ -88,18 +88,20 @@ as context, hand it to the handler, and **close it in `finally`**. The shape
 depends on how the framework runs handlers:
 
 - **Dependency generator** (FastAPI, Litestar) — an `async def` that `yield`s
-  the container and closes after:
+  the container and closes after. Derive the child's scope and context with
+  `modern_di.integrations.classify_connection` — it picks the first provider
+  the connection is an instance of and returns its scope + a
+  `{context_type: connection}` context, or `None` if nothing matches:
 
   ```python
+  from modern_di import integrations
+
   async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
-      context: dict[type[typing.Any], typing.Any] = {}
-      scope = None
-      for provider in _CONNECTION_PROVIDERS:
-          if isinstance(connection, provider.context_type):
-              context[provider.context_type] = connection
-              scope = provider.scope
-              break
-      async with fetch_di_container(connection.app).build_child_container(context=context, scope=scope) as container:
+      match = integrations.classify_connection(connection, _CONNECTION_PROVIDERS)
+      async with fetch_di_container(connection.app).build_child_container(
+          scope=match.scope if match else None,
+          context=match.context if match else None,
+      ) as container:
           yield container
   ```
 
@@ -108,6 +110,14 @@ depends on how the framework runs handlers:
   freshly built child opens it (a no-op, since a new child is already open) and
   closes it on exit, equivalent to a `try`/`finally` around `close_async`/`close_sync`
   but without hand-writing it.
+
+  For a **single** connection kind with no dispatch to do, call
+  `integrations.bind(my_provider, connection)` directly — it returns the same
+  scope + context for one provider without the isinstance scan. An adapter
+  whose unit of work carries **no** connection object (a Typer command) skips
+  the kit entirely and calls `build_child_container(scope=...)` directly. See
+  [architecture/integration-kit.md](https://github.com/modern-python/modern-di/blob/main/architecture/integration-kit.md)
+  for which shape fits which adapter.
 
 - **Middleware** (FastStream) — a `BaseMiddleware` whose `consume_scope` builds
   the child, stashes it in the framework context for the duration of the call,
@@ -133,25 +143,9 @@ How it delivers that value splits into two modes depending on the framework:
   DI](#frameworks-without-native-di-the-decorator-path).
 
 For the native-DI path, `FromDI` returns the framework's injection marker
-wrapping a frozen, slotted dataclass whose `__call__` receives the request
-container (via the framework's own DI) and dispatches on the argument kind.
-
-```python
-@dataclasses.dataclass(slots=True, frozen=True)
-class Dependency(typing.Generic[T_co]):
-    dependency: providers.AbstractProvider[T_co] | type[T_co]
-
-    async def __call__(self, request_container: typing.Annotated[Container, myfw.Depends(build_di_container)]) -> T_co:
-        return request_container.resolve_dependency(self.dependency)
-
-
-def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  # noqa: N802
-    return typing.cast(T_co, myfw.Depends(Dependency(dependency)))
-```
-
-`Dependency.__call__`'s body — `return request_container.resolve_dependency(self.dependency)`
-— is `modern_di.integrations.Marker.resolve`. Hold a `Marker` instead of a
-hand-rolled dataclass:
+wrapping a frozen, slotted dataclass that holds a
+`modern_di.integrations.Marker`. Its `__call__` receives the request container
+(via the framework's own DI) and resolves through the marker:
 
 ```python
 from modern_di import integrations
@@ -168,37 +162,12 @@ def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  
     return typing.cast(T_co, myfw.Depends(Dependency(integrations.Marker(dependency))))
 ```
 
-The dispatch is a single call, invariant across every integration and both
-modes: `resolve_dependency` takes either an `AbstractProvider` or a bare type
-and routes to `resolve_provider`/`resolve` accordingly — overrides, caching,
-and did-you-mean suggestions are inherited from whichever it dispatches to.
-`FromDI` is spelled in PascalCase (with `# noqa: N802`) because it stands in for
-a type at call sites.
-
-### Deriving scope and context with the integration kit
-
-The isinstance loop above is `modern_di.integrations.classify_connection`.
-Use it instead of hand-rolling the loop:
-
-```python
-from modern_di import integrations
-
-async def build_di_container(connection: HTTPConnection) -> typing.AsyncIterator[Container]:
-    match = integrations.classify_connection(connection, _CONNECTION_PROVIDERS)
-    async with fetch_di_container(connection.app).build_child_container(
-        scope=match.scope if match else None,
-        context=match.context if match else None,
-    ) as container:
-        yield container
-```
-
-For a single connection kind with no dispatch to do, call `integrations.bind`
-directly instead: `match = integrations.bind(my_provider, connection)`. Some
-adapters have nothing to derive at all (a CLI command with no connection
-object) and call `build_child_container(scope=...)` directly, with no
-integration-kit call in the middle — see
-[architecture/integration-kit.md](https://github.com/modern-python/modern-di/blob/main/architecture/integration-kit.md)
-for which shape fits which adapter.
+`Marker.resolve(container)` is a single call, invariant across every
+integration and both modes: it hands the wrapped provider-or-type to
+`container.resolve_dependency`, which routes to `resolve_provider`/`resolve`
+accordingly — overrides, caching, and did-you-mean suggestions are inherited
+from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
+`# noqa: N802`) because it stands in for a type at call sites.
 
 ## Lifecycle rules
 
@@ -241,7 +210,7 @@ Pattern-match your framework to the closest precedent.
 | Fetch root | `app.state.di_container` | `context.get("di_container")` | `app.state.di_container` | `ctx.obj["di_container"]` |
 | Connection providers | request + websocket | message | request + websocket | none (command has no connection object) |
 | Child builder | `async` dependency generator | `BaseMiddleware.consume_scope` | `async` dependency generator | `inject` decorator |
-| `FromDI` bridge | `fastapi.Depends(Dependency(...))` | `faststream.Depends(Dependency(...))` | `Provide(_Dependency(...))` | inert `_FromDI` marker + `inject` |
+| `FromDI` bridge | `fastapi.Depends(Dependency(Marker(...)))` | `faststream.Depends(Dependency(Marker(...)))` | `Provide(_Dependency(Marker(...)))` | inert `Marker` (`integrations.from_di`) + `inject` |
 | Child close | `close_async` | `close_async` | `close_async` | `close_sync` |
 
 The **Starlette** integration ([`modern-di-starlette`](starlette.md)) is the
