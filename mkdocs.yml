@@ -170,18 +170,10 @@ plugins:
           - providers/errors-and-exceptions.md: The ModernDIError exception hierarchy
           - providers/advanced-api.md: Low-level extension points for library authors
         Integrations:
-          - integrations/aiohttp.md: Usage with aiohttp
-          - integrations/fastapi.md: Usage with FastAPI
-          - integrations/flask.md: Usage with Flask
-          - integrations/litestar.md: Usage with Litestar
-          - integrations/starlette.md: Usage with Starlette
-          - integrations/arq.md: Usage with arq
-          - integrations/celery.md: Usage with Celery
-          - integrations/faststream.md: Usage with FastStream
-          - integrations/taskiq.md: Usage with taskiq
-          - integrations/aiogram.md: Usage with aiogram
-          - integrations/grpc.md: Usage with gRPC
-          - integrations/typer.md: Usage with Typer
+          # Bulk-include every integration page so a new one needs no edit here;
+          # the two lines below re-list the pages whose description adds info
+          # beyond the nav label (a glob yields an empty description).
+          - integrations/*.md
           - integrations/pytest.md: Usage with pytest, with and without modern-di-pytest
           - integrations/writing-integrations.md: Specification for building a new framework integration
         Recipes:
