@@ -7,7 +7,13 @@ from modern_di.providers import CacheSettings, Factory
 
 
 if typing.TYPE_CHECKING:
+    import threading
+
     from modern_di.wiring import WiringPlan
+
+
+_R = typing.TypeVar("_R")
+_V = typing.TypeVar("_V")
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -23,6 +29,35 @@ class CacheItem:
         if self.settings and self.settings.clear_cache:
             self.cache = types.UNSET
             self.finalized = False
+
+    def get_or_create(
+        self,
+        lock: "threading.RLock | None",
+        resolve: typing.Callable[[], _R],
+        create: typing.Callable[[_R], _V],
+    ) -> tuple[_V, bool]:
+        """Return the memoized singleton, or resolve-and-create it once under `lock`.
+
+        Two phases: `resolve()` runs unlocked (recursive dependency resolution must not
+        hold the lock); creation and the store run under `lock`, double-checked so at
+        most one caller creates. `lock` is the resolving container's `RLock` (or None
+        when the container was built with `use_lock=False`). Returns `(value, created)`;
+        `created` is True only when this call ran `create`.
+        """
+        if self.cache is not types.UNSET:
+            return self.cache, False
+        resolved = resolve()
+        if lock is not None:
+            lock.acquire()
+        try:
+            if self.cache is not types.UNSET:
+                return self.cache, False
+            value = create(resolved)
+            self.cache = value
+            return value, True
+        finally:
+            if lock is not None:
+                lock.release()
 
     async def close_async(self) -> None:
         if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
