@@ -251,17 +251,22 @@ class Factory(AbstractProvider[types.T_co]):
             raise error from exc
 
     def _resolve_kwargs(self, container: "Container", cache_item: "CacheItem") -> dict[str, typing.Any]:
-        plan = self._ensure_plan(container, cache_item)
-        if plan.unwireable:
-            name, item = plan.unwireable[0]
-            raise self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
-        resolved_kwargs = dict(plan.static_kwargs)
-        for k, v in plan.provider_kwargs.items():
-            resolved_kwargs[k] = container.resolve_provider(v)
-        for k, (context_provider, item) in plan.context_kwargs.items():
-            value = self._resolve_context_value(container, k, context_provider, item)
-            if value is not types.UNSET:
-                resolved_kwargs[k] = value
+        try:
+            plan = self._ensure_plan(container, cache_item)
+            if plan.unwireable:
+                name, item = plan.unwireable[0]
+                raise self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
+            resolved_kwargs = dict(plan.static_kwargs)
+            for k, v in plan.provider_kwargs.items():
+                resolved_kwargs[k] = container.resolve_provider(v)
+            for k, (context_provider, item) in plan.context_kwargs.items():
+                value = self._resolve_context_value(container, k, context_provider, item)
+                if value is not types.UNSET:
+                    resolved_kwargs[k] = value
+        except (exceptions.ResolutionError, exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
+            # Name the failing end too, or no frame ever names the provider that failed to resolve.
+            exc.prepend_step(self._resolution_step())
+            raise
         return resolved_kwargs
 
     def resolve(self, container: "Container") -> types.T_co:
@@ -274,29 +279,14 @@ class Factory(AbstractProvider[types.T_co]):
         container._warn_and_reopen_if_closed()  # noqa: SLF001
         cache_item = container.cache_registry.fetch_cache_item(self)
 
-        if self.cache_settings and cache_item.cache is not types.UNSET:
-            return cache_item.cache
-
-        try:
-            resolved_kwargs = self._resolve_kwargs(container, cache_item)
-        except (exceptions.ResolutionError, exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
-            exc.prepend_step(self._resolution_step())
-            raise
-
         if not self.cache_settings:
-            return self._call_creator(resolved_kwargs)
+            return self._call_creator(self._resolve_kwargs(container, cache_item))
 
-        if container._lock:  # noqa: SLF001
-            container._lock.acquire()  # noqa: SLF001
-
-        try:
-            if cache_item.cache is not types.UNSET:
-                return cache_item.cache
-
-            instance = self._call_creator(resolved_kwargs)
-            cache_item.cache = instance
+        value, created = cache_item.get_or_create(
+            container._lock,  # noqa: SLF001
+            resolve=lambda: self._resolve_kwargs(container, cache_item),
+            create=self._call_creator,
+        )
+        if created:
             container.cache_registry.mark_created(cache_item)
-            return instance
-        finally:
-            if container._lock:  # noqa: SLF001
-                container._lock.release()  # noqa: SLF001
+        return value
