@@ -288,5 +288,9 @@ class Factory(AbstractProvider[types.T_co]):
             create=self._call_creator,
         )
         if created:
+            # Registering after get_or_create releases the lock is order-safe: only the
+            # single creating thread sees created=True, and a creator resolves its own
+            # dependencies before returning, so each dependency is marked before its
+            # depender — LIFO close order holds.
             container.cache_registry.mark_created(cache_item)
         return value
