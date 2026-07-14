@@ -3,6 +3,7 @@ import enum
 import typing
 
 from modern_di import suggester
+from modern_di.scope import _deeper_members
 
 
 SUGGESTION_HEADER = "Did you mean:"
@@ -148,10 +149,9 @@ class InvalidChildScopeError(ContainerError):
     def __init__(self, *, parent_scope: enum.IntEnum, child_scope: enum.IntEnum) -> None:
         self.parent_scope = parent_scope
         self.child_scope = child_scope
-        # Derived, not handed over: the allowed scopes are a pure function of the parent's own
-        # enum class, so a raise site has nothing to add. Drawn from type(parent_scope) so a
-        # custom IntEnum reports its own members.
-        self.allowed_scopes = [x.name for x in type(parent_scope) if x > parent_scope]
+        # Derived, not handed over: the allowed scopes are a pure function of the parent's
+        # own enum class, so a raise site has nothing to add.
+        self.allowed_scopes = [member.name for member in _deeper_members(parent_scope)]
         super().__init__(
             f"Scope of child container cannot be {child_scope.name} if parent scope is {parent_scope.name} "
             f"(child scope value must be strictly greater than parent scope value). "

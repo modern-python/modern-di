@@ -51,9 +51,12 @@ child = container.build_child_container(scope=Scope.REQUEST, context={MyRequest:
 `build_child_container` creates a new `Container` whose `parent_container` is the current one.
 Rules:
 
-- The child's scope must be strictly greater (deeper) than the parent's scope. Passing `scope=None`
-  auto-increments to the next `IntEnum` value; if the parent is already at the maximum scope,
-  `MaxScopeReachedError` is raised.
+- The child's scope must be strictly greater (deeper) than the parent's scope; `Container.__init__` is the
+  guard, so passing a too-shallow scope to `build_child_container` raises `InvalidChildScopeError` from there.
+  Passing `scope=None` derives the next scope via `scope._next_deeper` — the shallowest *member* deeper than
+  the parent, **not** `value + 1`, so non-contiguous custom enums (`TENANT=6, JOB=10`) work; if the parent is
+  already at the deepest member, `MaxScopeReachedError` is raised. See
+  [scopes.md](scopes.md#the-scope-algebra).
 - Building a child from a closed container is transitional until modern-di 3.0: it emits
   `ContainerClosedWarning` and self-reopens the container instead of raising `ContainerClosedError`
   (see [Lifecycle: close and reopen](#lifecycle-close-and-reopen) below).
