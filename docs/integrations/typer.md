@@ -35,27 +35,20 @@ from modern_di import Container, Group, Scope, providers
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    environment: str = "production"
+    service_name: str = "catalog"
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class HealthReporter:
-    settings: Settings    # auto-injected by type
+class Report:
+    settings: Settings   # APP-scoped, injected by type
 
-    def report(self) -> str:
-        return f"healthy in {self.settings.environment}"
+    def render(self) -> str:
+        return f"service={self.settings.service_name}"
 
 
 class AppGroup(Group):
-    settings = providers.Factory(
-        Settings,
-        scope=Scope.APP,
-        cache=True,
-    )
-    health_reporter = providers.Factory(
-        HealthReporter,
-        scope=Scope.REQUEST,
-    )
+    settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    report = providers.Factory(Report, scope=Scope.REQUEST)
 
 
 app = typer.Typer()
@@ -66,12 +59,9 @@ modern_di_typer.setup_di(app, container)
 @app.command()
 @modern_di_typer.inject
 def status(
-    reporter: typing.Annotated[
-        HealthReporter,
-        modern_di_typer.FromDI(HealthReporter),    # resolve by type
-    ],
+    report: typing.Annotated[Report, modern_di_typer.FromDI(Report)],   # resolve by type
 ) -> None:
-    typer.echo(reporter.report())
+    typer.echo(report.render())
 
 
 if __name__ == "__main__":
@@ -113,6 +103,12 @@ def run_job(
         job = action_container.resolve_provider(AppGroup.job)
         job.run()
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 

@@ -31,21 +31,35 @@ a per-update child container automatically.
 ### 2. Apply to your application
 
 ```python
+import dataclasses
 import typing
 
 from aiogram import Dispatcher
-from aiogram.types import Message
+from aiogram.types import Message, Update
 from modern_di import Container, Group, Scope, providers
 from modern_di_aiogram import FromDI, inject, setup_di
 
 
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    def __init__(self) -> None:
-        self.greeting = "hello"
+    service_name: str = "catalog"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class UpdateReport:
+    settings: Settings   # APP-scoped, injected by type
+    update: Update       # per-update context object, injected by type
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "service": self.settings.service_name,
+            "update_id": str(self.update.update_id),
+        }
 
 
 class AppGroup(Group):
     settings = providers.Factory(Settings, scope=Scope.APP, cache=True)
+    update_report = providers.Factory(UpdateReport, scope=Scope.REQUEST)
 
 
 dispatcher = Dispatcher()
@@ -54,11 +68,11 @@ setup_di(dispatcher, Container(groups=[AppGroup], validate=True))
 
 @dispatcher.message()
 @inject
-async def greet(
+async def report(
     message: Message,
-    settings: typing.Annotated[Settings, FromDI(AppGroup.settings)],
+    update_report: typing.Annotated[UpdateReport, FromDI(UpdateReport)],
 ) -> None:
-    await message.answer(f"{settings.greeting}, {message.from_user.first_name}")
+    await message.answer(str(update_report.as_dict()))
 ```
 
 `setup_di(dispatcher, container)` stores the container on the dispatcher,
@@ -194,6 +208,12 @@ async def log_message(
 ) -> None:
     assert message is same_message
 ```
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
+- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
+- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
 
 ## API
 
