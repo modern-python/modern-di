@@ -170,3 +170,8 @@ def mock_user_repo(di_container: modern_di.Container) -> typing.Iterator[None]:
 ```
 
 For deeper patterns (transactional DB sessions, resetting all overrides) see the [testing-with-overrides recipe](../recipes/testing-overrides.md).
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md) — override patterns beyond fixtures.
+- [Scopes](../providers/scopes.md) — session vs request container fixtures.
