@@ -21,19 +21,25 @@ nav:
       - Errors and exceptions: providers/errors-and-exceptions.md
       - Advanced / low-level API: providers/advanced-api.md
   - Integrations:
-      - aiogram: integrations/aiogram.md
-      - aiohttp: integrations/aiohttp.md
-      - arq: integrations/arq.md
-      - celery: integrations/celery.md
-      - FastAPI: integrations/fastapi.md
-      - FastStream: integrations/faststream.md
-      - Flask: integrations/flask.md
-      - gRPC: integrations/grpc.md
-      - Litestar: integrations/litestar.md
-      - Starlette: integrations/starlette.md
-      - taskiq: integrations/taskiq.md
-      - Typer: integrations/typer.md
-      - Pytest: integrations/pytest.md
+      - Web:
+          - aiohttp: integrations/aiohttp.md
+          - FastAPI: integrations/fastapi.md
+          - Flask: integrations/flask.md
+          - Litestar: integrations/litestar.md
+          - Starlette: integrations/starlette.md
+      - Tasks & events:
+          - arq: integrations/arq.md
+          - Celery: integrations/celery.md
+          - FastStream: integrations/faststream.md
+          - taskiq: integrations/taskiq.md
+      - Bots:
+          - aiogram: integrations/aiogram.md
+      - RPC:
+          - gRPC: integrations/grpc.md
+      - CLI:
+          - Typer: integrations/typer.md
+      - Testing:
+          - Pytest: integrations/pytest.md
       - Writing an integration: integrations/writing-integrations.md
   - Recipes:
       - Async SQLAlchemy: recipes/sqlalchemy.md
@@ -164,17 +170,17 @@ plugins:
           - providers/errors-and-exceptions.md: The ModernDIError exception hierarchy
           - providers/advanced-api.md: Low-level extension points for library authors
         Integrations:
-          - integrations/aiogram.md: Usage with aiogram
           - integrations/aiohttp.md: Usage with aiohttp
-          - integrations/arq.md: Usage with arq
-          - integrations/celery.md: Usage with Celery
           - integrations/fastapi.md: Usage with FastAPI
-          - integrations/faststream.md: Usage with FastStream
           - integrations/flask.md: Usage with Flask
-          - integrations/grpc.md: Usage with gRPC
           - integrations/litestar.md: Usage with Litestar
           - integrations/starlette.md: Usage with Starlette
+          - integrations/arq.md: Usage with arq
+          - integrations/celery.md: Usage with Celery
+          - integrations/faststream.md: Usage with FastStream
           - integrations/taskiq.md: Usage with taskiq
+          - integrations/aiogram.md: Usage with aiogram
+          - integrations/grpc.md: Usage with gRPC
           - integrations/typer.md: Usage with Typer
           - integrations/pytest.md: Usage with pytest, with and without modern-di-pytest
           - integrations/writing-integrations.md: Specification for building a new framework integration
