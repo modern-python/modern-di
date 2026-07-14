@@ -130,3 +130,29 @@ packages), then revisit the beachhead call with data.
 
 **Revisit trigger:** before committing outreach effort to a beachhead framework.
 See [2026-06-18 adoption research, open questions](audits/2026-06-18-adoption-strategy-report.md).
+
+## Core accommodation for validate-by-default vs. integration-supplied context — from 2026-07-14 docs work
+
+`Container(groups=[...], validate=True)` runs `validate()` inside `__init__`, before an integration's
+`setup_di()` registers its connection `ContextProvider`s (`fastapi.Request`, `taskiq.TaskiqMessage`, …).
+So a `Factory` that depends **by type** on the framework's request/message object raises
+`ArgumentResolutionError` at construction — the provider is not wired yet. This is a papercut today
+(opt into `validate=False`), but becomes a **default footgun once 3.0 runs `validate()` by default at
+root construction**: every integration user with such a factory breaks unless they opt out and lose
+validation.
+
+Shipped remedy is a **docs recommendation** — type the parameter `FrameworkType | None = None` so
+validation skips it while the integration still injects the real value at runtime (change
+[2026-07-14.05](changes/2026-07-14.05-optional-context-types-under-validate.md)). That works but leans
+on every user remembering the idiom. Core alternatives explored and set aside: (1) **defer `validate()`**
+to `open()`/first-resolve so the graph is complete when it runs — zero boilerplate, but shifts error
+timing and reinterprets the 3.0 "validate at construction" promise; (2) **integrations contribute their
+connection providers at construction** as an includable `Group` — graph complete, validation stays
+eager, but needs an idempotent `add_providers` (it currently raises `DuplicateProviderTypeError` on a
+re-registered type); (3) **`setup_di` owns build + validate** — one validate knob, but changes the
+integration signature.
+
+**Revisit trigger:** when 3.0's validate-by-default is being finalized — decide whether the docs
+recommendation suffices or a core accommodation (approach 1 or 2) is warranted so integration users do
+not have to opt into the `| None` idiom.
+See change [2026-07-14.05](changes/2026-07-14.05-optional-context-types-under-validate.md).
