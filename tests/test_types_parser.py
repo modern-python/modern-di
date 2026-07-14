@@ -30,10 +30,30 @@ if typing.TYPE_CHECKING:
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
         (GenericClass[str], SignatureItem(raw_annotation=GenericClass[str])),
         (GenericClass[str] | None, SignatureItem(arg_type=GenericClass, is_nullable=True)),
+        # `None` is the degenerate nullable: a union with zero non-None members.
+        (type(None), SignatureItem(is_nullable=True)),
     ],
 )
 def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
     assert SignatureItem.from_type(type_) == result
+
+
+@pytest.mark.parametrize("default", [None, 3, "x"])
+def test_nonetype_threads_its_default(default: object) -> None:
+    """A `None`-annotated parameter keeps its default, like every other annotation.
+
+    Exercised through `from_type` rather than a real creator: only `None` is assignable
+    to a `None`-annotated parameter, so a non-None default cannot be spelled in a signature.
+    """
+    assert SignatureItem.from_type(type(None), default=default) == SignatureItem(default=default, is_nullable=True)
+
+
+def nonetype_func(hook: None = None) -> None: ...
+
+
+def test_nonetype_params_keep_defaults_through_parse_creator() -> None:
+    _ret, params = parse_creator(nonetype_func)
+    assert params["hook"] == SignatureItem(default=None, is_nullable=True)
 
 
 def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # ty: ignore[empty-body]
@@ -87,7 +107,8 @@ class ClassWithWrongAnnotations:
         (
             none_func,
             (
-                SignatureItem(),
+                # `-> None` is nullable; only `.arg_type` (None) is read, to derive bound_type.
+                SignatureItem(is_nullable=True),
                 {
                     "arg1": SignatureItem(arg_type=int),
                     "arg2": SignatureItem(arg_type=str, is_nullable=True, default=None),
@@ -97,14 +118,14 @@ class ClassWithWrongAnnotations:
         (
             args_kwargs_func,
             (
-                SignatureItem(),
+                SignatureItem(is_nullable=True),
                 {},
             ),
         ),
         (
             func_with_str_annotations,
             (
-                SignatureItem(),
+                SignatureItem(is_nullable=True),
                 {
                     "arg1": SignatureItem(arg_type=str),
                     "arg2": SignatureItem(raw_annotation=tuple[int, ...], default=()),

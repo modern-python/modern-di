@@ -19,7 +19,10 @@ class SignatureItem:
     @classmethod
     def from_type(cls, type_: type, default: object = UNSET) -> "SignatureItem":
         if type_ is types.NoneType:
-            return cls()
+            # The degenerate nullable — a union with zero non-None members. Handled here
+            # rather than by the union branch below, which would take it for a plain type
+            # and try to resolve `NoneType` from the registry.
+            return cls(default=default, is_nullable=True)
 
         # typing.Annotated
         if hasattr(type_, "__metadata__"):

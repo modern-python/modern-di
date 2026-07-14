@@ -79,6 +79,13 @@ map produced at provider-declaration time by `types_parser.parse_creator` — an
    - Otherwise the parameter is recorded in the plan's `unwireable` list as a `(name, SignatureItem)` record — **not** a
      pre-built exception (see Step 5).
 
+   > A bare `None` annotation is the **degenerate nullable** — a union with zero non-`None` members — and takes the
+   > same two branches as `X | None`: `x: None = None` omits (its default applies), and `x: None` injects `None`,
+   > which is the annotation's only legal value. `SignatureItem.from_type` handles `NoneType` in its own branch, since
+   > the union branch would otherwise take it for a plain type and look `NoneType` up in the registry. In the *return*
+   > position (`-> None`, a void creator) the nullability is simply unread: only `.arg_type` is consulted, to derive
+   > `bound_type`.
+
 The plan's buckets — `provider_kwargs` (regular providers, resolved recursively), `static_kwargs` (plain values), and
 `context_kwargs` (`ContextProvider` + its `SignatureItem`, resolved live) — plus the `dependencies` view and the
 `unwireable` records are memoized on the `CacheItem`. The same `WiringPlan.build` backs `validate()`: `get_dependencies`
