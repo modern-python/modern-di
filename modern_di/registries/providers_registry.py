@@ -6,6 +6,10 @@ from modern_di import exceptions, suggester, types
 from modern_di.providers.abstract import AbstractProvider
 
 
+if typing.TYPE_CHECKING:
+    from modern_di.wiring import WiringPlan
+
+
 _MAX_SUGGESTIONS = 3
 
 
@@ -26,11 +30,12 @@ def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]
 
 
 class ProvidersRegistry:
-    __slots__ = ("_lock", "_providers", "_version", "validated_version")
+    __slots__ = ("_lock", "_plans", "_providers", "_version", "validated_version")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
+        self._plans: dict[int, tuple[int, WiringPlan]] = {}
         self._version = 0
         self.validated_version: int | None = None
 
@@ -44,13 +49,37 @@ class ProvidersRegistry:
     def version(self) -> int:
         """Monotonically increasing counter, bumped on every mutation.
 
-        Lets memoized `WiringPlan`s (see `Factory._ensure_plan`) detect that the registry
-        changed underneath them and rebuild instead of resolving against a stale plan.
+        Stamps the memoized `WiringPlan`s held in `_plans` (see `plan_for`) so a plan built
+        against an older registry is rebuilt instead of resolving against a stale one.
         """
         return self._version
 
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
+
+    def plan_for(
+        self,
+        provider: AbstractProvider[typing.Any],
+        build: "typing.Callable[[], WiringPlan]",
+    ) -> "WiringPlan":
+        """Return `provider`'s memoized wiring plan, building and stamping it on a miss.
+
+        A plan is a pure function of the provider and this registry's contents, so it is
+        memoized per `provider_id` and stamped with the `version` it was built against; a
+        stamp mismatch (the registry mutated since) rebuilds. The version is snapshotted
+        *before* `build` runs, so a plan built against a since-mutated registry carries the
+        old stamp and is never served as current. Shared tree-wide: a container and every
+        child share one registry, so a deeper-scope provider builds its plan once, not once
+        per child container.
+        """
+        provider_id = provider.provider_id
+        version = self._version
+        cached = self._plans.get(provider_id)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        plan = build()
+        self._plans[provider_id] = (version, plan)
+        return plan
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
         with self._lock:

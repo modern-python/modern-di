@@ -13,7 +13,6 @@ from modern_di.wiring import WiringPlan, _Absent, absent_disposition
 
 if typing.TYPE_CHECKING:
     from modern_di import Container
-    from modern_di.registries.cache_registry import CacheItem
     from modern_di.registries.providers_registry import ProvidersRegistry
 
 
@@ -170,21 +169,21 @@ class Factory(AbstractProvider[types.T_co]):
             member_types=item.args,
         )
 
-    def _ensure_plan(self, container: "Container", cache_item: "CacheItem") -> WiringPlan:
-        # Plan runs outside the container lock — safe under the GIL since it's a deterministic
-        # function of the providers registry as of the version it was built against (free-threaded/nogil
-        # caveat: planning/deferred.md). The version stamp on the registry lets a stale memoized plan
-        # (built before a later Container.add_providers call) be detected and rebuilt.
-        current_version = container.providers_registry.version
-        if cache_item.wiring_plan is None or cache_item.wiring_plan_version != current_version:
-            cache_item.wiring_plan = WiringPlan.build(
+    def _plan(self, container: "Container") -> WiringPlan:
+        # The plan is memoized on the providers registry (shared by a container and every child), so a
+        # deeper-scope factory builds it once per registry version, not once per child container. Building
+        # runs outside the container lock — safe under the GIL since it's a deterministic function of the
+        # registry as of the version it was built against (free-threaded/nogil caveat: planning/deferred.md).
+        reg = container.providers_registry
+        return reg.plan_for(
+            self,
+            lambda: WiringPlan.build(
                 parsed_kwargs=self._parsed_kwargs,
                 kwargs=self._kwargs,
-                registry=container.providers_registry,
+                registry=reg,
                 owner=self,
-            )
-            cache_item.wiring_plan_version = current_version
-        return cache_item.wiring_plan
+            ),
+        )
 
     def _resolve_context_value(
         self, container: "Container", arg_name: str, provider: ContextProvider[typing.Any], item: SignatureItem
@@ -213,21 +212,11 @@ class Factory(AbstractProvider[types.T_co]):
         Pure lookup: no scope check, no cache touch, no context-value lookup. Used by
         Container.validate() to traverse the static graph.
         """
-        return WiringPlan.build(
-            parsed_kwargs=self._parsed_kwargs,
-            kwargs=self._kwargs,
-            registry=container.providers_registry,
-            owner=self,
-        ).edges
+        return self._plan(container).edges
 
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        plan = WiringPlan.build(
-            parsed_kwargs=self._parsed_kwargs,
-            kwargs=self._kwargs,
-            registry=container.providers_registry,
-            owner=self,
-        )
+        plan = self._plan(container)
         for name, item in plan.unwireable:
             yield self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
 
@@ -243,9 +232,9 @@ class Factory(AbstractProvider[types.T_co]):
             error.prepend_step(self._resolution_step())
             raise error from exc
 
-    def _resolve_kwargs(self, container: "Container", cache_item: "CacheItem") -> dict[str, typing.Any]:
+    def _resolve_kwargs(self, container: "Container") -> dict[str, typing.Any]:
         try:
-            plan = self._ensure_plan(container, cache_item)
+            plan = self._plan(container)
             if plan.unwireable:
                 name, item = plan.unwireable[0]
                 raise self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
@@ -270,14 +259,14 @@ class Factory(AbstractProvider[types.T_co]):
             exc.prepend_step(self._resolution_step())
             raise
         container._warn_and_reopen_if_closed()  # noqa: SLF001
-        cache_item = container.cache_registry.fetch_cache_item(self)
 
         if not self.cache_settings:
-            return self._call_creator(self._resolve_kwargs(container, cache_item))
+            return self._call_creator(self._resolve_kwargs(container))
 
+        cache_item = container.cache_registry.fetch_cache_item(self)
         value, created = cache_item.get_or_create(
             container._lock,  # noqa: SLF001
-            resolve=lambda: self._resolve_kwargs(container, cache_item),
+            resolve=lambda: self._resolve_kwargs(container),
             create=self._call_creator,
         )
         if created:

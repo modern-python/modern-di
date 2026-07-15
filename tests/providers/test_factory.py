@@ -427,22 +427,52 @@ def test_provider_instances_have_no_dict() -> None:
         factory.some_unexpected_attr = 1
 
 
-def test_compile_kwargs_is_memoized_across_resolves() -> None:
-    # Pins the compile-once invariant: kwargs compilation (type lookups + partitioning) runs
-    # exactly once per provider per container, not on every resolve. A regression that moved it
-    # back onto the per-resolve path would leave correctness tests green but silently slow.
+def test_wiring_plan_is_memoized_across_child_containers() -> None:
+    # The wiring plan is a pure function of (provider, providers registry); the registry is shared by a
+    # container and every child, so each provider builds its plan once for the whole tree — across
+    # validation and every resolve — not once per child container. Before the registry-owned memo the plan
+    # lived on the per-container CacheItem, so svc was rebuilt in every one of the N REQUEST children.
     class _MemoGroup(Group):
         leaf = providers.Factory(scope=Scope.APP, creator=SimpleCreator, kwargs={"dep1": "x"})
-        svc = providers.Factory(scope=Scope.APP, creator=DependentCreator)
+        svc = providers.Factory(scope=Scope.REQUEST, creator=DependentCreator)
 
-    container = Container(groups=[_MemoGroup])
     real_build = wiring_mod.WiringPlan.build
     with unittest.mock.patch.object(wiring_mod.WiringPlan, "build", autospec=True, side_effect=real_build) as build_spy:
-        container.resolve(DependentCreator)
-        container.resolve(DependentCreator)
-    # svc + leaf each build their plan once on the first resolve; the second reuses the memo (else this is 4).
+        app_container = Container(scope=Scope.APP, groups=[_MemoGroup], validate=True)
+        for _ in range(50):
+            with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
+                request_container.resolve(DependentCreator)
+    # leaf + svc each build their plan exactly once for the whole tree; validation and every child reuse it.
     expected_build_calls = 2
     assert build_spy.call_count == expected_build_calls
+
+
+def test_shared_factory_wires_independently_per_registry() -> None:
+    # One Factory instance registered into two independent registries must wire from each registry's own
+    # providers. The plan memo is keyed per registry, so the two never alias — even though both roots sit at
+    # the same version. A memo shared across registries (keyed by version alone) would serve the first root's
+    # plan to the second, injecting a SimpleCreator where None is correct.
+    class OptionalDepSvc:
+        def __init__(self, dep: SimpleCreator | None = None) -> None:
+            self.dep = dep
+
+    svc_factory = providers.Factory(scope=Scope.APP, creator=OptionalDepSvc)
+    leaf_factory = providers.Factory(scope=Scope.APP, creator=SimpleCreator, kwargs={"dep1": "x"})
+
+    class WithLeaf(Group):
+        leaf = leaf_factory
+        svc = svc_factory
+
+    class WithoutLeaf(Group):
+        svc = svc_factory
+
+    with_leaf = Container(scope=Scope.APP, groups=[WithLeaf], validate=True)
+    without_leaf = Container(scope=Scope.APP, groups=[WithoutLeaf], validate=True)
+
+    assert with_leaf.providers_registry.find_provider(OptionalDepSvc) is svc_factory
+    assert without_leaf.providers_registry.find_provider(OptionalDepSvc) is svc_factory
+    assert isinstance(with_leaf.resolve(OptionalDepSvc).dep, SimpleCreator)
+    assert without_leaf.resolve(OptionalDepSvc).dep is None
 
 
 # Q-1 / G-3 — optional (X | None) params inject None when no provider is registered
