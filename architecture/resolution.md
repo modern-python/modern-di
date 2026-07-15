@@ -137,15 +137,17 @@ formatting the errors share:
   It is the single home of the suggestion glyphs, used by `ProviderNotRegisteredError`,
   `ArgumentResolutionError`, and `UnknownFactoryKwargError`.
 
-What crosses into an error is **facts, never formatting**. `ProvidersRegistry.build_suggestions`
+What crosses into an error is **facts, never formatting**. `suggester.suggest(requested_type, providers)`
 returns `Suggestion` records — `(name, reason, scope)` — not rendered bullets, so `.suggestions` on a
 caught exception is data a caller can act on rather than glyphs it would have to parse back apart.
 An error also derives whatever it can from what it was already handed: `InvalidChildScopeError`
 computes `.allowed_scopes` from `parent_scope`, and `UnknownFactoryKwargError` runs its own
 `close_matches` over the `unknown_keys`/`known_keys` it receives. Neither is computed at a raise site.
 
-`suggester` owns what a suggestion *is* (the `Suggestion` record) and how to *find* one
-(`close_matches`); `exceptions` owns how everything *looks*. The messages themselves stay inline
+`suggester` owns what a suggestion *is* (the `Suggestion` record) and how to *find* one —
+`suggest` holds the policy (hierarchy hints, typo matching, cap, ordering) over a registry's providers,
+and `close_matches` is the shared difflib primitive. `ProvidersRegistry` is pure storage; `exceptions`
+owns how everything *looks*. The messages themselves stay inline
 f-strings in the class that raises them — only the shared glyph logic is factored out, not the
 message catalog (see [2026-06-23.02-inline-error-messages](../planning/changes/2026-06-23.02-inline-error-messages.md)).
 

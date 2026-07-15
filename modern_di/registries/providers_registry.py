@@ -1,32 +1,12 @@
-import inspect
 import threading
 import typing
 
-from modern_di import exceptions, suggester, types
+from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
 
 
 if typing.TYPE_CHECKING:
     from modern_di.wiring import WiringPlan
-
-
-_MAX_SUGGESTIONS = 3
-
-
-def _hierarchy_hint(requested_type: type, provider: AbstractProvider[typing.Any]) -> "suggester.Suggestion | None":
-    registered = provider.bound_type
-    if registered is None or not inspect.isclass(registered):
-        return None
-    try:
-        if issubclass(registered, requested_type):
-            reason = "registered subclass"
-        elif issubclass(requested_type, registered):
-            reason = "registered base class"
-        else:
-            return None
-    except TypeError:
-        return None
-    return suggester.Suggestion(name=registered.__name__, reason=reason, scope=provider.scope)
 
 
 class ProvidersRegistry:
@@ -113,34 +93,3 @@ class ProvidersRegistry:
                 self._providers.pop(provider_type, None)
             self._version += 1
             self.validated_version = None
-
-    def build_suggestions(self, requested_type: type) -> "list[suggester.Suggestion]":
-        """Candidates the caller may have meant, as data — rendering belongs to ``exceptions``."""
-        requested_is_class = inspect.isclass(requested_type)
-        requested_name = getattr(requested_type, "__name__", str(requested_type))
-
-        hierarchy_hints: list[suggester.Suggestion] = []
-        name_to_provider: dict[str, AbstractProvider[typing.Any]] = {}
-
-        for provider in list(self._providers.values()):
-            registered = provider.bound_type
-            if registered is None or registered is requested_type:
-                continue
-
-            hint = _hierarchy_hint(requested_type, provider) if requested_is_class else None
-            if hint is not None:
-                hierarchy_hints.append(hint)
-                if len(hierarchy_hints) >= _MAX_SUGGESTIONS:
-                    return hierarchy_hints
-                continue
-
-            name = getattr(registered, "__name__", None)
-            if name:
-                name_to_provider[name] = provider
-
-        remaining = _MAX_SUGGESTIONS - len(hierarchy_hints)
-        typo_hints = [
-            suggester.Suggestion(name=name, reason="similar name", scope=name_to_provider[name].scope)
-            for name in suggester.close_matches(requested_name, name_to_provider.keys(), n=remaining)
-        ]
-        return hierarchy_hints + typo_hints

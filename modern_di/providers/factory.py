@@ -4,7 +4,7 @@ import inspect
 import typing
 import warnings
 
-from modern_di import exceptions, types
+from modern_di import exceptions, suggester, types
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.types_parser import SignatureItem, parse_creator
@@ -159,7 +159,7 @@ class Factory(AbstractProvider[types.T_co]):
     ) -> exceptions.ArgumentResolutionError:
         # The context path passes no registry, so absent-context errors carry no suggestions.
         suggestions = (
-            registry.build_suggestions(item.arg_type) if registry is not None and item.arg_type is not None else []
+            suggester.suggest(item.arg_type, registry) if registry is not None and item.arg_type is not None else []
         )
         return exceptions.ArgumentResolutionError(
             arg_name=arg_name,

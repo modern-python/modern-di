@@ -44,7 +44,7 @@ Where the detail lives — read the matching capability file before changing beh
 - `modern_di/providers/context_provider.py` — ContextProvider for runtime-injected values
 - `modern_di/providers/container_provider.py` — auto-registered provider that resolves to the Container itself
 - `modern_di/types_parser.py` — Signature introspection engine (parses type hints for DI wiring)
-- `modern_di/suggester.py` — what a suggestion *is* (the `Suggestion` record) and how to *find* one (`close_matches`, the shared difflib fuzzy-match). Carries no formatting
+- `modern_di/suggester.py` — what a suggestion *is* (the `Suggestion` record) and how to *find* one: `suggest(requested_type, providers)` owns the policy (hierarchy hints, typo matching, cap, ordering); `close_matches` is the shared difflib primitive (also used by `UnknownFactoryKwargError`). Carries no formatting
 - `modern_di/scope.py` — Scope enum
 - `modern_di/group.py` — Group base class for provider namespaces
 - `modern_di/exceptions.py` — exception class hierarchy (`ModernDIError` → `ContainerError`/`ResolutionError`/`RegistrationError` subclasses). Each error owns its own message: the raise site passes only structured keyword attrs, and the class's `__init__` renders the f-string and stores those attrs. Every concrete class sets a `docs_slug` (its page under `docs/troubleshooting/`, appended by `__str__` as a trailing `See: <url>` line, enforced by `tests/test_docs_slug_census.py`). This file owns **every glyph**: `_render_chain` (the arrow tree, shared by breadcrumbs and cycles) and `_render_suggestions` (the "did you mean" block). Callers pass facts, never formatting. **Add a message, a glyph, or a class here — never at the raise site.**

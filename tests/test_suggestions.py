@@ -5,7 +5,6 @@ import pytest
 
 from modern_di import Container, Group, Scope, providers, suggester
 from modern_di.exceptions import ArgumentResolutionError, ProviderNotRegisteredError
-from modern_di.registries.providers_registry import _hierarchy_hint
 
 
 class Database:
@@ -147,17 +146,17 @@ def test_suggestions_capped_at_three() -> None:
     )
 
 
-def test_hierarchy_hint_skips_non_class_bound_type() -> None:
+def test_suggest_skips_non_class_bound_type() -> None:
     provider = providers.Factory(creator=list, bound_type=int | str)  # ty: ignore[invalid-argument-type]
-    assert _hierarchy_hint(int, provider) is None
+    assert suggester.suggest(int, [provider]) == []
 
 
-def test_hierarchy_hint_swallows_protocol_typeerror() -> None:
+def test_suggest_swallows_protocol_typeerror() -> None:
     class MyProto(typing.Protocol):
         def foo(self) -> None: ...
 
     provider = providers.Factory(creator=lambda: 1, bound_type=int)
-    assert _hierarchy_hint(MyProto, provider) is None
+    assert suggester.suggest(MyProto, [provider]) == []
 
 
 def test_argument_resolution_subclass_suggestion() -> None:
