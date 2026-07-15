@@ -32,9 +32,10 @@ test-ci:
 test-branch:
     uv run --no-sync pytest --cov=. --cov-branch --cov-fail-under=100
 
-# Run the benchmark suite only (pytest-benchmark).
+# Run the guard-tier benchmark suite (zero-dep; pytest-benchmark). Excludes the
+# comparative tier, whose deps live in benchmarks/comparative and are not in this env.
 bench:
-    uv run --no-sync pytest benchmarks/ --benchmark-only
+    uv run --no-sync pytest benchmarks/ --ignore=benchmarks/comparative --benchmark-only
 
 # Build + publish to PyPI. Version comes from the git tag ($GITHUB_REF_NAME); no pyproject bump.
 # Auth via PyPI Trusted Publishing (OIDC); uv publish auto-detects the CI id-token.
