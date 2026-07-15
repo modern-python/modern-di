@@ -32,12 +32,13 @@ jobs:
             benchmark-baseline-${{ runner.os }}-
       - name: Compare against main and comment (non-gating)
         uses: benchmark-action/github-action-benchmark@v1
+        continue-on-error: true
         with:
           tool: pytest
           output-file-path: output.json
           external-data-json-path: ./cache/benchmark-data.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-always: true
+          comment-always: ${{ github.event_name == 'pull_request' }}
           fail-on-alert: false
           alert-threshold: "150%"
       - name: Save benchmark baseline (main only)

@@ -113,8 +113,9 @@ See [2026-06-18 adoption research, §5](audits/2026-06-18-adoption-strategy-repo
 
 ## Publish the benchmarks page — from 2026-06-18 adoption research (B3)
 
-`benchmarks/RESULTS.md` exists but is **not in the mkdocs nav** — there is no public benchmarks page.
-The "fast + zero-dependency" story is currently unevidenced in public.
+The `benchmarks/` suite (guard + comparative tiers) and its `benchmarks/README.md` methodology now
+exist, but there is **no public benchmarks page in the mkdocs nav**. The "fast + zero-dependency"
+story is currently unevidenced in public.
 
 **Verify every number before publishing.** The research caught rivals shipping unverified
 vendor-self-reported perf claims; modern-di must not join them. Anything published needs a
