@@ -3,7 +3,7 @@ import threading
 
 import pytest
 
-from modern_di import providers
+from modern_di import providers, suggester
 from modern_di.exceptions import DuplicateProviderTypeError
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
@@ -80,7 +80,7 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
             try:
                 for _ in range(50):
                     list(iter(registry))
-                    registry.build_suggestions(_RaceBase)
+                    suggester.suggest(_RaceBase, registry)
             except BaseException as e:  # noqa: BLE001  # pragma: no cover
                 errors_seen.append(e)  # pragma: no cover
 

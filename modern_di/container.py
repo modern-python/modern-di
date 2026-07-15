@@ -3,7 +3,7 @@ import threading
 import typing
 import warnings
 
-from modern_di import exceptions, types
+from modern_di import exceptions, suggester, types
 from modern_di.dependency_graph import (
     Cycle,
     DependenciesError,
@@ -176,7 +176,7 @@ class Container:
         if not provider:
             raise exceptions.ProviderNotRegisteredError(
                 provider_type=dependency_type,
-                suggestions=self.providers_registry.build_suggestions(dependency_type),
+                suggestions=suggester.suggest(dependency_type, self.providers_registry),
             )
 
         return self.resolve_provider(provider)
