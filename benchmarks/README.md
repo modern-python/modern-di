@@ -47,9 +47,21 @@ finalizer, while dishka / that-depends / dependency-injector / wireup all force 
 awaited resolve — so C4 measures the whole request lifecycle, not an isolated
 resolve.
 
-<!-- FILLED IN TASK 9 once each framework module lands: one row per framework
-naming its transient/singleton/scoped-async-teardown construct and any caveat
-(e.g. a framework that forces an async resolve for a scenario). -->
+| Framework (pin) | C1 transient | C2 singleton | C4 scoped + async teardown | C4 resolve |
+|-----------------|--------------|--------------|----------------------------|------------|
+| modern-di | `Factory` (uncached) | `Factory(cache=True)` | REQUEST `Factory(cache=CacheSettings(finalizer=async))`, `await close_async()` | **sync** |
+| dishka 1.10.1 | `provide(cache=False)` | `provide` (cache default) | async-gen `@provide(REQUEST)`, `async with container()` | await |
+| that-depends 4.0.2 | `Factory` | `Singleton` | async-gen `ContextResource`, `container_context` | await |
+| dependency-injector 4.49.1 | `Factory` | `Singleton` | async-gen `Resource`, `init/shutdown_resources` | await |
+| wireup 2.12.0 | `injectable(transient)` + scope | `injectable` (singleton default) | async-gen `injectable(scoped)`, async container | await |
+
+**Caveat — C4 is not sync-vs-sync.** modern-di is the only framework that resolves
+the connection **synchronously** while finalizing asynchronously; the other four
+force an **awaited** resolve once the finalizer is async. C4 therefore measures the
+whole request lifecycle (enter scope -> resolve -> async finalize) as wall-clock
+under a shared event loop, not an isolated resolve. C1-C3 are true synchronous
+resolves for every framework. wireup's transient/scoped resolves require an active
+scope, entered once in setup so C1/C3 time only `scope.get`.
 
 ## Running
 
