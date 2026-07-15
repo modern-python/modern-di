@@ -1,0 +1,49 @@
+name: benchmarks
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  guard-bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - run: uv python install 3.13
+      - run: uv python pin 3.13
+      - run: just install
+      - name: Run guard-tier benchmarks
+        run: uv run --no-sync pytest benchmarks/ --ignore=benchmarks/comparative --benchmark-only --benchmark-json=output.json
+      - name: Restore benchmark baseline (newest main run via restore-keys prefix)
+        uses: actions/cache/restore@v4
+        with:
+          path: ./cache
+          key: benchmark-baseline-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            benchmark-baseline-${{ runner.os }}-
+      - name: Compare against main and comment (non-gating)
+        uses: benchmark-action/github-action-benchmark@v1
+        continue-on-error: true
+        with:
+          tool: pytest
+          output-file-path: output.json
+          external-data-json-path: ./cache/benchmark-data.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-always: ${{ github.event_name == 'pull_request' }}
+          fail-on-alert: false
+          alert-threshold: "150%"
+      - name: Save benchmark baseline (main only)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: ./cache
+          key: benchmark-baseline-${{ runner.os }}-${{ github.run_id }}

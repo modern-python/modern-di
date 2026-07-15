@@ -49,12 +49,15 @@ lint = [
     "typing-extensions",
 ]
 
+[tool.ty.src]
+exclude = ["benchmarks/comparative"]
+
 [tool.ruff]
 fix = true
 unsafe-fixes = true
 line-length = 120
 target-version = "py310"
-extend-exclude = ["docs"]
+extend-exclude = ["docs", "benchmarks/comparative"]
 
 [tool.ruff.lint]
 select = ["ALL"]
