@@ -1,4 +1,4 @@
-# ruff: noqa: ANN001, ANN201, D100, D101, D103
+# ruff: noqa: ANN001, ANN201
 """Guard tier — modern-di resolve hot-path scenarios (zero external deps).
 
 Each benchmark builds/warms its container in setup (outside the timed call) and

@@ -1,4 +1,4 @@
-# ruff: noqa: ANN001, ANN201, D100, D101, D103
+# ruff: noqa: ANN001, ANN201
 """Guard tier — per-request lifecycle scenarios.
 
 G6 measures child-container construction. G7 measures the full realistic
