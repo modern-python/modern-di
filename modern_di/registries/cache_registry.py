@@ -9,8 +9,6 @@ from modern_di.providers import CacheSettings, Factory
 if typing.TYPE_CHECKING:
     import threading
 
-    from modern_di.wiring import WiringPlan
-
 
 _R = typing.TypeVar("_R")
 _V = typing.TypeVar("_V")
@@ -21,9 +19,6 @@ class CacheItem:
     settings: CacheSettings[typing.Any] | None
     cache: typing.Any = types.UNSET
     finalized: bool = False
-    wiring_plan: "WiringPlan | None" = None
-    # `ProvidersRegistry.version` the memoized `wiring_plan` was built against; see `Factory._ensure_plan`.
-    wiring_plan_version: int | None = None
 
     def _clear(self) -> None:
         if self.settings and self.settings.clear_cache:

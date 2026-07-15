@@ -4,22 +4,25 @@ Items intentionally not actioned in the current work, kept here so they aren't l
 
 ## Free-threaded (nogil) safety of wiring-plan compilation — from 2026-06-14 audit (A-1)
 
-`Factory._ensure_plan` builds the `WiringPlan` outside the container lock and publishes it to
-`cache_item.wiring_plan` (`modern_di/providers/factory.py`). Under the GIL this is safe: the plan is a
-deterministic function of the providers registry's state as of the version it was built against (a
-`ProvidersRegistry.version` stamp, bumped on every `register`/`add_providers`/removal, is memoized
-alongside the plan so a later registration invalidates it), so two threads that both see the same
-`wiring_plan_version` build identical plans — at worst the work is repeated once — and the GIL ensures a
-thread seeing a non-`None` `wiring_plan` also sees the fully-built (frozen) object.
+`Factory._plan` builds the `WiringPlan` outside any lock and publishes it via
+`ProvidersRegistry.plan_for`, which stores it in the registry's `_plans` dict keyed by `provider_id`
+(`modern_di/registries/providers_registry.py`). Under the GIL this is safe: the plan is a deterministic
+function of the providers registry's state as of the version it was built against (a
+`ProvidersRegistry.version` stamp, bumped on every `register`/`add_providers`/removal, is stored
+alongside the plan and snapshotted *before* the build so a later registration invalidates it), so two
+threads that both see the same stamp build identical plans — at worst the work is repeated once — and the
+GIL ensures a thread seeing a stored `(version, plan)` entry also sees the fully-built (frozen) object.
 
-Under free-threaded CPython that publication guarantee is lost: without a memory barrier a reader could
-observe the non-`None` reference before the `WiringPlan`'s fields are visible and resolve against a
-partially-constructed plan. (The WiringPlan refactor narrowed the window — one immutable-object publish
-replaced the old set-`kwargs_compiled`-after-the-bucket-fields sequence — but did not add a barrier.)
+Under free-threaded CPython that guarantee is lost on two counts: concurrent `dict.__setitem__` on the
+shared `_plans` dict is itself a data race (a resize can corrupt it), and without a memory barrier a
+reader could observe the stored reference before the `WiringPlan`'s fields are visible and resolve
+against a partially-constructed plan.
 
 **Revisit trigger:** if/when free-threading (PEP 703 / `--disable-gil`) support becomes a goal. Fix
-options: build and publish `wiring_plan` under the existing container lock, or publish the reference
-behind an explicit barrier/atomic. Until then, document modern-di as GIL-assuming for plan compilation.
+options: build and publish under the registry's own `_lock` (co-located with the `_providers`/`_version`
+mutations the plan reads, and deadlock-safe since plan-building is pure lookup that never re-enters
+`register`), or publish the reference behind an explicit barrier/atomic. Until then, document modern-di
+as GIL-assuming for plan compilation.
 See [2026-06-14 audit A-1](audits/2026-06-14-deep-audit-report.md).
 
 ## Opt-in DEBUG resolution tracing (ERR-8) — from 2026-07-05 3.0 UX research

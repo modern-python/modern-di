@@ -34,10 +34,13 @@ immediately. A `Factory` with no `cache_settings` always re-runs the creator.
 ## Step 4 — Wiring plan
 
 If no cached instance is returned, `Factory` builds the **wiring plan**: the partition of the creator's parameters by
-how each is satisfied. `_ensure_plan` memoizes a single `WiringPlan` on the `CacheItem`, stamped with the
-`ProvidersRegistry.version` it was built against; subsequent calls (within the same container lifetime) reuse it while
-that stamp matches the registry's current version, and rebuild it when the registry has changed (i.e. after
-`add_providers`).
+how each is satisfied. `Factory._plan` delegates to `ProvidersRegistry.plan_for`, which memoizes one `WiringPlan` per
+provider on the **registry** — keyed by `provider_id`, stamped with the `ProvidersRegistry.version` it was built
+against. A call reuses the plan while that stamp matches the registry's current version and rebuilds when the registry
+has changed (i.e. after `add_providers`). Because a container and every child share one `providers_registry`, the plan
+is built once per registry version for the whole tree, not once per child container; a `REQUEST`-scoped factory
+resolved across many child containers plans only once. `get_dependencies` and `iter_validation_issues` route through the
+same memo, so `validate()` warms it rather than rebuilding on each graph walk.
 
 `WiringPlan.build` (in `modern_di/wiring.py`) is a **pure function** of `(parsed_kwargs, kwargs, providers_registry,
 owner)` — it reads no cache, scope, or live context, so it runs outside the container lock; the version stamp keeps the

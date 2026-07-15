@@ -16,7 +16,7 @@ import typing
 
 from modern_di import Container, Group, Scope, providers
 from modern_di.providers.abstract import AbstractProvider
-from modern_di.registries.cache_registry import CacheItem
+from modern_di.wiring import WiringPlan
 
 
 # ---------------------------------------------------------------------------
@@ -51,11 +51,8 @@ class BenchGroup(Group):
 # ---------------------------------------------------------------------------
 
 
-def _baseline_resolve_inner(cache_item: CacheItem, container: Container) -> dict[str, typing.Any]:
+def _baseline_resolve_inner(plan: WiringPlan, container: Container) -> dict[str, typing.Any]:
     """Simulate the old resolved_kwargs dict-comp that ran on every resolve()."""
-    plan = cache_item.wiring_plan
-    if plan is None:
-        return {}
     unified = {**plan.provider_kwargs, **plan.static_kwargs}
     return {k: container.resolve_provider(v) if isinstance(v, AbstractProvider) else v for k, v in unified.items()}
 
@@ -74,16 +71,15 @@ def test_uncached_optimized(benchmark):
 def test_uncached_baseline(benchmark):
     """Baseline: unified dict-comp with isinstance on every resolve()."""
     container = Container(scope=Scope.APP, groups=[BenchGroup])
-    # Warm up compilation so kwargs are cached (same as optimized path)
+    # Warm up compilation so the plan is memoized (same as optimized path)
     container.resolve_provider(BenchGroup.svc)
 
     svc_provider = BenchGroup.svc
-    cache_item = container.cache_registry.fetch_cache_item(svc_provider)
 
     def _baseline():
         # replicate what resolve() did before fix #4
         c = container.find_container(svc_provider.scope)
-        resolved = _baseline_resolve_inner(cache_item, c)
+        resolved = _baseline_resolve_inner(svc_provider._plan(c), c)
         return svc_provider._creator(**resolved)
 
     benchmark(_baseline)
@@ -124,7 +120,7 @@ def test_singleton_baseline(benchmark):
     def _baseline():
         c = container.find_container(svc_provider.scope)
         # resolve the unified kwargs (even though cache exists — mimics pre-fix path)
-        _baseline_resolve_inner(cache_item, c)
+        _baseline_resolve_inner(svc_provider._plan(c), c)
         # return cached instance (same as current code does after kwargs loop)
         return cache_item.cache
 
