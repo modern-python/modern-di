@@ -37,6 +37,11 @@ test-branch:
 bench:
     uv run --no-sync pytest benchmarks/ --ignore=benchmarks/comparative --benchmark-only
 
+# Comparative cross-framework benchmarks (isolated env: dishka, that-depends,
+# dependency-injector, wireup + editable modern-di). First run resolves deps.
+bench-compare:
+    uv run --project benchmarks/comparative pytest benchmarks/comparative/ --benchmark-only
+
 # Build + publish to PyPI. Version comes from the git tag ($GITHUB_REF_NAME); no pyproject bump.
 # Auth via PyPI Trusted Publishing (OIDC); uv publish auto-detects the CI id-token.
 publish:
