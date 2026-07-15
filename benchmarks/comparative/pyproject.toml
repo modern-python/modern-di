@@ -17,3 +17,7 @@ package = false
 
 [tool.uv.sources]
 modern-di = { path = "../..", editable = true }
+
+[tool.pytest.ini_options]
+addopts = ""
+testpaths = ["."]
