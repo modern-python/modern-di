@@ -23,11 +23,13 @@ jobs:
       - run: just install
       - name: Run guard-tier benchmarks
         run: uv run --no-sync pytest benchmarks/ --ignore=benchmarks/comparative --benchmark-only --benchmark-json=output.json
-      - name: Restore benchmark baseline (written only on main)
+      - name: Restore benchmark baseline (newest main run via restore-keys prefix)
         uses: actions/cache/restore@v4
         with:
           path: ./cache
-          key: benchmark-baseline-${{ runner.os }}
+          key: benchmark-baseline-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            benchmark-baseline-${{ runner.os }}-
       - name: Compare against main and comment (non-gating)
         uses: benchmark-action/github-action-benchmark@v1
         with:
@@ -43,4 +45,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ./cache
-          key: benchmark-baseline-${{ runner.os }}
+          key: benchmark-baseline-${{ runner.os }}-${{ github.run_id }}
