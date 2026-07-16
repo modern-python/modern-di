@@ -171,19 +171,11 @@ class Factory(AbstractProvider[types.T_co]):
 
     def _plan(self, container: "Container") -> WiringPlan:
         # The plan is memoized on the providers registry (shared by a container and every child), so a
-        # deeper-scope factory builds it once per registry version, not once per child container. Building
-        # runs outside the container lock — safe under the GIL since it's a deterministic function of the
-        # registry as of the version it was built against (free-threaded/nogil caveat: planning/deferred.md).
-        reg = container.providers_registry
-        return reg.plan_for(
-            self,
-            lambda: WiringPlan.build(
-                parsed_kwargs=self._parsed_kwargs,
-                kwargs=self._kwargs,
-                registry=reg,
-                owner=self,
-            ),
-        )
+        # deeper-scope factory builds it once per registry version, not once per child container. Passing
+        # the build inputs to plan_for (rather than a closure) keeps the hot cache-hit path allocation-free.
+        # Building runs outside the container lock — safe under the GIL since it's a deterministic function
+        # of the registry as of the version it was built against (free-threaded/nogil caveat: planning/deferred.md).
+        return container.providers_registry.plan_for(self, self._parsed_kwargs, self._kwargs)
 
     def _resolve_context_value(
         self, container: "Container", arg_name: str, provider: ContextProvider[typing.Any], item: SignatureItem
