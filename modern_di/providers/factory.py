@@ -253,12 +253,16 @@ class Factory(AbstractProvider[types.T_co]):
 
     def resolve(self, container: "Container") -> types.T_co:
         try:
-            container = container.find_container(self.scope)
+            target = container.find_container(self.scope)
         except (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
             # Name the failing end too, or no frame ever names the provider that failed to resolve.
             exc.prepend_step(self._resolution_step())
             raise
-        container._warn_and_reopen_if_closed()  # noqa: SLF001
+        if target is not container:
+            # The entry container was already reopened by Container.resolve_provider; only a
+            # cross-scope target (a different container) still needs its own closed-state check.
+            target._warn_and_reopen_if_closed()  # noqa: SLF001
+        container = target
 
         if not self.cache_settings:
             return self._call_creator(self._resolve_kwargs(container))
