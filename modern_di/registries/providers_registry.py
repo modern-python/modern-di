@@ -7,6 +7,7 @@ from modern_di.wiring import WiringPlan
 
 
 if typing.TYPE_CHECKING:
+    from modern_di.providers.factory import Factory
     from modern_di.types_parser import SignatureItem
 
 
@@ -40,7 +41,7 @@ class ProvidersRegistry:
 
     def plan_for(
         self,
-        provider: AbstractProvider[typing.Any],
+        provider: "Factory[typing.Any]",
         parsed_kwargs: "dict[str, SignatureItem]",
         kwargs: dict[str, typing.Any] | None,
     ) -> "WiringPlan":
@@ -60,14 +61,7 @@ class ProvidersRegistry:
         cached = self._plans.get(provider_id)
         if cached is not None and cached[0] == version:
             return cached[1]
-        # provider is AbstractProvider here (this registry's generic contract), but the sole caller
-        # (Factory._plan) only ever passes a Factory, matching WiringPlan.build's owner: Factory bound.
-        plan = WiringPlan.build(
-            parsed_kwargs=parsed_kwargs,
-            kwargs=kwargs,
-            registry=self,
-            owner=provider,  # ty: ignore[invalid-argument-type]
-        )
+        plan = WiringPlan.build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=self, owner=provider)
         self._plans[provider_id] = (version, plan)
         return plan
 
