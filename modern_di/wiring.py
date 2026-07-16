@@ -75,6 +75,9 @@ class WiringPlan:
                           each raise/yield site without ``prepend_step``
                           mutations compounding across resolves of the same
                           memoized plan.
+        pure_provider:    True when the plan has no static and no context
+                          kwargs, so resolve can build the kwargs dict from
+                          provider_kwargs alone — the common fast path.
 
     """
 
@@ -82,6 +85,7 @@ class WiringPlan:
     static_kwargs: dict[str, typing.Any]
     context_kwargs: dict[str, "tuple[ContextProvider[typing.Any], SignatureItem]"]
     unwireable: "list[tuple[str, SignatureItem]]"
+    pure_provider: bool
 
     @property
     def edges(self) -> dict[str, "AbstractProvider[typing.Any]"]:
@@ -144,4 +148,5 @@ class WiringPlan:
             static_kwargs=static_kwargs,
             context_kwargs=context_kwargs,
             unwireable=unwireable,
+            pure_provider=not static_kwargs and not context_kwargs,
         )
