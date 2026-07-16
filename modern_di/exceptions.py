@@ -388,6 +388,15 @@ class CircularDependencyError(ResolutionError):
         rendered = "\n".join(_render_chain(steps))
         super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
 
+    def prepend_step(self, step: ResolutionStep) -> None:
+        """No-op: the canonical cycle (set at construction) is already self-contained.
+
+        Every provider in the loop is named by ``steps``, so an outer resolution frame has nothing
+        to add — accumulating a breadcrumb would only repeat the same nodes. This also keeps the two
+        resolve paths identical: the interpreted path unwinds through intermediate ``resolve_provider``
+        frames (each would otherwise prepend a step), while the compiled path converts once at the top.
+        """
+
     @property
     def cycle_path(self) -> list[str]:
         """The cycle as provider names."""

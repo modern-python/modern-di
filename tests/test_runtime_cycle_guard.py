@@ -112,17 +112,20 @@ def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
         sys.setrecursionlimit(original_limit)
 
 
-def _assert_deep_chain_cycle(exc: exceptions.CircularDependencyError) -> None:
-    names = [step.name for step in exc.dependency_path]
-    assert "Root" in names
-    assert "Middle" in names
+def _assert_deep_chain_cycle_is_self_contained(exc: exceptions.CircularDependencyError) -> None:
+    # Reached via the Root -> Middle -> DeepNodeA approach path, but the cycle itself is only
+    # DeepNodeA <-> DeepNodeB: CircularDependencyError.prepend_step is a no-op (ERR-1 canonicalization),
+    # so no outer frame accumulates a Root/Middle breadcrumb onto an already self-contained cycle.
+    assert exc.dependency_path == []
+    names = set(exc.cycle_path)
+    assert names == {"DeepNodeA", "DeepNodeB"}
     rendered = str(exc)
-    assert "Root" in rendered
-    assert "Middle" in rendered
+    assert "Root" not in rendered
+    assert "Middle" not in rendered
     assert isinstance(exc.__cause__, RecursionError)
 
 
-def test_deep_chain_cycle_carries_breadcrumbs() -> None:
+def test_deep_chain_cycle_is_self_contained() -> None:
     container = Container(groups=[DeepCycleGroup])
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
@@ -130,7 +133,7 @@ def test_deep_chain_cycle_carries_breadcrumbs() -> None:
         container.resolve(Root)
     # See `test_unvalidated_cycle_raises_circular_dependency_error` for why this is `no cover`.
     except exceptions.CircularDependencyError as exc:  # pragma: no cover
-        _assert_deep_chain_cycle(exc)
+        _assert_deep_chain_cycle_is_self_contained(exc)
     else:  # pragma: no cover
         pytest.fail("expected CircularDependencyError")
     finally:  # pragma: no cover
@@ -168,3 +171,44 @@ def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytes
     monkeypatch.setattr(dependency_graph.DependencyGraph, "find_cycle_from", _explode)
     with pytest.raises(RecursionError):
         container.resolve(SelfRec)
+
+
+class _CanonicalA:
+    # Module-level (not nested in the test): `typing.get_type_hints` resolves a forward-ref
+    # string annotation against `__init__.__globals__`, which only reaches module globals —
+    # a class local to the test function would not be found, unlike `NodeA`/`NodeB` above.
+    def __init__(self, b: "_CanonicalB") -> None: ...
+
+
+class _CanonicalB:
+    def __init__(self, a: _CanonicalA) -> None: ...
+
+
+def _assert_cycle_is_canonical_and_self_contained(exc: exceptions.CircularDependencyError) -> None:
+    msg = str(exc)
+    # Self-contained: names only the A/B loop, no accumulated outer breadcrumb repetition.
+    assert msg.count("A") >= 1
+    # Canonical: the rendered cycle starts at the same anchor regardless of seed.
+    cycle_names = exc.cycle_path
+    assert cycle_names[0] == cycle_names[-1]  # ring closes
+    assert min(cycle_names) == cycle_names[0]  # anchored at the min name (proxy for min provider_id ordering)
+
+
+def test_cycle_error_is_canonical_and_self_contained() -> None:
+    # A -> B -> A.
+    class G(Group):
+        a = providers.Factory(creator=_CanonicalA, scope=Scope.APP)
+        b = providers.Factory(creator=_CanonicalB, scope=Scope.APP)
+
+    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(80)
+    try:
+        container.resolve(_CanonicalA)
+    # See `test_unvalidated_cycle_raises_circular_dependency_error` for why this is `no cover`.
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+        _assert_cycle_is_canonical_and_self_contained(exc)
+    else:  # pragma: no cover
+        pytest.fail("expected CircularDependencyError")
+    finally:  # pragma: no cover
+        sys.setrecursionlimit(limit)
