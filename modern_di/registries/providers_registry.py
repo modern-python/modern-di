@@ -7,17 +7,20 @@ from modern_di.wiring import WiringPlan
 
 
 if typing.TYPE_CHECKING:
+    from modern_di import Container
     from modern_di.providers.factory import Factory
     from modern_di.types_parser import SignatureItem
 
 
 class ProvidersRegistry:
-    __slots__ = ("_lock", "_plans", "_providers", "_version", "validated_version")
+    __slots__ = ("_building", "_lock", "_plans", "_providers", "_resolvers", "_version", "validated_version")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
         self._plans: dict[int, tuple[int, WiringPlan]] = {}
+        self._resolvers: dict[int, tuple[int, typing.Callable[[Container], typing.Any]]] = {}
+        self._building: set[int] = set()
         self._version = 0
         self.validated_version: int | None = None
 
@@ -64,6 +67,30 @@ class ProvidersRegistry:
         plan = WiringPlan.build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=self, owner=provider)
         self._plans[provider_id] = (version, plan)
         return plan
+
+    def resolver_for(self, provider: "AbstractProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
+        """Return `provider`'s memoized compiled resolver, building it cycle-safely on a miss.
+
+        Memoized and version-stamped exactly like `plan_for`. A back-edge to a provider whose
+        resolver is still being built (a cycle) captures a thunk that routes through the runtime
+        `resolve_provider`, so a genuine cycle still raises `RecursionError` -> `CircularDependencyError`.
+        """
+        from modern_di.resolver_compiler import compile_resolver  # noqa: PLC0415 (avoid import cycle)
+
+        pid = provider.provider_id
+        version = self._version
+        cached = self._resolvers.get(pid)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        if pid in self._building:
+            return lambda c: c.resolve_provider(provider)  # back-edge: route the cycle through runtime
+        self._building.add(pid)
+        try:
+            resolver = compile_resolver(provider, self)
+        finally:
+            self._building.discard(pid)
+        self._resolvers[pid] = (version, resolver)
+        return resolver
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
         with self._lock:

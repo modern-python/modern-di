@@ -26,6 +26,9 @@ if typing.TYPE_CHECKING:
     import typing_extensions
 
 
+_force_interpreted: bool = False  # DEV-ONLY differential scaffold; deleted before merge (Task 6)
+
+
 def _handle_recursion_error(
     provider: AbstractProvider[typing.Any], container: "Container", exc: RecursionError
 ) -> typing.NoReturn:
@@ -196,13 +199,20 @@ class Container:
         return self.resolve(dependency)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
-        self._warn_and_reopen_if_closed()
+        """Resolve a specific provider by reference via its compiled resolver."""
+        if _force_interpreted:
+            return self._resolve_provider_interpreted(provider)
+        try:
+            return self.providers_registry.resolver_for(provider)(self)
+        except RecursionError as exc:
+            _handle_recursion_error(provider, self, exc)
 
+    def _resolve_provider_interpreted(self, provider: "AbstractProvider[types.T]") -> types.T:
+        """DEV-ONLY interpreted reference path, kept for the differential harness (deleted at Task 6)."""
+        self._warn_and_reopen_if_closed()
         override = self.overrides_registry.fetch_override(provider.provider_id)
         if override is not types.UNSET:
             return override  # ty: ignore[invalid-return-type]
-
         try:
             return provider.resolve(self)
         except RecursionError as exc:
