@@ -146,11 +146,14 @@ class Container:
         return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self._lock is not None)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
-        if scope not in self._scope_map:
+        if scope == self.scope:
+            return self
+        target = self._scope_map.get(scope)
+        if target is None:
             if scope > self.scope:
                 raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)
             raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope)
-        return self._scope_map[scope]
+        return target
 
     @property
     def scope_map(self) -> "dict[enum.IntEnum, typing_extensions.Self]":
