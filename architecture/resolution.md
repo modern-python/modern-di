@@ -80,7 +80,7 @@ map produced at provider-declaration time by `types_parser.parse_creator` — an
 
 The plan's buckets — `provider_kwargs` (regular providers, resolved recursively), `static_kwargs` (plain values), and
 `context_kwargs` (`ContextProvider` + its `SignatureItem`, resolved live) — plus the `unwireable` records make up the
-`WiringPlan` memoized on the `ProvidersRegistry` (see Step 4). The same `WiringPlan.build` backs `validate()`: `get_dependencies` returns
+`WiringPlan` memoized on the `ProvidersRegistry`. The same `WiringPlan.build` backs `validate()`: `get_dependencies` returns
 `plan.edges`, `iter_validation_issues` builds a fresh error per `unwireable` record.
 
 > **One edge set.** `WiringPlan.edges` is a *derived* view — `provider_kwargs` merged with the providers out of
