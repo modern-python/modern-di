@@ -72,7 +72,9 @@ When the walk follows an edge to a provider still on the active path (tracked in
 `visiting` set), it emits a `Cycle` event whose `providers` list closes the loop by repeating the first
 node last (e.g., `[A, B, A]`). `validate()` maps that event to a `CircularDependencyError` (built via
 `dependency_graph.build_cycle_error`), which carries the loop as `.steps` — one `ResolutionStep`
-(scope, name, optional definition site) per node. The walk does **not** descend into the cycle, but the
+(scope, name, optional definition site) per node. Before rendering, `build_cycle_error` rotates the loop
+to start at its minimum-`provider_id` node, so the same cycle renders identically no matter which
+provider the walk happened to seed from. The walk does **not** descend into the cycle, but the
 rest of the graph continues to be checked. `CircularDependencyError.__str__` renders those steps as a
 multi-line arrow chain, not an inline `A -> B -> A` string.
 
@@ -96,10 +98,13 @@ read identically. See [resolution.md](resolution.md#one-renderer) for that drawe
 > limit) — and, if a static cycle is reachable, raises `CircularDependencyError` (built by
 > `dependency_graph.build_cycle_error`) with the cycle path, `from` the original `RecursionError`.
 > `resolve_provider` is re-entrant (`Factory`/`Alias` call it per dependency edge), so it is the innermost frame
-> that converts; outer frames see a `ResolutionError` and the existing breadcrumb machinery (see
-> [resolution.md](resolution.md)) prepends steps as it propagates back up, so the converted error arrives with the
-> dependency chain attached. A `RecursionError` from a creator that recurses on its own (no static cycle in the
-> graph) is re-raised untouched, not misreported as a circular dependency. Both the guard and `validate()` consume
+> that converts. `CircularDependencyError.prepend_step` overrides the breadcrumb machinery every other
+> `ResolutionError` uses (see [resolution.md](resolution.md)) as a no-op, so an outer frame unwinding past the
+> conversion adds nothing to it: the error is already self-contained the moment `build_cycle_error` constructs it,
+> naming every provider in the loop canonically rooted at its minimum-`provider_id` node — not a partial breadcrumb
+> an outer frame still needs to complete. A `RecursionError` from a creator that recurses on its own (no static
+> cycle in the graph) is re-raised untouched, not misreported as a circular dependency. Both the guard and
+> `validate()` consume
 > the one `DependencyGraph` walker: `validate()` collects *all* errors of *all* kinds up front, while the guard
 > only answers "is a cycle reachable from here" on an already-exhausted stack. Run with `validate=True` (or call
 > `container.validate()`) in development to surface *every* cycle (and other wiring bugs) before the first resolve,

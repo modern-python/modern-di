@@ -7,6 +7,7 @@ from modern_di.dependency_graph import (
     DependencyGraph,
     Edge,
     NodeEntered,
+    build_cycle_error,
 )
 from modern_di.group import Group
 from modern_di.providers import Alias, Factory
@@ -206,3 +207,25 @@ def test_walk_emits_cycle_closed_through_kwargs_overlay() -> None:
     cycles = [e for e in events if isinstance(e, Cycle)]
     assert len(cycles) == 1
     assert [p.display_name for p in cycles[0].providers] == ["KwCycA", "KwCycB", "KwCycA"]
+
+
+class RingFirst: ...
+
+
+class RingSecond: ...
+
+
+def test_build_cycle_error_rotates_to_minimum_provider_id() -> None:
+    # `provider_id` is a process-wide construction counter (modern_di/providers/abstract.py):
+    # whichever provider is built first here holds the smaller id, deterministically, regardless
+    # of ambient stack/seed state — unlike the runtime guard's own cycle-seeding order.
+    first = Factory(scope=Scope.APP, creator=RingFirst)
+    second = Factory(scope=Scope.APP, creator=RingSecond)
+    assert first.provider_id < second.provider_id
+
+    # Seed the ring at the higher-id node, closing back to itself last -- the shape `Cycle.providers`
+    # is in (first node repeated last), regardless of which provider the walk happened to start from.
+    error = build_cycle_error([second, first, second])
+
+    # Rotated to the minimum-provider_id node (`first`), not left seeded at `second`.
+    assert error.cycle_path == ["RingFirst", "RingSecond", "RingFirst"]
