@@ -171,19 +171,11 @@ class Factory(AbstractProvider[types.T_co]):
 
     def _plan(self, container: "Container") -> WiringPlan:
         # The plan is memoized on the providers registry (shared by a container and every child), so a
-        # deeper-scope factory builds it once per registry version, not once per child container. Building
-        # runs outside the container lock — safe under the GIL since it's a deterministic function of the
-        # registry as of the version it was built against (free-threaded/nogil caveat: planning/deferred.md).
-        reg = container.providers_registry
-        return reg.plan_for(
-            self,
-            lambda: WiringPlan.build(
-                parsed_kwargs=self._parsed_kwargs,
-                kwargs=self._kwargs,
-                registry=reg,
-                owner=self,
-            ),
-        )
+        # deeper-scope factory builds it once per registry version, not once per child container. Passing
+        # the build inputs to plan_for (rather than a closure) keeps the hot cache-hit path allocation-free.
+        # Building runs outside the container lock — safe under the GIL since it's a deterministic function
+        # of the registry as of the version it was built against (free-threaded/nogil caveat: planning/deferred.md).
+        return container.providers_registry.plan_for(self, self._parsed_kwargs, self._kwargs)
 
     def _resolve_context_value(
         self, container: "Container", arg_name: str, provider: ContextProvider[typing.Any], item: SignatureItem
@@ -238,13 +230,15 @@ class Factory(AbstractProvider[types.T_co]):
             if plan.unwireable:
                 name, item = plan.unwireable[0]
                 raise self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
-            resolved_kwargs = dict(plan.static_kwargs)
-            for k, v in plan.provider_kwargs.items():
-                resolved_kwargs[k] = container.resolve_provider(v)
-            for k, (context_provider, item) in plan.context_kwargs.items():
-                value = self._resolve_context_value(container, k, context_provider, item)
-                if value is not types.UNSET:
-                    resolved_kwargs[k] = value
+            resolved_kwargs = {k: container.resolve_provider(v) for k, v in plan.provider_kwargs.items()}
+            if not plan.pure_provider:
+                # Uncommon path: fold in static values and live context reads. Buckets are keyed by
+                # disjoint parameter names, so merge order does not matter.
+                resolved_kwargs.update(plan.static_kwargs)
+                for k, (context_provider, item) in plan.context_kwargs.items():
+                    value = self._resolve_context_value(container, k, context_provider, item)
+                    if value is not types.UNSET:
+                        resolved_kwargs[k] = value
         except (exceptions.ResolutionError, exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
             # Name the failing end too, or no frame ever names the provider that failed to resolve.
             exc.prepend_step(self._resolution_step())
@@ -253,12 +247,16 @@ class Factory(AbstractProvider[types.T_co]):
 
     def resolve(self, container: "Container") -> types.T_co:
         try:
-            container = container.find_container(self.scope)
+            target = container.find_container(self.scope)
         except (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
             # Name the failing end too, or no frame ever names the provider that failed to resolve.
             exc.prepend_step(self._resolution_step())
             raise
-        container._warn_and_reopen_if_closed()  # noqa: SLF001
+        if target is not container:
+            # The entry container was already reopened by Container.resolve_provider; only a
+            # cross-scope target (a different container) still needs its own closed-state check.
+            target._warn_and_reopen_if_closed()  # noqa: SLF001
+        container = target
 
         if not self.cache_settings:
             return self._call_creator(self._resolve_kwargs(container))

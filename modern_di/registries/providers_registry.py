@@ -3,10 +3,12 @@ import typing
 
 from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.wiring import WiringPlan
 
 
 if typing.TYPE_CHECKING:
-    from modern_di.wiring import WiringPlan
+    from modern_di.providers.factory import Factory
+    from modern_di.types_parser import SignatureItem
 
 
 class ProvidersRegistry:
@@ -39,25 +41,27 @@ class ProvidersRegistry:
 
     def plan_for(
         self,
-        provider: AbstractProvider[typing.Any],
-        build: "typing.Callable[[], WiringPlan]",
+        provider: "Factory[typing.Any]",
+        parsed_kwargs: "dict[str, SignatureItem]",
+        kwargs: dict[str, typing.Any] | None,
     ) -> "WiringPlan":
         """Return `provider`'s memoized wiring plan, building and stamping it on a miss.
 
         A plan is a pure function of the provider and this registry's contents, so it is
         memoized per `provider_id` and stamped with the `version` it was built against; a
         stamp mismatch (the registry mutated since) rebuilds. The version is snapshotted
-        *before* `build` runs, so a plan built against a since-mutated registry carries the
+        *before* the build runs, so a plan built against a since-mutated registry carries the
         old stamp and is never served as current. Shared tree-wide: a container and every
         child share one registry, so a deeper-scope provider builds its plan once, not once
-        per child container.
+        per child container. The build inputs are passed by value (not a closure) so the hot
+        cache-hit path allocates nothing.
         """
         provider_id = provider.provider_id
         version = self._version
         cached = self._plans.get(provider_id)
         if cached is not None and cached[0] == version:
             return cached[1]
-        plan = build()
+        plan = WiringPlan.build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=self, owner=provider)
         self._plans[provider_id] = (version, plan)
         return plan
 
