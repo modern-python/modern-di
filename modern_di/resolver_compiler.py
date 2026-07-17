@@ -10,12 +10,14 @@ import typing
 
 from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.alias import Alias
+from modern_di.providers.container_provider import container_provider
+from modern_di.providers.context_provider import ContextProvider
 from modern_di.providers.factory import Factory
 
 
 if typing.TYPE_CHECKING:
     from modern_di import Container
-    from modern_di.providers.context_provider import ContextProvider
     from modern_di.registries.providers_registry import ProvidersRegistry
     from modern_di.types_parser import SignatureItem
 
@@ -34,8 +36,14 @@ def compile_resolver(
         if provider.cache_settings is None:
             return _compile_transient_factory(provider, registry)
         return _compile_cached_factory(provider, registry)
-    # BRIDGE (temporary, Task 4 replaces this): route uncompiled types through the interpreted path.
-    return lambda c: c._resolve_provider_interpreted(provider)  # noqa: SLF001
+    if type(provider) is Alias:
+        return _compile_alias(provider)
+    if provider is container_provider:
+        return _compile_container_provider()
+    if type(provider) is ContextProvider:
+        return _compile_context_provider(provider)
+    msg = f"no compiled resolver for provider type {type(provider).__name__}"
+    raise TypeError(msg)  # every provider type is compiled; a new type must add a branch here
 
 
 def _compile_transient_factory(  # noqa: C901 (inlined hot path: kept flat to hold the per-node frame at 1)
@@ -139,6 +147,66 @@ def _compile_cached_factory(  # noqa: C901 (two closures: build_kwargs cold-miss
         if created:
             target.cache_registry.mark_created(cache_item)
         return value
+
+    return resolve
+
+
+def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
+    """Forward to the alias's source resolver, wrapping scope/resolution errors with its own step.
+
+    Mirrors `Alias.resolve` exactly (same single try/except, same exception tuple) so a
+    dangling-source `str()` is byte-identical.
+    """
+    pid = a.provider_id
+    resolution_step = a._resolution_step  # noqa: SLF001
+    find_source = a._find_source  # noqa: SLF001
+
+    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+        overrides = container.overrides_registry
+        if overrides.has_overrides:
+            override = overrides.fetch_override(pid)
+            if override is not types.UNSET:
+                return override
+        try:
+            return container.resolve_provider(find_source(container))
+        except _STEP_ERRORS as exc:
+            exc.prepend_step(resolution_step())
+            raise
+
+    return resolve
+
+
+def _compile_container_provider() -> "typing.Callable[[Container], typing.Any]":
+    """Resolve to the resolving container itself, matching `_ContainerProvider.resolve` (no scope navigation)."""
+    pid = container_provider.provider_id
+
+    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+        overrides = container.overrides_registry
+        if overrides.has_overrides:
+            override = overrides.fetch_override(pid)
+            if override is not types.UNSET:
+                return override
+        return container
+
+    return resolve
+
+
+def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
+    """Front-guard the override, then delegate to the bound `ContextProvider.resolve`.
+
+    Reuses the bound method so the unset-value `ContextValueNoneWarning` (text + stacklevel)
+    stays identical, not reimplemented.
+    """
+    pid = cp.provider_id
+    resolve_bound = cp.resolve
+
+    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+        overrides = container.overrides_registry
+        if overrides.has_overrides:
+            override = overrides.fetch_override(pid)
+            if override is not types.UNSET:
+                return override
+        return resolve_bound(container)
 
     return resolve
 

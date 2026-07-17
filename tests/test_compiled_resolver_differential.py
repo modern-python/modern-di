@@ -820,6 +820,169 @@ class CycleGroup(Group):
     b = providers.Factory(creator=CycleB, scope=Scope.APP)
 
 
+class DirectAliasGroup(Group):
+    dep = providers.Factory(creator=Dep, scope=Scope.APP)
+    alias = providers.Alias(source_type=Dep, bound_type=None)
+
+
+def test_alias_direct_resolve_equivalence() -> None:
+    # Resolving an Alias directly (not as a Factory dependency) exercises the compiled Alias
+    # resolver's own entry point, distinct from the fallback-thunk case above.
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[DirectAliasGroup], validate=False), DirectAliasGroup.alias
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "value"
+
+
+class DanglingAliasDirectGroup(Group):
+    alias = providers.Alias(source_type=Dep, bound_type=None)
+
+
+def test_alias_missing_source_direct_equivalence() -> None:
+    # Alias whose source is never registered: error `str()` must match exactly, including the
+    # alias's own prepended resolution step (Alias.resolve's try/except wraps this single call).
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[DanglingAliasDirectGroup], validate=False),
+        DanglingAliasDirectGroup.alias,
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "error"
+    assert "AliasSourceNotRegisteredError" in compiled[1]
+
+
+class OverrideAliasGroup(Group):
+    dep = providers.Factory(creator=Dep, scope=Scope.APP)
+    alias = providers.Alias(source_type=Dep, bound_type=None)
+    via_alias = providers.Factory(creator=ViaAlias, scope=Scope.APP, kwargs={"dep": alias})
+
+
+def test_alias_override_direct_equivalence() -> None:
+    # Override applied directly to the Alias: proves the compiled Alias resolver's own
+    # override front-guard fires (the compiled dispatch no longer checks overrides centrally).
+    def build() -> Container:
+        c = Container(scope=Scope.APP, groups=[OverrideAliasGroup], validate=False)
+        c.override(OverrideAliasGroup.alias, Dep())
+        return c
+
+    compiled, interpreted = _resolve_both(build, OverrideAliasGroup.alias)
+    assert compiled == interpreted
+
+
+def test_alias_override_as_factory_dependency_equivalence() -> None:
+    # Same override, but the Alias is reached as a Factory's provider_kwargs dependency
+    # (an explicit kwargs={} reference, not auto-wired) -- calls the resolver by reference.
+    def build() -> Container:
+        c = Container(scope=Scope.APP, groups=[OverrideAliasGroup], validate=False)
+        c.override(OverrideAliasGroup.alias, Dep())
+        return c
+
+    compiled, interpreted = _resolve_both(build, OverrideAliasGroup.via_alias)
+    assert compiled == interpreted
+
+
+def test_container_provider_direct_resolve_equivalence() -> None:
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[G], validate=False), providers.container_provider
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "value"
+
+
+class ContainerProviderOverrideDepGroup(Group):
+    needs_container = providers.Factory(creator=NeedsContainer, scope=Scope.APP)
+
+
+def test_container_provider_override_direct_equivalence() -> None:
+    def build() -> Container:
+        c = Container(scope=Scope.APP, groups=[ContainerProviderOverrideDepGroup], validate=False)
+        c.override(providers.container_provider, "mock-container")
+        return c
+
+    compiled, interpreted = _resolve_both(build, providers.container_provider)
+    assert compiled == interpreted
+
+
+def test_container_provider_override_as_factory_dependency_equivalence() -> None:
+    # ContainerProvider reached as a Factory's auto-wired dependency (NeedsContainer.container:
+    # Container), with an override on the provider itself -- the fallback-thunk path.
+    def build() -> Container:
+        c = Container(scope=Scope.APP, groups=[ContainerProviderOverrideDepGroup], validate=False)
+        c.override(providers.container_provider, "mock-container")
+        return c
+
+    compiled, interpreted = _resolve_both(build, ContainerProviderOverrideDepGroup.needs_container)
+    assert compiled == interpreted
+
+
+def test_context_provider_direct_resolve_set_equivalence() -> None:
+    # Direct resolve of a SET ContextProvider: the compiled resolver delegates to the bound
+    # `ContextProvider.resolve`, which must not warn (complements the unset case above).
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+
+    def once(interpreted: bool) -> tuple[_Outcome, tuple[str, ...]]:
+        c = Container(scope=Scope.APP, groups=[DirectContextGroup], validate=False, context={datetime.datetime: now})
+        ctx = forced_interpreted() if interpreted else contextlib.nullcontext()
+        with ctx, warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            value = c.resolve_provider(DirectContextGroup.ctx)
+        return ("value", repr(value)), tuple(sorted(type(w.message).__name__ for w in caught))
+
+    compiled, interpreted = once(False), once(True)
+    assert compiled == interpreted
+    assert compiled == (("value", repr(now)), ())
+
+
+class ContextOverrideGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    needs = providers.Factory(creator=NeedsContext, scope=Scope.APP, kwargs={"arg1": ctx})
+
+
+def test_context_provider_override_direct_equivalence() -> None:
+    # Override applied directly to the ContextProvider: proves the compiled resolver's own
+    # front-guard fires (no value is set in the context registry, so this is the ONLY way the
+    # provider resolves to a non-None value without warning).
+    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+
+    def build() -> Container:
+        c = Container(scope=Scope.APP, groups=[ContextOverrideGroup], validate=False)
+        c.override(ContextOverrideGroup.ctx, override_value)
+        return c
+
+    compiled, interpreted = _resolve_both(build, ContextOverrideGroup.ctx)
+    assert compiled == interpreted
+    assert compiled == ("value", repr(override_value), ())
+
+
+def test_context_provider_override_as_factory_dependency_equivalence() -> None:
+    # Same override, but the ContextProvider is reached as a Factory's provider_kwargs dependency
+    # (explicit kwargs={} reference -- not the auto-wired context_kwargs bucket that bypasses the
+    # compiled resolver entirely) -- calls the resolver by reference.
+    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+
+    def build() -> Container:
+        c = Container(scope=Scope.APP, groups=[ContextOverrideGroup], validate=False)
+        c.override(ContextOverrideGroup.ctx, override_value)
+        return c
+
+    compiled, interpreted = _resolve_both(build, ContextOverrideGroup.needs)
+    assert compiled == interpreted
+
+
+class _UnknownProvider(providers.AbstractProvider[object]):
+    def resolve(self, container: Container) -> object:  # noqa: ARG002 (unused; body below is unreachable)
+        return object()  # pragma: no cover - never reached (compile_resolver raises before resolve is called)
+
+
+def test_compile_resolver_raises_for_unhandled_provider_type() -> None:
+    # Every real provider type compiles; an unknown subclass hits the final explicit raise --
+    # the bridge fallthrough it replaces is gone, so this is the only way this branch is reached.
+    c = Container(scope=Scope.APP, validate=False)
+    provider = _UnknownProvider(scope=Scope.APP, bound_type=None)
+    with pytest.raises(TypeError, match="no compiled resolver for provider type _UnknownProvider"):
+        c.resolve_provider(provider)
+
+
 def test_genuine_cycle_str_equivalence() -> None:
     """Genuine 2-node cycle A->B->A: compiled vs interpreted CircularDependencyError str must match.
 
