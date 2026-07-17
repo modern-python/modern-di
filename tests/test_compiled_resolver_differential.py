@@ -62,21 +62,29 @@ class G(Group):
 
 
 _Outcome = tuple[str, str]
+_OutcomeWithWarnings = tuple[str, str, tuple[str, ...]]
 
 
 def _resolve_both(
     build_container: typing.Callable[[], Container], provider: "providers.AbstractProvider[typing.Any]"
-) -> tuple[_Outcome, _Outcome]:
-    """Return (compiled_outcome, interpreted_outcome) as ('value', v) or ('error', str)."""
+) -> tuple[_OutcomeWithWarnings, _OutcomeWithWarnings]:
+    """Return (compiled_outcome, interpreted_outcome) as ('value'|'error', str, sorted warning names).
 
-    def once(interpreted: bool) -> _Outcome:
+    Warnings emitted during the resolve are captured too, so a path that warns (or fails to warn)
+    when the other doesn't shows up as a mismatch, not silently.
+    """
+
+    def once(interpreted: bool) -> _OutcomeWithWarnings:
         c = build_container()
         ctx = forced_interpreted() if interpreted else contextlib.nullcontext()
-        with ctx:
+        with ctx, warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             try:
-                return ("value", repr(c.resolve_provider(provider)))
+                outcome: _Outcome = ("value", repr(c.resolve_provider(provider)))
             except Exception as exc:  # noqa: BLE001
-                return ("error", f"{type(exc).__name__}: {exc}")
+                outcome = ("error", f"{type(exc).__name__}: {exc}")
+        warning_names = tuple(sorted(type(w.message).__name__ for w in caught))
+        return (*outcome, warning_names)
 
     return once(False), once(True)
 
@@ -310,7 +318,7 @@ class AliasDepGroup(Group):
 
 
 def test_fallback_alias_dep_equivalence() -> None:
-    # A Factory depending on an Alias (a non-Factory provider) exercises resolver_or_thunk's
+    # A Factory depending on an Alias (a non-Factory provider) exercises resolver_for's
     # fallback-thunk branch inside a compiled Factory's provider_kwargs.
     compiled, interpreted = _resolve_both(
         lambda: Container(scope=Scope.APP, groups=[AliasDepGroup], validate=False), AliasDepGroup.via_alias
@@ -660,7 +668,7 @@ def test_nullable_none_injection_equivalence() -> None:
         lambda: Container(scope=Scope.APP, groups=[EdgeGroup], validate=False), EdgeGroup.nullable_user
     )
     assert compiled == interpreted
-    assert compiled == ("value", "NullableUser(dep=None)")
+    assert compiled == ("value", "NullableUser(dep=None)", ())
 
 
 def test_static_default_omission_equivalence() -> None:
@@ -671,7 +679,7 @@ def test_static_default_omission_equivalence() -> None:
         lambda: Container(scope=Scope.APP, groups=[EdgeGroup], validate=False), EdgeGroup.default_user
     )
     assert compiled == interpreted
-    assert compiled == ("value", f"DefaultOmittedUser(dep={_DEFAULT_UNREGISTERED!r})")
+    assert compiled == ("value", f"DefaultOmittedUser(dep={_DEFAULT_UNREGISTERED!r})", ())
 
 
 @dataclasses.dataclass(slots=True)
@@ -692,7 +700,7 @@ def test_kwargs_static_and_provider_values_equivalence() -> None:
         lambda: Container(scope=Scope.APP, groups=[KwargsMixGroup], validate=False), KwargsMixGroup.mixed
     )
     assert compiled == interpreted
-    assert compiled == ("value", "KwargsMix(name='static-value', dep=Dep())")
+    assert compiled == ("value", "KwargsMix(name='static-value', dep=Dep())", ())
 
 
 class DirectContextGroup(Group):
@@ -720,9 +728,10 @@ def test_context_provider_direct_resolve_unset_equivalence() -> None:
 
 def test_closed_container_reuse_warns_equivalence() -> None:
     # Resolving from a container after close_sync(): both paths warn ContainerClosedWarning and
-    # self-heal by reopening. The compiled transient resolver calls `_warn_and_reopen_if_closed`
-    # itself (resolver_compiler._make_transient_resolve); the interpreted path calls it from
-    # `resolve_provider` -- two call sites that must agree.
+    # self-heal by reopening. `resolve_provider` warns and reopens the entry container itself
+    # (both paths); the compiled transient resolver (`_compile_transient_factory`'s inner
+    # `resolve`, in resolver_compiler.py) separately guards its navigated *target* container --
+    # here entry and target coincide, so both checks must agree without double-warning.
     def scenario(interpreted: bool) -> tuple[_Outcome, list[tuple[str, str]]]:
         c = Container(scope=Scope.APP, groups=[G], validate=False)
         ctx = forced_interpreted() if interpreted else contextlib.nullcontext()
@@ -738,6 +747,42 @@ def test_closed_container_reuse_warns_equivalence() -> None:
     assert compiled == interpreted
     assert compiled[0] == ("value", "Dep()")
     assert [name for name, _msg in compiled[1]] == ["ContainerClosedWarning"]
+
+
+def test_closed_request_child_reaches_app_transient_equivalence() -> None:
+    # Entry-container reopen with entry != target: resolve an APP-scoped transient (G.dep) from
+    # a CLOSED REQUEST child. The entry container (the REQUEST child) is closed, but the target
+    # container (the APP root) never was. `resolve_provider` must warn+reopen the entry itself --
+    # the compiled resolver's own `target.closed` guard (resolver_compiler.py) never fires here,
+    # since the target is a distinct, still-open container.
+    def build() -> Container:
+        app_container = Container(scope=Scope.APP, groups=[G], validate=False)
+        req = app_container.build_child_container(scope=Scope.REQUEST)
+        req.close_sync()
+        return req
+
+    compiled, interpreted = _resolve_both(build, G.dep)
+    assert compiled == interpreted
+    assert compiled[0] == "value"
+    assert compiled[2] == ("ContainerClosedWarning",)
+
+
+def test_target_only_closed_cross_scope_equivalence() -> None:
+    # Mirror image of the case above: the entry container (an open REQUEST child) is fine, but
+    # the cross-scope TARGET it navigates to (the APP root) is independently closed. Entry-side
+    # reopen in `resolve_provider` is a no-op here; the compiled resolver's own `target.closed`
+    # guard (resolver_compiler.py) is what fires -- the same distinct check `Factory.resolve`
+    # makes via `if target is not container: target._warn_and_reopen_if_closed()`.
+    def build() -> Container:
+        app_container = Container(scope=Scope.APP, groups=[G], validate=False)
+        req = app_container.build_child_container(scope=Scope.REQUEST)
+        app_container.close_sync()
+        return req
+
+    compiled, interpreted = _resolve_both(build, G.dep)
+    assert compiled == interpreted
+    assert compiled[0] == "value"
+    assert compiled[2] == ("ContainerClosedWarning",)
 
 
 class SelfRec:

@@ -202,6 +202,7 @@ class Container:
         """Resolve a specific provider by reference via its compiled resolver."""
         if _force_interpreted:
             return self._resolve_provider_interpreted(provider)
+        self._warn_and_reopen_if_closed()
         try:
             return self.providers_registry.resolver_for(provider)(self)
         except RecursionError as exc:
