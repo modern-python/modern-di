@@ -35,7 +35,7 @@ def _handle_recursion_error(
     boundary to re-arm on before raising.
     """
     reg = container.providers_registry
-    if reg.validated_version == reg.version:
+    if reg.is_validated():
         raise exc  # validated => acyclic static graph => genuine self-recursion
     cycle = DependencyGraph().find_cycle_from(provider, container)
     if cycle is None:
@@ -205,7 +205,7 @@ class Container:
 
     def validate(self) -> None:
         reg = self.providers_registry
-        if reg.validated_version == reg.version:
+        if reg.is_validated():
             self._validated = True
             return  # already validated at this registry version — no re-walk
 
@@ -235,7 +235,7 @@ class Container:
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
         self._validated = True
-        reg.validated_version = reg.version
+        reg.mark_validated()
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
         """Register providers on this (root) container after construction.

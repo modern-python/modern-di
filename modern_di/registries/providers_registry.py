@@ -40,6 +40,14 @@ class ProvidersRegistry:
         """
         return self._version
 
+    def is_validated(self) -> bool:
+        """Return whether the graph was validated at the current version — no mutation since the stamp."""
+        return self.validated_version == self._version
+
+    def mark_validated(self) -> None:
+        """Stamp the current version as validated; a later mutation re-arms it via the version bump."""
+        self.validated_version = self._version
+
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
 
