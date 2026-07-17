@@ -93,6 +93,8 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
         pos = tuple(r for _name, r in prov)
 
         def resolve_positional(container: "Container") -> typing.Any:  # noqa: ANN401
+            # Override front-guard is inlined into every closure (not extracted): the compiled dispatch
+            # checks no overrides centrally, and a helper would add one Python frame per node.
             overrides = container.overrides_registry
             if overrides.has_overrides:
                 override = overrides.fetch_override(pid)

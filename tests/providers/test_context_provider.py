@@ -285,6 +285,15 @@ def test_late_context_does_not_rebuild_cached_singleton() -> None:
     assert second.ctx is None
 
 
+def test_cached_factory_injects_present_context_at_cold_build() -> None:
+    # Context set before the first (cold) build is injected into the cached instance.
+    app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
+    ctx = _CrossCtx()
+    app.set_context(_CrossCtx, ctx)
+    svc = app.resolve(_CachedCtxSvc)
+    assert svc.ctx is ctx
+
+
 def test_unset_context_provider_direct_resolve_warns_and_returns_none() -> None:
     app_container = Container(groups=[MyGroup], validate=False)
     with pytest.warns(ContextValueNoneWarning, match="modern-di 3.0 raises ContextValueNotSetError"):

@@ -69,8 +69,9 @@ The container provider skips step 2 (it resolves to whichever container is askin
 
 ## Step 4 — Wiring plan
 
-If no cached instance is returned, `Factory` builds the **wiring plan**: the partition of the creator's parameters by
-how each is satisfied. `Factory._plan` delegates to `ProvidersRegistry.plan_for`, which memoizes one `WiringPlan` per
+The **wiring plan** — the partition of the creator's parameters by how each is satisfied — is consulted when a
+`Factory`'s resolver is compiled (once per registry version), not on each resolve. `Factory._plan` delegates to
+`ProvidersRegistry.plan_for`, which memoizes one `WiringPlan` per
 provider on the **registry** — keyed by `provider_id`, stamped with the `ProvidersRegistry.version` it was built
 against. A call reuses the plan while that stamp matches the registry's current version and rebuilds when the registry
 has changed (i.e. after `add_providers`). Because a container and every child share one `providers_registry`, the plan
