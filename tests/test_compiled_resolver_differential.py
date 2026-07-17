@@ -11,6 +11,7 @@ import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di import container as container_mod
+from modern_di.resolver_compiler import _positional_names
 
 
 # Lowering the recursion limit triggers the RecursionError closer to the call site, keeping the
@@ -1013,3 +1014,251 @@ def test_genuine_cycle_str_equivalence() -> None:
         sys.setrecursionlimit(original_limit)
     assert compiled[0] == interpreted[0] == "error"  # pragma: no cover
     assert compiled == interpreted  # pragma: no cover
+
+
+# --- Positional creator fast path (guarded) ------------------------------------------------------
+#
+# `_positional_names` is the compile-time predicate that decides whether a Factory's creator can be
+# called positionally (`creator(v0, v1, ...)`) instead of `creator(**kwargs)`. Eligible only when the
+# whole parsed signature is provider deps, in order, with no static/context/omitted/keyword-only
+# params. These tests pin the predicate's verdict AND the runtime equivalence of both call styles.
+
+
+def _eligibility(container: Container, provider: "providers.Factory[typing.Any]") -> "tuple[str, ...] | None":
+    """Compute `_positional_names` for `provider` against `container`'s live registry."""
+    plan = container.providers_registry.plan_for(provider, provider._parsed_kwargs, provider._kwargs)  # noqa: SLF001
+    return _positional_names(provider, plan)
+
+
+def test_positional_zero_arg_eligible() -> None:
+    # A 0-arg pure provider is positional-eligible: `creator()` with an empty arg list.
+    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    assert _eligibility(container, G.leaf) == ()
+    compiled, interpreted = _resolve_both(lambda: Container(scope=Scope.APP, groups=[G], validate=False), G.leaf)
+    assert compiled == interpreted
+    assert compiled == ("value", "Leaf()", ())
+
+
+def test_positional_one_arg_eligible() -> None:
+    # A 1-arg pure provider (Service(dep: Dep), positional-or-keyword) is eligible.
+    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    assert _eligibility(container, G.svc) == ("dep",)
+    compiled, interpreted = _resolve_both(lambda: Container(scope=Scope.APP, groups=[G], validate=False), G.svc)
+    assert compiled == interpreted
+    assert compiled == ("value", "Service(dep=Dep())", ())
+
+
+@dataclasses.dataclass(slots=True)
+class Pos3:
+    a: W0
+    b: W1
+    c: W2
+
+
+class Pos3Group(Group):
+    w0 = providers.Factory(creator=W0, scope=Scope.APP)
+    w1 = providers.Factory(creator=W1, scope=Scope.APP)
+    w2 = providers.Factory(creator=W2, scope=Scope.APP)
+    thing = providers.Factory(creator=Pos3, scope=Scope.APP)
+
+
+def test_positional_three_arg_chain_eligible() -> None:
+    # Three positional-or-keyword provider deps, in signature order: eligible for the positional call.
+    container = Container(scope=Scope.APP, groups=[Pos3Group], validate=False)
+    assert _eligibility(container, Pos3Group.thing) == ("a", "b", "c")
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[Pos3Group], validate=False), Pos3Group.thing
+    )
+    assert compiled == interpreted
+    assert compiled == ("value", "Pos3(a=W0(), b=W1(), c=W2())", ())
+
+
+_UNUSED_DEP = Dep()
+
+
+@dataclasses.dataclass(slots=True)
+class MiddleGap:
+    a: Dep
+    b: Unregistered = _DEFAULT_UNREGISTERED  # no provider + default -> OMITted (a middle gap)
+    c: Dep = _UNUSED_DEP  # has a provider -> resolved live; the default is never used
+
+
+class MiddleGapGroup(Group):
+    dep = providers.Factory(creator=Dep, scope=Scope.APP)
+    thing = providers.Factory(creator=MiddleGap, scope=Scope.APP)
+
+
+def test_positional_middle_gap_ineligible() -> None:
+    # The NEGATIVE case a naive positional call would break: `b` is omitted (default, no provider),
+    # so provider_kwargs is (a, c) -- a non-contiguous subset of the (a, b, c) signature. It MUST
+    # stay on the kwargs path, and still resolve correctly on both paths.
+    container = Container(scope=Scope.APP, groups=[MiddleGapGroup], validate=False)
+    assert _eligibility(container, MiddleGapGroup.thing) is None
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[MiddleGapGroup], validate=False), MiddleGapGroup.thing
+    )
+    assert compiled == interpreted
+    assert compiled == ("value", f"MiddleGap(a=Dep(), b={_DEFAULT_UNREGISTERED!r}, c=Dep())", ())
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class KwOnlyDep:
+    dep: Dep
+
+
+class KwOnlyGroup(Group):
+    dep = providers.Factory(creator=Dep, scope=Scope.APP)
+    thing = providers.Factory(creator=KwOnlyDep, scope=Scope.APP)
+
+
+def test_positional_keyword_only_ineligible() -> None:
+    # A keyword-only provider dep cannot be passed positionally: stays on the kwargs path even
+    # though every param IS a provider dep in order. Still resolves identically on both paths.
+    container = Container(scope=Scope.APP, groups=[KwOnlyGroup], validate=False)
+    assert _eligibility(container, KwOnlyGroup.thing) is None
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[KwOnlyGroup], validate=False), KwOnlyGroup.thing
+    )
+    assert compiled == interpreted
+    assert compiled == ("value", "KwOnlyDep(dep=Dep())", ())
+
+
+@dataclasses.dataclass(slots=True)
+class PosNeedsReq:
+    req: ReqOnly
+
+
+class PosDepStepErrorGroup(Group):
+    req = providers.Factory(creator=ReqOnly, scope=Scope.REQUEST)
+    thing = providers.Factory(creator=PosNeedsReq, scope=Scope.APP)
+
+
+def test_positional_dependency_step_error_equivalence() -> None:
+    # A positional-eligible transient whose REQUEST-scoped dependency is unreachable from the APP
+    # container: the ScopeNotInitializedError is raised while resolving the positional args, so the
+    # resolve_positional breadcrumb (_STEP_ERRORS/prepend_step) must fire, matching the kwargs path.
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[PosDepStepErrorGroup], validate=False), PosDepStepErrorGroup.thing
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "error"
+
+
+class CachedPosDepStepErrorGroup(Group):
+    req = providers.Factory(creator=ReqOnly, scope=Scope.REQUEST)
+    thing = providers.Factory(creator=PosNeedsReq, scope=Scope.APP, cache=True)
+
+
+def test_cached_positional_dependency_step_error_equivalence() -> None:
+    # The cached counterpart: exercises the cold-miss build_args breadcrumb on the positional path.
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[CachedPosDepStepErrorGroup], validate=False),
+        CachedPosDepStepErrorGroup.thing,
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "error"
+
+
+@dataclasses.dataclass(slots=True)
+class OneArgResult:
+    required: Dep
+
+
+def _needs_one_arg(required: Dep) -> OneArgResult:
+    return OneArgResult(required=required)
+
+
+class PositionalBindingErrorGroup(Group):
+    # skip_creator_parsing -> parsed_kwargs is empty -> positional-eligible with 0 args, but the
+    # creator needs one. `creator()` raises a binding TypeError with no inner frame (tb_next None),
+    # so the positional path's CreatorCallError wrap must fire, matching the kwargs path.
+    thing = providers.Factory(
+        creator=_needs_one_arg, scope=Scope.APP, skip_creator_parsing=True, bound_type=OneArgResult
+    )
+
+
+def test_positional_binding_typeerror_equivalence() -> None:
+    assert _needs_one_arg(Dep()) == OneArgResult(required=Dep())  # exercise the creator body for coverage
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[PositionalBindingErrorGroup], validate=False),
+        PositionalBindingErrorGroup.thing,
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "error"
+    assert "CreatorCallError" in compiled[1]
+
+
+class CachedPositionalBindingErrorGroup(Group):
+    thing = providers.Factory(
+        creator=_needs_one_arg, scope=Scope.APP, skip_creator_parsing=True, bound_type=OneArgResult, cache=True
+    )
+
+
+def test_cached_positional_binding_typeerror_equivalence() -> None:
+    # The cached counterpart: exercises the create_positional CreatorCallError wrap on the cold-miss
+    # path.
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[CachedPositionalBindingErrorGroup], validate=False),
+        CachedPositionalBindingErrorGroup.thing,
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "error"
+    assert "CreatorCallError" in compiled[1]
+
+
+class CachedBodyTypeErrorGroup(Group):
+    # Cached + positional (skip_creator_parsing -> 0 args) creator whose body raises TypeError
+    # (inner frame present): create_positional must let it propagate UNCHANGED, not wrap it.
+    thing = providers.Factory(
+        creator=BodyTypeError, scope=Scope.APP, bound_type=BodyTypeError, skip_creator_parsing=True, cache=True
+    )
+
+
+def test_cached_positional_body_typeerror_propagates_equivalence() -> None:
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[CachedBodyTypeErrorGroup], validate=False),
+        CachedBodyTypeErrorGroup.thing,
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "error"
+    assert compiled[1].startswith("TypeError:")  # propagated unchanged, not wrapped in CreatorCallError
+
+
+def test_kwargs_path_target_only_closed_cross_scope_equivalence() -> None:
+    # The mirror of test_target_only_closed_cross_scope_equivalence for an INELIGIBLE (keyword-only)
+    # provider: the cross-scope TARGET (the APP root) is independently closed, so the *kwargs-path*
+    # resolver's own target.closed guard fires -- distinct from the positional resolver's guard,
+    # keeping both closures' closed-target branch covered.
+    def build() -> Container:
+        app_container = Container(scope=Scope.APP, groups=[KwOnlyGroup], validate=False)
+        req = app_container.build_child_container(scope=Scope.REQUEST)
+        app_container.close_sync()
+        return req
+
+    compiled, interpreted = _resolve_both(build, KwOnlyGroup.thing)
+    assert compiled == interpreted
+    assert compiled[0] == "value"
+    assert compiled[2] == ("ContainerClosedWarning",)
+
+
+class KwOnlyBodyTypeError:
+    def __init__(self, *, dep: Dep) -> None:  # noqa: ARG002 - unused; the body raises before it is read
+        len(5)  # ty: ignore[invalid-argument-type]  # TypeError inside the body (inner frame present)
+
+
+class KwOnlyBodyTypeErrorGroup(Group):
+    # An INELIGIBLE (keyword-only dep) creator whose body raises TypeError: forces the kwargs-path
+    # closure and its tb_next guard, which must let the TypeError propagate UNCHANGED (not wrap it),
+    # mirroring the positional path's body-TypeError case.
+    dep = providers.Factory(creator=Dep, scope=Scope.APP)
+    thing = providers.Factory(creator=KwOnlyBodyTypeError, scope=Scope.APP)
+
+
+def test_kwargs_path_body_typeerror_propagates_equivalence() -> None:
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[KwOnlyBodyTypeErrorGroup], validate=False),
+        KwOnlyBodyTypeErrorGroup.thing,
+    )
+    assert compiled == interpreted
+    assert compiled[0] == "error"
+    assert compiled[1].startswith("TypeError:")  # propagated unchanged, not wrapped in CreatorCallError

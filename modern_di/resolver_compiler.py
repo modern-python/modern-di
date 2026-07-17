@@ -20,12 +20,31 @@ if typing.TYPE_CHECKING:
     from modern_di import Container
     from modern_di.registries.providers_registry import ProvidersRegistry
     from modern_di.types_parser import SignatureItem
+    from modern_di.wiring import WiringPlan
 
     _ProvResolvers: typing.TypeAlias = tuple[tuple[str, typing.Callable[[Container], typing.Any]], ...]
     _CtxBindings: typing.TypeAlias = tuple[tuple[str, ContextProvider[typing.Any], SignatureItem], ...]
 
 _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError)
 _STEP_ERRORS = (exceptions.ResolutionError, *_SCOPE_ERRORS)
+
+
+def _positional_names(f: "Factory[typing.Any]", plan: "WiringPlan") -> "tuple[str, ...] | None":
+    """Return the ordered param names to pass positionally, or None if the creator must use kwargs.
+
+    Eligible only when every parsed parameter is a positional-or-keyword provider dependency, in
+    signature order, with nothing omitted (no static, no context, no default-omitted, no
+    keyword-only, no kwargs-overlay extra). Exactly this graph gets the positional call; anything
+    else keeps `creator(**kwargs)`. When in doubt, exclude.
+    """
+    if not plan.pure_provider:  # pure_provider already means no static and no context kwargs
+        return None
+    names = tuple(f._parsed_kwargs)  # noqa: SLF001
+    if tuple(plan.provider_kwargs) != names:
+        return None  # a param was omitted/reordered, or a kwargs-overlay added an extra -> not a clean prefix
+    if any(item.is_keyword_only for item in f._parsed_kwargs.values()):  # noqa: SLF001
+        return None
+    return names
 
 
 def compile_resolver(
@@ -46,7 +65,7 @@ def compile_resolver(
     raise TypeError(msg)  # every provider type is compiled; a new type must add a branch here
 
 
-def _compile_transient_factory(  # noqa: C901 (inlined hot path: kept flat to hold the per-node frame at 1)
+def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: positional + kwargs, each flat to hold the per-node frame at 1)
     f: "Factory[typing.Any]", registry: "ProvidersRegistry"
 ) -> "typing.Callable[[Container], typing.Any]":
     plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)  # noqa: SLF001
@@ -62,6 +81,36 @@ def _compile_transient_factory(  # noqa: C901 (inlined hot path: kept flat to ho
     resolution_step = f._resolution_step  # noqa: SLF001
     resolve_context = f._resolve_context_value  # noqa: SLF001
     creator = f._creator  # noqa: SLF001
+
+    if _positional_names(f, plan) is not None:
+        # Fast path: the whole signature is provider deps, in order — call positionally, skipping
+        # the measured 4-6x **kwargs cost. `pure` is True here, so no static/context folding runs.
+        pos = tuple(r for _name, r in prov)
+
+        def resolve_positional(container: "Container") -> typing.Any:  # noqa: ANN401
+            overrides = container.overrides_registry
+            if overrides.has_overrides:
+                override = overrides.fetch_override(pid)
+                if override is not types.UNSET:
+                    return override
+            target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+            if target.closed:
+                target._warn_and_reopen_if_closed()  # noqa: SLF001
+            try:  # inlined Factory._resolve_kwargs (a dependency can raise ResolutionError)
+                args = [r(target) for r in pos]
+            except _STEP_ERRORS as exc:
+                exc.prepend_step(resolution_step())
+                raise
+            try:  # inlined Factory._call_creator, positional
+                return creator(*args)
+            except TypeError as exc:
+                if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+                    raise  # a TypeError from inside the creator body propagates unchanged
+                error = exceptions.CreatorCallError(creator=creator, original_error=exc)
+                error.prepend_step(resolution_step())
+                raise error from exc
+
+        return resolve_positional
 
     def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
         overrides = container.overrides_registry
@@ -96,7 +145,7 @@ def _compile_transient_factory(  # noqa: C901 (inlined hot path: kept flat to ho
     return resolve
 
 
-def _compile_cached_factory(  # noqa: C901 (two closures: build_kwargs cold-miss path, resolve warm-hit path)
+def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: positional + kwargs, plus the warm-hit resolve closure)
     f: "Factory[typing.Any]", registry: "ProvidersRegistry"
 ) -> "typing.Callable[[Container], typing.Any]":
     plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)  # noqa: SLF001
@@ -110,21 +159,51 @@ def _compile_cached_factory(  # noqa: C901 (two closures: build_kwargs cold-miss
     pid = f.provider_id
     resolution_step = f._resolution_step  # noqa: SLF001
     resolve_context = f._resolve_context_value  # noqa: SLF001
+    creator = f._creator  # noqa: SLF001  # cold-miss only (not hot)
     call_creator = f._call_creator  # noqa: SLF001  # cold-miss only; reused (not hot)
 
-    def build_kwargs(target: "Container") -> dict[str, typing.Any]:
-        try:
-            kwargs = {name: r(target) for name, r in prov}
-            if not pure:
-                kwargs.update(static)
-                for name, cp, item in ctx:
-                    value = resolve_context(target, name, cp, item)
-                    if value is not types.UNSET:
-                        kwargs[name] = value
-        except _STEP_ERRORS as exc:
-            exc.prepend_step(resolution_step())
-            raise
-        return kwargs
+    # cold-miss builder + creator call: positional when the whole signature is provider deps in
+    # order (skips the **kwargs cost), else the kwargs pair. Both share the two-phase error handling.
+    if _positional_names(f, plan) is not None:
+        pos = tuple(r for _name, r in prov)
+
+        def build_args(target: "Container") -> list[typing.Any]:
+            try:
+                return [r(target) for r in pos]
+            except _STEP_ERRORS as exc:
+                exc.prepend_step(resolution_step())
+                raise
+
+        def create_positional(args: list[typing.Any]) -> typing.Any:  # noqa: ANN401
+            try:
+                return creator(*args)
+            except TypeError as exc:
+                if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+                    raise  # a TypeError from inside the creator body propagates unchanged
+                error = exceptions.CreatorCallError(creator=creator, original_error=exc)
+                error.prepend_step(resolution_step())
+                raise error from exc
+
+        build_cold = build_args
+        create_cold = create_positional
+    else:
+
+        def build_kwargs(target: "Container") -> dict[str, typing.Any]:
+            try:
+                kwargs = {name: r(target) for name, r in prov}
+                if not pure:
+                    kwargs.update(static)
+                    for name, cp, item in ctx:
+                        value = resolve_context(target, name, cp, item)
+                        if value is not types.UNSET:
+                            kwargs[name] = value
+            except _STEP_ERRORS as exc:
+                exc.prepend_step(resolution_step())
+                raise
+            return kwargs
+
+        build_cold = build_kwargs
+        create_cold = call_creator
 
     def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
         overrides = container.overrides_registry
@@ -141,8 +220,9 @@ def _compile_cached_factory(  # noqa: C901 (two closures: build_kwargs cold-miss
             return cached  # warm hit: skip the get_or_create frame (same sentinel check it makes)
         value, created = cache_item.get_or_create(
             target._lock,  # noqa: SLF001
-            resolve=lambda: build_kwargs(target),
-            create=call_creator,
+            resolve=lambda: build_cold(target),
+            # positional/kwargs builders have distinct arg types; get_or_create feeds each its own.
+            create=typing.cast("typing.Callable[[typing.Any], typing.Any]", create_cold),
         )
         if created:
             target.cache_registry.mark_created(cache_item)
