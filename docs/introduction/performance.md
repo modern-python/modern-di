@@ -30,8 +30,8 @@ rules: [`benchmarks/README.md`](https://github.com/modern-python/modern-di/blob/
 
 ## Results
 
-Measured on an Apple M2 (macOS), CPython 3.14.4, median-of-medians over 5 runs
-(run-to-run variation small). Rival versions: dishka 1.10.1,
+Measured 2026-07-17 on an Apple M2 (macOS), CPython 3.14.4, median-of-medians
+over 5 runs (run-to-run variation small). Rival versions: dishka 1.10.1,
 dependency-injector 4.49.1, that-depends 4.0.2, wireup 2.12.0. Reproduce with
 `just bench-compare`.
 
