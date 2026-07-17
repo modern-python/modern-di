@@ -44,7 +44,8 @@ Strawberry, Quart, RQ, APScheduler, Jobify, Flet, ag2.
 - **Dependency-graph export** (Mermaid / Graphviz) for debugging and docs.
 
 ### Trust & observability
-- **Public, reproducible benchmark suite** with neutral methodology.
+- **Public, reproducible benchmark suite** with neutral methodology —
+  shipped; see [Performance](https://modern-di.modern-python.org/introduction/performance/).
 - **Optional OpenTelemetry instrumentation** of resolution and finalization.
 
 ### Docs & ecosystem

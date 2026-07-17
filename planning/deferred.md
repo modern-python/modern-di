@@ -138,20 +138,6 @@ Drafted as §6 of the org launch playbook; never executed.
 **Revisit trigger:** the launch window.
 See [2026-06-18 adoption research, §5](audits/2026-06-18-adoption-strategy-report.md).
 
-## Publish the benchmarks page — from 2026-06-18 adoption research (B3)
-
-The `benchmarks/` suite (guard + comparative tiers) and its `benchmarks/README.md` methodology now
-exist, but there is **no public benchmarks page in the mkdocs nav**. The "fast + zero-dependency"
-story is currently unevidenced in public.
-
-**Verify every number before publishing.** The research caught rivals shipping unverified
-vendor-self-reported perf claims; modern-di must not join them. Anything published needs a
-reproducible method stated alongside it.
-
-**Revisit trigger:** when the benchmark suite is stable enough that a published number won't need
-retracting.
-See [2026-06-18 adoption research](audits/2026-06-18-adoption-strategy-report.md).
-
 ## Size the DI market with real download data — from 2026-06-18 adoption research (evidence gap)
 
 The research verified **no PyPI download figures for any framework** — its own single biggest gap, and
