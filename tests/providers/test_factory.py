@@ -1118,3 +1118,71 @@ def test_cached_kwargs_body_typeerror_propagates_unchanged() -> None:
     with pytest.raises(TypeError) as exc:
         container.resolve_provider(G.thing)
     assert not isinstance(exc.value, exceptions.CreatorCallError)
+
+
+def test_transient_positional_binding_typeerror_wraps() -> None:
+    # Transient mirror of test_cached_positional_binding_typeerror_wraps: skip_creator_parsing -> 0
+    # parsed args -> positional-eligible, but the creator needs one. resolve_positional must wrap the
+    # binding TypeError. Fills the one matrix cell (transient positional, binding) left uncovered.
+    class G(Group):
+        thing = providers.Factory(
+            creator=_cov_needs_one_arg,
+            scope=Scope.APP,
+            skip_creator_parsing=True,
+            bound_type=_CovOneArgResult,
+        )
+
+    container = Container(groups=[G], validate=False)
+    with pytest.raises(exceptions.CreatorCallError):
+        container.resolve_provider(G.thing)
+
+
+def _resolve_creator_call_error(
+    factory: "providers.Factory[typing.Any]", bound_type: type
+) -> exceptions.CreatorCallError:
+    """Resolve `factory` in its own container and return the CreatorCallError it raises."""
+    container = Container(scope=Scope.APP, validate=False)
+    container.providers_registry.register(bound_type, factory)
+    with pytest.raises(exceptions.CreatorCallError) as exc_info:
+        container.resolve(bound_type)
+    return exc_info.value
+
+
+def test_creator_call_error_str_is_identical_across_transient_and_cached() -> None:
+    # The tb_next binding-error rule is inlined in four places (factory._call_creator plus three
+    # resolver_compiler closures). Nothing else asserts the copies AGREE. For a fixed creator+scope,
+    # a re-inlined copy must render byte-identically to its reused/canonical sibling:
+    #   - positional pair: resolve_positional (transient) vs create_positional (cached)
+    #   - kwargs pair:      resolve/build_kwargs (transient) vs Factory._call_creator (cached)
+    # A single copy drifting its message, dropping prepend_step, or changing the docs slug breaks one
+    # of these equalities.
+    transient_pos = _resolve_creator_call_error(
+        providers.Factory(creator=_cov_needs_one_arg, bound_type=_CovOneArgResult, skip_creator_parsing=True),
+        _CovOneArgResult,
+    )
+    cached_pos = _resolve_creator_call_error(
+        providers.Factory(
+            creator=_cov_needs_one_arg, bound_type=_CovOneArgResult, skip_creator_parsing=True, cache=True
+        ),
+        _CovOneArgResult,
+    )
+    transient_kw = _resolve_creator_call_error(
+        providers.Factory(creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}),
+        int,
+    )
+    cached_kw = _resolve_creator_call_error(
+        providers.Factory(
+            creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}, cache=True
+        ),
+        int,
+    )
+
+    assert str(transient_pos) == str(cached_pos)  # positional copies agree
+    assert str(transient_kw) == str(cached_kw)  # kwargs copies agree
+
+    # Cross-convention structural floor: all four wrapped, prepended a step, and carry the docs slug.
+    for error in (transient_pos, cached_pos, transient_kw, cached_kw):
+        rendered = str(error)
+        assert "Failed to call creator" in rendered  # the wrap happened
+        assert "Cannot resolve dependency chain:" in rendered  # a resolution step was prepended
+        assert "creator-call-error" in rendered  # docs slug intact
