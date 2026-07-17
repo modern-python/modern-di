@@ -58,10 +58,3 @@ class Alias(AbstractProvider[types.T_co]):
             return self._find_source(container)
         except exceptions.AliasSourceNotRegisteredError:
             return None
-
-    def resolve(self, container: "Container") -> types.T_co:
-        try:
-            return container.resolve_provider(self._find_source(container))
-        except (exceptions.ResolutionError, exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError) as exc:
-            exc.prepend_step(self._resolution_step())
-            raise

@@ -2,34 +2,70 @@
 
 How `modern-di` wires an object graph from type hints — from the first `resolve()` call to the returned instance.
 
+Resolution runs through **one path**: a per-provider **compiled resolver** — a flat closure built once and
+memoized. There is no interpreted fallback in the shipped tree; every provider type compiles.
+
 ## Entry points
 
 - `container.resolve(SomeType)` — looks up `SomeType` in `providers_registry` (raising
   `ProviderNotRegisteredError`, with closest-match suggestions, if none is registered), then delegates to
   `resolve_provider`.
 - `container.resolve_provider(provider)` — resolves by provider reference directly, skipping the registry lookup.
+  It reopens the entry container if it was closed (see [containers.md](containers.md#closing)), then calls
+  `providers_registry.resolver_for(provider)(self)` and wraps any escaped `RecursionError` (the runtime cycle
+  guard — see [validation.md](validation.md)). It does **not** check overrides, scope, or cache centrally: each
+  compiled resolver owns those checks itself.
 
-## Step 1 — Override short-circuit
+## Compiled resolvers
 
-`resolve_provider` is the single choke-point every resolution passes through, and the override registry is
-checked first — before scope or cache. An override, if registered for this provider, is returned immediately:
-no scope walk, no cache check, no creator call.
+`ProvidersRegistry.resolver_for(provider)` returns the provider's compiled resolver — a `Callable[[Container], T]`
+built on first request by `resolver_compiler.compile_resolver` and then **memoized**, keyed by `provider_id` and
+stamped with the `ProvidersRegistry.version` it was built against, exactly like `plan_for` (Step 4). A stamp
+mismatch (the registry mutated since, e.g. after `add_providers`) rebuilds. Because a container and every child
+share one registry, a resolver is compiled once per registry version for the whole tree.
 
-## Step 2 — Scope walk (inside Factory.resolve)
+`compile_resolver` dispatches on the provider's concrete type and returns a purpose-built closure:
 
-`Factory.resolve` walks to the container at the provider's declared scope via `find_container`, raising
-`ScopeNotInitializedError` or `ScopeSkippedError` as appropriate — see [scopes.md](scopes.md) for the rule and
-error conditions. From this point all cache and context operations use the scope-correct container.
+- **`Factory`** — a transient resolver (no `cache_settings`) or a cached resolver.
+- **`Alias`** — forwards to its source's resolver.
+- the auto-registered **container provider** — returns the resolving container.
+- **`ContextProvider`** — delegates to the bound `ContextProvider.resolve` (so its unset-value warning stays
+  identical).
+- a **`Factory` with an unwireable parameter** — an always-raising resolver (see Step 5).
+- any other (unknown) provider type raises `TypeError` at compile time — the single place a new provider type
+  is rejected until a branch is added for it.
 
-`Factory.resolve` wraps its own `find_container` call and prepends its own step on a scope error before
-re-raising, so the failing provider's name makes it into the breadcrumb chain even though this call sits outside
-the try block that wraps the rest of `resolve` (see Step 5's `prepend_step` note for the general mechanism).
-`Alias.resolve`'s except is widened the same way.
+### Cycle-safe compilation
 
-## Step 3 — Cache hit
+`compile_resolver` captures each dependency's resolver *by reference* while it builds, so a resolver holds direct
+callables to its dependencies' resolvers — the recursion of the old interpreted path is now a chain of closure
+calls. To compile these back-edges safely, `resolver_for` marks a provider as *building* before it recurses; a
+back-edge to a provider whose resolver is still under construction (a cycle) captures a **thunk** that routes
+through the runtime `resolve_provider` instead of a half-built closure. A genuine cycle therefore still overflows
+the stack at resolve time and is converted to `CircularDependencyError` by the runtime guard — the same salvage
+`validate()` would surface up front (see [validation.md](validation.md)).
 
-If `cache_settings` is configured **and** the cache slot already holds a value, the cached instance is returned
-immediately. A `Factory` with no `cache_settings` always re-runs the creator.
+## Per-node shape
+
+Every compiled resolver has the same front matter, in this order:
+
+1. **Override live-guard.** The resolver checks the override registry *first* — but only when
+   `overrides_registry.has_overrides` is set (the common no-overrides case skips even the lookup). An override
+   registered for this provider is returned immediately: no scope walk, no cache check, no creator call. Because
+   the check lives in each resolver rather than centrally, overriding an otherwise-unwireable factory (Step 5)
+   still short-circuits to the mock.
+
+2. **Scope navigation.** The resolver walks to the container at the provider's declared scope. The common
+   same-scope case (`container.scope == scope`) skips `find_container` via an int compare; only a cross-scope
+   dependency calls `_navigate`, which raises `ScopeNotInitializedError` / `ScopeSkippedError` (with this
+   provider's step prepended) as appropriate — see [scopes.md](scopes.md) for the rule. A cross-scope **target**
+   that is independently closed is reopened here (the entry container was already reopened by `resolve_provider`).
+
+3. **Inlined build + call.** The resolver builds the creator's arguments by calling its dependencies' resolvers
+   by reference and calls the creator — both inlined into the closure body (see Step 5, Step 6).
+
+The container provider skips step 2 (it resolves to whichever container is asking); the `ContextProvider` and
+`Alias` resolvers keep step 1 then delegate the rest to their reused bodies.
 
 ## Step 4 — Wiring plan
 
@@ -97,21 +133,41 @@ The plan's buckets — `provider_kwargs` (regular providers, resolved recursivel
 
 ## Step 5 — Recursive resolution
 
-`Factory` first surfaces any unwireable parameter: if `plan.unwireable` is non-empty it raises a **freshly built**
-`ArgumentResolutionError` from the first record before calling the creator. The error is built fresh on every raise
-(never memoized) because `prepend_step` (owned by the shared `DependencyPathMixin`, mixed into both
-`ResolutionError` and the two scope errors) *mutates* the exception as it propagates up the chain — a stored
-instance would accumulate and leak breadcrumbs across repeated or nested resolves.
+**Unwireable first.** When the plan has an unwireable parameter, the whole graph is broken at compile time, so
+the resolver compiled for it is a dedicated **always-raising** closure (`_compile_unwireable_factory`): after the
+override guard and scope navigation it raises a **freshly built** `ArgumentResolutionError` from the first
+`unwireable` record. The error is built fresh on every call (never memoized) because `prepend_step` (owned by the
+shared `DependencyPathMixin`, mixed into both `ResolutionError` and the two scope errors) *mutates* the exception
+as it propagates up the chain — a stored instance would accumulate and leak breadcrumbs across repeated or nested
+resolves. This mirrors what the old interpreted `Factory._resolve_kwargs` did on its unwireable branch, now
+decided once at compile time rather than re-checked on every resolve.
 
-Each `provider_kwargs` entry is resolved by calling back into `container.resolve_provider`, re-entering this same
-sequence from Step 1. Each `context_kwargs` entry is resolved **live**, on every resolve, via
-`_resolve_context_value` — so a `set_context` after a factory has already resolved is still picked up (across
-scopes, for non-cached factories). `_resolve_context_value` mirrors `resolve_provider`'s override check, then reads
-the live context value; when it is absent, the shared `absent_disposition` helper applies — omit (default
-applies), `None` (nullable), or raise `ArgumentResolutionError` — the same three-way disposition Step 4 computes
-statically for a missing provider, just evaluated live instead of once at plan-build time.
+**Dependencies.** A wireable resolver builds the creator's arguments inside a single `try` that prepends this
+provider's step to any `ResolutionError` / scope error escaping from below (so the failing provider's name makes
+it into the breadcrumb even though the deps resolve outside a per-dep try):
+
+- Each `provider_kwargs` entry is resolved by calling its dependency's **compiled resolver directly** (captured
+  by reference at compile time) — the chain of closure calls that replaces the old per-edge `resolve_provider`
+  recursion. A back-edge into a still-compiling provider was captured as a thunk that re-enters `resolve_provider`
+  (see [Cycle-safe compilation](#cycle-safe-compilation)).
+- Each `context_kwargs` entry is resolved **live**, on every resolve, via the reused `Factory._resolve_context_value`
+  — so a `set_context` after a factory has already resolved is still picked up (across scopes, for non-cached
+  factories). `_resolve_context_value` runs its own override check, then reads the live context value; when it is
+  absent, the shared `absent_disposition` helper applies — omit (default applies), `None` (nullable), or raise
+  `ArgumentResolutionError` — the same three-way disposition Step 4 computes statically for a missing provider,
+  just evaluated live instead of once at plan-build time.
+- `static_kwargs` (plain literal values) are folded in as-is.
 
 The recursion bottoms out at providers with no dependencies or at already-cached instances.
+
+### Guarded positional fast path
+
+When the whole parsed signature is provider dependencies in declaration order — nothing static, context,
+default-omitted, keyword-only, or positional-only, and no `kwargs=` overlay extra — the resolver calls the creator
+**positionally** (`creator(v0, v1, …)`), skipping the measured 4–6× `**kwargs` cost. `_positional_names` is the
+compile-time predicate that decides eligibility; when in doubt it excludes, and the resolver keeps
+`creator(**kwargs)`. The negative cases matter: a keyword-only parameter, or a positional-only parameter dropped
+from `_parsed_kwargs` by the parser, would shift or reject positional binding, so both keep the kwargs call.
 
 ### Breadcrumb definition sites
 
@@ -156,13 +212,23 @@ hierarchy are. See [2026-07-14-error-text-is-not-a-contract](../planning/decisio
 
 ## Step 6 — Creator call and caching
 
-`Factory` calls the creator with `resolved_kwargs`. With no `cache_settings`, the instance is returned immediately.
-Otherwise the cache-write is guarded by the double-checked locking pattern described under
-[Thread safety](#thread-safety) below, then the instance is stored and returned.
+The resolver calls the creator with the built arguments. A `TypeError` from the call is handled by a `tb_next`
+guard reused across every resolver (and by `Factory._call_creator`, which the cached kwargs path still reuses):
+an argument-binding failure (no inner traceback frame) is wrapped in a `CreatorCallError` with this provider's
+step prepended, while a `TypeError` raised *inside* the creator body (inner frame present) propagates unchanged,
+like any other error.
+
+- **Transient** (no `cache_settings`) — the built instance is returned immediately; the creator re-runs on every
+  resolve.
+- **Cached** — the resolver first checks the cache slot: a **warm hit** returns the stored instance directly,
+  skipping the `get_or_create` frame. On a **cold miss** it builds the arguments and calls the creator under the
+  cache lock (the double-checked locking pattern under [Thread safety](#thread-safety)), stores the result, and
+  marks it in the container's creation order so finalizers run LIFO on close (see
+  [containers.md](containers.md#closing)).
 
 ## Thread safety
 
 When `use_lock=True` (the default), the container holds a `threading.RLock`. The lock is acquired only around the
-cache-write critical section inside `Factory.resolve` — kwargs compilation and recursive resolution happen outside the
-lock. The double-checked locking pattern ensures that if two threads race to resolve the same uncached provider, only
-one calls the creator and the other uses the freshly stored result.
+cache-write critical section (inside `CacheItem.get_or_create`) — argument building and recursive resolution
+happen outside the lock. The double-checked locking pattern ensures that if two threads race to resolve the same
+uncached provider, only one calls the creator and the other uses the freshly stored result.

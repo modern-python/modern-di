@@ -4,18 +4,11 @@ from modern_di.providers.abstract import AbstractProvider
 from modern_di.scope import Scope
 
 
-if typing.TYPE_CHECKING:
-    from modern_di import Container
-
-
 class _ContainerProvider(AbstractProvider[typing.Any]):
     __slots__ = ()
 
     def __init__(self) -> None:
         super().__init__(scope=Scope.APP, bound_type=None)
-
-    def resolve(self, container: "Container") -> "Container":
-        return container
 
 
 container_provider = _ContainerProvider()

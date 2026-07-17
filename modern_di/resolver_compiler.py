@@ -76,8 +76,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
 ) -> "typing.Callable[[Container], typing.Any]":
     plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)  # noqa: SLF001
     if plan.unwireable:
-        # Broken graph: bridge so the interpreted path raises the exact ArgumentResolutionError.
-        return lambda c: c._resolve_provider_interpreted(f)  # noqa: SLF001
+        return _compile_unwireable_factory(f, plan)
     prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
     static = plan.static_kwargs
     ctx: _CtxBindings = tuple((name, cp, item) for name, (cp, item) in plan.context_kwargs.items())
@@ -156,7 +155,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
 ) -> "typing.Callable[[Container], typing.Any]":
     plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)  # noqa: SLF001
     if plan.unwireable:
-        return lambda c: c._resolve_provider_interpreted(f)  # noqa: SLF001
+        return _compile_unwireable_factory(f, plan)
     prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
     static = plan.static_kwargs
     ctx: _CtxBindings = tuple((name, cp, item) for name, (cp, item) in plan.context_kwargs.items())
@@ -233,6 +232,39 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
         if created:
             target.cache_registry.mark_created(cache_item)
         return value
+
+    return resolve
+
+
+def _compile_unwireable_factory(
+    f: "Factory[typing.Any]", plan: "WiringPlan"
+) -> "typing.Callable[[Container], typing.Any]":
+    """Compile the always-raising resolver for a Factory with an unwireable parameter.
+
+    Mirrors the interpreted `Factory._resolve_kwargs` unwireable branch: front-guard the override
+    (an unwireable factory can still be overridden with a mock), navigate to the scope-correct
+    target (a scope error there wins, with its step prepended), then raise the freshly built error
+    with this factory's own resolution step. The error is built on every call (never memoized) so
+    `prepend_step`'s mutation cannot leak a breadcrumb across repeated resolves.
+    """
+    pid = f.provider_id
+    scope = f.scope
+    resolution_step = f._resolution_step  # noqa: SLF001
+    build_error = f._argument_resolution_error  # noqa: SLF001
+    arg_name, item = plan.unwireable[0]
+
+    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+        overrides = container.overrides_registry
+        if overrides.has_overrides:
+            override = overrides.fetch_override(pid)
+            if override is not types.UNSET:
+                return override
+        target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+        if target.closed:
+            target._warn_and_reopen_if_closed()  # noqa: SLF001
+        error = build_error(arg_name=arg_name, item=item, registry=target.providers_registry)
+        error.prepend_step(resolution_step())
+        raise error
 
     return resolve
 

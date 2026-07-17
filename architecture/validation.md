@@ -89,7 +89,8 @@ as a resolution breadcrumb — including the aligned scope column — so a cycle
 read identically. See [resolution.md](resolution.md#one-renderer) for that drawer.
 
 > **Runtime resolution has a cycle guard too — but `validate()` remains the way to see all errors up front.**
-> `Container.resolve_provider` wraps the final `provider.resolve(self)` in `try/except RecursionError`. The
+> `Container.resolve_provider` wraps the compiled-resolver dispatch (`resolver_for(provider)(self)`) in
+> `try/except RecursionError`. The
 > handler first short-circuits: if the registry is already validated (`validated_version == version`), the static
 > graph is known acyclic, so the overflow is genuine self-recursion and the `RecursionError` re-raises untouched
 > without any walk. Otherwise, when an unvalidated circular graph's first resolve overflows the stack, the handler
@@ -97,8 +98,10 @@ read identically. See [resolution.md](resolution.md#one-renderer) for that drawe
 > iterative, explicit-stack `walk` that `validate()` uses (it must stay flat, since it runs close to the recursion
 > limit) — and, if a static cycle is reachable, raises `CircularDependencyError` (built by
 > `dependency_graph.build_cycle_error`) with the cycle path, `from` the original `RecursionError`.
-> `resolve_provider` is re-entrant (`Factory`/`Alias` call it per dependency edge), so it is the innermost frame
-> that converts. `CircularDependencyError.prepend_step` overrides the breadcrumb machinery every other
+> `resolve_provider` is re-entrant: a cycle's back-edge is compiled as a thunk that routes back through it (a
+> provider whose resolver was still under construction — see [resolution.md](resolution.md#cycle-safe-compilation)),
+> so a loop stacks one `resolve_provider` frame per back-edge and the innermost one converts.
+> `CircularDependencyError.prepend_step` overrides the breadcrumb machinery every other
 > `ResolutionError` uses (see [resolution.md](resolution.md)) as a no-op, so an outer frame unwinding past the
 > conversion adds nothing to it: the error is already self-contained the moment `build_cycle_error` constructs it,
 > naming every provider in the loop canonically rooted at its minimum-`provider_id` node — not a partial breadcrumb
