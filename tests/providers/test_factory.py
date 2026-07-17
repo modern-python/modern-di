@@ -689,6 +689,20 @@ def test_cache_true_returns_same_instance() -> None:
     assert isinstance(G.f.cache_settings, providers.CacheSettings)
 
 
+def test_cache_true_unresolvable_raises_argument_resolution_error() -> None:
+    # Cached counterpart of test_app_factory_unresolvable: exercises the compiled cached
+    # resolver's own plan.unwireable bridge (routes to the interpreted path, same as the
+    # transient resolver's bridge for the same broken-graph shape).
+    class G(Group):
+        f = providers.Factory(creator=SimpleCreator, cache=True, bound_type=None)
+
+    container = Container(groups=[G])
+    with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type <class 'str'> cannot be resolved") as exc:
+        container.resolve_provider(G.f)
+    assert exc.value.arg_name == "dep1"
+    assert exc.value.arg_type is str
+
+
 def test_cache_absent_returns_fresh_instances() -> None:
     class G(Group):
         f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"})
