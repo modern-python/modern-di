@@ -15,17 +15,28 @@ def test_providers_registry_find_provider_not_found() -> None:
 
 
 def test_validated_version_defaults_none() -> None:
-    assert ProvidersRegistry().validated_version is None
+    registry = ProvidersRegistry()
+    assert registry.validated_version is None
+    assert registry.is_validated() is False  # None != version -> not validated
+
+
+def test_mark_validated_stamps_current_version() -> None:
+    registry = ProvidersRegistry()
+    registry.mark_validated()
+    assert registry.is_validated() is True
+    assert registry.validated_version == registry.version
 
 
 def test_mutation_invalidates_validated_version() -> None:
     registry = ProvidersRegistry()
-    registry.validated_version = registry.version
+    registry.mark_validated()
+    assert registry.is_validated() is True
 
     class _MutationTarget: ...
 
     registry.add_providers(providers.Factory(scope=Scope.APP, creator=_MutationTarget))
     assert registry.validated_version is None
+    assert registry.is_validated() is False
 
 
 def test_providers_registry_add_provider_duplicates() -> None:
