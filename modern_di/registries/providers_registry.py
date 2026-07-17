@@ -3,6 +3,7 @@ import typing
 
 from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.resolver_compiler import compile_resolver
 from modern_di.wiring import WiringPlan
 
 
@@ -82,9 +83,6 @@ class ProvidersRegistry:
             return cached[1]
         if pid in self._building:
             return lambda c: c.resolve_provider(provider)  # back-edge: route the cycle through runtime
-        # Deferred to here (not the top of the method) so warm/hot resolves never pay this import.
-        from modern_di.resolver_compiler import compile_resolver  # noqa: PLC0415 (avoid import cycle)
-
         self._building.add(pid)
         try:
             resolver = compile_resolver(provider, self)
