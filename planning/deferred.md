@@ -2,6 +2,48 @@
 
 Items intentionally not actioned in the current work, kept here so they aren't lost. Each has enough context to pick up cold.
 
+## Resolve-path perf headroom after the single-path compiled resolver — from the 2026-07-17 ship
+
+The single-path compiled-closure resolver shipped (change
+[`2026-07-16.02`](changes/2026-07-16.02-single-path-compiled-resolver.md), PR #334): the interpreted
+recursion is gone, replaced by one per-provider compiled closure memoized on `ProvidersRegistry`. Against
+main it is a clean win everywhere (guard tier: transient −37%, warm singleton −31%, deep-chain −61%, wide
+−62%; no regression). The comparative tier now places modern-di **mid-pack and the only zero-dependency
+pure-Python framework holding its own** — measured median-of-medians over 5 runs (py3.14, one machine,
+run-to-run CV ±0-5%), as **modern-di ns (modern-di ÷ rival; >1 = modern-di slower)**:
+
+| Scenario | modern-di | dishka (codegen) | dependency-injector (Cython) | that-depends (pure-py) | wireup (codegen) |
+|---|---|---|---|---|---|
+| C1 transient (2-node) | 542 ns | 1.30x | **0.81x** | 1.08x | 1.76x |
+| C2 warm singleton | 292 ns | 1.19x | 4.76x | 3.45x | 2.99x |
+| C3 deep chain (6) | 1291 ns | 1.93x | **0.57x** | **0.79x** | 1.29x |
+| C4 async lifecycle | 33.0 µs | 1.04x | **0.19x** | **0.73x** | **0.71x** |
+
+Bold = modern-di faster. It beats the Cython `dependency-injector` on 3 of 4, ties `dishka` on the async
+lifecycle, and trails the two `exec`-codegen frameworks by 1.3-1.9x on transient/chain. Two levers remain:
+
+- **C2 warm-singleton whole-aggregate memoization (highest leverage).** modern-di's warm hit (292 ns) is
+  3-4.8x slower than the slot/memoized rivals (`dependency-injector` 61 ns C-level slot; `that-depends`
+  85 ns lock-free slot; `wireup` 98 ns self-modifying closure) — it still pays the `resolver_for` dispatch
+  + override front-guard + `fetch_cache_item` on every warm hit. The wireup technique — after first build,
+  swap the cached provider's stored resolver to a bare `return value` closure — would make the warm hit
+  near-free. It was deferred from `2026-07-16.02` as a Non-goal because it is **non-trivial in modern-di**
+  (unlike wireup): the resolver is shared tree-wide on the registry while the cached value is
+  per-container, so a bare swap is only sound for **APP-scoped** singletons (one value tree-wide), and it
+  must be invalidated on runtime `override()`/`reset_override()` and on cache clear at container close —
+  coupling the swap to those paths. A safe design restricts to APP scope and hooks override/close
+  invalidation; measure whether the added machinery is worth closing C2 to ~dishka.
+- **The codegen ceiling on C1/C3.** The remaining 1.3-1.9x behind `dishka`/`wireup` on transient/chain is
+  the cost of staying `exec`-free: both inline dependency calls into generated source, removing the
+  per-node closure-call frame that modern-di keeps. Closing it needs `exec` codegen, **rejected** for a
+  zero-dependency library (competitor-perf audit §1/§4). So ~1.3-1.9x behind the codegen leaders on
+  construction-heavy graphs is the accepted floor without `exec`; revisit only if that stance changes.
+
+**Revisit trigger:** a user-reported warm-singleton bottleneck, or a decision to prioritize closing the
+`dishka` gap. The C2 lever is the concrete next step; the codegen ceiling is a stance, not a task.
+See the [competitor-perf research](audits/2026-07-16-competitor-perf-research-report.md) (the design
+evidence: closures capture ~80-90% of the ceiling, `exec` buys 0-4% at fixed arity).
+
 ## Free-threaded (nogil) safety of wiring-plan compilation — from 2026-06-14 audit (A-1)
 
 `Factory._plan` builds the `WiringPlan` outside any lock and publishes it via
