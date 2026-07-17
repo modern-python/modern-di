@@ -11,27 +11,20 @@ Lower-level public surface for library authors and advanced use-cases.
 MRO override order (subclass attribute shadows parent attribute of the same name). Use it to
 inspect or iterate all providers declared on a group hierarchy.
 
-### Subclassing `AbstractProvider`
-
-To implement a custom provider, subclass `AbstractProvider` and implement:
-
-- **`resolve(container)`** *(required)* — returns the resolved instance.
-- **`get_dependencies(container)`** *(optional)* — returns a `dict[str, AbstractProvider]`
-  mapping parameter names to their providers; used by `Container.validate()` for graph
-  traversal.
-- **`iter_validation_issues(container)`** *(optional)* — yields `Exception` instances for
-  validation-time problems found in this provider; default yields nothing.
-- **`redirect_target(container)`** *(optional override)* — return the provider this one
-  transparently forwards to, or `None` (the default) when resolution terminates here. A transparent
-  or redirect provider (like `Alias`) overrides it to point at its source, so that `Container.validate()`
-  follows the redirect to the real target and checks callers against that target's scope rather than any
-  nominal scope on the wrapper itself.
+!!! note "The provider set is closed — `AbstractProvider` is not an extension point"
+    `Factory`, `Alias`, `ContextProvider`, and the pre-built `container_provider` are the
+    only provider types. `AbstractProvider` is their shared base and the type that appears
+    in public signatures (`resolve_dependency`, `kwargs=`), but it is **not** a hook for
+    adding your own: resolution compiles one closure per known provider type, so a subclass
+    of `AbstractProvider` — or of `Factory` — raises `TypeError` at its first resolve, and
+    `validate()` does not catch it. Compose behavior in a creator function, or use `Alias`,
+    instead of introducing a provider type.
 
 ### `CacheSettings.is_async_finalizer`
 
 `CacheSettings.is_async_finalizer` is a computed bool field set at construction time via
-`inspect.iscoroutinefunction(finalizer)`. `Factory.resolve` and the cache registry use it to
-decide whether to `await` the finalizer during `close_async()` or treat it as sync.
+`inspect.iscoroutinefunction(finalizer)`. The cache registry uses it to decide whether to
+`await` the finalizer during `close_async()` or treat it as sync.
 
 ### Deprecated: `cache_settings=`
 
@@ -43,8 +36,8 @@ emits a `DeprecationWarning`; pass `cache=True` (defaults) or `cache=CacheSettin
 
 `find_container(scope)` walks `_scope_map` and returns the container registered at
 `scope`; raises `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
-It is the primitive a custom `AbstractProvider.resolve` calls to locate the container at
-its scope — see [Subclassing `AbstractProvider`](#subclassing-abstractprovider) above.
+It is the primitive the compiled resolvers use to locate the container at a provider's
+scope when it differs from the resolving container's.
 
 ## Container internals — no stability guarantee
 
@@ -58,7 +51,8 @@ its scope — see [Subclassing `AbstractProvider`](#subclassing-abstractprovider
 - **`_scope_map`** — `dict[IntEnum, Container]` mapping every scope in the chain to its
   container; built at construction time and inherited (plus the new scope) by each child.
 - **`_lock`** — a `threading.RLock` instance, or `None` when the container was created with
-  `use_lock=False`. The lock gates singleton creation inside `Factory.resolve`.
+  `use_lock=False`. A cached `Factory`'s compiled resolver hands it to `CacheItem.get_or_create`,
+  which gates the cold-miss build so one instance is created per cache key.
 
 The former public names `scope_map` and `lock` remain as read-only properties that emit
 `DeprecationWarning` and will be removed in a future release.
