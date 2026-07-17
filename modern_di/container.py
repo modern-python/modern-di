@@ -196,15 +196,10 @@ class Container:
         return self.resolve(dependency)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        """Resolve a specific provider by reference (enforces closed-state and applies overrides)."""
+        """Resolve a specific provider by reference via its compiled resolver."""
         self._warn_and_reopen_if_closed()
-
-        override = self.overrides_registry.fetch_override(provider.provider_id)
-        if override is not types.UNSET:
-            return override  # ty: ignore[invalid-return-type]
-
         try:
-            return provider.resolve(self)
+            return self.providers_registry.resolver_for(provider)(self)
         except RecursionError as exc:
             _handle_recursion_error(provider, self, exc)
 

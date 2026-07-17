@@ -15,6 +15,7 @@ class SignatureItem:
     is_nullable: bool = False
     default: object = UNSET
     raw_annotation: object = None
+    is_keyword_only: bool = False
 
     @classmethod
     def from_type(cls, type_: type, default: object = UNSET) -> "SignatureItem":
@@ -75,8 +76,14 @@ def _parse_parameter(
         default = param.default
 
     if param_name in type_hints:
-        return SignatureItem.from_type(type_hints[param_name], default=default)
-    return SignatureItem(default=default)
+        item = SignatureItem.from_type(type_hints[param_name], default=default)
+    else:
+        item = SignatureItem(default=default)
+    if param.kind is inspect.Parameter.KEYWORD_ONLY:
+        # The one param-kind signal the compiled positional fast path consults: a keyword-only
+        # parameter can never be passed positionally, so its provider must stay on the kwargs call.
+        return dataclasses.replace(item, is_keyword_only=True)
+    return item
 
 
 def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureItem, dict[str, SignatureItem]]:

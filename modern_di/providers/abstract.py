@@ -59,9 +59,6 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         """``module:line`` of the provider's declaration when known; None by default (no creator)."""
         return None
 
-    @abc.abstractmethod
-    def resolve(self, container: "Container") -> typing.Any: ...  # noqa: ANN401
-
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
         return {}
 

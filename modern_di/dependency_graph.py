@@ -59,10 +59,20 @@ Event = NodeEntered | Edge | Cycle | DependenciesError
 def build_cycle_error(
     providers: "list[AbstractProvider[typing.Any]]",
 ) -> "exceptions.CircularDependencyError":
-    """Build a ``CircularDependencyError`` from a cycle's providers (first node repeated last)."""
+    """Build a ``CircularDependencyError`` from a cycle's providers (first node repeated last).
+
+    Rotated to start at the minimum-``provider_id`` node before rendering: the seed node the walk
+    starts from depends on which frame's ``resolve_provider`` caught the ``RecursionError``, but a
+    rotation of the same ring is the same cycle — anchoring on a stable per-process id makes the
+    rendered message path- and seed-independent.
+    """
+    ring = providers[:-1]
+    anchor = min(range(len(ring)), key=lambda i: ring[i].provider_id)
+    rotated = [*ring[anchor:], *ring[:anchor]]
+    canonical = [*rotated, rotated[0]]
     return exceptions.CircularDependencyError(
         steps=[
-            exceptions.ResolutionStep(scope=p.scope, name=p.display_name, location=p.definition_site) for p in providers
+            exceptions.ResolutionStep(scope=p.scope, name=p.display_name, location=p.definition_site) for p in canonical
         ]
     )
 

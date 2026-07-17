@@ -78,10 +78,12 @@ resolution order).
 ### Recursive resolution
 
 When a `Factory` is resolved, `WiringPlan.build` (in `modern_di/wiring.py`) iterates the parsed parameter map and
-partitions it into the plan; `Factory` then recurses into `container.resolve_provider(dep_provider)` for each matched
-provider. The plan is memoized on the `ProvidersRegistry` (keyed by `provider_id`, stamped with the registry version) and rebuilt when that version changes
-(i.e. after `add_providers`). Resolution errors are annotated with a breadcrumb
-describing the current factory, so the full chain appears in the exception.
+partitions it into the plan; the factory's **compiled resolver** then invokes each matched dependency's own
+compiled resolver, captured by reference at compile time (the chain of closure calls that replaces per-edge
+`resolve_provider` recursion — see [resolution.md](resolution.md#compiled-resolvers)). The plan is memoized on the
+`ProvidersRegistry` (keyed by `provider_id`, stamped with the registry version) and rebuilt when that version
+changes (i.e. after `add_providers`); the compiled resolver is memoized the same way. Resolution errors are
+annotated with a breadcrumb describing the current factory, so the full chain appears in the exception.
 
 ### Static kwargs and `skip_creator_parsing`
 
@@ -107,7 +109,7 @@ for the user-facing singleton idiom and `cache_settings=`'s deprecation
 | `finalizer` | `Callable[[T], None \| Awaitable[None]] \| None` | `None` | Optional teardown called on container close, before cache eviction. |
 | `is_async_finalizer` | `bool` | *(computed)* | Not an init parameter — derived by `inspect.iscoroutinefunction(finalizer)` in `__post_init__`. The container uses it to decide whether to `await` the finalizer. |
 
-Without `cache`, `Factory.resolve` calls the creator on every resolution and returns a fresh instance
+Without `cache`, a `Factory`'s resolver calls the creator on every resolution and returns a fresh instance
 each time.
 
 ---
@@ -149,7 +151,8 @@ and the two paths are independent:
 providers.Alias(ConcreteDatabase, bound_type=DatabaseProtocol)
 ```
 
-`Alias.resolve` calls `container.resolve_provider(source_provider)` — it holds no cache of its own — and also
+The compiled `Alias` resolver forwards to `container.resolve_provider(source_provider)` after its own override
+guard — it holds no cache of its own — wrapping a scope/resolution error with the alias's own step; `Alias` also
 accepts an optional `bound_type` override. See [docs/providers/alias.md](../docs/providers/alias.md) for the
 user-facing rationale and caching implications.
 

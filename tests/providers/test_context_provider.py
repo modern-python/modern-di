@@ -285,6 +285,15 @@ def test_late_context_does_not_rebuild_cached_singleton() -> None:
     assert second.ctx is None
 
 
+def test_cached_factory_injects_present_context_at_cold_build() -> None:
+    # Context set before the first (cold) build is injected into the cached instance.
+    app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
+    ctx = _CrossCtx()
+    app.set_context(_CrossCtx, ctx)
+    svc = app.resolve(_CachedCtxSvc)
+    assert svc.ctx is ctx
+
+
 def test_unset_context_provider_direct_resolve_warns_and_returns_none() -> None:
     app_container = Container(groups=[MyGroup], validate=False)
     with pytest.warns(ContextValueNoneWarning, match="modern-di 3.0 raises ContextValueNotSetError"):
@@ -320,3 +329,15 @@ def test_context_provider_accepts_positional_context_type() -> None:
 def test_context_provider_rejects_context_type_passed_twice() -> None:
     with pytest.raises(TypeError, match="context_type"):
         providers.ContextProvider(datetime.datetime, context_type=datetime.datetime)  # ty: ignore[parameter-already-assigned]
+
+
+def test_context_provider_override_direct_short_circuits() -> None:
+    # Overriding a ContextProvider and resolving it DIRECTLY exercises the compiled context-provider
+    # resolver's own override front-guard: the override wins with no ContextValueNoneWarning, even
+    # though no value is set in the context registry.
+    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+    app_container = Container(groups=[MyGroup], validate=False)
+    app_container.override(MyGroup.context_provider, override_value)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert app_container.resolve_provider(MyGroup.context_provider) is override_value

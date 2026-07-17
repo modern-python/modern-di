@@ -147,8 +147,9 @@ class ClassWithWrongAnnotations:
             (
                 SignatureItem(arg_type=SomeDataClass),
                 {
-                    "arg1": SignatureItem(arg_type=str),
-                    "arg2": SignatureItem(arg_type=int),
+                    # kw_only=True dataclass -> both fields are keyword-only.
+                    "arg1": SignatureItem(arg_type=str, is_keyword_only=True),
+                    "arg2": SignatureItem(arg_type=int, is_keyword_only=True),
                 },
             ),
         ),
@@ -157,7 +158,7 @@ class ClassWithWrongAnnotations:
             (
                 SignatureItem(arg_type=DataClassInitFalse),
                 {
-                    "arg1": SignatureItem(arg_type=str),
+                    "arg1": SignatureItem(arg_type=str, is_keyword_only=True),
                 },
             ),
         ),
@@ -284,3 +285,16 @@ def test_positional_only_param_with_default_is_skipped() -> None:
         SignatureItem(arg_type=int),
         {"y": SignatureItem(arg_type=int, default=1)},
     )
+
+
+def _mixed_kind_creator(pos_or_kw: int, *, kw_only: int) -> int:
+    return pos_or_kw + kw_only
+
+
+def test_keyword_only_signal_recorded() -> None:
+    # A keyword-only parameter records is_keyword_only=True; a positional-or-keyword one records
+    # False. This is the only param-kind signal the compiled positional fast path consults.
+    assert _mixed_kind_creator(1, kw_only=2) == 1 + 2  # exercise the creator body for coverage
+    _ret, params = parse_creator(_mixed_kind_creator)
+    assert params["pos_or_kw"].is_keyword_only is False
+    assert params["kw_only"].is_keyword_only is True

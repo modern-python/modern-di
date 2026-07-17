@@ -8,15 +8,20 @@ from modern_di import types
 @dataclasses.dataclass(kw_only=True, slots=True)
 class OverridesRegistry:
     _overrides: dict[int, typing.Any] = dataclasses.field(init=False, default_factory=dict)
+    # default_factory (not default): a slots=True dataclass strips the class-level default of an
+    # init=False field, so a plain `default=False` never lands on the instance. `bool()` is False.
+    has_overrides: bool = dataclasses.field(init=False, default_factory=bool)
 
     def override(self, provider_id: int, override_object: object) -> None:
         self._overrides[provider_id] = override_object
+        self.has_overrides = True
 
     def reset_override(self, provider_id: int | None = None) -> None:
         if provider_id is None:
             self._overrides.clear()
         else:
             self._overrides.pop(provider_id, None)
+        self.has_overrides = bool(self._overrides)
 
     def fetch_override(self, provider_id: int) -> object:
         if not self._overrides:

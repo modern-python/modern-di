@@ -21,3 +21,11 @@ def test_container_provider_sub_dependency() -> None:
 
     instance = request_container.resolve(Scope)
     assert instance == Scope.REQUEST
+
+
+def test_container_provider_override_direct() -> None:
+    # Overriding the container provider and resolving it directly exercises the compiled
+    # container-provider resolver's own override front-guard (dispatch no longer checks centrally).
+    app_container = Container()
+    app_container.override(providers.container_provider, "mock-container")
+    assert app_container.resolve_provider(providers.container_provider) == "mock-container"

@@ -1035,3 +1035,15 @@ def test_override_context_manager_exit_restores_snapshot_after_inner_reset() -> 
         assert container.resolve(_OverrideSvc) is not first
         assert container.resolve(_OverrideSvc) is not second
     assert container.resolve(_OverrideSvc) is first  # exit restores the snapshot taken at override() time
+
+
+def test_resolve_provider_raises_for_unhandled_provider_type() -> None:
+    # Every real provider type compiles; an unknown AbstractProvider subclass hits compile_resolver's
+    # final explicit raise (the single place a new, unregistered provider type is rejected).
+    class _UnknownProvider(AbstractProvider[object]):
+        __slots__ = ()
+
+    provider = _UnknownProvider(scope=Scope.APP, bound_type=None)
+    container = Container(validate=False)
+    with pytest.raises(TypeError, match="no compiled resolver for provider type _UnknownProvider"):
+        container.resolve_provider(provider)

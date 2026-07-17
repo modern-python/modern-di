@@ -689,6 +689,20 @@ def test_cache_true_returns_same_instance() -> None:
     assert isinstance(G.f.cache_settings, providers.CacheSettings)
 
 
+def test_cache_true_unresolvable_raises_argument_resolution_error() -> None:
+    # Cached counterpart of test_app_factory_unresolvable: exercises the compiled cached
+    # resolver's own plan.unwireable bridge (routes to the interpreted path, same as the
+    # transient resolver's bridge for the same broken-graph shape).
+    class G(Group):
+        f = providers.Factory(creator=SimpleCreator, cache=True, bound_type=None)
+
+    container = Container(groups=[G])
+    with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type <class 'str'> cannot be resolved") as exc:
+        container.resolve_provider(G.f)
+    assert exc.value.arg_name == "dep1"
+    assert exc.value.arg_type is str
+
+
 def test_cache_absent_returns_fresh_instances() -> None:
     class G(Group):
         f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"})
@@ -888,3 +902,219 @@ def test_nonetype_param_without_default_injects_none() -> None:
 
     result = container.resolve(Svc)
     assert result.hook is None
+
+
+# --- Single-path resolver_compiler coverage (formerly the differential harness) ------------------
+#
+# These pin compiled-resolver branches the standard suite would otherwise leave uncovered once the
+# A/B differential harness is gone. Each drives the one shipped (compiled) path and asserts the
+# observable outcome directly.
+
+
+@dataclasses.dataclass(slots=True)
+class _CovLeaf:
+    pass
+
+
+@dataclasses.dataclass(slots=True)
+class _CovReqOnly:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _CovKwOnlyDep:
+    dep: _CovLeaf
+
+
+@dataclasses.dataclass(slots=True)
+class _CovPosOnlyResult:
+    prefix: str
+    dep: _CovLeaf
+
+
+def _cov_pos_only_creator(prefix: str = "P", /, dep: _CovLeaf = None) -> _CovPosOnlyResult:  # ty: ignore[invalid-parameter-default]
+    return _CovPosOnlyResult(prefix=prefix, dep=dep)
+
+
+def test_positional_only_with_default_stays_on_kwargs_path() -> None:
+    # `prefix` is positional-only WITH a default: the parser drops it from _parsed_kwargs, leaving
+    # names == ("dep",) -- a clean-looking prefix. The positional-only guard in _positional_names
+    # must reject it, or `creator(dep_instance)` would bind dep to `prefix` and swallow the "P".
+    assert _cov_pos_only_creator(dep=_CovLeaf()) == _CovPosOnlyResult(prefix="P", dep=_CovLeaf())  # exercise body
+
+    class G(Group):
+        dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
+        thing = providers.Factory(creator=_cov_pos_only_creator, scope=Scope.APP)
+
+    container = Container(groups=[G], validate=False)
+    assert container.resolve_provider(G.thing) == _CovPosOnlyResult(prefix="P", dep=_CovLeaf())
+
+
+def _build_closed_app_and_request(*group: type[Group]) -> tuple[Container, Container]:
+    """Return (closed APP container, open REQUEST child) sharing `group`'s providers."""
+    app = Container(scope=Scope.APP, groups=list(group), validate=False)
+    request = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+    return app, request
+
+
+def test_transient_positional_reopens_closed_cross_scope_target() -> None:
+    # A positional-eligible APP transient resolved from a REQUEST child whose APP target is closed:
+    # the positional resolver's own target.closed guard must warn+reopen the distinct target.
+    class G(Group):
+        leaf = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
+
+    _app, request = _build_closed_app_and_request(G)
+    with pytest.warns(exceptions.ContainerClosedWarning):
+        assert isinstance(request.resolve_provider(G.leaf), _CovLeaf)
+
+
+def test_transient_kwargs_reopens_closed_cross_scope_target() -> None:
+    # The kwargs-path (keyword-only dep -> ineligible) mirror: the kwargs resolver's own
+    # target.closed guard fires for a cross-scope APP target that was independently closed.
+    class G(Group):
+        dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
+        thing = providers.Factory(creator=_CovKwOnlyDep, scope=Scope.APP)
+
+    _app, request = _build_closed_app_and_request(G)
+    with pytest.warns(exceptions.ContainerClosedWarning):
+        assert isinstance(request.resolve_provider(G.thing), _CovKwOnlyDep)
+
+
+class _CovKwOnlyBodyTypeError:
+    def __init__(self, *, dep: _CovLeaf) -> None:  # noqa: ARG002 - unused; body raises before it is read
+        len(5)  # ty: ignore[invalid-argument-type]  # TypeError inside the body (inner frame present)
+
+
+def test_transient_kwargs_body_typeerror_propagates_unchanged() -> None:
+    # An ineligible (keyword-only) creator whose body raises TypeError: the kwargs-path resolver's
+    # tb_next guard must let it propagate unchanged, not wrap it in a CreatorCallError.
+    class G(Group):
+        dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
+        thing = providers.Factory(creator=_CovKwOnlyBodyTypeError, scope=Scope.APP)
+
+    container = Container(groups=[G], validate=False)
+    with pytest.raises(TypeError) as exc:
+        container.resolve_provider(G.thing)
+    assert not isinstance(exc.value, exceptions.CreatorCallError)
+
+
+@dataclasses.dataclass(slots=True)
+class _CovPosNeedsReq:
+    req: _CovReqOnly
+
+
+def test_cached_positional_dependency_step_error() -> None:
+    # A cached, positional-eligible APP factory whose REQUEST-scoped dep is unreachable from APP:
+    # the cold-miss build_args breadcrumb (prepend_step) must fire on the positional path.
+    class G(Group):
+        req = providers.Factory(creator=_CovReqOnly, scope=Scope.REQUEST)
+        thing = providers.Factory(creator=_CovPosNeedsReq, scope=Scope.APP, cache=True)
+
+    container = Container(groups=[G], validate=False)
+    with pytest.raises(ScopeNotInitializedError):
+        container.resolve_provider(G.thing)
+
+
+@dataclasses.dataclass(slots=True)
+class _CovOneArgResult:
+    required: _CovLeaf
+
+
+def _cov_needs_one_arg(required: _CovLeaf) -> _CovOneArgResult:
+    return _CovOneArgResult(required=required)
+
+
+def test_cached_positional_binding_typeerror_wraps() -> None:
+    # skip_creator_parsing -> 0 parsed args -> positional-eligible, but the creator needs one.
+    # `creator()` raises a binding TypeError (no inner frame); create_positional must wrap it.
+    assert _cov_needs_one_arg(_CovLeaf()) == _CovOneArgResult(required=_CovLeaf())  # exercise body
+
+    class G(Group):
+        thing = providers.Factory(
+            creator=_cov_needs_one_arg,
+            scope=Scope.APP,
+            skip_creator_parsing=True,
+            bound_type=_CovOneArgResult,
+            cache=True,
+        )
+
+    container = Container(groups=[G], validate=False)
+    with pytest.raises(exceptions.CreatorCallError):
+        container.resolve_provider(G.thing)
+
+
+class _CovBodyTypeError:
+    def __init__(self) -> None:
+        len(5)  # ty: ignore[invalid-argument-type]  # TypeError inside the body (inner frame present)
+
+
+def test_cached_positional_body_typeerror_propagates_unchanged() -> None:
+    # Cached + positional (0-arg) creator whose body raises TypeError: create_positional must let it
+    # propagate unchanged, not wrap it.
+    class G(Group):
+        thing = providers.Factory(
+            creator=_CovBodyTypeError,
+            scope=Scope.APP,
+            bound_type=_CovBodyTypeError,
+            skip_creator_parsing=True,
+            cache=True,
+        )
+
+    container = Container(groups=[G], validate=False)
+    with pytest.raises(TypeError) as exc:
+        container.resolve_provider(G.thing)
+    assert not isinstance(exc.value, exceptions.CreatorCallError)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _CovCachedNeedsReq:
+    req: _CovReqOnly
+
+
+def test_cached_kwargs_dependency_step_error() -> None:
+    # A cached, ineligible (keyword-only) APP factory whose REQUEST-scoped dep is unreachable from
+    # APP: the cold-miss build_kwargs breadcrumb (prepend_step) must fire on the kwargs path.
+    class G(Group):
+        req = providers.Factory(creator=_CovReqOnly, scope=Scope.REQUEST)
+        thing = providers.Factory(creator=_CovCachedNeedsReq, scope=Scope.APP, cache=True)
+
+    container = Container(groups=[G], validate=False)
+    with pytest.raises(ScopeNotInitializedError):
+        container.resolve_provider(G.thing)
+
+
+def test_unwireable_factory_override_short_circuits() -> None:
+    # An unwireable factory (missing required `dep1: str`) can still be overridden with a mock: the
+    # compiled unwireable resolver's own override front-guard returns it instead of raising.
+    class G(Group):
+        thing = providers.Factory(creator=SimpleCreator, bound_type=None)
+
+    container = Container(groups=[G], validate=False)
+    mock = SimpleCreator(dep1="mock")
+    container.override(G.thing, mock)
+    assert container.resolve_provider(G.thing) is mock
+
+
+def test_unwireable_factory_reopens_closed_cross_scope_target() -> None:
+    # An unwireable APP factory resolved from a REQUEST child whose APP target is closed: the
+    # unwireable resolver navigates to the closed target, warns+reopens it, then raises.
+    class G(Group):
+        thing = providers.Factory(creator=SimpleCreator, bound_type=None, scope=Scope.APP)
+
+    _app, request = _build_closed_app_and_request(G)
+    with pytest.warns(exceptions.ContainerClosedWarning), pytest.raises(ArgumentResolutionError):
+        request.resolve_provider(G.thing)
+
+
+def test_cached_kwargs_body_typeerror_propagates_unchanged() -> None:
+    # A cached, ineligible (keyword-only) creator whose body raises TypeError: the cached kwargs
+    # path reuses Factory._call_creator, whose tb_next guard must let it propagate unchanged.
+    class G(Group):
+        dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
+        thing = providers.Factory(creator=_CovKwOnlyBodyTypeError, scope=Scope.APP, cache=True)
+
+    container = Container(groups=[G], validate=False)
+    with pytest.raises(TypeError) as exc:
+        container.resolve_provider(G.thing)
+    assert not isinstance(exc.value, exceptions.CreatorCallError)
