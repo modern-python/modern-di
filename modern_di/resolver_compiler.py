@@ -103,7 +103,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
             target = container if container.scope == scope else _navigate(container, scope, resolution_step)
             if target.closed:
                 target._warn_and_reopen_if_closed()  # noqa: SLF001
-            try:  # inlined Factory._resolve_kwargs (a dependency can raise ResolutionError)
+            try:  # build the positional args from the dependency resolvers (a dependency can raise ResolutionError)
                 args = [r(target) for r in pos]
             except _STEP_ERRORS as exc:
                 exc.prepend_step(resolution_step())
@@ -129,7 +129,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
             target._warn_and_reopen_if_closed()  # noqa: SLF001
-        try:  # inlined Factory._resolve_kwargs
+        try:  # build the kwargs dict from provider/static/context bindings
             kwargs = {name: r(target) for name, r in prov}
             if not pure:
                 kwargs.update(static)
@@ -243,11 +243,10 @@ def _compile_unwireable_factory(
 ) -> "typing.Callable[[Container], typing.Any]":
     """Compile the always-raising resolver for a Factory with an unwireable parameter.
 
-    Mirrors the interpreted `Factory._resolve_kwargs` unwireable branch: front-guard the override
-    (an unwireable factory can still be overridden with a mock), navigate to the scope-correct
-    target (a scope error there wins, with its step prepended), then raise the freshly built error
-    with this factory's own resolution step. The error is built on every call (never memoized) so
-    `prepend_step`'s mutation cannot leak a breadcrumb across repeated resolves.
+    Front-guard the override (an unwireable factory can still be overridden with a mock), navigate
+    to the scope-correct target (a scope error there wins, with its step prepended), then raise the
+    freshly built error with this factory's own resolution step. The error is built on every call
+    (never memoized) so `prepend_step`'s mutation cannot leak a breadcrumb across repeated resolves.
     """
     pid = f.provider_id
     scope = f.scope
@@ -274,8 +273,8 @@ def _compile_unwireable_factory(
 def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
     """Forward to the alias's source resolver, wrapping scope/resolution errors with its own step.
 
-    Mirrors `Alias.resolve` exactly (same single try/except, same exception tuple) so a
-    dangling-source `str()` is byte-identical.
+    A single try/except covers both the dangling-source lookup and the forwarded resolve, so a
+    missing source and a source's own scope error each carry this alias's resolution step.
     """
     pid = a.provider_id
     resolution_step = a._resolution_step  # noqa: SLF001
@@ -297,7 +296,7 @@ def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typi
 
 
 def _compile_container_provider() -> "typing.Callable[[Container], typing.Any]":
-    """Resolve to the resolving container itself, matching `_ContainerProvider.resolve` (no scope navigation)."""
+    """Resolve to the resolving container itself — no scope navigation."""
     pid = container_provider.provider_id
 
     def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
