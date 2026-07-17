@@ -145,3 +145,5 @@ lifetime dialect, so here is how the same six concepts translate:
 - [Design decisions](design-decisions.md) — the reasoning behind sync-only
   resolution, no global state, a conservative core, and the deliberate
   [non-goals](design-decisions.md#non-goals) that keep it that way.
+- [Performance](performance.md) — comparative benchmarks: how fast resolution is
+  versus other DI frameworks, and the method behind the numbers.
