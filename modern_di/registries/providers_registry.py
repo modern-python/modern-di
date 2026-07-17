@@ -75,8 +75,6 @@ class ProvidersRegistry:
         resolver is still being built (a cycle) captures a thunk that routes through the runtime
         `resolve_provider`, so a genuine cycle still raises `RecursionError` -> `CircularDependencyError`.
         """
-        from modern_di.resolver_compiler import compile_resolver  # noqa: PLC0415 (avoid import cycle)
-
         pid = provider.provider_id
         version = self._version
         cached = self._resolvers.get(pid)
@@ -84,6 +82,9 @@ class ProvidersRegistry:
             return cached[1]
         if pid in self._building:
             return lambda c: c.resolve_provider(provider)  # back-edge: route the cycle through runtime
+        # Deferred to here (not the top of the method) so warm/hot resolves never pay this import.
+        from modern_di.resolver_compiler import compile_resolver  # noqa: PLC0415 (avoid import cycle)
+
         self._building.add(pid)
         try:
             resolver = compile_resolver(provider, self)
