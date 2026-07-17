@@ -276,3 +276,34 @@ def test_find_dep_provider_union_args_skips_owner() -> None:
     item = SignatureItem(arg_type=None, args=[_UnionTypeA])
     result = find_dep_provider(registry, factory_a, item)
     assert result is None
+
+
+class _OrderedDeps:
+    def __init__(self, first: _ServiceA, second: _ServiceB, third: _Request) -> None:
+        pass  # pragma: no cover
+
+
+def test_provider_kwargs_preserves_signature_order() -> None:
+    """provider_kwargs iterates in signature order — the invariant the positional fast path depends on.
+
+    _positional_names gates on tuple(provider_kwargs) == tuple(parsed_kwargs), then the resolver
+    builds its positional tuple from provider_kwargs. If build stopped preserving order, the gate
+    would silently de-select the positional path.
+    """
+    registry = ProvidersRegistry()
+    registry.add_providers(
+        providers.Factory(scope=Scope.APP, creator=_ServiceA),
+        providers.Factory(scope=Scope.APP, creator=_ServiceB),
+        providers.Factory(scope=Scope.APP, creator=_Request),
+    )
+    owner = providers.Factory(scope=Scope.APP, creator=_OrderedDeps)
+
+    plan = WiringPlan.build(
+        parsed_kwargs=owner._parsed_kwargs,  # noqa: SLF001
+        kwargs=owner._kwargs,  # noqa: SLF001
+        registry=registry,
+        owner=owner,
+    )
+
+    assert tuple(plan.provider_kwargs) == ("first", "second", "third")
+    assert tuple(plan.provider_kwargs) == tuple(owner._parsed_kwargs)  # noqa: SLF001
