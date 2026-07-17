@@ -136,12 +136,14 @@ class WiringPlan:
             # UNWIRABLE: record the (name, item) pair but do not raise
             unwireable.append((name, item))
 
-        if kwargs:  # static overlay
-            for name, value in kwargs.items():
-                if isinstance(value, AbstractProvider):
-                    provider_kwargs[name] = value
-                else:
-                    static_kwargs[name] = value
+        if kwargs:
+            cls._apply_overlay(
+                kwargs=kwargs,
+                parsed_kwargs=parsed_kwargs,
+                provider_kwargs=provider_kwargs,
+                static_kwargs=static_kwargs,
+                context_kwargs=context_kwargs,
+            )
 
         return cls(
             provider_kwargs=provider_kwargs,
@@ -150,3 +152,28 @@ class WiringPlan:
             unwireable=unwireable,
             pure_provider=not static_kwargs and not context_kwargs,
         )
+
+    @staticmethod
+    def _apply_overlay(
+        *,
+        kwargs: dict[str, typing.Any],
+        parsed_kwargs: dict[str, SignatureItem],
+        provider_kwargs: dict[str, "AbstractProvider[typing.Any]"],
+        static_kwargs: dict[str, typing.Any],
+        context_kwargs: dict[str, "tuple[ContextProvider[typing.Any], SignatureItem]"],
+    ) -> None:
+        """Bucket each explicit ``kwargs={...}`` entry into the buckets built by the by-type pass.
+
+        A ``ContextProvider`` joins ``context_kwargs`` with its parameter's ``SignatureItem``, so an
+        unset value honors the default/nullable exactly as the by-type route does. With no parsed
+        item (a ``**kwargs`` creator, ``skip_creator_parsing=True``) there is no default to honor, so
+        it stays a plain provider and keeps the direct-resolve semantics.
+        """
+        for name, value in kwargs.items():
+            item = parsed_kwargs.get(name)
+            if isinstance(value, ContextProvider) and item is not None:
+                context_kwargs[name] = (value, item)
+            elif isinstance(value, AbstractProvider):
+                provider_kwargs[name] = value
+            else:
+                static_kwargs[name] = value

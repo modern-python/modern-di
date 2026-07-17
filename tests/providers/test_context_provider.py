@@ -341,3 +341,68 @@ def test_context_provider_override_direct_short_circuits() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert app_container.resolve_provider(MyGroup.context_provider) is override_value
+
+
+_SENTINEL_DEFAULT = datetime.datetime(1999, 9, 9, tzinfo=datetime.timezone.utc)
+
+
+def _ctx_default_creator(*, ctx: datetime.datetime | None = _SENTINEL_DEFAULT) -> str:
+    return "default-applied" if ctx is _SENTINEL_DEFAULT else f"got {ctx!r}"
+
+
+class _KwargsCtxByTypeGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    out = providers.Factory(_ctx_default_creator, bound_type=None)
+
+
+class _KwargsCtxExplicitGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    out = providers.Factory(_ctx_default_creator, bound_type=None, kwargs={"ctx": ctx})
+
+
+def test_kwargs_context_provider_honors_creator_default_when_unset() -> None:
+    # A ContextProvider passed explicitly via kwargs={...} must wire as a context kwarg, not a plain
+    # provider: an unset value falls back to the creator's default rather than injecting None.
+    app_container = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == "default-applied"
+
+
+def test_kwargs_context_provider_matches_by_type_wiring() -> None:
+    # The same creator wired both ways agrees: how the ContextProvider reaches the parameter is a
+    # declaration detail, not a behavior switch.
+    by_type = Container(groups=[_KwargsCtxByTypeGroup], validate=False)
+    explicit = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    assert by_type.resolve_provider(_KwargsCtxByTypeGroup.out) == explicit.resolve_provider(_KwargsCtxExplicitGroup.out)
+
+
+def test_kwargs_context_provider_injects_present_value() -> None:
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app_container = Container(groups=[_KwargsCtxExplicitGroup], context={datetime.datetime: now}, validate=False)
+    assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {now!r}"
+
+
+def test_kwargs_context_provider_override_wins() -> None:
+    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+    app_container = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    app_container.override(_KwargsCtxExplicitGroup.ctx, override_value)
+    assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {override_value!r}"
+
+
+def _opaque_ctx_creator(**kw: object) -> str:
+    return f"ctx={kw.get('ctx')!r}"
+
+
+class _KwargsCtxNoSignatureGroup(Group):
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    out = providers.Factory(_opaque_ctx_creator, bound_type=None, kwargs={"ctx": ctx})
+
+
+def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve() -> None:
+    # A **kwargs creator parses no SignatureItem for `ctx`, so there is no default to honor and
+    # nothing to fix: it keeps resolving through the provider bucket, warning as before. Routing it
+    # as required would raise where 2.x returns None; as nullable would drop the 3.0 signal.
+    app_container = Container(groups=[_KwargsCtxNoSignatureGroup], validate=False)
+    with pytest.warns(ContextValueNoneWarning):
+        assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == "ctx=None"
