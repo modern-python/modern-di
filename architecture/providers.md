@@ -139,6 +139,17 @@ and the two paths are independent:
   shared `absent_disposition` helper: if the dependent parameter has a default or is nullable it is silently
   satisfied; otherwise an `ArgumentResolutionError` is raised, exactly as before this warning was added.
 
+Either **declaration route** reaches that dependent-parameter path: matched by type from the registry, or
+passed explicitly as `Factory(creator, kwargs={"request": the_provider})`. `WiringPlan.build` buckets both
+into `context_kwargs` with the parameter's `SignatureItem`, so the two agree — how the provider reaches the
+parameter is a declaration detail, not a behavior switch.
+
+The one exception is a `ContextProvider` passed via `kwargs={...}` for a parameter with **no parsed
+`SignatureItem`** — a `**kwargs` creator, or `skip_creator_parsing=True`. There is no default or nullability
+to consult, so it stays on the direct-resolve path above and warns accordingly. Treating it as required would
+raise where 2.x returns `None`; treating it as nullable would silently swallow the unset-context signal that
+3.0 turns into `ContextValueNotSetError`.
+
 `ContextProvider` also accepts an optional `bound_type` that overrides the inferred bound type.
 
 ---
