@@ -1262,3 +1262,33 @@ def test_kwargs_path_body_typeerror_propagates_equivalence() -> None:
     assert compiled == interpreted
     assert compiled[0] == "error"
     assert compiled[1].startswith("TypeError:")  # propagated unchanged, not wrapped in CreatorCallError
+
+
+@dataclasses.dataclass(slots=True)
+class PosOnlyResult:
+    prefix: str
+    dep: Dep
+
+
+def pos_only_creator(prefix: str = "P", /, dep: Dep = None) -> PosOnlyResult:  # ty: ignore[invalid-parameter-default]
+    return PosOnlyResult(prefix=prefix, dep=dep)
+
+
+class PosOnlyGroup(Group):
+    # `prefix` is positional-only WITH a default: _parse_parameter drops it from _parsed_kwargs
+    # entirely (types_parser.py), so `_parsed_kwargs` holds only `dep` -- names == ("dep",), a
+    # clean-looking prefix of provider_kwargs. Without the positional-only guard in
+    # _positional_names, this would be misjudged eligible and `creator(dep_instance)` would bind
+    # dep_instance to `prefix`, silently swallowing the "P" default. Must stay on the kwargs path.
+    dep = providers.Factory(creator=Dep, scope=Scope.APP)
+    thing = providers.Factory(creator=pos_only_creator, scope=Scope.APP)
+
+
+def test_positional_only_with_default_ineligible() -> None:
+    container = Container(scope=Scope.APP, groups=[PosOnlyGroup], validate=False)
+    assert _eligibility(container, PosOnlyGroup.thing) is None
+    compiled, interpreted = _resolve_both(
+        lambda: Container(scope=Scope.APP, groups=[PosOnlyGroup], validate=False), PosOnlyGroup.thing
+    )
+    assert compiled == interpreted
+    assert compiled == ("value", "PosOnlyResult(prefix='P', dep=Dep())", ())

@@ -6,6 +6,7 @@ dependencies' resolvers by reference. Behavior-sensitive helpers (`_resolution_s
 `_resolve_context_value`, `prepend_step`) are reused, not reimplemented.
 """
 
+import inspect
 import typing
 
 from modern_di import exceptions, types
@@ -44,6 +45,11 @@ def _positional_names(f: "Factory[typing.Any]", plan: "WiringPlan") -> "tuple[st
         return None  # a param was omitted/reordered, or a kwargs-overlay added an extra -> not a clean prefix
     if any(item.is_keyword_only for item in f._parsed_kwargs.values()):  # noqa: SLF001
         return None
+    if names and any(
+        p.kind is inspect.Parameter.POSITIONAL_ONLY
+        for p in inspect.signature(f._creator).parameters.values()  # noqa: SLF001
+    ):
+        return None  # positional-only param, dropped from _parsed_kwargs by the parser, would shift positional binding
     return names
 
 
