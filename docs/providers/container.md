@@ -85,5 +85,5 @@ the full contract.
 
 - **Context propagation** — how context values reach (and don't reach) a `ContextProvider` is
   covered on the [Context Providers](context.md#context-propagation) page.
-- **Low-level API** — `find_container`, `scope_map`, `Group.get_providers()`, and subclassing
-  `AbstractProvider` are documented under [Advanced / low-level API](advanced-api.md).
+- **Low-level API** — `find_container`, `scope_map`, and `Group.get_providers()` are documented
+  under [Advanced / low-level API](advanced-api.md).
