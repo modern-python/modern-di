@@ -78,21 +78,6 @@ on the hot path plus 5-8 log statements through resolution code.
 **Revisit trigger:** the first user issue that a resolution trace would have answered.
 See [2026-07-05 3.0 UX research, ERR-8](audits/2026-07-05-v3-ux-research-report.md).
 
-## Eager warm-up of cached providers (API-8 / INT-3) — from 2026-07-05 3.0 UX research
-
-A `container.init_cache()`-style method (name open: warm_up/prebuild/init_cached — one decision for
-both research items) resolving every provider with cache settings at the container's scope, in
-declaration order, respecting overrides; finalizers still run LIFO at close. Closes the gap that
-`validate()` checks wiring but never calls creators, so a bad DB URL in a `Factory(cache=True)`
-creator surfaces on the first request instead of at boot. Field precedent: Spring eager singletons,
-Koin `createdAtStart`, that-depends/dependency-injector `init_resources()`. Purely additive,
-sync-only by construction. Note: the from-that-depends guide currently editorializes "no equivalent
-needed" — shipping this reverses that documented stance.
-
-**Revisit trigger:** the first user/integration request for startup fail-fast (or when a sibling
-integration wants a warm-up hook next to `open()`/`validate()` in its lifespan setup).
-See [2026-07-05 3.0 UX research, items 13-14](audits/2026-07-05-v3-ux-research-report.md).
-
 ## Shared conformance test suite for integration repos (INT-6) — from 2026-07-05 3.0 UX research
 
 A reusable pytest contract suite, parametrized over each integration's app factory + setup function,
