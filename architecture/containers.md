@@ -70,7 +70,7 @@ The four registries split into two categories:
 
 | Registry | Shared across container tree? | Purpose |
 |---|---|---|
-| `ProvidersRegistry` | Yes — all containers share one instance | Maps `type → AbstractProvider`; populated at root construction time from `groups`, and later via `Container.add_providers`. Also holds the shared `_plans` wiring-plan memo (keyed by `provider_id`, stamped with `version`), so a plan is built once tree-wide. |
+| `ProvidersRegistry` | Yes — all containers share one instance | Maps `type → AbstractProvider`; populated at root construction time from `groups`, and later via `Container.add_providers`. Also holds the shared `_plans` wiring-plan memo (keyed by `provider_id`, cleared on registry mutation), so a plan is built once tree-wide. |
 | `OverridesRegistry` | Yes — all containers share one instance | Maps `provider_id → override object`; used by tests to substitute real instances. |
 | `CacheRegistry` | No — each container has its own | Maps `provider_id → CacheItem`; stores resolved singleton instances and their finalizers for this scope level. |
 | `ContextRegistry` | No — each container has its own | Maps `type → runtime object`; populated via `context=` at construction or `container.set_context()` after the fact. |
@@ -93,7 +93,7 @@ registry it mutates is shared tree-wide. `Container` tracks a private
 after registering and, if that fails, removes the just-added batch again —
 the container ends up either fully registered and valid, or unchanged.
 Whether the graph is *currently* validation-clean is tracked separately and
-registry-level, by `ProvidersRegistry.validated_version` (see
+registry-level, by `ProvidersRegistry`'s `_validated` flag (see
 [validation.md](validation.md#what-validate-checks)). Because that registry is
 shared tree-wide, validating any container in the tree marks the whole graph
 clean, so a child's `resolve` benefits from the root's validation — its runtime

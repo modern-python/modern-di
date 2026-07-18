@@ -81,8 +81,8 @@ When a `Factory` is resolved, `WiringPlan.build` (in `modern_di/wiring.py`) iter
 partitions it into the plan; the factory's **compiled resolver** then invokes each matched dependency's own
 compiled resolver, captured by reference at compile time (the chain of closure calls that replaces per-edge
 `resolve_provider` recursion — see [resolution.md](resolution.md#compiled-resolvers)). The plan is memoized on the
-`ProvidersRegistry` (keyed by `provider_id`, stamped with the registry version) and rebuilt when that version
-changes (i.e. after `add_providers`); the compiled resolver is memoized the same way. Resolution errors are
+`ProvidersRegistry` (keyed by `provider_id`) and cleared on registry mutation
+(i.e. after `add_providers`); the compiled resolver is memoized the same way. Resolution errors are
 annotated with a breadcrumb describing the current factory, so the full chain appears in the exception.
 
 ### Static kwargs and `skip_creator_parsing`
