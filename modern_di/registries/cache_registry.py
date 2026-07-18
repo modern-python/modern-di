@@ -88,7 +88,8 @@ class CacheRegistry:
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
         # Fast path: return an existing item without building a throwaway CacheItem (plain
         # setdefault eagerly constructs one on every hit). The creation path still uses
-        # setdefault so it stays atomic under the GIL — fetch runs outside the container lock,
+        # setdefault so first-resolvers share one CacheItem via a single atomic op — fetch runs outside
+        # the container lock (free-threaded-safe; see architecture/concurrency.md),
         # and concurrent first-resolvers must share one CacheItem because the singleton cache
         # and its double-checked lock live on that object.
         item = self._items.get(provider.provider_id)
