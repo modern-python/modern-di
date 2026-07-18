@@ -1,10 +1,13 @@
 import sys
 import threading
+import typing
 
 import pytest
 
-from modern_di import providers, suggester
+from modern_di import Container, Group, providers, suggester
 from modern_di.exceptions import DuplicateProviderTypeError
+from modern_di.providers.abstract import AbstractProvider
+from modern_di.registries import providers_registry as pr_mod
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
 
@@ -104,3 +107,60 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
         sys.setswitchinterval(old_interval)
 
     assert errors_seen == []
+
+
+def test_concurrent_first_resolve_of_same_provider_does_not_false_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Thread 2 must not mistake thread 1's in-flight compile of the SAME provider for a cycle.
+    # Deterministic: a stall gate holds thread 1 mid-compile while thread 2 enters the window.
+    class _Leaf: ...
+
+    class _Root:
+        def __init__(self, leaf: _Leaf) -> None:
+            self.leaf = leaf
+
+    class _G(Group):
+        leaf = providers.Factory(creator=_Leaf, scope=Scope.APP)
+        root = providers.Factory(creator=_Root, scope=Scope.APP)
+
+    container = Container(groups=[_G], validate=False)
+    real_compile = pr_mod.compile_resolver
+    entered = threading.Event()
+    release = threading.Event()
+    stalled = threading.Event()
+
+    def stalling_compile(
+        provider: AbstractProvider[typing.Any], registry: pr_mod.ProvidersRegistry
+    ) -> typing.Callable[[Container], typing.Any]:
+        if provider is _G.root and not stalled.is_set():
+            stalled.set()
+            entered.set()  # thread 1's pid is now in _building
+            release.wait(timeout=5)
+        return real_compile(provider, registry)
+
+    monkeypatch.setattr(pr_mod, "compile_resolver", stalling_compile)
+    errors: list[BaseException] = []
+
+    def first() -> None:
+        try:
+            container.resolve(_Root)
+        except BaseException as exc:  # noqa: BLE001  # pragma: no cover - pre-fix path only
+            errors.append(exc)
+
+    def second() -> None:
+        entered.wait(timeout=5)  # enter only once thread 1 is mid-compile of _Root
+        try:
+            container.resolve(_Root)
+        except BaseException as exc:  # noqa: BLE001  # pragma: no cover - pre-fix path only
+            errors.append(exc)
+        finally:
+            release.set()  # let thread 1 finish
+
+    threads = [threading.Thread(target=first), threading.Thread(target=second)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors  # pre-fix: thread 2 raises RecursionError (a false cycle)

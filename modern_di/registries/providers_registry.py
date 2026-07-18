@@ -21,7 +21,7 @@ class ProvidersRegistry:
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
         self._plans: dict[int, tuple[int, WiringPlan]] = {}
         self._resolvers: dict[int, tuple[int, typing.Callable[[Container], typing.Any]]] = {}
-        self._building: set[int] = set()
+        self._building = threading.local()  # per-thread compile-in-flight set; the cycle guard is per-call-stack
         self._version = 0
         self.validated_version: int | None = None
 
@@ -77,6 +77,18 @@ class ProvidersRegistry:
         self._plans[provider_id] = (version, plan)
         return plan
 
+    def _building_set(self) -> set[int]:
+        """Return the current thread's in-flight-compile set (the cycle guard).
+
+        Per-call-stack: a concurrent first-resolve of the same provider on another thread compiles it
+        independently (an idempotent duplicate) instead of being misread as a dependency cycle.
+        """
+        building: set[int] | None = getattr(self._building, "value", None)
+        if building is None:
+            building = set()
+            self._building.value = building
+        return building
+
     def resolver_for(self, provider: "AbstractProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
         """Return `provider`'s memoized compiled resolver, building it cycle-safely on a miss.
 
@@ -89,13 +101,14 @@ class ProvidersRegistry:
         cached = self._resolvers.get(pid)
         if cached is not None and cached[0] == version:
             return cached[1]
-        if pid in self._building:
+        building = self._building_set()
+        if pid in building:
             return lambda c: c.resolve_provider(provider)  # back-edge: route the cycle through runtime
-        self._building.add(pid)
+        building.add(pid)
         try:
             resolver = compile_resolver(provider, self)
         finally:
-            self._building.discard(pid)
+            building.discard(pid)
         self._resolvers[pid] = (version, resolver)
         return resolver
 
