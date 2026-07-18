@@ -6,6 +6,31 @@ and tested under real multithreading, with the caveats below documented. The
 [2026-07-17 research report](../planning/audits/2026-07-17-nogil-support-research-report.md)
 is the full analysis; this page is the standing contract.
 
+## The lifecycle
+
+A container has three phases, and thread-safety is defined per phase — the same
+build → resolve → dispose shape every comparable DI framework assumes (the
+[2026-07-18 concurrency-contract research](../planning/audits/2026-07-18-di-concurrency-contract-report.md)
+found no framework that supports tearing a container down while other threads
+resolve from it):
+
+1. **Configure — single-threaded (startup).** Registering providers
+   (`add_providers`, group construction) mutates the registry under its own lock,
+   but the resolve path reads the registry without taking that lock; `override` /
+   `reset_override` and `set_context` mutate shared state with no lock at all.
+   Either way, racing these against live `resolve()` is unsafe — do them on one
+   thread before concurrent resolution begins.
+2. **Resolve — concurrent (the hot phase).** `resolve` / `resolve_provider` /
+   `resolve_dependency` and `build_child_container` are safe to call from many
+   threads at once. Singleton creation is locked and double-checked (see below),
+   so a cached value is built exactly once and shared.
+3. **Close — single-threaded (shutdown).** `close_sync` / `close_async` run
+   finalizers and reset caches/overrides; `open` reopens a closed container so it
+   can resolve and build children again. Close (or reopen) a container at a
+   single-threaded edge, after concurrent resolution has quiesced — **closing or
+   reopening a container while other threads still resolve from it is not
+   supported.**
+
 ## The model
 
 - **Singleton creation is the only locked path.** A cached `Factory` builds its
@@ -46,12 +71,11 @@ not **Stable**. See the report for the full argument.
 
 ## Caveats
 
-- **Apply overrides before concurrent resolution.** `override()` / `reset_override()`
-  mutate a shared registry without a lock; racing them against live `resolve()` calls
-  is inherently unordered (it always was, GIL or not). Set overrides during
-  single-threaded setup, then resolve concurrently.
-- **Seed context before concurrent resolution too.** `set_context` writes a shared
-  dict; populate a container's context before resolving from it on many threads.
-- **Performance, not correctness, is the open question.** Whether the per-container
-  lock contends under heavy parallel first-resolution is unmeasured and out of scope
-  for the Beta claim (report §7).
+- **Configure and close at single-threaded edges** (see [The lifecycle](#the-lifecycle)).
+  `override` / `reset_override` and `set_context` mutate shared state without a
+  lock; racing them against live `resolve()` is inherently unordered (it always
+  was, GIL or not). `close` / `open` are the same: tear a container down only
+  after concurrent resolution has stopped.
+- **Performance, not correctness, is the open question.** Whether the
+  per-container lock contends under heavy parallel first-resolution is unmeasured
+  and out of scope for the Beta claim (report §7).

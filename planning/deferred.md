@@ -31,18 +31,58 @@ lifecycle, and trails the two `exec`-codegen frameworks by 1.3-1.9x on transient
   (unlike wireup): the resolver is shared tree-wide on the registry while the cached value is
   per-container, so a bare swap is only sound for **APP-scoped** singletons (one value tree-wide), and it
   must be invalidated on runtime `override()`/`reset_override()` and on cache clear at container close —
-  coupling the swap to those paths. A safe design restricts to APP scope and hooks override/close
-  invalidation; measure whether the added machinery is worth closing C2 to ~dishka.
+  coupling the swap to those paths. **Attempted and dropped (2026-07-18, change
+  [`2026-07-18.01`](changes/2026-07-18.01-warm-singleton-memo-swap.md)):** built the APP-scope-restricted
+  swap with override/close/version-bump invalidation, fully tested (free-threaded 200/200, 100% cov).
+  Measured **~1.6x** warm-hit reduction (median-of-stable, both tiers: guard g2 584→375 ns; comparative C2
+  333→208 ns), which **flips modern-di ahead of dishka** (292 ns) but **misses the ≥2x / ≤146 ns bar**. Root
+  cause: `resolve_provider`'s dispatch floor (`_warn_and_reopen_if_closed` frame + `resolver_for` dict.get +
+  version check) is unremovable by the swap — unlike wireup, modern-di keeps the resolve→resolver_for
+  dispatch, so "near-free" is not architecturally reachable. Dropped because a ~1.6x win did not justify a
+  permanent cross-cutting invalidation invariant (a bypass resolver across override/close/add_providers, a
+  second source of truth in `_warm_swapped`) against the conservative-feature-set principle. The attempt did
+  produce two keepers: the explicit lifecycle contract in [`concurrency.md`](../architecture/concurrency.md)
+  and the [DI-concurrency-contract research](audits/2026-07-18-di-concurrency-contract-report.md). The
+  better next direction it revealed is the **dispatch-floor simplification** below, not this swap.
 - **The codegen ceiling on C1/C3.** The remaining 1.3-1.9x behind `dishka`/`wireup` on transient/chain is
   the cost of staying `exec`-free: both inline dependency calls into generated source, removing the
   per-node closure-call frame that modern-di keeps. Closing it needs `exec` codegen, **rejected** for a
   zero-dependency library (competitor-perf audit §1/§4). So ~1.3-1.9x behind the codegen leaders on
   construction-heavy graphs is the accepted floor without `exec`; revisit only if that stance changes.
 
-**Revisit trigger:** a user-reported warm-singleton bottleneck, or a decision to prioritize closing the
-`dishka` gap. The C2 lever is the concrete next step; the codegen ceiling is a stance, not a task.
+**Revisit trigger:** a user-reported warm-singleton bottleneck. The C2 swap was tried and dropped (above);
+the codegen ceiling is a stance, not a task. The live next step is the dispatch-floor simplification below.
 See the [competitor-perf research](audits/2026-07-16-competitor-perf-research-report.md) (the design
 evidence: closures capture ~80-90% of the ceiling, `exec` buys 0-4% at fixed arity).
+
+## Dispatch-floor simplification: invalidate-on-mutation instead of version-stamp-per-resolve — from the 2026-07-18 C2 attempt
+
+The C2 swap tried to *add* a bypass layer and capped at ~1.6x because it could not remove
+`resolve_provider`'s dispatch floor. The inverse — *removing* per-resolve work — is the better trifecta
+(simpler + more readable + faster), and the explicit lifecycle contract now licenses it.
+
+Today every `resolver_for` / `plan_for` call does `cached = dict.get(pid); if cached and cached[0] ==
+version: return cached[1]` — a tuple-unpack + int-compare on the hot path (`providers_registry.py`), purely
+to guard against a registry mutation that (per the now-explicit configure→resolve→close lifecycle) only
+happens during single-threaded configure. **Refactor:** on `register` / `add_providers` / `_remove_providers`,
+`clear()` the resolver + plan memos; store bare callables (drop the version tuple). The hot path becomes a
+plain `self._resolvers.get(pid)`, recompile-on-miss.
+
+- **Simpler + readable:** the memos become plain `dict[int, Callable]`; the invariant collapses to "the memo
+  is valid until the registry changes, and changing it clears the memo," replacing the snapshot-version-before-build
+  subtlety (a whole docstring paragraph today). Keep `_version` only for `is_validated` (validation
+  freshness), decoupled from the memo.
+- **Faster:** removes the per-resolve tuple-index + int-compare — part of the exact dispatch floor that
+  capped C2. No new state (removes the version tuples).
+- **Companion (optional):** post-3.0, `_warn_and_reopen_if_closed` collapses to an inlined `if self.closed:
+  raise` (closed→error, which the [DI-concurrency research](audits/2026-07-18-di-concurrency-contract-report.md)
+  validates against .NET's `ObjectDisposedException`) — one fewer dispatch frame.
+
+**Needs (like C2):** a design pass, a free-threaded soundness check (`clear()` vs `get()` race only during
+configure, which the contract puts out of bounds — verify), and a benchmark to confirm the win before
+asserting a number.
+
+**Revisit trigger:** the live next perf step; pick up when perf work resumes.
 
 ## Opt-in DEBUG resolution tracing (ERR-8) — from 2026-07-05 3.0 UX research
 
