@@ -44,7 +44,7 @@ jobs:
       - run: just test-ci
       - name: Stress the concurrency test (free-threaded only)
         if: matrix.python-version == '3.14t'
-        run: just test tests/test_free_threading.py --count=50
+        run: just test tests/test_free_threading.py --count=50 -W error::RuntimeWarning
 
   docs:
     runs-on: ubuntu-latest
