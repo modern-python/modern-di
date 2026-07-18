@@ -58,13 +58,12 @@ via a declaration-time `kwargs={...}` is an edge like any type-matched one, and 
 routed through it is caught here rather than surfacing at resolve time as a bare `RecursionError` or a
 `ScopeNotInitializedError`. See [resolution.md](resolution.md) for how the buckets are filled.
 
-**Validated-version short-circuit.** `ProvidersRegistry` carries a `validated_version: int | None`. On a
-successful walk `validate()` stamps `validated_version = version`; a later `validate()` whose
-`validated_version == version` returns immediately without re-walking, so a repeat `validate()` is free.
-Every registry mutation (`register` / `add_providers` / `_remove_providers`) bumps `version` and resets
-`validated_version = None`, so any change to the graph re-arms both `validate()` and the runtime guard.
-The stamp lives on the registry, which is shared tree-wide, so validating any one container marks the
-graph clean for every container in the tree.
+**Validated-flag short-circuit.** `ProvidersRegistry` carries a `_validated: bool`, set by `mark_validated()`
+on a successful walk; a later `validate()` while `_validated` is still `True` returns immediately without
+re-walking, so a repeat `validate()` is free. Every registry mutation (`register` / `add_providers` /
+`_remove_providers`) clears `_validated` back to `False`, so any change to the graph re-arms both
+`validate()` and the runtime guard. The flag lives on the registry, which is shared tree-wide, so validating
+any one container marks the graph clean for every container in the tree.
 
 ### Circular dependencies
 
@@ -91,7 +90,7 @@ read identically. See [resolution.md](resolution.md#one-renderer) for that drawe
 > **Runtime resolution has a cycle guard too — but `validate()` remains the way to see all errors up front.**
 > `Container.resolve_provider` wraps the compiled-resolver dispatch (`resolver_for(provider)(self)`) in
 > `try/except RecursionError`. The
-> handler first short-circuits: if the registry is already validated (`validated_version == version`), the static
+> handler first short-circuits: if the registry is already validated (`_validated` is `True`), the static
 > graph is known acyclic, so the overflow is genuine self-recursion and the `RecursionError` re-raises untouched
 > without any walk. Otherwise, when an unvalidated circular graph's first resolve overflows the stack, the handler
 > re-walks the static graph from the failing provider via `DependencyGraph().find_cycle_from` — the same

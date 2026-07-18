@@ -14,16 +14,15 @@ if typing.TYPE_CHECKING:
 
 
 class ProvidersRegistry:
-    __slots__ = ("_building", "_lock", "_plans", "_providers", "_resolvers", "_version", "validated_version")
+    __slots__ = ("_building", "_lock", "_plans", "_providers", "_resolvers", "_validated")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
-        self._plans: dict[int, tuple[int, WiringPlan]] = {}
-        self._resolvers: dict[int, tuple[int, typing.Callable[[Container], typing.Any]]] = {}
+        self._plans: dict[int, WiringPlan] = {}
+        self._resolvers: dict[int, typing.Callable[[Container], typing.Any]] = {}
         self._building = threading.local()  # per-thread compile-in-flight set; the cycle guard is per-call-stack
-        self._version = 0
-        self.validated_version: int | None = None
+        self._validated = False
 
     def __len__(self) -> int:
         return len(self._providers)
@@ -31,22 +30,13 @@ class ProvidersRegistry:
     def __iter__(self) -> typing.Iterator[AbstractProvider[typing.Any]]:
         return iter(list(self._providers.values()))
 
-    @property
-    def version(self) -> int:
-        """Monotonically increasing counter, bumped on every mutation.
-
-        Stamps the memoized `WiringPlan`s held in `_plans` (see `plan_for`) so a plan built
-        against an older registry is rebuilt instead of resolving against a stale one.
-        """
-        return self._version
-
     def is_validated(self) -> bool:
-        """Return whether the graph was validated at the current version — no mutation since the stamp."""
-        return self.validated_version == self._version
+        """Return whether the graph was validated with no registry mutation since."""
+        return self._validated
 
     def mark_validated(self) -> None:
-        """Stamp the current version as validated; a later mutation re-arms it via the version bump."""
-        self.validated_version = self._version
+        """Mark the graph validated; any later mutation clears this."""
+        self._validated = True
 
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
@@ -57,24 +47,20 @@ class ProvidersRegistry:
         parsed_kwargs: "dict[str, SignatureItem]",
         kwargs: dict[str, typing.Any] | None,
     ) -> "WiringPlan":
-        """Return `provider`'s memoized wiring plan, building and stamping it on a miss.
+        """Return `provider`'s memoized wiring plan, building it on a miss.
 
-        A plan is a pure function of the provider and this registry's contents, so it is
-        memoized per `provider_id` and stamped with the `version` it was built against; a
-        stamp mismatch (the registry mutated since) rebuilds. The version is snapshotted
-        *before* the build runs, so a plan built against a since-mutated registry carries the
-        old stamp and is never served as current. Shared tree-wide: a container and every
-        child share one registry, so a deeper-scope provider builds its plan once, not once
-        per child container. The build inputs are passed by value (not a closure) so the hot
-        cache-hit path allocates nothing.
+        A plan is a pure function of the provider and this registry's contents, memoized per
+        `provider_id` and cleared whenever the registry mutates (`register` / `add_providers` /
+        removal). Shared tree-wide: a container and every child share one registry, so a
+        deeper-scope provider builds its plan once, not once per child. Build inputs are passed
+        by value (not a closure) so the hot cache-hit path allocates nothing.
         """
         provider_id = provider.provider_id
-        version = self._version
         cached = self._plans.get(provider_id)
-        if cached is not None and cached[0] == version:
-            return cached[1]
+        if cached is not None:
+            return cached
         plan = WiringPlan.build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=self, owner=provider)
-        self._plans[provider_id] = (version, plan)
+        self._plans[provider_id] = plan
         return plan
 
     def _building_set(self) -> set[int]:
@@ -92,15 +78,15 @@ class ProvidersRegistry:
     def resolver_for(self, provider: "AbstractProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
         """Return `provider`'s memoized compiled resolver, building it cycle-safely on a miss.
 
-        Memoized and version-stamped exactly like `plan_for`. A back-edge to a provider whose
-        resolver is still being built (a cycle) captures a thunk that routes through the runtime
-        `resolve_provider`, so a genuine cycle still raises `RecursionError` -> `CircularDependencyError`.
+        Memoized per `provider_id` and cleared on registry mutation, exactly like `plan_for`. A
+        back-edge to a provider whose resolver is still being built (a cycle) captures a thunk that
+        routes through the runtime `resolve_provider`, so a genuine cycle still raises
+        `RecursionError` -> `CircularDependencyError`.
         """
         pid = provider.provider_id
-        version = self._version
         cached = self._resolvers.get(pid)
-        if cached is not None and cached[0] == version:
-            return cached[1]
+        if cached is not None:
+            return cached
         building = self._building_set()
         if pid in building:
             return lambda c: c.resolve_provider(provider)  # back-edge: route the cycle through runtime
@@ -109,7 +95,7 @@ class ProvidersRegistry:
             resolver = compile_resolver(provider, self)
         finally:
             building.discard(pid)
-        self._resolvers[pid] = (version, resolver)
+        self._resolvers[pid] = resolver
         return resolver
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
@@ -117,8 +103,7 @@ class ProvidersRegistry:
             if provider_type in self._providers:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers[provider_type] = provider
-            self._version += 1
-            self.validated_version = None
+            self._invalidate()
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
         new_providers: dict[type, AbstractProvider[typing.Any]] = {}
@@ -134,13 +119,22 @@ class ProvidersRegistry:
                 if provider_type in self._providers:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
-            self._version += 1
-            self.validated_version = None
+            self._invalidate()
 
     def _remove_providers(self, *provider_types: type) -> None:
         """Rollback helper for `Container.add_providers`; not part of the public API."""
         with self._lock:
             for provider_type in provider_types:
                 self._providers.pop(provider_type, None)
-            self._version += 1
-            self.validated_version = None
+            self._invalidate()
+
+    def _invalidate(self) -> None:
+        """Drop the memoized plans/resolvers and the validation flag — the registry changed.
+
+        Called under `self._lock` by every mutation. Clearing has the same breadth the old version
+        bump did (a bump invalidated every memo anyway) and frees stale entries eagerly. Sound
+        because mutation is a single-threaded configure-phase operation (architecture/concurrency.md).
+        """
+        self._plans.clear()
+        self._resolvers.clear()
+        self._validated = False

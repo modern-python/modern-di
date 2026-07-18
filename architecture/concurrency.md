@@ -43,9 +43,12 @@ resolve from it):
   with `use_lock=False` opt out of the lock and are single-thread-only.
 - **Registry memoization is lock-free and idempotent.** The compiled resolver, the
   wiring plan, and their registry caches (`_resolvers`, `_plans`) are pure functions
-  of `(provider, registry version)`. Two threads racing to build the same entry
-  produce identical objects and store the same `(version, object)` tuple; the worst
-  case is one duplicated build, never a wrong result. The cycle-guard `_building`
+  of `(provider, registry contents)`, cleared on mutation. Two threads racing to build
+  the same entry produce identical objects; the worst
+  case is one duplicated build, never a wrong result. Clearing on mutation is sound because
+  mutation is a single-threaded configure-phase operation (see [The lifecycle](#the-lifecycle)
+  above); a program that mutates the registry during concurrent resolution loses the old
+  version-stamp approach's rebuild-stale safety net. The cycle-guard `_building`
   set is **thread-local**: it tracks which providers are being compiled on *this*
   call stack, so a genuine same-thread `A -> B -> A` cycle is still caught by the
   back-edge thunk, while a concurrent first-resolve of the same provider on another

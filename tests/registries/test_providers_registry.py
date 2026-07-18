@@ -17,20 +17,18 @@ def test_providers_registry_find_provider_not_found() -> None:
     assert providers_registry.find_provider(str) is None
 
 
-def test_validated_version_defaults_none() -> None:
+def test_is_validated_defaults_false() -> None:
     registry = ProvidersRegistry()
-    assert registry.validated_version is None
-    assert registry.is_validated() is False  # None != version -> not validated
+    assert registry.is_validated() is False
 
 
-def test_mark_validated_stamps_current_version() -> None:
+def test_mark_validated_sets_validated() -> None:
     registry = ProvidersRegistry()
     registry.mark_validated()
     assert registry.is_validated() is True
-    assert registry.validated_version == registry.version
 
 
-def test_mutation_invalidates_validated_version() -> None:
+def test_mutation_clears_validated() -> None:
     registry = ProvidersRegistry()
     registry.mark_validated()
     assert registry.is_validated() is True
@@ -38,8 +36,24 @@ def test_mutation_invalidates_validated_version() -> None:
     class _MutationTarget: ...
 
     registry.add_providers(providers.Factory(scope=Scope.APP, creator=_MutationTarget))
-    assert registry.validated_version is None
     assert registry.is_validated() is False
+
+
+def test_mutation_clears_the_resolver_and_plan_memos() -> None:
+    class _Dep: ...
+
+    registry = ProvidersRegistry()
+    dep_factory = providers.Factory(scope=Scope.APP, creator=_Dep, bound_type=_Dep)
+    registry.add_providers(dep_factory)
+    registry.resolver_for(dep_factory)  # populates _resolvers (and _plans via compile)
+    assert registry._resolvers  # noqa: SLF001
+    assert registry._plans  # noqa: SLF001
+
+    class _Other: ...
+
+    registry.add_providers(providers.Factory(scope=Scope.APP, creator=_Other, bound_type=_Other))
+    assert registry._resolvers == {}  # noqa: SLF001  # mutation cleared the memos
+    assert registry._plans == {}  # noqa: SLF001
 
 
 def test_providers_registry_add_provider_duplicates() -> None:

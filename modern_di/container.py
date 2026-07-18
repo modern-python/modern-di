@@ -207,7 +207,7 @@ class Container:
         reg = self.providers_registry
         if reg.is_validated():
             self._validated = True
-            return  # already validated at this registry version — no re-walk
+            return  # already validated at this registry state — no re-walk
 
         validation_errors: list[Exception] = []
         graph = DependencyGraph()

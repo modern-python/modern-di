@@ -19,10 +19,10 @@ memoized. There is no interpreted fallback in the shipped tree; every provider t
 ## Compiled resolvers
 
 `ProvidersRegistry.resolver_for(provider)` returns the provider's compiled resolver — a `Callable[[Container], T]`
-built on first request by `resolver_compiler.compile_resolver` and then **memoized**, keyed by `provider_id` and
-stamped with the `ProvidersRegistry.version` it was built against, exactly like `plan_for` (Step 4). A stamp
-mismatch (the registry mutated since, e.g. after `add_providers`) rebuilds. Because a container and every child
-share one registry, a resolver is compiled once per registry version for the whole tree.
+built on first request by `resolver_compiler.compile_resolver` and then **memoized**, keyed by `provider_id`,
+exactly like `plan_for` (Step 4). The memo is cleared whenever the registry mutates (`register` / `add_providers` /
+removal), so the next call rebuilds. Because a container and every child share one registry, a resolver is
+compiled once for the whole tree and only recompiled after a mutation.
 
 `compile_resolver` dispatches on the provider's concrete type and returns a purpose-built closure:
 
@@ -70,18 +70,18 @@ The container provider skips step 2 (it resolves to whichever container is askin
 ## Step 4 — Wiring plan
 
 The **wiring plan** — the partition of the creator's parameters by how each is satisfied — is consulted when a
-`Factory`'s resolver is compiled (once per registry version), not on each resolve. `Factory._plan` delegates to
+`Factory`'s resolver is compiled, not on each resolve. `Factory._plan` delegates to
 `ProvidersRegistry.plan_for`, which memoizes one `WiringPlan` per
-provider on the **registry** — keyed by `provider_id`, stamped with the `ProvidersRegistry.version` it was built
-against. A call reuses the plan while that stamp matches the registry's current version and rebuilds when the registry
-has changed (i.e. after `add_providers`). Because a container and every child share one `providers_registry`, the plan
-is built once per registry version for the whole tree, not once per child container; a `REQUEST`-scoped factory
+provider on the **registry** — keyed by `provider_id`. A call reuses the plan until the registry mutates
+(i.e. after `register` / `add_providers` / removal), at which point the memo is cleared and the next call rebuilds.
+Because a container and every child share one `providers_registry`, the plan
+is built once for the whole tree, not once per child container; a `REQUEST`-scoped factory
 resolved across many child containers plans only once. `get_dependencies` and `iter_validation_issues` route through the
 same memo, so `validate()` warms it rather than rebuilding on each graph walk.
 
 `WiringPlan.build` (in `modern_di/wiring.py`) is a **pure function** of `(parsed_kwargs, kwargs, providers_registry,
-owner)` — it reads no cache, scope, or live context, so it runs outside the container lock; the version stamp keeps the
-memoized result from going stale against a mutated registry. It is **type matching only**: it decides *which* provider (if any)
+owner)` — it reads no cache, scope, or live context, so it runs outside the container lock; clearing the memo on
+mutation keeps the memoized result from going stale against a mutated registry. It is **type matching only**: it decides *which* provider (if any)
 backs each parameter, not what value that provider currently holds. It iterates `_parsed_kwargs` — the `SignatureItem`
 map produced at provider-declaration time by `types_parser.parse_creator` — and sorts each parameter:
 

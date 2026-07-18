@@ -72,7 +72,7 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
         raise AssertionError(msg)
 
     monkeypatch.setattr(dependency_graph.DependencyGraph, "walk", _explode)
-    container.validate()  # short-circuited on validated_version == version -> no walk
+    container.validate()  # short-circuited on the _validated flag -> no walk
 
 
 def test_runtime_guard_converts_unvalidated_cycle() -> None:
