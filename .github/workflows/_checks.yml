@@ -27,6 +27,7 @@ jobs:
           - "3.12"
           - "3.13"
           - "3.14"
+          - "3.14t"
     steps:
       - uses: actions/checkout@v6
       - uses: extractions/setup-just@v4
@@ -37,7 +38,13 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
       - run: uv python pin ${{ matrix.python-version }}
       - run: just install
+      - name: Confirm the interpreter is free-threaded
+        if: matrix.python-version == '3.14t'
+        run: uv run --no-sync python -c "import sys; assert not sys._is_gil_enabled(), 'GIL is enabled on a t-build'"
       - run: just test-ci
+      - name: Stress the concurrency test (free-threaded only)
+        if: matrix.python-version == '3.14t'
+        run: just test tests/test_free_threading.py --count=50
 
   docs:
     runs-on: ubuntu-latest
