@@ -1,6 +1,4 @@
-import enum
 import typing
-import warnings
 
 from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
@@ -18,23 +16,12 @@ class Alias(AbstractProvider[types.T_co]):
         self,
         source_type: type[types.T_co],
         *,
-        scope: enum.IntEnum | types.UnsetType = types.UNSET,
         bound_type: type | None | types.UnsetType = types.UNSET,
     ) -> None:
-        if not isinstance(scope, types.UnsetType):
-            warnings.warn(
-                "The `scope` parameter of Alias is deprecated and ignored: an alias's effective "
-                "scope is derived from its source. It will be removed in a future release.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            stored_scope: enum.IntEnum = scope
-        else:
-            stored_scope = Scope.APP
         # Always a concrete IntEnum (never UNSET), so `_scope_defaulted` stays False and
-        # group-default stamping skips aliases.
+        # group-default stamping skips aliases. An alias's effective scope is derived from its source.
         super().__init__(
-            scope=stored_scope, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type
+            scope=Scope.APP, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type
         )
         self._source_type = source_type
 

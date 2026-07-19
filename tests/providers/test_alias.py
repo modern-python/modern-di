@@ -1,5 +1,4 @@
 import dataclasses
-import warnings
 
 import pytest
 
@@ -122,10 +121,9 @@ def test_alias_default_bound_type_is_source_type() -> None:
 
 
 def test_alias_repr() -> None:
-    with pytest.warns(DeprecationWarning, match="scope"):
-        alias = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository, scope=Scope.REQUEST)
+    alias = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
     assert repr(alias) == (
-        f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r}, scope=<Scope.REQUEST: 3>)"
+        f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r}, scope=<Scope.APP: 1>)"
     )
 
 
@@ -359,16 +357,9 @@ def test_terminal_scope_handles_mutual_alias_cycle() -> None:
 class _DepSrc: ...
 
 
-def test_alias_scope_parameter_is_deprecated() -> None:
-    with pytest.warns(DeprecationWarning, match="scope"):
-        providers.Alias(source_type=_DepSrc, bound_type=object, scope=Scope.REQUEST)
-
-
-def test_alias_without_scope_emits_no_deprecation_warning() -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        alias = providers.Alias(source_type=_DepSrc, bound_type=object)
-    assert alias is not None
+def test_alias_scope_param_removed() -> None:
+    with pytest.raises(TypeError, match="unexpected keyword argument 'scope'"):
+        providers.Alias(_DepSrc, scope=Scope.APP)  # ty: ignore[unknown-argument]
 
 
 def test_alias_accepts_positional_source_type() -> None:
