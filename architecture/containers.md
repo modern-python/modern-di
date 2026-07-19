@@ -57,9 +57,8 @@ Rules:
   the parent, **not** `value + 1`, so non-contiguous custom enums (`TENANT=6, JOB=10`) work; if the parent is
   already at the deepest member, `MaxScopeReachedError` is raised. See
   [scopes.md](scopes.md#the-scope-algebra).
-- Building a child from a closed container is transitional until modern-di 3.0: it emits
-  `ContainerClosedWarning` and self-reopens the container instead of raising `ContainerClosedError`
-  (see [Lifecycle: close and reopen](#lifecycle-close-and-reopen) below).
+- Building a child from a closed container raises `ContainerClosedError` (see
+  [Lifecycle: close and reopen](#lifecycle-close-and-reopen) below).
 
 The child gets its own, independent `_scope_map` dict that includes all ancestors plus itself,
 enabling `find_container(scope)` to walk up to any ancestor scope in O(1).
@@ -133,12 +132,10 @@ The rest of this section documents what that close performs and how reopen works
    `AsyncFinalizerInSyncCloseError`; those items are left in `_creation_order` so a subsequent
    `close_async()` can clean them up.
 
-2. **`closed = True`** — always set in a `finally` block, even if finalizers raised. Until modern-di
-   3.0, a subsequent `resolve_provider` / `build_child_container` (or a nested provider resolving at
-   a closed ancestor scope) emits a `ContainerClosedWarning` and **self-reopens** the container, then
-   proceeds — preserving pre-2.16 "close then resolve" code. Escalate the warning
-   (`warnings.filterwarnings("error", category=exceptions.ContainerClosedWarning)`) to opt into the
-   strict behavior early. In 3.0 these paths raise `ContainerClosedError` instead.
+2. **`closed = True`** — always set in a `finally` block, even if finalizers raised. A subsequent
+   `resolve_provider` / `build_child_container` (or a nested provider resolving at a closed ancestor
+   scope) raises `ContainerClosedError` — there is no self-heal. Re-enter the container via
+   `with`/`async with`, or call `container.open()`, before reusing it.
 
 Additionally, when `close_sync()` or `close_async()` is called on a **root** container (one with
 no `parent_container`), all overrides are cleared from the shared `OverridesRegistry` before the

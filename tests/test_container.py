@@ -14,7 +14,6 @@ from modern_di.exceptions import (
     ChildContainerRegistrationError,
     CircularDependencyError,
     ContainerClosedError,
-    ContainerClosedWarning,
     DuplicateProviderTypeError,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
@@ -403,32 +402,34 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
         Container(scope=Scope.APP, parent_container=request)
 
 
-def test_container_closed_warning_links_migration_guide_anchor() -> None:
-    container = Container(scope=Scope.APP)
+def test_resolve_on_closed_container_raises() -> None:
+    container = Container(scope=Scope.APP, validate=False)
     container.close_sync()
-    with pytest.warns(
-        ContainerClosedWarning,
-        match=r"See: https://modern-di\.modern-python\.org/migration/to-3\.x/"
-        r"#1-closed-containers-raise-instead-of-self-healing$",
-    ):
+    with pytest.raises(ContainerClosedError):
         container.resolve(Container)
+    assert container.closed is True  # no self-heal: still closed after the raise
 
 
-def test_closed_container_warns_and_reopens_on_resolve_and_child_building() -> None:
-    container = Container(scope=Scope.APP)
+def test_build_child_on_closed_container_raises() -> None:
+    container = Container(scope=Scope.APP, validate=False)
     container.close_sync()
-    with pytest.warns(ContainerClosedWarning):
-        container.resolve(Container)
-    container.close_sync()
-    with pytest.warns(ContainerClosedWarning):
+    with pytest.raises(ContainerClosedError):
         container.build_child_container(scope=Scope.REQUEST)
+    assert container.closed is True  # no self-heal: still closed after the raise
 
 
-async def test_closed_container_async_path() -> None:
-    container = Container(scope=Scope.APP)
-    await container.close_async()
-    with pytest.warns(ContainerClosedWarning):
+def test_reenter_reopens_closed_container() -> None:
+    container = Container(scope=Scope.APP, validate=False)
+    container.close_sync()
+    with container:  # __enter__ -> open() clears closed
         assert container.resolve(Container) is container
+
+
+async def test_closed_container_async_path_raises() -> None:
+    container = Container(scope=Scope.APP, validate=False)
+    await container.close_async()
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
 
 
 class _PersistentBroker: ...
@@ -440,72 +441,33 @@ class _AppBrokerGroup(Group):
     )
 
 
-def test_resolving_through_closed_parent_via_open_child_warns_and_reopens() -> None:
-    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
+def test_resolving_through_closed_parent_via_open_child_raises() -> None:
+    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup], validate=False)
     child = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
-    with pytest.warns(ContainerClosedWarning):
-        broker = child.resolve(_PersistentBroker)
-    assert isinstance(broker, _PersistentBroker)
-    assert app.closed is False
+    with pytest.raises(ContainerClosedError):
+        child.resolve(_PersistentBroker)
+    assert app.closed is True  # no self-heal: the ancestor stays closed
 
 
 async def test_async_context_manager_reopens() -> None:
-    container = Container(scope=Scope.APP)
+    container = Container(scope=Scope.APP, validate=False)
     async with container:
         pass
-    with pytest.warns(ContainerClosedWarning):
-        assert container.resolve(Container) is container
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
     async with container:
         assert container.resolve(Container) is container
 
 
 def test_open_reopens_closed_container() -> None:
-    container = Container(scope=Scope.APP)
+    container = Container(scope=Scope.APP, validate=False)
     container.close_sync()
-    with pytest.warns(ContainerClosedWarning):
-        assert container.resolve(Container) is container
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
     container.open()
     assert container.resolve(Container) is container
     assert container.build_child_container(scope=Scope.REQUEST).scope is Scope.REQUEST
-
-
-def test_reuse_after_close_warns_and_reopens() -> None:
-    container = Container(scope=Scope.APP)
-    container.close_sync()
-    with pytest.warns(ContainerClosedWarning):
-        resolved = container.resolve(Container)
-    assert resolved is container
-    assert container.closed is False
-
-
-def test_build_child_after_close_warns_and_reopens() -> None:
-    container = Container(scope=Scope.APP)
-    container.close_sync()
-    with pytest.warns(ContainerClosedWarning):
-        child = container.build_child_container(scope=Scope.REQUEST)
-    assert container.closed is False
-    assert child.scope is Scope.REQUEST
-
-
-def test_reuse_warns_once_per_close_cycle() -> None:
-    container = Container(scope=Scope.APP)
-    container.close_sync()
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        container.resolve(Container)
-        container.resolve(Container)
-    closed_warnings = [w for w in caught if issubclass(w.category, ContainerClosedWarning)]
-    assert len(closed_warnings) == 1
-
-
-def test_strict_opt_in_reuse_raises() -> None:
-    container = Container(scope=Scope.APP)
-    container.close_sync()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", ContainerClosedWarning)
-        with pytest.raises(ContainerClosedWarning):
-            container.resolve(Container)
 
 
 def test_container_closed_error_message_and_attr() -> None:
@@ -913,10 +875,10 @@ def test_add_providers_on_closed_root_registers_fine() -> None:
     container.close_sync()
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
 
-    container.add_providers(str_factory)  # no ContainerClosedWarning: registration doesn't touch closed state
+    container.add_providers(str_factory)  # no ContainerClosedError: registration doesn't touch closed state
 
-    with pytest.warns(ContainerClosedWarning):
-        assert container.resolve(str) == "added"
+    with pytest.raises(ContainerClosedError):
+        container.resolve(str)
 
 
 def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None:

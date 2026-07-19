@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import AsyncFinalizerInSyncCloseError, ContainerClosedWarning, FinalizerError
+from modern_di.exceptions import AsyncFinalizerInSyncCloseError, ContainerClosedError, FinalizerError
 from modern_di.types import UNSET
 
 
@@ -53,7 +53,7 @@ async def test_app_singleton() -> None:
     app_container.close_sync()
     assert sync_calls == [singleton1]  # finalizer ran once on close
 
-    with pytest.warns(ContainerClosedWarning):
+    with pytest.raises(ContainerClosedError):
         app_container.resolve_provider(LocalGroup.singleton)
 
     # clear_cache=False: the instance survives the close and is returned again after reopen,
@@ -83,7 +83,7 @@ def test_close_does_not_re_finalize_with_clear_cache_false() -> None:
     assert calls == ["r"]
 
 
-def test_closed_container_warns_and_reopens_with_clear_cache_true() -> None:
+def test_closed_container_raises_then_reopened_rebuilds_with_clear_cache_true() -> None:
     calls: list[str] = []
 
     class G(Group):
@@ -97,9 +97,10 @@ def test_closed_container_warns_and_reopens_with_clear_cache_true() -> None:
     container.resolve(str)
     container.close_sync()
     assert calls == ["r"]
-    with pytest.warns(ContainerClosedWarning):
-        # self-reopens and rebuilds, since clear_cache=True cleared the cache on close
+    with pytest.raises(ContainerClosedError):
         container.resolve(str)
+    container.open()
+    container.resolve(str)  # rebuilds, since clear_cache=True cleared the cache on close
     container.close_sync()
     assert calls == ["r", "r"]  # the rebuilt instance is finalized again on this second close
 
@@ -470,8 +471,8 @@ def test_persistent_provider_survives_close_reopen_cycle() -> None:
         svc1 = container.resolve(_EphemeralSvc)
     # exited → closed; finalizer ran once
     assert _cycle_events == ["broker-finalized"]
-    # resolving while closed warns and self-reopens (transitional; 3.0 restores the raise)
-    with pytest.warns(ContainerClosedWarning):
+    # resolving while closed raises: no self-heal
+    with pytest.raises(ContainerClosedError):
         container.resolve(_PersistentBroker)
     # re-enter → reopen
     with container:

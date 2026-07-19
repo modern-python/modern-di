@@ -940,27 +940,27 @@ def _build_closed_app_and_request(*group: type[Group]) -> tuple[Container, Conta
     return app, request
 
 
-def test_transient_positional_reopens_closed_cross_scope_target() -> None:
+def test_transient_positional_raises_for_closed_cross_scope_target() -> None:
     # A positional-eligible APP transient resolved from a REQUEST child whose APP target is closed:
-    # the positional resolver's own target.closed guard must warn+reopen the distinct target.
+    # the positional resolver's own target.closed guard must raise for the distinct target.
     class G(Group):
         leaf = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
 
     _app, request = _build_closed_app_and_request(G)
-    with pytest.warns(exceptions.ContainerClosedWarning):
-        assert isinstance(request.resolve_provider(G.leaf), _CovLeaf)
+    with pytest.raises(exceptions.ContainerClosedError):
+        request.resolve_provider(G.leaf)
 
 
-def test_transient_kwargs_reopens_closed_cross_scope_target() -> None:
+def test_transient_kwargs_raises_for_closed_cross_scope_target() -> None:
     # The kwargs-path (keyword-only dep -> ineligible) mirror: the kwargs resolver's own
-    # target.closed guard fires for a cross-scope APP target that was independently closed.
+    # target.closed guard raises for a cross-scope APP target that was independently closed.
     class G(Group):
         dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
         thing = providers.Factory(creator=_CovKwOnlyDep, scope=Scope.APP)
 
     _app, request = _build_closed_app_and_request(G)
-    with pytest.warns(exceptions.ContainerClosedWarning):
-        assert isinstance(request.resolve_provider(G.thing), _CovKwOnlyDep)
+    with pytest.raises(exceptions.ContainerClosedError):
+        request.resolve_provider(G.thing)
 
 
 class _CovKwOnlyBodyTypeError:
@@ -1078,14 +1078,15 @@ def test_unwireable_factory_override_short_circuits() -> None:
     assert container.resolve_provider(G.thing) is mock
 
 
-def test_unwireable_factory_reopens_closed_cross_scope_target() -> None:
+def test_unwireable_factory_raises_for_closed_cross_scope_target() -> None:
     # An unwireable APP factory resolved from a REQUEST child whose APP target is closed: the
-    # unwireable resolver navigates to the closed target, warns+reopens it, then raises.
+    # unwireable resolver navigates to the closed target and raises ContainerClosedError before it
+    # ever gets to build the ArgumentResolutionError.
     class G(Group):
         thing = providers.Factory(creator=SimpleCreator, bound_type=None, scope=Scope.APP)
 
     _app, request = _build_closed_app_and_request(G)
-    with pytest.warns(exceptions.ContainerClosedWarning), pytest.raises(ArgumentResolutionError):
+    with pytest.raises(exceptions.ContainerClosedError):
         request.resolve_provider(G.thing)
 
 

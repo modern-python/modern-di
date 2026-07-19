@@ -71,12 +71,10 @@ Catch `ContainerError` for any container/scope failure.
 - **`InvalidScopeTypeError`** — raised by the `Container` constructor when `scope` is not an
   `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
-- **`ContainerClosedError`** — raised in modern-di **3.0** when you resolve from, or build a child
-  of, a closed container. Until then that reuse emits a **`ContainerClosedWarning`** (a
-  `DeprecationWarning`) and the container self-reopens — see
-  [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening). Escalate the warning
-  today via the
-  [readiness recipe](../migration/to-3.x.md#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings).
+- **`ContainerClosedError`** — raised when you resolve from, or build a child of, a closed
+  container; there is no self-heal. Re-enter the container via `with`/`async with`, or call
+  `container.open()`, before reusing it — see
+  [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening).
   See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 - **`ValidationFailedError`** — raised by `Container.validate()` (and `Container(..., validate=True)`)
   when the graph has problems. Catch this for validation results; its `.errors` attribute holds the

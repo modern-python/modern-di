@@ -109,11 +109,10 @@ Entering `with container:` (or `async with`) opens the container; exiting calls
 `close_sync()` / `close_async()`, which run the finalizers (in reverse-creation order, as
 above) and mark the container closed.
 
-While a container is closed, resolving a dependency — or building a child container — emits a
-`ContainerClosedWarning` and reopens the container so the call succeeds (transitional; modern-di
-3.0 will raise `ContainerClosedError` instead — see
+While a container is closed, resolving a dependency — or building a child container — raises
+`ContainerClosedError` (see
 [Migration: To 3.x](../migration/to-3.x.md#1-closed-containers-raise-instead-of-self-healing)).
-Re-entering `with container:` reopens it cleanly, without a warning, and resolution works again:
+Re-entering `with container:` reopens it cleanly, and resolution works again:
 
 ```python
 container = Container(groups=[Dependencies], validate=True)
@@ -122,7 +121,7 @@ with container:
     container.resolve(Settings)
 # closed here — finalizers ran
 
-# container.resolve(Settings)  -> warns (ContainerClosedWarning) and self-reopens
+# container.resolve(Settings)  -> raises ContainerClosedError
 
 with container:                 # reopened
     container.resolve(Settings)
@@ -137,8 +136,8 @@ How a cached instance survives this cycle depends on its `CacheSettings`:
   re-run on later closes). Use this for a shared resource whose identity must stay stable
   across restarts.
 - Overrides are not part of this survival — closing a root container resets its
-  overrides registry, and self-reopen does not restore overrides set beforehand; only
-  cached instances (with `clear_cache=False`) survive close→reopen.
+  overrides registry, and reopening (via `with`/`open()`) does not restore overrides set
+  beforehand; only cached instances (with `clear_cache=False`) survive close→reopen.
 
 !!! caution "The context manager is not reference-counted"
     Nesting `with container:` on the **same** object closes it on the inner `with` exit,
