@@ -82,7 +82,8 @@ def test_alias_missing_source_raises_on_resolve() -> None:
     class G(Group):
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
-    container = Container(groups=[G])
+    # validate=False: this exercises the resolve-time dangling-source error, not deferred validation.
+    container = Container(groups=[G], validate=False)
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository") as exc:
         container.resolve(AbstractRepository)
     assert exc.value.source_type is PostgresRepository
@@ -92,7 +93,7 @@ def test_alias_missing_source_raises_on_validate_provider() -> None:
     class G(Group):
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
-    container = Container(groups=[G])
+    container = Container(groups=[G], validate=False)
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository"):
         container.resolve_provider(G.abstract)
 
@@ -108,8 +109,9 @@ def test_alias_participates_in_cycle_detection() -> None:
         concrete = providers.Factory(creator=Concrete)
         iface_alias = providers.Alias(source_type=Concrete, bound_type=Iface)
 
+    container = Container(groups=[G], validate=True)
     with pytest.raises(ValidationFailedError) as exc:
-        Container(groups=[G], validate=True)
+        container.open()  # deferred validation runs at entry
     [issue] = exc.value.errors
     assert isinstance(issue, CircularDependencyError)
     assert "Concrete" in str(issue)
@@ -149,8 +151,9 @@ class _DanglingAliasGroup(Group):
 
 
 def test_validate_aggregates_dangling_alias_into_validation_failed_error() -> None:
+    container = Container(scope=Scope.APP, groups=[_DanglingAliasGroup], validate=True)
     with pytest.raises(ValidationFailedError) as exc_info:
-        Container(scope=Scope.APP, groups=[_DanglingAliasGroup], validate=True)
+        container.open()  # deferred validation runs at entry
     errors = exc_info.value.errors
     assert any(isinstance(e, AliasSourceNotRegisteredError) for e in errors)
     min_expected_errors = 2
@@ -231,7 +234,7 @@ class _AliasChainErrGroup(Group):
 
 
 def test_alias_appears_in_resolution_error_chain() -> None:
-    container = Container(scope=Scope.APP, groups=[_AliasChainErrGroup])
+    container = Container(scope=Scope.APP, groups=[_AliasChainErrGroup], validate=False)
     with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
         container.resolve(_AliasTargetIface)
     rendered = str(exc_info.value)
@@ -252,7 +255,7 @@ class _NullBoundAliasGroup(Group):
 
 
 def test_alias_null_bound_type_resolution_error_uses_repr_fallback() -> None:
-    container = Container(scope=Scope.APP, groups=[_NullBoundAliasGroup])
+    container = Container(scope=Scope.APP, groups=[_NullBoundAliasGroup], validate=False)
     with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
         container.resolve_provider(_NullBoundAliasGroup.iface)
     rendered = str(exc_info.value)
@@ -277,8 +280,9 @@ class _XfourGroup(Group):
 
 
 def test_validate_flags_shallow_caller_depending_through_alias_on_deeper_source() -> None:
+    container = Container(scope=Scope.APP, groups=[_XfourGroup], validate=True)
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        Container(scope=Scope.APP, groups=[_XfourGroup], validate=True)
+        container.open()  # deferred validation runs at entry
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
     assert "REQUEST" in str(exc_info.value)
 
@@ -301,7 +305,7 @@ class _OkGroup(Group):
 
 
 def test_validate_allows_same_scope_caller_through_alias() -> None:
-    Container(scope=Scope.APP, groups=[_OkGroup], validate=True)  # must not raise
+    Container(scope=Scope.APP, groups=[_OkGroup], validate=True).open()  # deferred validation runs at entry
 
 
 class _ChainTerminal: ...
@@ -327,8 +331,9 @@ class _AliasOfAliasGroup(Group):
 
 def test_validate_follows_alias_of_alias_to_terminal_scope() -> None:
     # caller(APP) -> top(alias) -> mid(alias) -> terminal(REQUEST): effective scope follows 2 hops -> flagged
+    container = Container(scope=Scope.APP, groups=[_AliasOfAliasGroup], validate=True)
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        Container(scope=Scope.APP, groups=[_AliasOfAliasGroup], validate=True)
+        container.open()  # deferred validation runs at entry
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
     assert "REQUEST" in str(exc_info.value)
 

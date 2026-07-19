@@ -30,17 +30,16 @@ instances. It also auto-registers `container_provider` (see [below](#container_p
 
 ### `validate`'s three states
 
-See [validation.md](validation.md) for what each state does and why. The container-specific wrinkle:
-child containers built via `build_child_container` never pass `validate` explicitly, so they always
-land on the unset (`None`) branch — but `UnvalidatedContainerWarning` additionally requires
-`parent_container is None`, which is false for every child. So children never warn, regardless of
-`validate`'s value.
-
-Escalate the warning to catch it in CI ahead of the 3.0 upgrade:
-
-```python
-warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
-```
+See [validation.md](validation.md) for what each state does and why. In short, validation is
+**both-deferred**: `validate=True` and the default (`None`) are identical — both enable validation and
+both defer it to container entry (`open()`/`with`) or first resolve — while `validate=False` disables it.
+`__init__` records this once as `self._validate_enabled = validate is not False and parent_container is
+None`. The `parent_container is None` conjunct is the container-specific wrinkle: only a **root**
+validates. A child built via `build_child_container` never passes `validate`, and even if it did the
+`parent_container is None` guard is false for every child, so `_validate_enabled` is always `False` on a
+child — children never validate, regardless of `validate`'s value. That is safe because the providers
+registry is shared tree-wide, so the root's single validation walk covers every child (see
+[Integration seam](#integration-seam)).
 
 ## Child containers
 
@@ -160,6 +159,11 @@ Concretely: using the same container object as a context manager a second time r
 close removed those cached values), and then closes it again on exit. Providers whose
 `CacheSettings.clear_cache` is `False` retain their cached instances across reopen cycles.
 
+`open()` also runs deferred validation, but **only once**: it calls `self.validate()` when
+`_validate_enabled and not self._validated`. `close()` leaves `_validated` untouched (it only sets
+`closed = True`), so the flag survives a close, and a plain close→reopen does **not** re-walk the graph.
+See [validation.md](validation.md#enabling-validation--deferred-by-default).
+
 Prefer the `with` form. `open()` is exposed as a public method for callback-style lifecycles that
 cannot wrap the container in a `with` block — for example a framework startup hook that must reopen
 the long-lived root container before serving the next request. The FastStream integration uses
@@ -168,7 +172,7 @@ exactly this: `app.on_startup(container.open)` paired with `app.after_shutdown(c
 ## `validate()`
 
 See [validation.md](validation.md) for what `container.validate()` checks, how it reports
-aggregated errors, and the pending 3.0 default flip.
+aggregated errors, and how validation runs deferred (once, at entry/first-resolve) by default.
 
 ## `set_context()`
 

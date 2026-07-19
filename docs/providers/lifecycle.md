@@ -165,7 +165,8 @@ Framework integrations handle this automatically: they build the REQUEST child c
 
 ## Validation
 
-`Container(groups=[...], validate=True)` runs the following checks at startup:
+`Container(groups=[...], validate=True)` runs the following checks — deferred, at container entry
+(`open()`/`with`) or first resolve, not at construction:
 
 - **Cycle detection.** Provider A depending on B depending on A raises `CircularDependencyError`
   (see [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md)).
