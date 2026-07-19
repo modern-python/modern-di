@@ -27,7 +27,14 @@ class CacheSettings(typing.Generic[types.T_co]):
 
 
 class Factory(AbstractProvider[types.T_co]):
-    __slots__ = ("_cached_definition_site", "_creator", "_kwargs", "_parsed_kwargs", "cache_settings")
+    __slots__ = (
+        "_cached_definition_site",
+        "_creator",
+        "_has_positional_only_gap",
+        "_kwargs",
+        "_parsed_kwargs",
+        "cache_settings",
+    )
 
     def __init__(  # noqa: C901, PLR0913
         self,
@@ -69,8 +76,9 @@ class Factory(AbstractProvider[types.T_co]):
                 )
             parsed_type: type | None = None
             parsed_kwargs: dict[str, SignatureItem] = {}
+            has_positional_only_gap = False
         else:
-            return_sig, parsed_kwargs = parse_creator(creator)
+            return_sig, parsed_kwargs, has_positional_only_gap = parse_creator(creator)
             parsed_type = return_sig.arg_type
             if kwargs:
                 self._validate_kwargs_against_signature(creator, kwargs, parsed_kwargs)
@@ -87,6 +95,7 @@ class Factory(AbstractProvider[types.T_co]):
                     ),
                 )
         self._parsed_kwargs = parsed_kwargs
+        self._has_positional_only_gap = has_positional_only_gap
         super().__init__(scope=scope, bound_type=parsed_type if isinstance(bound_type, types.UnsetType) else bound_type)
         self._creator = creator
         self.cache_settings = resolved_cache

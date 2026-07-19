@@ -86,11 +86,18 @@ def _parse_parameter(
     return item
 
 
-def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureItem, dict[str, SignatureItem]]:
+def parse_creator(
+    creator: typing.Callable[..., typing.Any],
+) -> tuple[SignatureItem, dict[str, SignatureItem], bool]:
+    """Return (return-type item, name→param item, has_positional_only_gap).
+
+    ``has_positional_only_gap`` is True when a positional-only-with-default parameter was dropped
+    from the param map, so the map is no longer a faithful positional prefix of the signature.
+    """
     try:
         sig = inspect.signature(creator)
     except (ValueError, TypeError):
-        return SignatureItem.from_type(typing.cast(type, creator)), {}
+        return SignatureItem.from_type(typing.cast(type, creator)), {}, False
 
     is_class = isinstance(creator, type)
     try:
@@ -108,12 +115,17 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
         type_hints = {}
 
     param_hints = {}
+    has_positional_only_gap = False
     for param_name, param in sig.parameters.items():
         if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
             continue
         item = _parse_parameter(creator, param_name, param, type_hints)
-        if item is not None:
-            param_hints[param_name] = item
+        if item is None:
+            # positional-only-with-default: dropped from param_hints, so a positional creator()
+            # call would bind a later dependency into this slot -> fast path must keep **kwargs.
+            has_positional_only_gap = True
+            continue
+        param_hints[param_name] = item
 
     if is_class:
         return_sig = SignatureItem.from_type(creator)
@@ -125,4 +137,4 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> tuple[SignatureI
     else:
         return_sig = SignatureItem()
 
-    return return_sig, param_hints
+    return return_sig, param_hints, has_positional_only_gap
