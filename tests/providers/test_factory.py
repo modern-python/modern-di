@@ -319,7 +319,8 @@ class _UnannotatedGroup(Group):
 def test_unannotated_param_error_explains_missing_annotation() -> None:
     sentinel = object()
     assert _unannotated_creator(sentinel) is sentinel  # exercise body for coverage
-    container = Container(scope=Scope.APP, groups=[_UnannotatedGroup])
+    # validate=False: this exercises the resolve-time argument error, not deferred validation.
+    container = Container(scope=Scope.APP, groups=[_UnannotatedGroup], validate=False)
     with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         container.resolve(object)
 
@@ -341,7 +342,7 @@ class _UnionGroup(Group):
 def test_union_param_error_names_the_union_members() -> None:
     dep = _UnionDep1()
     assert _union_creator(dep) == str(dep)  # exercise body for coverage
-    container = Container(scope=Scope.APP, groups=[_UnionGroup])
+    container = Container(scope=Scope.APP, groups=[_UnionGroup], validate=False)
     with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2"):
         container.resolve(str)
 
@@ -625,7 +626,7 @@ def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
     …" on the third resolve).
     """
     factory: providers.Factory[_NeedsUnregistered] = providers.Factory(creator=_NeedsUnregistered, scope=Scope.APP)
-    container = Container(scope=Scope.APP)
+    container = Container(scope=Scope.APP, validate=False)  # exercise resolve-time breadcrumb, not validation
     container.providers_registry.register(_NeedsUnregistered, factory)
 
     def _grab() -> str:
@@ -662,7 +663,7 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
 
     leaf2: providers.Factory[_Leaf2] = providers.Factory(creator=_Leaf2, scope=Scope.APP)
     parent2: providers.Factory[_Parent2] = providers.Factory(creator=_Parent2, scope=Scope.APP)
-    c2 = Container(scope=Scope.APP)
+    c2 = Container(scope=Scope.APP, validate=False)  # exercise resolve-time breadcrumb, not validation
     c2.providers_registry.register(_Leaf2, leaf2)
     c2.providers_registry.register(_Parent2, parent2)
 

@@ -95,7 +95,7 @@ def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
     # assertions after the `with` block) keeps this deterministic under coverage.py — see
     # `_SHALLOW_RECURSION_LIMIT` above. It mirrors the guard's own `except RecursionError` shape
     # in `resolve_provider`.
-    container = Container(groups=[CycleGroup])
+    container = Container(groups=[CycleGroup], validate=False)  # exercise the runtime guard, not validation
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
     try:
@@ -126,7 +126,7 @@ def _assert_deep_chain_cycle_is_self_contained(exc: exceptions.CircularDependenc
 
 
 def test_deep_chain_cycle_is_self_contained() -> None:
-    container = Container(groups=[DeepCycleGroup])
+    container = Container(groups=[DeepCycleGroup], validate=False)  # exercise the runtime guard, not validation
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
     try:
@@ -147,7 +147,9 @@ def test_self_recursing_creator_passes_through_recursion_error() -> None:
     class RecursiveGroup(Group):
         svc = providers.Factory(creator=recursive_creator, bound_type=str)
 
-    container = Container(groups=[RecursiveGroup])
+    # validate=False keeps the registry unvalidated, so the guard runs find_cycle_from (no static cycle ->
+    # re-raise) rather than short-circuiting on the validated flag.
+    container = Container(groups=[RecursiveGroup], validate=False)
     with pytest.raises(RecursionError):
         container.resolve(str)
 

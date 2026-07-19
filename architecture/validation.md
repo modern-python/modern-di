@@ -4,31 +4,41 @@
 is the authoritative catch-all for three classes of bug: **circular dependencies**, **inverted scope
 dependencies**, and **missing required dependencies**.
 
-## Enabling validation
+## Enabling validation — deferred by default
 
-Pass `validate=True` when constructing a container to run validation immediately after all groups are registered:
-
-```python
-container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)
-```
-
-Or call `container.validate()` explicitly at any point after construction:
+Validation is enabled by default but runs **deferred**: not in `__init__`, but once at container entry
+(`open()` / `with`) or on the first `resolve`, whichever comes first.
 
 ```python
-container = Container(scope=Scope.APP, groups=[MyGroup])
-container.validate()  # raises ValidationFailedError if any issue found
+container = Container(scope=Scope.APP, groups=[MyGroup])  # __init__ does NOT validate
+with container:  # validation runs here, once
+    ...
 ```
 
 `validate` is tri-state (`bool | None`, default `None`) — see the [constructor table](containers.md#creating-a-root-container)
-for the full parameter reference. `validate=True` runs validation inside `__init__` (equivalent to
-`Container(...); container.validate()`); `validate=False` skips it silently with zero runtime cost;
-leaving it unset (`None`) also skips it but emits `UnvalidatedContainerWarning` on a **root**
-container, because **modern-di 3.0 runs `validate()` at root construction by default** — the
-current opt-in becomes opt-out. Pass `validate=True` now to adopt the 3.0 behavior early, or
-`validate=False` to keep it off permanently (that stays a supported no-warning choice after 3.0).
-See the [migration guide](../docs/migration/to-3.x.md) for the full readiness recipe. (Child
-containers never emit this warning regardless of `validate` — see
-[containers.md](containers.md#validates-three-states).)
+for the full parameter reference — and **both-deferred**: `validate=True` and the default (`None`) are
+identical, both enabling validation and both deferring it to entry/first-resolve. `validate=False`
+disables it entirely with zero runtime cost. There is no eager, construction-time validation and no
+`UnvalidatedContainerWarning`; for a construction-time check, call `container.validate()` explicitly:
+
+```python
+container = Container(scope=Scope.APP, groups=[MyGroup])
+container.validate()  # runs now; raises ValidationFailedError if any issue found
+```
+
+**Why deferred.** A framework integration typically registers its own context providers (e.g. the
+request object) *after* the user constructs the container, via [`add_providers`](containers.md#integration-seam).
+Eager validation at construction would fail on that still-incomplete graph. Deferring to the first
+`open()`/resolve means the whole graph — user groups plus integration-registered providers — is present
+before the single validation walk runs. Only a **root** container validates; children (built via
+`build_child_container`) never do, since the registry they share is validated tree-wide by the root.
+
+**Once only.** The per-container `_validate_enabled` flag (set in `__init__` to `validate is not False
+and parent_container is None`) gates whether validation runs at all; the `_validated` flag records that
+it has. Both `open()` and the first-resolve fallback in `resolve_provider` run `self.validate()` only
+`if self._validate_enabled and not self._validated`. Because `close()` leaves `_validated` untouched
+(it only sets `closed = True`), a plain close→reopen does **not** re-walk the graph — validation is
+paid exactly once over the container's lifetime.
 
 ## What validate() checks
 

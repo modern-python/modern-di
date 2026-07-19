@@ -33,7 +33,8 @@ class IncompleteGroup(Group):
 
 
 def test_chain_appears_when_arg_unresolvable() -> None:
-    container = Container(groups=[IncompleteGroup])
+    # validate=False: this exercises the resolve-time dependency-chain breadcrumb, not deferred validation.
+    container = Container(groups=[IncompleteGroup], validate=False)
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(MyService)
 

@@ -34,18 +34,18 @@ dependencies — before the first request. Skipping it doesn't remove the bugs, 
 finding them to whichever resolve happens to hit one first.
 
 ```python
-# ❌ wiring bugs surface one at a time, in production, on whatever request trips them
-container = Container(groups=[Dependencies])
+# ❌ validation off: wiring bugs surface one at a time, in production, on whatever request trips them
+container = Container(groups=[Dependencies], validate=False)
 
-# ✅ every wiring bug in the graph is reported at startup, all at once
-container = Container(groups=[Dependencies], validate=True)
+# ✅ validation on (the default): every wiring bug is reported at once, at container entry / first resolve
+container = Container(groups=[Dependencies])
 ```
 
-**Caught by:** `validate=True` (or an explicit `container.validate()` call), which finds every
-issue in the graph up front instead of one at a time. An unvalidated cyclic graph still isn't a
-silent hang — see [the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
-Leaving `validate` unset on a root container also emits `UnvalidatedContainerWarning`, since
-modern-di 3.0 turns validation on by default.
+**Caught by:** the default validation (equivalently `validate=True`), which runs deferred — once, at
+container entry (`open()`/`with`) or first resolve — and finds every issue in the graph up front
+instead of one at a time; call `container.validate()` explicitly for a construction-time check. Only
+`validate=False` opts out. An unvalidated cyclic graph still isn't a silent hang — see
+[the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 
 ## 3. A cached factory resolved before `set_context`
 

@@ -66,6 +66,7 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
         x = Factory(scope=Scope.APP, creator=X)
 
     container = Container(scope=Scope.APP, groups=[G], validate=True)
+    container.validate()  # deferred: run validation once so the flag is set before we forbid re-walking
 
     def _explode(*_: object, **__: object) -> object:  # pragma: no cover
         msg = "re-walked"

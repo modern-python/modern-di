@@ -55,6 +55,7 @@ class Container:
     __slots__ = (
         "_lock",
         "_scope_map",
+        "_validate_enabled",
         "_validated",
         "cache_registry",
         "closed",
@@ -76,14 +77,18 @@ class Container:
     ) -> None:
         """Build a container at ``scope``.
 
-        ``validate=True`` checks the provider graph (cycles plus scope ordering)
-        at construction time; ``validate=False`` skips the check silently.
-        Leaving ``validate`` unset (``None``, the default) skips the check but
-        warns with :class:`~modern_di.exceptions.UnvalidatedContainerWarning` on
-        a root container; child containers (with ``parent_container`` set) never
-        warn. ``context`` seeds this container's context registry. A root
-        container owns fresh registries; a child shares the parent's
-        providers/overrides registries and inherits its scope map.
+        ``validate`` enables the provider-graph check (cycles, scope ordering,
+        missing dependencies) but runs it **deferred**: ``True`` and the default
+        (``None``) both enable it, and it runs once at container entry
+        (:meth:`open`/``with``) or on the first resolve — never in ``__init__``.
+        Deferring lets a framework integration register its context providers
+        after construction and still have the complete graph validated.
+        ``validate=False`` disables the check entirely; call
+        :meth:`validate` explicitly for a construction-time check. Only a root
+        container validates; children (with ``parent_container`` set) never do.
+        ``context`` seeds this container's context registry. A root container
+        owns fresh registries; a child shares the parent's providers/overrides
+        registries and inherits its scope map.
         """
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
@@ -115,18 +120,10 @@ class Container:
             for one_group in groups:
                 all_providers.extend(one_group.get_providers())
             self.providers_registry.add_providers(*all_providers)
-        if validate:
-            self.validate()
-        elif validate is None and parent_container is None:
-            warnings.warn(
-                "This root container was created without an explicit `validate` argument. "
-                "modern-di 3.0 runs validate() at root construction by default. Pass validate=True "
-                "to adopt the 3.0 behavior now, or validate=False to keep validation off. "
-                "See: https://modern-di.modern-python.org/migration/to-3.x/"
-                "#4-validate-runs-by-default-at-root-construction",
-                exceptions.UnvalidatedContainerWarning,
-                stacklevel=2,
-            )
+        # Both-deferred: True and the default enable validation but run it at open()/first-resolve
+        # (root-only), so an integration's context providers registered after construction are in the
+        # graph before validation runs. False disables. Construction-time = call validate() explicitly.
+        self._validate_enabled = validate is not False and parent_container is None
 
     def build_child_container(
         self,
@@ -200,6 +197,8 @@ class Container:
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         """Resolve a specific provider by reference via its compiled resolver."""
         self._raise_if_closed()
+        if self._validate_enabled and not self._validated:
+            self.validate()  # first-resolve fallback for a container never entered via with/open()
         try:
             return self.providers_registry.resolver_for(provider)(self)
         except RecursionError as exc:
@@ -324,8 +323,13 @@ class Container:
         directly when a callback-style lifecycle (e.g. a startup hook) cannot
         wrap the container in a ``with`` block. Reopening an already-open
         container is a no-op.
+
+        If validation is enabled (``validate`` was not ``False``) and has not yet
+        run, it runs here — once; a plain close/reopen does not re-walk the graph.
         """
         self.closed = False
+        if self._validate_enabled and not self._validated:
+            self.validate()
 
     def _raise_if_closed(self) -> None:
         """Raise if this container is closed; callers reopen explicitly via `open()`/`with`."""

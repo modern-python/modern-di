@@ -1,8 +1,6 @@
 import copy
 import dataclasses
 import inspect
-import pathlib
-import re
 import typing
 import warnings
 
@@ -135,16 +133,19 @@ class CycleGroup(Group):
     b = providers.Factory(creator=CycleB)
 
 
-def test_validate_on_creation() -> None:
+def test_validate_at_entry() -> None:
+    # 3.0: validate=True enables validation but defers it to container entry; it does not raise at __init__.
+    container = Container(groups=[CycleGroup], validate=True)
     with pytest.raises(ValidationFailedError) as exc:
-        Container(groups=[CycleGroup], validate=True)
+        container.open()
     [issue] = exc.value.errors
     assert isinstance(issue, CircularDependencyError)
 
 
 def test_cycle_path_carries_definition_sites() -> None:
+    container = Container(groups=[CycleGroup], validate=True)
     with pytest.raises(ValidationFailedError) as exc_info:
-        Container(groups=[CycleGroup], validate=True)
+        container.open()
     rendered = str(exc_info.value)
     lineno = inspect.getsourcelines(CycleA)[1]
     assert f"({CycleA.__module__}:{lineno})" in rendered
@@ -227,7 +228,7 @@ def test_validate_walks_deeper_scoped_providers() -> None:
     class G(Group):
         svc = providers.Factory(scope=Scope.REQUEST, creator=Service)
 
-    Container(groups=[G], validate=True)
+    Container(groups=[G], validate=True).open()  # deferred validation runs at entry; must not raise
 
 
 def test_validate_raises_on_inverted_scope_dependency() -> None:
@@ -352,7 +353,7 @@ def test_validate_handles_factory_with_static_kwargs() -> None:
     class G(Group):
         svc = providers.Factory(creator=Service, kwargs={"name": "static"})
 
-    Container(groups=[G], validate=True)
+    Container(groups=[G], validate=True).open()  # deferred validation runs at entry; must not raise
 
 
 def test_validation_failed_error_str_renders_inner_errors() -> None:
@@ -535,17 +536,21 @@ def test_resolve_emits_no_deprecation_warning() -> None:
         container.build_child_container(scope=Scope.REQUEST)
 
 
-def test_root_container_without_validate_arg_warns_about_3_0_default() -> None:
-    with pytest.warns(exceptions.UnvalidatedContainerWarning, match="modern-di 3.0 runs validate"):
-        Container(scope=Scope.APP)
+def test_default_and_true_both_enable_deferred_validation() -> None:
+    # 3.0 both-deferred: the default (None) and validate=True are identical — validation is enabled but
+    # runs at entry, so neither raises at construction; both raise at open().
+    default_container = Container(scope=Scope.APP, groups=[CycleGroup])  # no raise at __init__
+    with pytest.raises(ValidationFailedError):
+        default_container.open()
+    true_container = Container(scope=Scope.APP, groups=[CycleGroup], validate=True)  # no raise at __init__
+    with pytest.raises(ValidationFailedError):
+        true_container.open()
 
 
-def test_unvalidated_container_warning_links_migration_guide_anchor() -> None:
-    with pytest.warns(
-        exceptions.UnvalidatedContainerWarning,
-        match=r"See: https://modern-di\.modern-python\.org/migration/to-3\.x/"
-        r"#4-validate-runs-by-default-at-root-construction$",
-    ):
+def test_root_without_validate_arg_does_not_warn() -> None:
+    # 3.0 removed UnvalidatedContainerWarning: constructing a root with unset validate is silent.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         Container(scope=Scope.APP)
 
 
@@ -555,21 +560,7 @@ def test_explicit_validate_false_never_warns() -> None:
         Container(scope=Scope.APP, validate=False)
 
 
-def test_explicit_validate_true_validates_and_never_warns() -> None:
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Missing:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class BrokenService:
-        missing: Missing
-
-    class BrokenGroup(Group):
-        svc = providers.Factory(creator=BrokenService)
-
-    with pytest.raises(ValidationFailedError):
-        Container(scope=Scope.APP, groups=[BrokenGroup], validate=True)
-
+def test_valid_graph_validates_clean_at_entry_without_warning() -> None:
     @dataclasses.dataclass(kw_only=True, slots=True)
     class Dep:
         pass
@@ -584,10 +575,11 @@ def test_explicit_validate_true_validates_and_never_warns() -> None:
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        Container(scope=Scope.APP, groups=[ValidGroup], validate=True)
+        with Container(scope=Scope.APP, groups=[ValidGroup], validate=True):  # validates clean at entry
+            pass
 
 
-def test_unset_validate_warns_but_does_not_validate() -> None:
+def test_deferred_validation_raises_on_first_resolve_not_construction() -> None:
     @dataclasses.dataclass(kw_only=True, slots=True)
     class Missing:
         pass
@@ -599,43 +591,17 @@ def test_unset_validate_warns_but_does_not_validate() -> None:
     class G(Group):
         svc = providers.Factory(creator=Service)
 
-    with pytest.warns(exceptions.UnvalidatedContainerWarning):
-        Container(scope=Scope.APP, groups=[G])  # constructs fine; the broken graph is never checked
-
+    container = Container(scope=Scope.APP, groups=[G])  # constructs fine; broken graph not yet checked
     with pytest.raises(ValidationFailedError):
-        Container(scope=Scope.APP, groups=[G], validate=True)
+        container.resolve(Service)  # first-resolve fallback validates
 
 
-def test_child_container_does_not_warn_about_validate() -> None:
-    root = Container(scope=Scope.APP, validate=False)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        root.build_child_container(scope=Scope.REQUEST)
-
-
-def test_unvalidated_container_warning_is_escalatable() -> None:
-    with warnings.catch_warnings():
-        warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
-        with pytest.raises(exceptions.UnvalidatedContainerWarning):
-            Container(scope=Scope.APP)
-
-
-def test_unvalidated_warning_pyproject_filter_matches_live_message() -> None:
-    """The pyproject.toml filterwarnings message must keep matching the live warning text.
-
-    The filter is message-based on purpose (see the comment in pyproject.toml), so nothing
-    else ties it to the warning it silences. If the wording in container.py drifts, this test
-    catches it instead of the suite silently filling with warning noise.
-    """
-    with pytest.warns(exceptions.UnvalidatedContainerWarning) as record:
-        Container(scope=Scope.APP)
-
-    pyproject_path = pathlib.Path(__file__).resolve().parent.parent / "pyproject.toml"
-    raw = pyproject_path.read_text()
-    pattern = re.search(r'"ignore:(?P<message>[^"]+):FutureWarning"', raw)
-    assert pattern is not None, "no ignore:...:FutureWarning filter found in pyproject.toml filterwarnings"
-
-    assert re.compile(pattern.group("message")).match(str(record[0].message)) is not None
+def test_child_container_never_validates() -> None:
+    # Root-only: only a root gets _validate_enabled; a child never validates regardless of the root's setting.
+    root = Container(scope=Scope.APP, validate=True)
+    assert root._validate_enabled is True  # noqa: SLF001
+    child = root.build_child_container(scope=Scope.REQUEST)
+    assert child._validate_enabled is False  # noqa: SLF001
 
 
 def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:
@@ -689,7 +655,8 @@ def test_add_providers_on_validated_root_reraises_validation_failure() -> None:
     class Broken:
         missing: Missing
 
-    container = Container(scope=Scope.APP, validate=True)
+    container = Container(scope=Scope.APP)
+    container.validate()  # deferred: validate explicitly so this root is validated before add_providers
     broken_factory = providers.Factory(creator=Broken)
 
     with pytest.raises(ValidationFailedError) as exc:
@@ -722,11 +689,12 @@ def test_add_providers_on_unset_validate_root_does_not_validate() -> None:
     class Broken:
         missing: Missing
 
-    with pytest.warns(exceptions.UnvalidatedContainerWarning):
-        container = Container(scope=Scope.APP)
+    # Unset validate defers validation, so _validated is still False at construction: add_providers skips
+    # re-validation and a later open() validates the completed graph. This is the integration seam.
+    container = Container(scope=Scope.APP)
     broken_factory = providers.Factory(creator=Broken)
 
-    container.add_providers(broken_factory)  # should not raise
+    container.add_providers(broken_factory)  # should not raise: not yet validated
 
 
 def test_add_providers_rolls_back_whole_batch_when_revalidation_fails() -> None:
@@ -745,7 +713,8 @@ def test_add_providers_rolls_back_whole_batch_when_revalidation_fails() -> None:
     class G(Group):
         original = providers.Factory(creator=Original)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=True)
+    container = Container(scope=Scope.APP, groups=[G])
+    container.validate()  # deferred: validate explicitly so add_providers re-validates the batch
 
     valid_factory = providers.Factory(creator=lambda: "ok", bound_type=str)
     inner_factory = providers.Factory(scope=Scope.REQUEST, creator=Inner)
@@ -843,7 +812,8 @@ def test_add_providers_rebuilds_stale_wiring_plan_for_required_dependency() -> N
 
 def test_add_providers_rolls_back_on_any_exception_from_revalidation() -> None:
     """Rollback must not be tied to ValidationFailedError specifically — any exception rolls back."""
-    container = Container(scope=Scope.APP, validate=True)
+    container = Container(scope=Scope.APP)
+    container.validate()  # deferred: validate first so add_providers takes the re-validation branch
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
 
     def _boom(_self: Container) -> None:
@@ -861,7 +831,8 @@ def test_add_providers_rolls_back_on_any_exception_from_revalidation() -> None:
 
 def test_add_providers_on_validated_root_with_valid_batch_succeeds() -> None:
     """Positive branch: a validated root re-validates successfully and the batch resolves afterwards."""
-    container = Container(scope=Scope.APP, validate=True)
+    container = Container(scope=Scope.APP)
+    container.validate()  # deferred: validate first so add_providers exercises the success re-validation branch
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
 
     container.add_providers(str_factory)
@@ -1009,3 +980,94 @@ def test_resolve_provider_raises_for_unhandled_provider_type() -> None:
     container = Container(validate=False)
     with pytest.raises(TypeError, match="no compiled resolver for provider type _UnknownProvider"):
         container.resolve_provider(provider)
+
+
+# --- Deferred validate-by-default (3.0 both-deferred) ---------------------------------------------
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _DeferMissing:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _DeferBrokenService:
+    missing: _DeferMissing  # no provider registered for _DeferMissing -> validation fails
+
+
+class _DeferBrokenGroup(Group):
+    svc = providers.Factory(creator=_DeferBrokenService)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _DeferValidService:
+    pass
+
+
+class _DeferValidGroup(Group):
+    svc = providers.Factory(creator=_DeferValidService)
+
+
+class _DeferRequest: ...
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _DeferReqDependent:
+    request: _DeferRequest
+
+
+class _DeferFactoryNeedingRequestGroup(Group):
+    # Depends by-type on _DeferRequest, whose ContextProvider an integration registers after construction.
+    dependent = providers.Factory(creator=_DeferReqDependent)
+
+
+def test_invalid_graph_does_not_raise_at_construction() -> None:
+    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])  # no raise: validation is deferred
+    with pytest.raises(ValidationFailedError):
+        container.open()  # validation runs at container entry
+
+
+def test_deferred_validation_runs_on_first_resolve() -> None:
+    # Never entered via with/open(): the first-resolve fallback validates before dispatching, so a broken
+    # graph surfaces as ValidationFailedError (not the bare ArgumentResolutionError a raw resolve would give).
+    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
+    with pytest.raises(ValidationFailedError):
+        container.resolve(_DeferBrokenService)
+
+
+def test_deferred_validation_raises_via_context_manager_entry() -> None:
+    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
+    with pytest.raises(ValidationFailedError), container:
+        pass  # pragma: no cover -- __enter__ raises before the body runs
+
+
+def test_reopen_does_not_revalidate(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = Container(scope=Scope.APP, groups=[_DeferValidGroup])
+    calls = {"n": 0}
+    real = Container.validate
+
+    def counting(self: Container) -> None:
+        calls["n"] += 1
+        real(self)
+
+    monkeypatch.setattr(Container, "validate", counting)
+    with container:
+        container.resolve(_DeferValidService)
+    with container:  # reopen must not re-walk the graph
+        container.resolve(_DeferValidService)
+    assert calls["n"] == 1
+
+
+def test_validate_false_never_validates() -> None:
+    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup], validate=False)
+    with container:  # validation is off -> the broken graph is never checked
+        pass
+
+
+def test_integration_pattern_context_registered_after_construction() -> None:
+    # The root-cause scenario: an integration registers its ContextProvider AFTER the user constructs the
+    # container. With deferred validation the graph is complete before validation runs, so no false failure.
+    container = Container(scope=Scope.APP, groups=[_DeferFactoryNeedingRequestGroup])  # no raise
+    container.add_providers(providers.ContextProvider(_DeferRequest))  # integration wires it in
+    with container:  # graph now complete -> validates clean
+        pass

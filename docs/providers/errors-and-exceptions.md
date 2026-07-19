@@ -76,13 +76,13 @@ Catch `ContainerError` for any container/scope failure.
   `container.open()`, before reusing it — see
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening).
   See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
-- **`ValidationFailedError`** — raised by `Container.validate()` (and `Container(..., validate=True)`)
-  when the graph has problems. Catch this for validation results; its `.errors` attribute holds the
-  list of individual issues (each itself a `ResolutionError` or `RegistrationError`), and `str()`
-  renders them all, grouped by error kind. Leaving `validate` unset on a root container skips the
-  check (as before) but emits **`UnvalidatedContainerWarning`** (a `FutureWarning`) — modern-di
-  **3.0** runs `validate()` at root construction by default; pass `validate=True` to adopt that now
-  or `validate=False` to keep validation off permanently. See
+- **`ValidationFailedError`** — raised by `Container.validate()` (and, deferred, by
+  `Container(..., validate=True)`) when the graph has problems. Catch this for validation results; its
+  `.errors` attribute holds the list of individual issues (each itself a `ResolutionError` or
+  `RegistrationError`), and `str()` renders them all, grouped by error kind. Both the default and
+  `validate=True` enable validation but run it **deferred** — at container entry (`open()`/`with`) or
+  first resolve, not at construction — so an integration's context providers registered after
+  construction are in the graph before the check runs. Pass `validate=False` to disable it. See
   [Migration: To 3.x](../migration/to-3.x.md) and
   [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
 
