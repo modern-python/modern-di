@@ -66,10 +66,10 @@ def build_cycle_error(
     rotation of the same ring is the same cycle — anchoring on a stable per-process id makes the
     rendered message path- and seed-independent.
     """
-    ring = providers[:-1]
-    anchor = min(range(len(ring)), key=lambda i: ring[i].provider_id)
-    rotated = [*ring[anchor:], *ring[:anchor]]
-    canonical = [*rotated, rotated[0]]
+    ring = providers[:-1]  # drop the repeated first node to get the bare cycle
+    lead = min(range(len(ring)), key=lambda i: ring[i].provider_id)  # lowest-id node becomes the canonical lead
+    rotated = [*ring[lead:], *ring[:lead]]
+    canonical = [*rotated, rotated[0]]  # re-close the ring on the lead node
     return exceptions.CircularDependencyError(
         steps=[
             exceptions.ResolutionStep(scope=p.scope, name=p.display_name, location=p.definition_site) for p in canonical
