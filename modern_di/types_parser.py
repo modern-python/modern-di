@@ -61,7 +61,9 @@ def _parse_parameter(
 ) -> SignatureItem | None:
     if param.kind is inspect.Parameter.POSITIONAL_ONLY:
         if param.default is not param.empty:
-            return None  # cannot be passed by keyword; the default applies
+            # None is a signal, not "no item": parse_creator reads it as a positional-only gap
+            # (drops the param and sets has_positional_only_gap); the creator's own default fills it.
+            return None
         raise exceptions.UnsupportedCreatorParameterError(
             creator=creator,
             parameter_name=param_name,
