@@ -74,3 +74,38 @@ def test_g7_request_lifecycle(benchmark):
         loop.close()
     assert isinstance(result, Connection)
     assert result.closed is True  # async finalizer ran
+
+
+# --- G13: teardown at scale -- 10 cached REQUEST resources, sync finalizers ---
+# G7 finalizes one resource; a real request closes several. G13 measures the per-request cycle
+# with 10 cached REQUEST providers (each a sync finalizer) so the LIFO close loop is exercised.
+def _noop_finalizer(_obj: object) -> None:
+    pass
+
+
+_RES_TYPES = [type(f"Res{i}", (), {}) for i in range(10)]
+_TEARDOWN_GROUP = type(
+    "TeardownGroup",
+    (Group,),
+    {
+        f"res{i}": providers.Factory(
+            creator=t, scope=Scope.REQUEST, cache=providers.CacheSettings(finalizer=_noop_finalizer)
+        )
+        for i, t in enumerate(_RES_TYPES)
+    },
+)
+_TEARDOWN_PROVIDERS = [getattr(_TEARDOWN_GROUP, f"res{i}") for i in range(len(_RES_TYPES))]
+
+
+def test_g13_teardown_at_scale(benchmark):
+    app = Container(scope=Scope.APP, groups=[_TEARDOWN_GROUP], validate=False)
+
+    def _one_request() -> Container:
+        req = app.build_child_container(scope=Scope.REQUEST)
+        for provider in _TEARDOWN_PROVIDERS:
+            req.resolve_provider(provider)
+        req.close_sync()  # finalizes all 10 in reverse creation order
+        return req
+
+    result = benchmark(_one_request)
+    assert result.closed is True
