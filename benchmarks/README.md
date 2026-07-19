@@ -19,13 +19,18 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G7 | Full lifecycle: build REQUEST -> sync-init cached resolve -> `await close_async()` | real per-request cost incl. async teardown |
 | G8 | Cold first-resolve: build root container + compile + resolve, depth 6 | construction + first-compile cost |
 | G9 | Context resolve: request value by type + APP dep, warm child | non-pure context-folding path |
+| G10 | `validate()` on a depth-6 chain (isolated via `pedantic`) | graph-validation traversal, deep |
+| G11 | `validate()` on a wide 10-sibling graph (isolated via `pedantic`) | graph-validation traversal, fan-out |
 
 **Rules.** Containers are built/warmed in setup, never inside the timed call —
 **except G8**, the cold scenario, which builds the root container *inside* the
 timed call on purpose (its own file, `test_guard_cold.py`) so it measures the
 one-time construction + graph compile the other scenarios amortize away.
 Cold-resolve scenarios (G1, G3, G4) use transient (uncached) providers so each
-timed call does the full wiring. Every benchmark asserts the resolved graph is
+timed call does the full wiring. G10/G11 use `benchmark.pedantic` with a
+per-round setup that builds a fresh unvalidated container (untimed), so they
+isolate `validate()` from construction — a fresh registry each round means every
+round runs the full graph walk. Every benchmark asserts the resolved graph is
 correct. G7 is wall-clock only — instruction-count tooling cannot measure the
 awaited teardown, and a single reused event loop keeps loop overhead out of the
 signal as far as practical.
@@ -99,6 +104,13 @@ notes: dependency-injector injects **by reference** (`providers.Dependency` +
 requires the runtime type **registered** as a scoped injectable with a raising
 placeholder factory (its own integration idiom), the value then supplied via
 `enter_scope`.
+
+**No comparative validate() row.** `validate()` (G10/G11 in the guard tier) has
+no comparative equivalent: dependency-injector and that-depends run no build-time
+graph-validation pass, and for dishka and wireup validation is folded inside
+`make_container` / `create_sync_container` with no isolation seam (and their C5
+cold build already includes it). A cross-framework "validation cost" row would be
+n/a for two frameworks and redundant for the others, so it is omitted.
 
 ## Running
 
