@@ -134,7 +134,7 @@ class Container:
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
-        self._warn_and_reopen_if_closed()
+        self._raise_if_closed()
 
         if scope is None:
             # `_next_deeper` is the smallest member deeper than this one, so non-contiguous
@@ -199,7 +199,7 @@ class Container:
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         """Resolve a specific provider by reference via its compiled resolver."""
-        self._warn_and_reopen_if_closed()
+        self._raise_if_closed()
         try:
             return self.providers_registry.resolver_for(provider)(self)
         except RecursionError as exc:
@@ -327,25 +327,10 @@ class Container:
         """
         self.closed = False
 
-    def _warn_and_reopen_if_closed(self) -> None:
-        """Transitional shim for reuse of a closed container.
-
-        Emits :class:`~modern_di.exceptions.ContainerClosedWarning` and reopens.
-        Fires once per container transitioning from closed to reopened; an
-        already-open container emits none.
-        """
-        if not self.closed:
-            return
-        warnings.warn(
-            f"Container (scope {self.scope.name}) is closed; resolving from it or building a child "
-            "is deprecated and will raise ContainerClosedError in modern-di 3.0. Re-enter the "
-            "container with `with`/`async with`, or call `open()`, before reusing it. "
-            "See: https://modern-di.modern-python.org/migration/to-3.x/"
-            "#1-closed-containers-raise-instead-of-self-healing",
-            exceptions.ContainerClosedWarning,
-            stacklevel=2,
-        )
-        self.open()
+    def _raise_if_closed(self) -> None:
+        """Raise if this container is closed; callers reopen explicitly via `open()`/`with`."""
+        if self.closed:
+            raise exceptions.ContainerClosedError(container_scope=self.scope)
 
     def __enter__(self) -> "typing_extensions.Self":
         self.open()

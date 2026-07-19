@@ -5,7 +5,7 @@ import warnings
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError, ContainerClosedWarning, ContextValueNoneWarning
+from modern_di.exceptions import ArgumentResolutionError, ContainerClosedError, ContextValueNoneWarning
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -153,14 +153,14 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
     assert second.ctx is value
 
 
-def test_context_provider_through_closed_owning_container_warns_and_reopens() -> None:
+def test_context_provider_through_closed_owning_container_raises() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app = Container(groups=[MyGroup], context={datetime.datetime: now})
     child = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
-    with pytest.warns(ContainerClosedWarning):
-        assert child.resolve_provider(MyGroup.context_provider) == now
-    assert app.closed is False
+    with pytest.raises(ContainerClosedError):
+        child.resolve_provider(MyGroup.context_provider)
+    assert app.closed is True  # no self-heal: the owning ancestor stays closed
 
 
 # Q-12 — ContextProvider reads the registry at its OWN scope
