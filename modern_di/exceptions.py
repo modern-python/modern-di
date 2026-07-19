@@ -247,25 +247,29 @@ class ContainerClosedError(ContainerError):
 
 
 class ContainerClosedWarning(DeprecationWarning):
-    """Reuse of a closed container (resolve / build a child) — transitional.
+    """Retained for back-compat of existing ``filterwarnings`` configs; no longer emitted.
 
-    The reuse works today because the container self-reopens, but it will raise
-    :class:`ContainerClosedError` in modern-di 3.0. Opt into strict behavior now
-    by escalating this warning::
+    In modern-di 2.x this warned on reuse of a closed container, which then self-reopened. As of
+    3.0 that reuse raises :class:`ContainerClosedError` instead, so this warning is never raised —
+    the class stays importable so an existing::
 
         warnings.filterwarnings("error", category=exceptions.ContainerClosedWarning)
+
+    does not break at import time.
     """
 
 
 class UnvalidatedContainerWarning(FutureWarning):
-    """A root container was built without an explicit ``validate`` argument — transitional.
+    """Retained for back-compat of existing ``filterwarnings`` configs; no longer emitted.
 
-    modern-di 3.0 runs :meth:`Container.validate` at root construction by
-    default. Pass ``validate=True`` to adopt the 3.0 behavior now, or
-    ``validate=False`` to keep validation off (also after 3.0). Opt into strict
-    behavior early by escalating this warning::
+    In modern-di 2.x this warned when a root container was built without an explicit ``validate``
+    argument. As of 3.0, ``validate`` defaults to ``True`` and runs at container entry
+    (:meth:`Container.open`/``with``), so there is nothing left to warn about — the class stays
+    importable so an existing::
 
         warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
+
+    does not break at import time.
     """
 
 
@@ -410,12 +414,7 @@ class CircularDependencyError(ResolutionError):
 
 
 class ContextValueNotSetError(ResolutionError):
-    """An unset ``ContextProvider`` was resolved directly.
-
-    Raised in modern-di 3.0; until then direct resolve emits
-    :class:`ContextValueNoneWarning` and returns ``None``. Inspect
-    ``.context_type``.
-    """
+    """An unset ``ContextProvider`` was resolved directly. Inspect ``.context_type``."""
 
     docs_slug = "context-not-set"
 
@@ -430,13 +429,15 @@ class ContextValueNotSetError(ResolutionError):
 
 
 class ContextValueNoneWarning(DeprecationWarning):
-    """Direct resolve of an unset ``ContextProvider`` returned ``None`` — transitional.
+    """Retained for back-compat of existing ``filterwarnings`` configs; no longer emitted.
 
-    The ``None`` return works today but modern-di 3.0 raises
-    :class:`ContextValueNotSetError` here. Opt into strict behavior now by
-    escalating this warning::
+    In modern-di 2.x this warned when a direct resolve of an unset ``ContextProvider`` returned
+    ``None``. As of 3.0 that resolve raises :class:`ContextValueNotSetError` instead, so this
+    warning is never raised — the class stays importable so an existing::
 
         warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)
+
+    does not break at import time.
     """
 
 
