@@ -1,6 +1,6 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly returns `None`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError` — **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly raises `ContextValueNotSetError`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError` — **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
 
 ## Understanding the error
 

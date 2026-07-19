@@ -5,7 +5,7 @@ import warnings
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError, ContainerClosedError, ContextValueNoneWarning
+from modern_di.exceptions import ArgumentResolutionError, ContainerClosedError, ContextValueNotSetError
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -40,8 +40,9 @@ def test_context_provider_set_context_after_creation() -> None:
 
 def test_context_provider_not_found() -> None:
     app_container = Container()
-    with pytest.warns(ContextValueNoneWarning):
-        assert app_container.resolve_provider(MyGroup.context_provider) is None
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        app_container.resolve_provider(MyGroup.context_provider)
+    assert exc_info.value.context_type is datetime.datetime
 
 
 def test_context_provider_not_found_but_required() -> None:
@@ -178,8 +179,9 @@ def test_context_provider_reads_registry_at_its_own_scope_not_resolving_containe
     app = Container(scope=Scope.APP, groups=[_ScopedCtxGroup])
     request = app.build_child_container(scope=Scope.REQUEST, context={_ScopedCtx: _ScopedCtx()})
     # context set on the CHILD must be invisible to an APP-scoped provider
-    with pytest.warns(ContextValueNoneWarning):
-        assert request.resolve(_ScopedCtx) is None
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        request.resolve(_ScopedCtx)
+    assert exc_info.value.context_type is _ScopedCtx
     # context set on the container at the provider's scope is what counts
     app.set_context(_ScopedCtx, value)
     assert request.resolve(_ScopedCtx) is value
@@ -294,21 +296,11 @@ def test_cached_factory_injects_present_context_at_cold_build() -> None:
     assert svc.ctx is ctx
 
 
-def test_unset_context_provider_direct_resolve_warns_and_returns_none() -> None:
+def test_direct_resolve_unset_context_raises() -> None:
     app_container = Container(groups=[MyGroup], validate=False)
-    with pytest.warns(ContextValueNoneWarning, match="modern-di 3.0 raises ContextValueNotSetError"):
-        assert app_container.resolve_provider(MyGroup.context_provider) is None
-
-
-def test_unset_context_provider_warning_links_migration_guide_anchor() -> None:
-    # The trailer names the section covering this specific switch, not just the guide's landing page.
-    app_container = Container(groups=[MyGroup], validate=False)
-    with pytest.warns(
-        ContextValueNoneWarning,
-        match=r"See: https://modern-di\.modern-python\.org/migration/to-3\.x/"
-        r"#5-direct-resolve-of-an-unset-contextprovider-raises$",
-    ):
+    with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
+    assert exc_info.value.context_type is datetime.datetime
 
 
 def test_set_context_provider_direct_resolve_does_not_warn() -> None:
@@ -333,8 +325,8 @@ def test_context_provider_rejects_context_type_passed_twice() -> None:
 
 def test_context_provider_override_direct_short_circuits() -> None:
     # Overriding a ContextProvider and resolving it DIRECTLY exercises the compiled context-provider
-    # resolver's own override front-guard: the override wins with no ContextValueNoneWarning, even
-    # though no value is set in the context registry.
+    # resolver's own override front-guard: the override wins with no ContextValueNotSetError raised,
+    # even though no value is set in the context registry.
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
     app_container = Container(groups=[MyGroup], validate=False)
     app_container.override(MyGroup.context_provider, override_value)
@@ -401,8 +393,18 @@ class _KwargsCtxNoSignatureGroup(Group):
 
 def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve() -> None:
     # A **kwargs creator parses no SignatureItem for `ctx`, so there is no default to honor and
-    # nothing to fix: it keeps resolving through the provider bucket, warning as before. Routing it
-    # as required would raise where 2.x returns None; as nullable would drop the 3.0 signal.
+    # nothing to fix: it keeps resolving through the provider bucket, the same path a direct resolve
+    # takes. Routing it as required would raise where 2.x returns None; as nullable would drop the
+    # 3.0 signal — so it stays on the direct-resolve path, which now raises when unset.
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup], validate=False)
-    with pytest.warns(ContextValueNoneWarning):
-        assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == "ctx=None"
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out)
+    assert exc_info.value.context_type is datetime.datetime
+
+
+def test_kwargs_context_provider_without_parsed_signature_injects_present_value() -> None:
+    # Same no-parsed-signature routing as above, but with a value present: the direct-resolve path
+    # returns it normally and the creator runs.
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now}, validate=False)
+    assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"
