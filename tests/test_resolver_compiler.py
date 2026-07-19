@@ -8,6 +8,9 @@ called directly.
 """
 
 import dataclasses
+import inspect
+
+import pytest
 
 from modern_di import Container, Group, Scope, providers
 from modern_di.providers import ContextProvider
@@ -160,7 +163,7 @@ def test_positional_names_rejects_keyword_only_param() -> None:
 def test_positional_names_rejects_positional_only_param() -> None:
     # rule 4: `prefix` is positional-only WITH a default, dropped from parsed_kwargs so the
     # remaining names look like a clean prefix ("dep",) -- but a positional call would bind
-    # `dep` to the `prefix` slot. The raw-signature scan must reject it.
+    # `dep` to the `prefix` slot. The parser's has_positional_only_gap flag must reject it.
     def creator(prefix: str = "P", /, dep: _A = None) -> _Ordered:  # ty: ignore[invalid-parameter-default]
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
 
@@ -170,3 +173,27 @@ def test_positional_names_rejects_positional_only_param() -> None:
     registry.add_providers(owner)
 
     assert _positional_names(owner, _plan(registry, owner)) is None
+
+
+def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Perf guard (audit 2026-07-19 Candidate 1): parse_creator records positional-only params at
+    # construction, so the compile-time positional predicate must not re-run inspect.signature.
+    class G(Group):
+        a = providers.Factory(creator=_A, scope=Scope.APP)
+        b = providers.Factory(creator=_B, scope=Scope.APP)
+        c = providers.Factory(creator=_C, scope=Scope.APP)
+        ordered = providers.Factory(creator=_make, scope=Scope.APP)
+
+    container = Container(groups=[G], validate=False)  # parse_creator already ran at G's class def
+    calls: list[object] = []
+    real_signature = inspect.signature
+
+    def _spy(
+        obj: object, *args: object, **kwargs: object
+    ) -> inspect.Signature:  # pragma: no cover - runs only on regression
+        calls.append(obj)
+        return real_signature(obj, *args, **kwargs)  # ty: ignore[invalid-argument-type]
+
+    monkeypatch.setattr(inspect, "signature", _spy)
+    container.resolve_provider(G.ordered)  # triggers compile of the whole graph
+    assert calls == []  # no re-introspection at compile
