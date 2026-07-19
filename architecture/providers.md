@@ -57,7 +57,6 @@ Factory(
     bound_type: type | None = UNSET,
     kwargs: dict[str, Any] | None = None,
     cache: bool | CacheSettings[T] | None = None,
-    cache_settings: CacheSettings[T] | None = UNSET,  # deprecated alias of `cache`
     skip_creator_parsing: bool = False,
 )
 ```
@@ -98,8 +97,7 @@ emitted if `bound_type` isn't given explicitly, since the provider then can't be
 ## `CacheSettings` — singleton behavior
 
 There is no separate `Singleton` class — see [docs/providers/factories.md](../docs/providers/factories.md)
-for the user-facing singleton idiom and `cache_settings=`'s deprecation
-([advanced-api.md#deprecated-cache_settings](../docs/providers/advanced-api.md#deprecated-cache_settings)).
+for the user-facing singleton idiom.
 
 `CacheSettings` is a `dataclass` with the following fields:
 

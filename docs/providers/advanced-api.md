@@ -26,12 +26,6 @@ inspect or iterate all providers declared on a group hierarchy.
 `inspect.iscoroutinefunction(finalizer)`. The cache registry uses it to decide whether to
 `await` the finalizer during `close_async()` or treat it as sync.
 
-### Deprecated: `cache_settings=`
-
-`Factory(cache_settings=...)` is a deprecated alias of `cache=`. It still works but
-emits a `DeprecationWarning`; pass `cache=True` (defaults) or `cache=CacheSettings(...)`
-(tuned) instead. Passing both `cache` and `cache_settings` raises `TypeError`.
-
 ### `find_container(scope)`
 
 `find_container(scope)` walks `_scope_map` and returns the container registered at
