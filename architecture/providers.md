@@ -171,15 +171,8 @@ user-facing rationale and caching implications.
 source type is unregistered), marking the alias as a transparent redirect. `DependencyGraph.terminal_scope`
 follows that hook down an alias chain to the terminal non-alias provider and returns that provider's scope —
 which is what `Container.validate()` and scope-error reporting compare against (see
-[validation.md](validation.md#terminal-scope-and-alias-transparency)). The alias's own `scope`
-attribute is only a stored default.
-
-### Deprecated `scope=` parameter
-
-Passing `scope=` to `Alias.__init__` emits a `DeprecationWarning` and has no effect on resolution or validation
-(both are derived from the source, per above) — see [docs/providers/alias.md](../docs/providers/alias.md) for
-the user-facing note. The stored value is kept internally only so that cosmetic consumers (`__repr__`, registry
-suggestions) continue to display it; it is scheduled for removal in a future release.
+[validation.md](validation.md#terminal-scope-and-alias-transparency)). An alias's own scope is always `Scope.APP`
+internally; its effective scope at resolution time is derived from its source provider's scope.
 
 ---
 
