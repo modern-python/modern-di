@@ -122,3 +122,53 @@ def test_c4_request_lifecycle(benchmark):
     finally:
         loop.close()
     assert result.closed is True
+
+
+# --- C5 cold: create_sync_container (codegen/exec) + first resolve, per call --
+# wireup exec-codegens a factory per provider inside create_sync_container, so this is dominated
+# by container construction, not resolution (see README caveat).
+def test_c5_cold_first_resolve(benchmark):
+    def _cold():
+        container = wireup.create_sync_container(injectables=[C0, C1, C2, C3, C4, C5])
+        with container.enter_scope() as scope:
+            return scope.get(C0)
+
+    result = benchmark(_cold)
+    assert isinstance(result, C0)
+
+
+# --- C6 context: per-request runtime value by type via enter_scope(provided) --
+class RequestObj:
+    def __init__(self) -> None:
+        pass
+
+
+@wireup.injectable(lifetime="scoped")
+def _request_placeholder() -> RequestObj:
+    # Never called: the value is always supplied via enter_scope; the scoped factory finds the
+    # seeded object first. Registration is required so the type is a known by-type dependency.
+    raise RuntimeError("RequestObj is only available during a request")
+
+
+@wireup.injectable
+class CtxSettings:
+    pass
+
+
+@wireup.injectable(lifetime="scoped")
+class CtxHandler:
+    def __init__(self, req: RequestObj, settings: CtxSettings) -> None:
+        self.req = req
+        self.settings = settings
+
+
+def test_c6_context(benchmark):
+    container = wireup.create_sync_container(injectables=[_request_placeholder, CtxSettings, CtxHandler])
+
+    def _one_request():
+        with container.enter_scope({RequestObj: RequestObj()}) as scope:
+            return scope.get(CtxHandler)
+
+    result = benchmark(_one_request)
+    assert isinstance(result, CtxHandler)
+    assert isinstance(result.req, RequestObj)

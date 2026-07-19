@@ -9,7 +9,7 @@ resolve is awaited and C4 measures the full async request lifecycle.
 import asyncio
 from collections.abc import AsyncIterable
 
-from dishka import Provider, Scope, make_async_container, make_container, provide
+from dishka import Provider, Scope, from_context, make_async_container, make_container, provide
 
 
 class Dep:
@@ -111,3 +111,55 @@ def test_c4_request_lifecycle(benchmark):
         loop.run_until_complete(container.close())
         loop.close()
     assert result.closed is True
+
+
+# --- C5 cold: build Provider + make_container + first resolve, per call -------
+def test_c5_cold_first_resolve(benchmark):
+    def _cold():
+        p = Provider(scope=Scope.APP)
+        for cls in (C0, C1, C2, C3, C4, C5):
+            p.provide(cls, cache=False)
+        container = make_container(p, skip_validation=True)  # align with modern-di validate=False
+        return container.get(C0)
+
+    result = benchmark(_cold)
+    assert isinstance(result, C0)
+
+
+# --- C6 context: per-request runtime value via from_context + APP dep ---------
+class RequestObj:
+    pass
+
+
+class Settings:
+    pass
+
+
+class Handler:
+    def __init__(self, req: RequestObj, settings: Settings) -> None:
+        self.req = req
+        self.settings = settings
+
+
+class _AppProvider(Provider):
+    settings = provide(Settings, scope=Scope.APP)
+
+
+class _ReqProvider(Provider):
+    req = from_context(RequestObj, scope=Scope.REQUEST)
+    handler = provide(Handler, scope=Scope.REQUEST)
+
+
+def test_c6_context(benchmark):
+    container = make_container(_AppProvider(), _ReqProvider())
+
+    def _one_request():
+        with container(context={RequestObj: RequestObj()}) as req:
+            return req.get(Handler)
+
+    try:
+        result = benchmark(_one_request)
+    finally:
+        container.close()
+    assert isinstance(result, Handler)
+    assert isinstance(result.req, RequestObj)

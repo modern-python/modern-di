@@ -17,8 +17,13 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G5 | Cross-scope resolve, REQUEST -> APP dep | `find_container` traversal |
 | G6 | `build_child_container(REQUEST)` | per-request setup |
 | G7 | Full lifecycle: build REQUEST -> sync-init cached resolve -> `await close_async()` | real per-request cost incl. async teardown |
+| G8 | Cold first-resolve: build root container + compile + resolve, depth 6 | construction + first-compile cost |
+| G9 | Context resolve: request value by type + APP dep, warm child | non-pure context-folding path |
 
-**Rules.** Containers are built/warmed in setup, never inside the timed call.
+**Rules.** Containers are built/warmed in setup, never inside the timed call —
+**except G8**, the cold scenario, which builds the root container *inside* the
+timed call on purpose (its own file, `test_guard_cold.py`) so it measures the
+one-time construction + graph compile the other scenarios amortize away.
 Cold-resolve scenarios (G1, G3, G4) use transient (uncached) providers so each
 timed call does the full wiring. Every benchmark asserts the resolved graph is
 correct. G7 is wall-clock only — instruction-count tooling cannot measure the
@@ -37,6 +42,8 @@ graph shape. Local-only (`just bench-compare`); never in CI. Deps are pinned in
 | C2 | Singleton resolve, warm | G2 |
 | C3 | Deep chain, depth 6 | G3 |
 | C4 | Request lifecycle: enter request scope -> sync-init resolve -> async-finalize on exit | G7 |
+| C5 | Cold build + first resolve, depth 6 | G8 |
+| C6 | Context: per-request runtime value by type + app dep | G9 |
 
 ### Per-framework idiomatic mapping
 
@@ -62,6 +69,36 @@ whole request lifecycle (enter scope -> resolve -> async finalize) as wall-clock
 under a shared event loop, not an isolated resolve. C1-C3 are true synchronous
 resolves for every framework. wireup's transient/scoped resolves require an active
 scope, entered once in setup so C1/C3 time only `scope.get`.
+
+### C5 cold and C6 context idioms
+
+| Framework | C5 cold (build + first resolve) | C6 context (request value by type + app dep) |
+|-----------|---------------------------------|----------------------------------------------|
+| modern-di | `Container(groups=[...]) + resolve` | `ContextProvider` + `build_child(context=)` |
+| dishka | `Provider + provide×6 + make_container + get` | `from_context` + `container(context=)` |
+| that-depends | rebuild 6 `Factory` + `resolve_sync` | `fetch_context_item_by_type` + `container_context(global_context=)` |
+| dependency-injector | `ChainContainer() + c0()` | `providers.Dependency` + `.override()` |
+| wireup | `create_sync_container + enter_scope + get` | `enter_scope({RequestObj: value})`, registered placeholder |
+
+**Caveat — C5 is not one axis.** The frameworks front-load wiring at different
+points, so "cold" measures different things and the cells are **not** comparable
+one-to-one: modern-di / dishka / wireup time a real per-container build (dishka
+builds the graph; wireup `exec`-codegens a factory per provider);
+dependency-injector's number is ~98% provider-graph **deepcopy** on
+instantiation, not resolution; that-depends wires at **import** and has no
+per-call build, so its cell is a `Factory`-reconstruction analog (6× `Factory.__init__`
++ resolve), not a container build. The honest reading is modern-di vs the
+build-time codegen frameworks (dishka/wireup), where staying `exec`-free wins by
+a wide margin. C5 aligns validation off (modern-di `validate=False`, dishka
+`skip_validation=True`) so it isolates build+compile.
+
+**Caveat — C6 is sync for all five** (a clean sync-vs-sync comparison, unlike
+C4), timing the per-request "supply value + resolve" cycle. Two structural
+notes: dependency-injector injects **by reference** (`providers.Dependency` +
+`.override()`), not by type — a structural analog, not an equivalent; wireup
+requires the runtime type **registered** as a scoped injectable with a raising
+placeholder factory (its own integration idiom), the value then supplied via
+`enter_scope`.
 
 ## Running
 
