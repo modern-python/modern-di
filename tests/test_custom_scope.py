@@ -151,6 +151,15 @@ def test_auto_derive_at_deepest_gapped_scope_raises_max() -> None:
         bg_container.build_child_container()
 
 
+def test_next_deeper_memo_does_not_collide_across_enums_sharing_a_value() -> None:
+    # _next_deeper is memoized. IntEnum members compare/hash by integer value, so MyScope.TENANT
+    # and GappedScope.TENANT (both == 6) would collide under a bare-member cache key — the memo
+    # keys on (type, member) to keep each enum's own answer. Both orders, to catch either the
+    # first or second call being served a foreign result.
+    assert _next_deeper(MyScope.TENANT) is MyScope.BACKGROUND_JOB  # 6 -> 7 (contiguous)
+    assert _next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB  # 6 -> 10 (gapped), not 7
+
+
 def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
     class ZeroEnum(enum.IntEnum):
         ZERO = 0

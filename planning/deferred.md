@@ -86,6 +86,29 @@ table, consistent with the uniform dispatch-floor win. **The one clear gap — C
 behind the slot-memoized rivals (dependency-injector 61 ns C-slot, that-depends 83 ns, wireup 95 ns) — is
 what the dropped C2 lever targeted, and stays open by design** (closing it was ruled not worth the machinery).
 
+## Child-container construction: lazy-allocation leads — from 2026-07-19 P2 measurement
+
+Profiling per-request child-container construction (the cost center of the C4 request-lifecycle
+scenario, "dominated by container construction, not the memo") found the default
+`build_child_container()` (auto-increment) path at ~2983 ns/child, of which **~44% (1319 ns) was
+`_next_deeper` re-sorting the enum on every call**. That was fixed by memoizing `_next_deeper`
+(change [`2026-07-19.02`](changes/2026-07-19.02-memoize-next-deeper.md), ~−40% on the default
+path). The remaining measured per-child allocations were **not** actioned:
+
+- `threading.RLock()` — ~214 ns/child. A child gets a fresh lock even though most REQUEST children
+  cache nothing (caching is usually APP-scoped) and many request paths are single-threaded.
+- `CacheRegistry()` — ~217 ns/child (dataclass + dict + list).
+- `ContextRegistry(context or {})` — ~189 ns/child (+~52 ns for the empty dict when no context).
+
+Lazy-allocating any of these (construct on first use) would cut construction cost but adds a branch
+on the resolve/cache **hot path** — so the win is not construction-side-only; the net (construction
+saving vs per-resolve branch cost) must be measured before committing, and touching the resolve hot
+path is higher-risk for a conservative library.
+
+**Revisit trigger:** a user-reported per-request construction bottleneck, or a benchmark showing
+child-build dominates a realistic request cycle enough to justify hot-path branches. Measure net,
+both tiers (guard `G6b` + comparative `C4`), before shipping.
+
 ## Opt-in DEBUG resolution tracing (ERR-8) — from 2026-07-05 3.0 UX research
 
 A module-level `logging.getLogger("modern_di")` narrating resolution at DEBUG level: resolve start
