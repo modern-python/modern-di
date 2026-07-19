@@ -735,27 +735,9 @@ def test_cache_accepts_cache_settings_and_finalizes() -> None:
     assert cleaned == [instance]
 
 
-def test_cache_settings_is_deprecated_but_functional() -> None:
-    with pytest.warns(DeprecationWarning, match="cache_settings"):
-        provider = providers.Factory(
-            creator=SimpleCreator, kwargs={"dep1": "x"}, cache_settings=providers.CacheSettings()
-        )
-    container = Container()
-    assert container.resolve_provider(provider) is container.resolve_provider(provider)
-
-
-def test_cache_settings_none_emits_no_deprecation_warning() -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        provider = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache_settings=None)
-    assert provider.cache_settings is None
-
-
-def test_cache_and_cache_settings_together_raise() -> None:
-    with pytest.raises(TypeError, match="pass only `cache`"):
-        providers.Factory(
-            creator=SimpleCreator, kwargs={"dep1": "x"}, cache=True, cache_settings=providers.CacheSettings()
-        )
+def test_factory_cache_settings_param_removed() -> None:
+    with pytest.raises(TypeError, match="unexpected keyword argument 'cache_settings'"):
+        providers.Factory(SimpleCreator, cache_settings=providers.CacheSettings())  # ty: ignore[unknown-argument]
 
 
 def test_repr_reports_cached_for_cache_true() -> None:
