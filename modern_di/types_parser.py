@@ -91,10 +91,8 @@ def parse_creator(
 ) -> tuple[SignatureItem, dict[str, SignatureItem], bool]:
     """Return (return-type item, name→param item, has_positional_only_gap).
 
-    ``has_positional_only_gap`` is True when a positional-only parameter was dropped from the
-    param map (positional-only-with-default). The compiled positional fast path consults it so it
-    never binds a dependency into a dropped positional-only slot — the one param-kind signal it
-    would otherwise have to re-introspect the signature for.
+    ``has_positional_only_gap`` is True when a positional-only-with-default parameter was dropped
+    from the param map, so the map is no longer a faithful positional prefix of the signature.
     """
     try:
         sig = inspect.signature(creator)
