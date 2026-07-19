@@ -29,6 +29,14 @@ def test_g6_build_child_container(benchmark):
     assert result.scope is Scope.REQUEST
 
 
+def test_g6b_build_child_container_auto_scope(benchmark):
+    # Default path: no explicit scope -> auto-increment via _next_deeper. G6 passes an explicit
+    # scope and never exercises it; this guards the memoized auto-increment step against regressing.
+    app = Container(scope=Scope.APP, groups=[BuildGroup], validate=False)
+    result = benchmark(app.build_child_container)
+    assert result.scope is Scope.SESSION
+
+
 # --- G7: cached REQUEST connection, sync create, async finalizer -----------
 @dataclasses.dataclass(slots=True)
 class Connection:

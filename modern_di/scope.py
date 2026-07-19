@@ -27,11 +27,24 @@ def _deeper_members(scope: enum.IntEnum) -> list[enum.IntEnum]:
     return sorted(member for member in type(scope) if member > scope)
 
 
+# Memo for `_next_deeper`: a constant function of an immutable enum member, called per child
+# on the default `build_child_container()` (auto-increment) path — uncached it re-sorts the
+# whole enum every time. Keyed by `(type(scope), scope)`, NOT the bare member: `IntEnum`
+# members compare and hash by integer value, so two custom scopes reusing a value (TENANT=6
+# in one enum, 6 in another) would collide under a plain member key; the type disambiguates.
+# Bounded by the finite set of scope members ever passed. Concurrent writes are benign — the
+# value is deterministic, so a race just stores the same result twice (dict setitem is atomic).
+_next_deeper_memo: dict[tuple[type[enum.IntEnum], enum.IntEnum], enum.IntEnum | None] = {}
+
+
 def _next_deeper(scope: enum.IntEnum) -> enum.IntEnum | None:
     """Return the next deeper member, or None when ``scope`` is the deepest.
 
     Returns None rather than raising ``MaxScopeReachedError`` so this module stays
     dependency-free: ``exceptions`` imports it, so importing ``exceptions`` back would cycle.
     """
-    members = _deeper_members(scope)
-    return members[0] if members else None
+    key = (type(scope), scope)
+    if key not in _next_deeper_memo:
+        members = _deeper_members(scope)
+        _next_deeper_memo[key] = members[0] if members else None
+    return _next_deeper_memo[key]
