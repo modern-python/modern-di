@@ -32,6 +32,7 @@ class ExtendedScope(enum.IntEnum):
 
 
 step_container = Container(scope=ExtendedScope.STEP, parent_container=action_container)
+step_container.open()
 sub_container = step_container.build_child_container(scope=ExtendedScope.SUBSTEP)
 ```
 

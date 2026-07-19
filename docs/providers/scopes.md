@@ -29,6 +29,7 @@ from modern_di import Container, Scope
 
 
 app_container = Container(groups=[Dependencies], validate=True)     # APP scope
+app_container.open()                                               # open the root before use
 
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     ...
@@ -109,6 +110,7 @@ class MyGroup(Group):
 
 
 container = Container(groups=[MyGroup], validate=True)
+container.open()
 with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
     tenant = tenant_container.resolve(TenantContext)
 ```
@@ -137,6 +139,7 @@ class RequestGroup(Group, scope=Scope.REQUEST):
 
 
 app_container = Container(groups=[RequestGroup], validate=True)
+app_container.open()
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     repo = request_container.resolve(UserRepository)
 ```

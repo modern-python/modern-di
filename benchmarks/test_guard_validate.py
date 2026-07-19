@@ -56,6 +56,7 @@ class ChainGroup(Group):
 
 def test_g10_validate_deep_chain(benchmark):
     good = Container(scope=Scope.APP, groups=[ChainGroup], validate=True)  # raises if invalid
+    good.open()
     assert isinstance(good.resolve_provider(ChainGroup.c0), C0)
     benchmark.pedantic(
         lambda c: c.validate(),
@@ -146,6 +147,7 @@ class WideGroup(Group):
 
 def test_g11_validate_wide(benchmark):
     good = Container(scope=Scope.APP, groups=[WideGroup], validate=True)  # raises if invalid
+    good.open()
     assert isinstance(good.resolve_provider(WideGroup.wide), Wide)
     benchmark.pedantic(
         lambda c: c.validate(),

@@ -50,6 +50,7 @@ class MyGroup(Group):
 
 def test_app_factory() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     instance1 = app_container.resolve_provider(MyGroup.app_factory)
     instance2 = app_container.resolve(dependency_type=SimpleCreator)
     assert isinstance(instance1, SimpleCreator)
@@ -59,6 +60,7 @@ def test_app_factory() -> None:
 
 def test_app_factory_skip_creator_parsing() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     with pytest.raises(
         exceptions.CreatorCallError,
         match=re.escape("SimpleCreator.__init__() missing 1 required keyword-only argument: 'dep1'"),
@@ -68,6 +70,7 @@ def test_app_factory_skip_creator_parsing() -> None:
 
 def test_app_factory_unresolvable() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type <class 'str'> cannot be resolved") as exc:
         app_container.resolve_provider(MyGroup.app_factory_unresolvable)
     assert exc.value.arg_name == "dep1"
@@ -76,6 +79,7 @@ def test_app_factory_unresolvable() -> None:
 
 def test_func_with_union_factory() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     instance1 = app_container.resolve_provider(MyGroup.func_with_union_factory)
     assert instance1 == str(SimpleCreator(dep1="original"))
 
@@ -85,6 +89,7 @@ def test_func_with_broken_annotation() -> None:
         factory = providers.Factory(creator=func_with_broken_annotation, bound_type=None)
 
     app_container = Container()
+    app_container.open()
     app_container.providers_registry.add_providers(factory)
     with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         app_container.resolve_provider(factory)
@@ -92,7 +97,9 @@ def test_func_with_broken_annotation() -> None:
 
 def test_request_factory() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
     request_container.resolve_provider(MyGroup.request_factory)
     instance1 = request_container.resolve_provider(MyGroup.request_factory)
     instance2 = request_container.resolve_provider(MyGroup.request_factory)
@@ -100,6 +107,7 @@ def test_request_factory() -> None:
     assert instance1 is not instance2
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
     instance3 = request_container.resolve_provider(MyGroup.request_factory)
     instance4 = request_container.resolve_provider(MyGroup.request_factory)
     assert instance3 is not instance4
@@ -109,7 +117,9 @@ def test_request_factory() -> None:
 
 def test_request_factory_with_di_container() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
     instance1 = request_container.resolve_provider(MyGroup.request_factory_with_di_container)
     instance2 = request_container.resolve_provider(MyGroup.request_factory_with_di_container)
     assert instance1 is not instance2
@@ -118,6 +128,7 @@ def test_request_factory_with_di_container() -> None:
     assert instance1.di_container is instance2.di_container
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
     instance3 = request_container.resolve_provider(MyGroup.request_factory_with_di_container)
     instance4 = request_container.resolve_provider(MyGroup.request_factory_with_di_container)
     assert instance3 is not instance4
@@ -127,6 +138,7 @@ def test_request_factory_with_di_container() -> None:
 
 def test_factory_overridden_app_scope() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     instance1 = app_container.resolve_provider(MyGroup.app_factory)
 
     app_container.override(MyGroup.app_factory, SimpleCreator(dep1="override"))
@@ -148,13 +160,16 @@ def test_factory_overridden_app_scope() -> None:
 
 def test_factory_overridden_request_scope() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     app_container.override(MyGroup.request_factory, DependentCreator(dep1=SimpleCreator(dep1="override")))
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
     instance1 = request_container.resolve(DependentCreator)
     request_container.close_sync()
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
     instance2 = request_container.resolve(DependentCreator)
     assert instance1 is instance2
     assert instance2.dep1.dep1 == instance1.dep1.dep1 == "override"
@@ -171,6 +186,7 @@ def test_override_bypasses_scope_check_from_shallower_container() -> None:
     # deeper-scoped provider can be resolved from a shallower container — see
     # architecture/testing-and-overrides.md "Scope behaviour under overrides".
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     with pytest.raises(ScopeNotInitializedError):
         app_container.resolve_provider(MyGroup.request_factory)
 
@@ -181,6 +197,7 @@ def test_override_bypasses_scope_check_from_shallower_container() -> None:
 
 def test_factory_scope_is_not_initialized() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     with pytest.raises(
         ScopeNotInitializedError,
         match=r"Provider of scope REQUEST cannot be resolved in container of scope APP.",
@@ -198,6 +215,7 @@ def test_factory_self_reference() -> None:
     second_factory = providers.Factory(creator=second_creator, kwargs={"first_factory": first_factory})
 
     app_container = Container()
+    app_container.open()
     app_container.providers_registry.add_providers(first_factory, second_factory)
 
     assert app_container.resolve_provider(second_factory) == "one two"
@@ -213,6 +231,7 @@ def test_factory_self_reference_in_union_falls_through_to_default() -> None:
 
     factory = providers.Factory(creator=make)
     app_container = Container()
+    app_container.open()
     app_container.providers_registry.add_providers(factory)
 
     result = app_container.resolve(SelfRef)
@@ -230,6 +249,7 @@ def test_factory_self_reference_by_type_falls_through_to_default() -> None:
 
     factory = providers.Factory(creator=make)
     app_container = Container()
+    app_container.open()
     app_container.providers_registry.add_providers(factory)
 
     # `nested` is typed as the factory's own bound type: it must not wire to itself,
@@ -289,6 +309,7 @@ def test_factory_allows_extra_kwargs_when_creator_accepts_var_keyword() -> None:
 
     factory = providers.Factory(creator=make, kwargs={"anything": 1, "extra": 2})
     container = Container()
+    container.open()
     container.providers_registry.add_providers(factory)
     result = container.resolve(dict)
     assert result == {"anything": 1, "extra": 2}
@@ -303,6 +324,7 @@ def test_factory_default_value_compared_with_is_not_eq() -> None:
 
     factory = providers.Factory(creator=make)
     container = Container()
+    container.open()
     container.providers_registry.add_providers(factory)
     result = container.resolve(str)
     assert result == repr(unittest.mock.ANY)
@@ -321,6 +343,7 @@ def test_unannotated_param_error_explains_missing_annotation() -> None:
     assert _unannotated_creator(sentinel) is sentinel  # exercise body for coverage
     # validate=False: this exercises the resolve-time argument error, not deferred validation.
     container = Container(scope=Scope.APP, groups=[_UnannotatedGroup], validate=False)
+    container.open()
     with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         container.resolve(object)
 
@@ -343,6 +366,7 @@ def test_union_param_error_names_the_union_members() -> None:
     dep = _UnionDep1()
     assert _union_creator(dep) == str(dep)  # exercise body for coverage
     container = Container(scope=Scope.APP, groups=[_UnionGroup], validate=False)
+    container.open()
     with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2"):
         container.resolve(str)
 
@@ -370,6 +394,7 @@ class _PrecedenceGroup(Group):
 
 def test_static_kwargs_win_over_type_matched_provider() -> None:
     container = Container(scope=Scope.APP, groups=[_PrecedenceGroup])
+    container.open()
     svc = container.resolve(_PrecedenceSvc)
     assert svc.dep is _static_dep
     assert svc.dep.label == "from-kwargs"
@@ -411,6 +436,7 @@ def test_creator_raising_mid_creation_caches_nothing_and_retry_succeeds() -> Non
     _flaky_state["raised"] = False
     _flaky_events.clear()
     container = Container(scope=Scope.APP, groups=[_FlakyGroup])
+    container.open()
     with pytest.raises(RuntimeError, match="boom"):
         container.resolve(_FlakySvc)
     expected_cached_after_failure = 1  # only the dep cached; failed svc not cached
@@ -440,6 +466,7 @@ def test_wiring_plan_is_memoized_across_child_containers() -> None:
     real_build = wiring_mod.WiringPlan.build
     with unittest.mock.patch.object(wiring_mod.WiringPlan, "build", autospec=True, side_effect=real_build) as build_spy:
         app_container = Container(scope=Scope.APP, groups=[_MemoGroup], validate=True)
+        app_container.open()
         for _ in range(50):
             with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
                 request_container.resolve(DependentCreator)
@@ -469,6 +496,8 @@ def test_shared_factory_wires_independently_per_registry() -> None:
 
     with_leaf = Container(scope=Scope.APP, groups=[WithLeaf], validate=True)
     without_leaf = Container(scope=Scope.APP, groups=[WithoutLeaf], validate=True)
+    with_leaf.open()
+    without_leaf.open()
 
     assert with_leaf.providers_registry.find_provider(OptionalDepSvc) is svc_factory
     assert without_leaf.providers_registry.find_provider(OptionalDepSvc) is svc_factory
@@ -498,6 +527,7 @@ class _NeedsOptionalUnion:
 def test_optional_param_injects_none_when_no_provider() -> None:
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(_NeedsOptionalSingle, factory)
     obj = container.resolve(_NeedsOptionalSingle)
     assert obj.dep is None
@@ -507,6 +537,7 @@ def test_optional_param_uses_provider_when_present() -> None:
     dep_factory: providers.Factory[_OptionalDep] = providers.Factory(creator=_OptionalDep, scope=Scope.APP)
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(_OptionalDep, dep_factory)
     container.providers_registry.register(_NeedsOptionalSingle, factory)
     obj = container.resolve(_NeedsOptionalSingle)
@@ -516,6 +547,7 @@ def test_optional_param_uses_provider_when_present() -> None:
 def test_optional_multi_member_union_injects_none_when_no_provider() -> None:
     factory: providers.Factory[_NeedsOptionalUnion] = providers.Factory(creator=_NeedsOptionalUnion, scope=Scope.APP)
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(_NeedsOptionalUnion, factory)
     obj = container.resolve(_NeedsOptionalUnion)
     assert obj.dep is None
@@ -545,6 +577,7 @@ def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
     )
     factory: providers.Factory[_NeedsOptionalCtx] = providers.Factory(creator=_NeedsOptionalCtx, scope=Scope.APP)
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(_OptionalCtx, ctx_provider)
     container.providers_registry.register(_NeedsOptionalCtx, factory)
     obj = container.resolve(_NeedsOptionalCtx)
@@ -563,6 +596,7 @@ def test_skip_creator_parsing_missing_args_raises_di_error() -> None:
         creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}
     )
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(int, factory)
     with pytest.raises(exceptions.CreatorCallError) as exc_info:
         container.resolve(int)
@@ -580,6 +614,7 @@ def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
         cache=True,
     )
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(int, factory)
     with pytest.raises(exceptions.CreatorCallError) as exc_info:
         container.resolve(int)
@@ -599,6 +634,7 @@ def test_internal_typeerror_from_creator_body_is_not_wrapped() -> None:
         creator=_InternalTypeErrorService, bound_type=_InternalTypeErrorService, skip_creator_parsing=True
     )
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(_InternalTypeErrorService, factory)
     with pytest.raises(TypeError) as exc_info:
         container.resolve(_InternalTypeErrorService)
@@ -627,6 +663,7 @@ def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
     """
     factory: providers.Factory[_NeedsUnregistered] = providers.Factory(creator=_NeedsUnregistered, scope=Scope.APP)
     container = Container(scope=Scope.APP, validate=False)  # exercise resolve-time breadcrumb, not validation
+    container.open()
     container.providers_registry.register(_NeedsUnregistered, factory)
 
     def _grab() -> str:
@@ -664,6 +701,7 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
     leaf2: providers.Factory[_Leaf2] = providers.Factory(creator=_Leaf2, scope=Scope.APP)
     parent2: providers.Factory[_Parent2] = providers.Factory(creator=_Parent2, scope=Scope.APP)
     c2 = Container(scope=Scope.APP, validate=False)  # exercise resolve-time breadcrumb, not validation
+    c2.open()
     c2.providers_registry.register(_Leaf2, leaf2)
     c2.providers_registry.register(_Parent2, parent2)
 
@@ -686,6 +724,7 @@ def test_cache_true_returns_same_instance() -> None:
         f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=True)
 
     container = Container(groups=[G])
+    container.open()
     assert container.resolve_provider(G.f) is container.resolve_provider(G.f)
     assert isinstance(G.f.cache_settings, providers.CacheSettings)
 
@@ -698,6 +737,7 @@ def test_cache_true_unresolvable_raises_argument_resolution_error() -> None:
         f = providers.Factory(creator=SimpleCreator, cache=True, bound_type=None)
 
     container = Container(groups=[G])
+    container.open()
     with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type <class 'str'> cannot be resolved") as exc:
         container.resolve_provider(G.f)
     assert exc.value.arg_name == "dep1"
@@ -709,6 +749,7 @@ def test_cache_absent_returns_fresh_instances() -> None:
         f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"})
 
     container = Container(groups=[G])
+    container.open()
     assert container.resolve_provider(G.f) is not container.resolve_provider(G.f)
     assert G.f.cache_settings is None
 
@@ -719,6 +760,7 @@ def test_cache_falsy_disables_caching(cache_value: bool | None) -> None:
         f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=cache_value)
 
     container = Container(groups=[G])
+    container.open()
     assert container.resolve_provider(G.f) is not container.resolve_provider(G.f)
     assert G.f.cache_settings is None
 
@@ -730,6 +772,7 @@ def test_cache_accepts_cache_settings_and_finalizes() -> None:
         f = providers.Factory(creator=dict, cache=providers.CacheSettings(finalizer=cleaned.append))
 
     container = Container(groups=[G])
+    container.open()
     instance = container.resolve_provider(G.f)
     assert container.resolve_provider(G.f) is instance
     container.close_sync()
@@ -751,6 +794,7 @@ def test_factory_accepts_positional_creator() -> None:
         factory = providers.Factory(SimpleCreator, kwargs={"dep1": "positional"})
 
     container = Container(groups=[G], validate=True)
+    container.open()
     instance = container.resolve(SimpleCreator)
     assert instance.dep1 == "positional"
 
@@ -866,6 +910,7 @@ def test_nonetype_param_with_default_uses_the_default() -> None:
 
     factory = providers.Factory(scope=Scope.APP, creator=Svc)
     container = Container()
+    container.open()
     container.providers_registry.add_providers(factory)
 
     result = container.resolve(Svc)
@@ -881,6 +926,7 @@ def test_nonetype_param_without_default_injects_none() -> None:
 
     factory = providers.Factory(scope=Scope.APP, creator=Svc)
     container = Container()
+    container.open()
     container.providers_registry.add_providers(factory)
 
     result = container.resolve(Svc)
@@ -930,13 +976,16 @@ def test_positional_only_with_default_stays_on_kwargs_path() -> None:
         thing = providers.Factory(creator=_cov_pos_only_creator, scope=Scope.APP)
 
     container = Container(groups=[G], validate=False)
+    container.open()
     assert container.resolve_provider(G.thing) == _CovPosOnlyResult(prefix="P", dep=_CovLeaf())
 
 
 def _build_closed_app_and_request(*group: type[Group]) -> tuple[Container, Container]:
     """Return (closed APP container, open REQUEST child) sharing `group`'s providers."""
     app = Container(scope=Scope.APP, groups=list(group), validate=False)
+    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
+    request.open()
     app.close_sync()
     return app, request
 
@@ -977,6 +1026,7 @@ def test_transient_kwargs_body_typeerror_propagates_unchanged() -> None:
         thing = providers.Factory(creator=_CovKwOnlyBodyTypeError, scope=Scope.APP)
 
     container = Container(groups=[G], validate=False)
+    container.open()
     with pytest.raises(TypeError) as exc:
         container.resolve_provider(G.thing)
     assert not isinstance(exc.value, exceptions.CreatorCallError)
@@ -995,6 +1045,7 @@ def test_cached_positional_dependency_step_error() -> None:
         thing = providers.Factory(creator=_CovPosNeedsReq, scope=Scope.APP, cache=True)
 
     container = Container(groups=[G], validate=False)
+    container.open()
     with pytest.raises(ScopeNotInitializedError):
         container.resolve_provider(G.thing)
 
@@ -1023,6 +1074,7 @@ def test_cached_positional_binding_typeerror_wraps() -> None:
         )
 
     container = Container(groups=[G], validate=False)
+    container.open()
     with pytest.raises(exceptions.CreatorCallError):
         container.resolve_provider(G.thing)
 
@@ -1045,6 +1097,7 @@ def test_cached_positional_body_typeerror_propagates_unchanged() -> None:
         )
 
     container = Container(groups=[G], validate=False)
+    container.open()
     with pytest.raises(TypeError) as exc:
         container.resolve_provider(G.thing)
     assert not isinstance(exc.value, exceptions.CreatorCallError)
@@ -1063,6 +1116,7 @@ def test_cached_kwargs_dependency_step_error() -> None:
         thing = providers.Factory(creator=_CovCachedNeedsReq, scope=Scope.APP, cache=True)
 
     container = Container(groups=[G], validate=False)
+    container.open()
     with pytest.raises(ScopeNotInitializedError):
         container.resolve_provider(G.thing)
 
@@ -1074,6 +1128,7 @@ def test_unwireable_factory_override_short_circuits() -> None:
         thing = providers.Factory(creator=SimpleCreator, bound_type=None)
 
     container = Container(groups=[G], validate=False)
+    container.open()
     mock = SimpleCreator(dep1="mock")
     container.override(G.thing, mock)
     assert container.resolve_provider(G.thing) is mock
@@ -1099,6 +1154,7 @@ def test_cached_kwargs_body_typeerror_propagates_unchanged() -> None:
         thing = providers.Factory(creator=_CovKwOnlyBodyTypeError, scope=Scope.APP, cache=True)
 
     container = Container(groups=[G], validate=False)
+    container.open()
     with pytest.raises(TypeError) as exc:
         container.resolve_provider(G.thing)
     assert not isinstance(exc.value, exceptions.CreatorCallError)
@@ -1117,6 +1173,7 @@ def test_transient_positional_binding_typeerror_wraps() -> None:
         )
 
     container = Container(groups=[G], validate=False)
+    container.open()
     with pytest.raises(exceptions.CreatorCallError):
         container.resolve_provider(G.thing)
 
@@ -1126,6 +1183,7 @@ def _resolve_creator_call_error(
 ) -> exceptions.CreatorCallError:
     """Resolve `factory` in its own container and return the CreatorCallError it raises."""
     container = Container(scope=Scope.APP, validate=False)
+    container.open()
     container.providers_registry.register(bound_type, factory)
     with pytest.raises(exceptions.CreatorCallError) as exc_info:
         container.resolve(bound_type)

@@ -24,6 +24,7 @@ class MyGroup(Group):
 def test_context_provider() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
+    app_container.open()
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
     instance2 = app_container.resolve_provider(MyGroup.context_provider)
     assert instance1 is instance2 is now
@@ -32,6 +33,7 @@ def test_context_provider() -> None:
 def test_context_provider_set_context_after_creation() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container()
+    app_container.open()
     app_container.set_context(datetime.datetime, now)
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
     instance2 = app_container.resolve_provider(MyGroup.context_provider)
@@ -40,6 +42,7 @@ def test_context_provider_set_context_after_creation() -> None:
 
 def test_context_provider_not_found() -> None:
     app_container = Container()
+    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
     assert exc_info.value.context_type is datetime.datetime
@@ -47,6 +50,7 @@ def test_context_provider_not_found() -> None:
 
 def test_context_provider_not_found_but_required() -> None:
     app_container = Container(groups=[MyGroup])
+    app_container.open()
     with pytest.raises(
         ArgumentResolutionError, match=r"Argument arg1 of type <class 'datetime.datetime'> cannot be resolved"
     ) as exc:
@@ -58,7 +62,9 @@ def test_context_provider_not_found_but_required() -> None:
 def test_context_provider_in_request_scope() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container()
+    app_container.open()
     request_container = app_container.build_child_container(context={datetime.datetime: now}, scope=Scope.REQUEST)
+    request_container.open()
     instance1 = request_container.resolve_provider(request_context_provider)
     instance2 = request_container.resolve_provider(request_context_provider)
     assert instance1 is instance2 is now
@@ -84,6 +90,7 @@ def test_context_provider_returns_falsy_values(value: object) -> None:
     context_type = type(value)
     provider = providers.ContextProvider(scope=Scope.APP, context_type=context_type)
     app_container = Container(context={context_type: value})
+    app_container.open()
     assert app_container.resolve_provider(provider) == value
 
 
@@ -97,6 +104,7 @@ def test_factory_resolves_with_falsy_context_value() -> None:
         consumer = providers.Factory(creator=FlagConsumer)
 
     app_container = Container(groups=[FlagGroup], context={bool: False})
+    app_container.open()
     instance = app_container.resolve(FlagConsumer)
     assert instance.flag is False
 
@@ -111,6 +119,7 @@ def test_factory_resolves_with_none_context_value() -> None:
         holder = providers.Factory(creator=NoneHolder)
 
     app_container = Container(groups=[NoneGroup], context={datetime.datetime: None})
+    app_container.open()
     instance = app_container.resolve(NoneHolder)
     assert instance.value is None
 
@@ -127,6 +136,7 @@ def test_factory_uses_default_when_context_provider_value_unset() -> None:
         holder = providers.Factory(creator=TsHolder)
 
     app_container = Container(groups=[TsGroup])
+    app_container.open()
     instance = app_container.resolve(TsHolder)
     assert instance.ts == default
 
@@ -146,6 +156,7 @@ class _LateCtxGroup(Group):
 
 def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
     container = Container(scope=Scope.APP, groups=[_LateCtxGroup])
+    container.open()
     first = container.resolve(_NeedsLateCtx)
     assert first.ctx is None  # context unset, default applied
     value = _LateCtx()
@@ -157,7 +168,9 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
 def test_context_provider_through_closed_owning_container_raises() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app = Container(groups=[MyGroup], context={datetime.datetime: now})
+    app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
+    child.open()
     app.close_sync()
     with pytest.raises(ContainerClosedError):
         child.resolve_provider(MyGroup.context_provider)
@@ -177,7 +190,9 @@ class _ScopedCtxGroup(Group):
 def test_context_provider_reads_registry_at_its_own_scope_not_resolving_container() -> None:
     value = _ScopedCtx()
     app = Container(scope=Scope.APP, groups=[_ScopedCtxGroup])
+    app.open()
     request = app.build_child_container(scope=Scope.REQUEST, context={_ScopedCtx: _ScopedCtx()})
+    request.open()
     # context set on the CHILD must be invisible to an APP-scoped provider
     with pytest.raises(ContextValueNotSetError) as exc_info:
         request.resolve(_ScopedCtx)
@@ -230,7 +245,9 @@ class _CrossRequiredGroup(Group):
 
 def test_late_app_context_seen_by_request_factory_defaulted_param() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossDefaultGroup])
+    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
+    request.open()
     assert request.resolve(_CrossDefaultSvc).ctx is None  # context unset at first resolve
     value = _CrossCtx()
     app.set_context(_CrossCtx, value)
@@ -239,7 +256,9 @@ def test_late_app_context_seen_by_request_factory_defaulted_param() -> None:
 
 def test_late_app_context_seen_by_request_factory_nullable_param() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossNullableGroup])
+    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
+    request.open()
     assert request.resolve(_CrossNullableSvc).ctx is None
     value = _CrossCtx()
     app.set_context(_CrossCtx, value)
@@ -248,7 +267,9 @@ def test_late_app_context_seen_by_request_factory_nullable_param() -> None:
 
 def test_late_app_context_required_param_raises_then_resolves_across_scopes() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossRequiredGroup])
+    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
+    request.open()
     with pytest.raises(ArgumentResolutionError):
         request.resolve(_CrossRequiredSvc)
     value = _CrossCtx()
@@ -258,7 +279,9 @@ def test_late_app_context_required_param_raises_then_resolves_across_scopes() ->
 
 def test_override_of_context_param_applies_after_first_resolve_across_scopes() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossDefaultGroup])
+    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
+    request.open()
     assert request.resolve(_CrossDefaultSvc).ctx is None
     override_value = _CrossCtx()
     app.override(_CrossDefaultGroup.ctx, override_value)
@@ -279,6 +302,7 @@ def test_late_context_does_not_rebuild_cached_singleton() -> None:
     # Documented limitation: a cached factory's instance is fixed at first build;
     # a later set_context does not retroactively rebuild it.
     app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
+    app.open()
     first = app.resolve(_CachedCtxSvc)
     assert first.ctx is None
     app.set_context(_CrossCtx, _CrossCtx())
@@ -290,6 +314,7 @@ def test_late_context_does_not_rebuild_cached_singleton() -> None:
 def test_cached_factory_injects_present_context_at_cold_build() -> None:
     # Context set before the first (cold) build is injected into the cached instance.
     app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
+    app.open()
     ctx = _CrossCtx()
     app.set_context(_CrossCtx, ctx)
     svc = app.resolve(_CachedCtxSvc)
@@ -298,6 +323,7 @@ def test_cached_factory_injects_present_context_at_cold_build() -> None:
 
 def test_direct_resolve_unset_context_raises() -> None:
     app_container = Container(groups=[MyGroup], validate=False)
+    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
     assert exc_info.value.context_type is datetime.datetime
@@ -306,6 +332,7 @@ def test_direct_resolve_unset_context_raises() -> None:
 def test_set_context_provider_direct_resolve_does_not_warn() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(groups=[MyGroup], context={datetime.datetime: now}, validate=False)
+    app_container.open()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert app_container.resolve_provider(MyGroup.context_provider) is now
@@ -315,6 +342,7 @@ def test_context_provider_accepts_positional_context_type() -> None:
     provider = providers.ContextProvider(datetime.datetime)
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(context={datetime.datetime: now})
+    app_container.open()
     assert app_container.resolve_provider(provider) is now
 
 
@@ -329,6 +357,7 @@ def test_context_provider_override_direct_short_circuits() -> None:
     # even though no value is set in the context registry.
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
     app_container = Container(groups=[MyGroup], validate=False)
+    app_container.open()
     app_container.override(MyGroup.context_provider, override_value)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -356,6 +385,7 @@ def test_kwargs_context_provider_honors_creator_default_when_unset() -> None:
     # A ContextProvider passed explicitly via kwargs={...} must wire as a context kwarg, not a plain
     # provider: an unset value falls back to the creator's default rather than injecting None.
     app_container = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    app_container.open()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == "default-applied"
@@ -365,19 +395,23 @@ def test_kwargs_context_provider_matches_by_type_wiring() -> None:
     # The same creator wired both ways agrees: how the ContextProvider reaches the parameter is a
     # declaration detail, not a behavior switch.
     by_type = Container(groups=[_KwargsCtxByTypeGroup], validate=False)
+    by_type.open()
     explicit = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    explicit.open()
     assert by_type.resolve_provider(_KwargsCtxByTypeGroup.out) == explicit.resolve_provider(_KwargsCtxExplicitGroup.out)
 
 
 def test_kwargs_context_provider_injects_present_value() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(groups=[_KwargsCtxExplicitGroup], context={datetime.datetime: now}, validate=False)
+    app_container.open()
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {now!r}"
 
 
 def test_kwargs_context_provider_override_wins() -> None:
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
     app_container = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    app_container.open()
     app_container.override(_KwargsCtxExplicitGroup.ctx, override_value)
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {override_value!r}"
 
@@ -397,6 +431,7 @@ def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve()
     # takes. Routing it as required would raise where 2.x returns None; as nullable would drop the
     # 3.0 signal — so it stays on the direct-resolve path, which now raises when unset.
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup], validate=False)
+    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out)
     assert exc_info.value.context_type is datetime.datetime
@@ -407,4 +442,5 @@ def test_kwargs_context_provider_without_parsed_signature_injects_present_value(
     # returns it normally and the creator runs.
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now}, validate=False)
+    app_container.open()
     assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"

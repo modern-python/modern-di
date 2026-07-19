@@ -22,29 +22,55 @@ Constructor parameters:
 | `groups` | `None` | One or more `Group` subclasses whose providers are registered into `providers_registry`. |
 | `context` | `None` | Mapping of `type → object` pre-populated into `context_registry`. |
 | `use_lock` | `True` | Wraps resolution in a `threading.RLock`; set `False` for single-threaded use. |
-| `validate` | `None` | Tri-state, see below. |
+| `validate` | `True` | Enable the provider-graph check, run once at `open()`. `False` disables it. See below. |
 
 A root container (no `parent_container`) creates fresh `ProvidersRegistry` and `OverridesRegistry`
 instances. It also auto-registers `container_provider` (see [below](#container_provider)) under the
 `Container` type.
 
-### `validate`'s three states
+A freshly-constructed container starts **unopened** (`closed = True`) and must be entered before use —
+see [Mandatory-open lifecycle](#mandatory-open-lifecycle).
 
-See [validation.md](validation.md) for what each state does and why. In short, validation is
-**both-deferred**: `validate=True` and the default (`None`) are identical — both enable validation and
-both defer it to container entry (`open()`/`with`) or first resolve — while `validate=False` disables it.
-`__init__` records this once as `self._validate_enabled = validate is not False and parent_container is
-None`. The `parent_container is None` conjunct is the container-specific wrinkle: only a **root**
-validates. A child built via `build_child_container` never passes `validate`, and even if it did the
-`parent_container is None` guard is false for every child, so `_validate_enabled` is always `False` on a
-child — children never validate, regardless of `validate`'s value. That is safe because the providers
-registry is shared tree-wide, so the root's single validation walk covers every child (see
-[Integration seam](#integration-seam)).
+### `validate` (a plain bool)
+
+See [validation.md](validation.md) for what the check does and why. `validate` is a plain
+`bool = True`: the default and `True` enable the provider-graph check, which runs **once at `open()`**
+(never in `__init__`, never on resolve); `validate=False` disables it. `__init__` records this once as
+`self._validate_enabled = validate and parent_container is None`. The `parent_container is None`
+conjunct is the container-specific wrinkle: only a **root** validates. A child built via
+`build_child_container` never passes `validate`, and even if it did the `parent_container is None` guard
+is false for every child, so `_validate_enabled` is always `False` on a child — children never validate,
+regardless of `validate`'s value. That is safe because the providers registry is shared tree-wide, so
+the root's single validation walk covers every child (see [Integration seam](#integration-seam)).
+
+## Mandatory-open lifecycle
+
+A container must be **opened** before it can resolve or build children. Construction leaves it
+unopened (`closed = True`); calling `resolve` / `resolve_provider` / `resolve_dependency` /
+`build_child_container` on an unopened (or closed) container raises `ContainerClosedError`. Enter it
+via `with` / `async with`, or call `open()` directly:
+
+```python
+with Container(scope=Scope.APP, groups=[MyGroup]) as container:
+    container.resolve(...)          # opened -> usable; validated once on entry (root only)
+# exit closes it; re-entering reopens
+
+# callback-style lifecycle (no with-block available):
+container = Container(scope=Scope.APP, groups=[MyGroup])
+container.open()                     # opens + validates (root, once)
+```
+
+The full lifecycle is: **construct → (unopened: use raises) → `open()`/`with` (root validates once) →
+use → close → reopen**. `open()` is the single validation trigger — resolution never validates. Only a
+root validates; a child from `build_child_container` also starts unopened and must be entered, but its
+`open()` merely clears `closed` (children never validate). See
+[Lifecycle: close and reopen](#lifecycle-close-and-reopen) for close/reopen mechanics.
 
 ## Child containers
 
 ```python
-child = container.build_child_container(scope=Scope.REQUEST, context={MyRequest: request_obj})
+with container.build_child_container(scope=Scope.REQUEST, context={MyRequest: request_obj}) as child:
+    child.resolve(...)
 ```
 
 `build_child_container` creates a new `Container` whose `parent_container` is the current one.
@@ -56,8 +82,9 @@ Rules:
   the parent, **not** `value + 1`, so non-contiguous custom enums (`TENANT=6, JOB=10`) work; if the parent is
   already at the deepest member, `MaxScopeReachedError` is raised. See
   [scopes.md](scopes.md#the-scope-algebra).
-- Building a child from a closed container raises `ContainerClosedError` (see
-  [Lifecycle: close and reopen](#lifecycle-close-and-reopen) below).
+- Building a child requires the parent be **open**: `build_child_container` on an unopened or closed
+  parent raises `ContainerClosedError` (see [Lifecycle: close and reopen](#lifecycle-close-and-reopen)
+  below). The returned child itself starts unopened and must be entered before use.
 
 The child gets its own, independent `_scope_map` dict that includes all ancestors plus itself,
 enabling `find_container(scope)` to walk up to any ancestor scope in O(1).
@@ -149,30 +176,32 @@ After running a finalizer, `CacheItem._clear()` evicts the cached instance (and 
 only if `CacheSettings.clear_cache` is `True` (the default); otherwise the cached value survives
 close, ready to be returned again without re-running the creator.
 
-### Reopen (context-manager protocol)
+### Open and reopen (context-manager protocol)
 
 `Container` implements both sync (`__enter__` / `__exit__`) and async (`__aenter__` / `__aexit__`)
-context managers; `open()` (documented on the method itself) is the reopen primitive they call.
+context managers; `open()` (documented on the method itself) is the primitive they call — both to open
+a freshly-constructed container the first time and to reopen it on re-entry.
 
 Concretely: using the same container object as a context manager a second time reopens it (clears
 `closed`), resolves providers fresh if `clear_cache=True` was set on their `CacheSettings` (since
 close removed those cached values), and then closes it again on exit. Providers whose
 `CacheSettings.clear_cache` is `False` retain their cached instances across reopen cycles.
 
-`open()` also runs deferred validation, but **only once**: it calls `self.validate()` when
-`_validate_enabled and not self._validated`. `close()` leaves `_validated` untouched (it only sets
-`closed = True`), so the flag survives a close, and a plain close→reopen does **not** re-walk the graph.
-See [validation.md](validation.md#enabling-validation--deferred-by-default).
+`open()` also runs validation, but **only once**: it calls `self.validate()` when
+`_validate_enabled and not self._validated` (root only). `close()` leaves `_validated` untouched (it
+only sets `closed = True`), so the flag survives a close, and a plain close→reopen does **not** re-walk
+the graph. See [validation.md](validation.md#enabling-validation--deferred-by-default).
 
 Prefer the `with` form. `open()` is exposed as a public method for callback-style lifecycles that
-cannot wrap the container in a `with` block — for example a framework startup hook that must reopen
-the long-lived root container before serving the next request. The FastStream integration uses
-exactly this: `app.on_startup(container.open)` paired with `app.after_shutdown(container.close_async)`.
+cannot wrap the container in a `with` block — for example a framework startup hook that must open the
+long-lived root container before serving the first request (and reopen it after a shutdown). The
+FastStream integration uses exactly this: `app.on_startup(container.open)` paired with
+`app.after_shutdown(container.close_async)`.
 
 ## `validate()`
 
 See [validation.md](validation.md) for what `container.validate()` checks, how it reports
-aggregated errors, and how validation runs deferred (once, at entry/first-resolve) by default.
+aggregated errors, and how validation runs once at `open()` by default.
 
 ## `set_context()`
 

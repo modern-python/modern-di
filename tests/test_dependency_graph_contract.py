@@ -82,5 +82,6 @@ def test_runtime_guard_converts_unvalidated_cycle() -> None:
         b = Factory(scope=Scope.APP, creator=_B)
 
     container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container.open()
     with pytest.raises(exceptions.CircularDependencyError):
         container.resolve(_A)

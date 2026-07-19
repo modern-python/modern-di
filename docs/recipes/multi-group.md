@@ -84,7 +84,7 @@ container = Container(groups=ALL_GROUPS, validate=True)
 
 - **Duplicate `bound_type` raises at container creation.** If two groups register providers for the same type (e.g. both bind to `AsyncSession`), `Container(groups=[...])` raises `DuplicateProviderTypeError` immediately. Fix by assigning distinct types — e.g. declare thin subclasses (`class WriteSession(AsyncSession): ...`) — or set `bound_type=None` on one provider and wire it explicitly via `kwargs`. See [Duplicate provider type](../troubleshooting/duplicate-type-error.md).
 - **Attribute-name collisions do not affect `Container`.** `Container` keys providers on their `bound_type`, not on the attribute name. Two groups can both have an attribute named `session` as long as their `bound_type`s differ — `Container` sees no conflict. The duplicate-name `ValueError` belongs to `modern-di-pytest`'s `expose(*groups)` helper (a separate package), which generates one pytest fixture per attribute name and does raise `ValueError` on duplicates. If you use `expose()`, ensure attribute names are unique across the groups you pass to it.
-- **Order in `groups=[...]` does not matter for resolution.** Validate at startup with `validate=True`.
+- **Order in `groups=[...]` does not matter for resolution.** Validate at startup — the integration opens the container, which runs the check.
 
 ## Auto-wiring with Litestar
 

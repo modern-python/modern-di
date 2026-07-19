@@ -44,6 +44,7 @@ def test_modern_di_imports_without_typing_extensions() -> None:
         "import modern_di\n"
         "from modern_di import Container, Scope\n"
         "container = Container(scope=Scope.APP)\n"
+        "container.open()\n"
         "child = container.build_child_container(scope=Scope.REQUEST)\n"
         "print('OK', child.scope.name)\n"
     )

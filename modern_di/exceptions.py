@@ -227,10 +227,11 @@ class InvalidScopeTypeError(ContainerError):
 
 
 class ContainerClosedError(ContainerError):
-    """Operation attempted on a closed container. Attr: ``container_scope``.
+    """Operation attempted on a container that is not open. Attr: ``container_scope``.
 
-    Raised in modern-di 3.0; until then reuse emits :class:`ContainerClosedWarning`
-    and self-reopens.
+    Covers both a never-opened container and one closed after use — a container
+    must be entered (``with``/``async with``/:meth:`~modern_di.Container.open`)
+    before it can resolve or build child containers.
     """
 
     docs_slug = "container-closed-error"
@@ -240,8 +241,8 @@ class ContainerClosedError(ContainerError):
     def __init__(self, *, container_scope: enum.IntEnum) -> None:
         self.container_scope = container_scope
         super().__init__(
-            f"Container (scope {container_scope.name}) is closed and can no longer resolve dependencies "
-            "or build child containers. Create a new container."
+            f"Container (scope {container_scope.name}) is not open — enter it with `with`/`async with` "
+            "or call `open()` before resolving or building child containers."
         )
 
 

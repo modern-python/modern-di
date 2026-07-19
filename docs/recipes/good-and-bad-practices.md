@@ -19,8 +19,8 @@ class Dependencies(Group):
     user_cache = providers.Factory(UserCache, scope=Scope.REQUEST)
 ```
 
-**Caught by:** `Container(groups=[...], validate=True)` raises `InvalidScopeDependencyError` for
-this exact graph before anything is ever resolved — see
+**Caught by:** opening `Container(groups=[...], validate=True)` (the default) raises
+`InvalidScopeDependencyError` for this exact graph before anything is ever resolved — see
 [Scope chain violation](../troubleshooting/scope-chain.md). If the graph is never validated, the
 runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError` that (since the scope-error
 breadcrumb work) now names both the provider that captured the dependency and the one that
@@ -36,15 +36,17 @@ finding them to whichever resolve happens to hit one first.
 ```python
 # ❌ validation off: wiring bugs surface one at a time, in production, on whatever request trips them
 container = Container(groups=[Dependencies], validate=False)
+container.open()
 
-# ✅ validation on (the default): every wiring bug is reported at once, at container entry / first resolve
+# ✅ validation on (the default): every wiring bug is reported at once, at container entry
 container = Container(groups=[Dependencies])
+container.open()  # validates here — raises immediately if the graph is broken
 ```
 
-**Caught by:** the default validation (equivalently `validate=True`), which runs deferred — once, at
-container entry (`open()`/`with`) or first resolve — and finds every issue in the graph up front
-instead of one at a time; call `container.validate()` explicitly for a construction-time check. Only
-`validate=False` opts out. An unvalidated cyclic graph still isn't a silent hang — see
+**Caught by:** the default validation (equivalently `validate=True`), which runs deferred — once, when
+the container is entered (`open()`/`with`) — and finds every issue in the graph up front instead of one
+at a time; call `container.validate()` explicitly for a construction-time check. Only `validate=False`
+opts out. An unvalidated cyclic graph still isn't a silent hang — see
 [the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 
 ## 3. A cached factory resolved before `set_context`
