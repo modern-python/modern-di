@@ -65,7 +65,8 @@ The provider is bound to a [scope](scopes.md) (here `Scope.REQUEST`) and the val
 
 A `ContextProvider` reads its value from the context of the container at its bound scope. If nothing was supplied, behavior depends on the call path:
 
-- Resolving it **directly** (`container.resolve(CustomContext)`) returns `None`.
+- Resolving it **directly** (`container.resolve(CustomContext)`) raises `ContextValueNotSetError` (see
+  [Migration: direct resolve of an unset `ContextProvider` raises](../migration/to-3.x.md#5-direct-resolve-of-an-unset-contextprovider-raises)).
 - Injecting it into a `Factory` parameter that is **not** `Optional`/defaulted raises `ArgumentResolutionError`.
 
 Annotate the consuming parameter as `X | None` (or give it a default) if the value can legitimately be absent. See [ContextProvider has no value](../troubleshooting/context-not-set.md).

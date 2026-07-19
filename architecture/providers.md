@@ -126,16 +126,16 @@ happens next depends on **how** the value is fetched — direct resolve vs. as a
 and the two paths are independent:
 
 - **Direct resolve** (`container.resolve(HttpRequest)` / `container.resolve_provider(the_provider)` →
-  `ContextProvider.resolve`): if no value was supplied (the key is absent), it emits
-  `ContextValueNoneWarning` (a `DeprecationWarning` naming the context type and scope) and
-  returns `None`. modern-di 3.0 raises `ContextValueNotSetError` here instead of warning —
-  see the [migration guide](../docs/migration/to-3.x.md). Escalate the warning now to catch unset-context bugs
-  ahead of the 3.0 upgrade: `warnings.filterwarnings("error", category=exceptions.ContextValueNoneWarning)`.
+  `ContextProvider.resolve`): if no value was supplied (the key is absent), it raises
+  `ContextValueNotSetError`, naming the context type and the resolving container's scope — see
+  [Migration: To 3.x](../docs/migration/to-3.x.md#5-direct-resolve-of-an-unset-contextprovider-raises).
+  `ContextValueNoneWarning` still exists in `exceptions.py` (retained so existing
+  `filterwarnings` configs don't break) but nothing raises it any more.
 - **As a dependent parameter** of another provider (e.g. a `Factory` constructor argument typed as the context
-  type): unchanged by the above — `Factory` reads the value via `fetch_context_value` (not `resolve`), so no
-  warning fires on this path. `Factory._resolve_context_value` handles the absent-context case live via the
+  type): unaffected by the above — `Factory` reads the value via `fetch_context_value` (not `resolve`), so no
+  exception is raised on this path. `Factory._resolve_context_value` handles the absent-context case live via the
   shared `absent_disposition` helper: if the dependent parameter has a default or is nullable it is silently
-  satisfied; otherwise an `ArgumentResolutionError` is raised, exactly as before this warning was added.
+  satisfied; otherwise an `ArgumentResolutionError` is raised.
 
 Either **declaration route** reaches that dependent-parameter path: matched by type from the registry, or
 passed explicitly as `Factory(creator, kwargs={"request": the_provider})`. `WiringPlan.build` buckets both
@@ -144,9 +144,9 @@ parameter is a declaration detail, not a behavior switch.
 
 The one exception is a `ContextProvider` passed via `kwargs={...}` for a parameter with **no parsed
 `SignatureItem`** — a `**kwargs` creator, or `skip_creator_parsing=True`. There is no default or nullability
-to consult, so it stays on the direct-resolve path above and warns accordingly. Treating it as required would
-raise where 2.x returns `None`; treating it as nullable would silently swallow the unset-context signal that
-3.0 turns into `ContextValueNotSetError`.
+to consult, so it stays on the direct-resolve path above and raises `ContextValueNotSetError` when unset.
+Treating it as required would raise where the parameter itself has no such constraint declared; treating it
+as nullable would silently swallow the unset-context signal — so it keeps direct-resolve semantics instead.
 
 `ContextProvider` also accepts an optional `bound_type` that overrides the inferred bound type.
 

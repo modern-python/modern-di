@@ -113,11 +113,9 @@ the same `dependency_path` — the breadcrumb machinery is shared, not duplicate
   `skip_creator_parsing` mismatch). Exceptions raised *inside* the creator body propagate unchanged,
   never wrapped. The binding `TypeError` is preserved on `.original_error` (and as the `__cause__`).
   See [Troubleshooting: CreatorCallError](../troubleshooting/creator-call-error.md).
-- **`ContextValueNotSetError`** — raised in modern-di **3.0** when an unset `ContextProvider` is
-  resolved *directly* (`container.resolve(SomeContextType)` with no value set). Until then that
-  resolve emits **`ContextValueNoneWarning`** (a `DeprecationWarning`) and returns `None` —
-  escalate it today via the
-  [readiness recipe](../migration/to-3.x.md#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings).
+- **`ContextValueNotSetError`** — raised when an unset `ContextProvider` is resolved *directly*
+  (`container.resolve(SomeContextType)` with no value set); there is no fallback. See
+  [Migration: To 3.x](../migration/to-3.x.md#5-direct-resolve-of-an-unset-contextprovider-raises).
   Only the direct-resolve path is affected — a `Factory` parameter backed by the same
   `ContextProvider` keeps following its own default/nullable/required disposition. Inspect
   `.context_type`. See [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).

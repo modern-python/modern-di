@@ -309,8 +309,8 @@ def _compile_container_provider() -> "typing.Callable[[Container], typing.Any]":
 def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
     """Front-guard the override, then delegate to the bound `ContextProvider.resolve`.
 
-    Reuses the bound method so the unset-value `ContextValueNoneWarning` (text + stacklevel)
-    stays identical, not reimplemented.
+    Reuses the bound method so the unset-value `ContextValueNotSetError` stays identical, not
+    reimplemented.
     """
     pid = cp.provider_id
     resolve_bound = cp.resolve
