@@ -122,15 +122,40 @@ access to shared hot-path objects (registry resolver/cache dicts, container, cac
 refcounting + per-object dict synchronization under free-threading), not the GIL. First-resolve also
 serializes on the double-checked creation lock ([`concurrency.md`](../architecture/concurrency.md)).
 
-**The open work:** whether resolve throughput *can* scale free-threaded without breaking the
-zero-dependency, single-source-of-truth design — e.g. immortalizing shared providers/resolvers to cut
-refcount traffic, per-thread caches, or reducing shared-dict touches on the read path. Each trades
-against the conservative-feature-set and the shared-registry model; measure against G14/G15 before
-committing. A comparative version (vs that-depends' lock-free slot) stays out until the contracts map
-fairly. This is the forward-looking differentiator, so it matters if free-threading adoption grows.
+**Diagnosed (2026-07-19): not liftable by modern-di — it is CPython refcount contention, not the
+lock.** A thread-isolation sweep (fixed total work split across 4 threads on 3.14t, GIL confirmed
+off; speedup = t1/t4, ceiling ~3.8x from a pure-compute control) pinned exactly what serializes:
 
-**Revisit trigger:** free-threading promoted past Beta, a user reporting that resolution does not use
-their cores, or a rival publishing free-threaded scaling numbers. See the
+| case | what is shared across threads | 4-thread speedup |
+|---|---|---|
+| pure compute | nothing | 3.8x (ceiling) |
+| fully thread-local (distinct provider + container + value) | module globals only | 2.17x |
+| distinct container per thread | + the **provider** object | 0.92x |
+| distinct value, shared container | + provider + machinery | 0.84x |
+| same singleton (the G14 case) | + the **returned value** | 0.64x |
+| raw `dict.get` -> one shared value | just the value's refcount | 0.28x |
+
+The read path is bounded by atomic reference counting on the objects every resolve shares: most
+sharply the **returned singleton value** (a singleton *is* a shared object — inherent), then the
+shared **provider** objects (distinct-container 0.92x vs thread-local 2.17x is the provider), then
+the compiled-resolver closures and their captured cells (every `LOAD_DEREF` of a shared capture
+increfs it). The per-container lock is *not* the bottleneck.
+
+A throwaway **immortalization experiment** (ctypes set of `ob_ref_local` on the free-threaded build,
+offset verified against a known-immortal object) confirmed the cause *and* quantified the ceiling:
+transitively immortalizing the shared hot-path objects lifts the same-singleton case from **~0.6x to
+~2.5x** (median of 3 runs; ≈68% of the ~3.7x machine ceiling). So it is squarely refcounting, and it
+*is* recoverable in principle — but the only lever is unshippable. There is **no public API** to
+immortalize user objects (PEP 683 is internal C-API); the `ctypes` poke is free-threaded-build-specific
+and unsafe; and part of the win requires immortalizing the user's **singleton value**, which then is
+never freed — a memory leak, unacceptable for a general container. So this stays off the table for a
+conservative zero-dep library. **The fix is CPython's**, not ours: deferred reference counting (PEP 703)
+expanding to ordinary instances/cells lifts this for free, no code change.
+
+**Revisit trigger:** CPython deferred reference counting expands to cover instances/cells (retest
+G14/G15 — should scale for free), or a user reports a real resolve-throughput bottleneck (unlikely;
+resolution is a tiny fraction of request work). A comparative version (vs that-depends' lock-free
+slot) stays out until the contracts map fairly. See the
 [nogil-support research](audits/2026-07-17-nogil-support-research-report.md) and G14/G15.
 
 The other two evaluated axes were **declined** (not deferred): a *comparative* override scenario
