@@ -51,38 +51,40 @@ lifecycle, and trails the two `exec`-codegen frameworks by 1.3-1.9x on transient
   construction-heavy graphs is the accepted floor without `exec`; revisit only if that stance changes.
 
 **Revisit trigger:** a user-reported warm-singleton bottleneck. The C2 swap was tried and dropped (above);
-the codegen ceiling is a stance, not a task. The live next step is the dispatch-floor simplification below.
+the codegen ceiling is a stance, not a task. The dispatch-floor simplification (below) shipped in #347.
 See the [competitor-perf research](audits/2026-07-16-competitor-perf-research-report.md) (the design
 evidence: closures capture ~80-90% of the ceiling, `exec` buys 0-4% at fixed arity).
 
-## Dispatch-floor simplification: invalidate-on-mutation instead of version-stamp-per-resolve — from the 2026-07-18 C2 attempt
+## Dispatch-floor simplification: invalidate-on-mutation — SHIPPED 2026-07-19 (#347)
 
-The C2 swap tried to *add* a bypass layer and capped at ~1.6x because it could not remove
-`resolve_provider`'s dispatch floor. The inverse — *removing* per-resolve work — is the better trifecta
-(simpler + more readable + faster), and the explicit lifecycle contract now licenses it.
+The inverse of the dropped C2 swap: instead of *adding* a bypass, *remove* per-resolve work.
+`ProvidersRegistry`'s resolver/plan memos dropped the per-lookup version stamp for **clear-on-mutation**,
+and validation freshness folded from the `_version` counter to a `_validated` bool (the internal `version`
+machinery deleted). Licensed by the explicit lifecycle contract (mutation is a single-threaded
+configure-phase operation). Full rationale: change
+[`2026-07-18.02`](changes/2026-07-18.02-dispatch-floor-invalidate-on-mutation.md).
 
-Today every `resolver_for` / `plan_for` call does `cached = dict.get(pid); if cached and cached[0] ==
-version: return cached[1]` — a tuple-unpack + int-compare on the hot path (`providers_registry.py`), purely
-to guard against a registry mutation that (per the now-explicit configure→resolve→close lifecycle) only
-happens during single-threaded configure. **Refactor:** on `register` / `add_providers` / `_remove_providers`,
-`clear()` the resolver + plan memos; store bare callables (drop the version tuple). The hot path becomes a
-plain `self._resolvers.get(pid)`, recompile-on-miss.
+**Measured, same machine before/after:** guard g1 −4%, g2 (cached singleton) −9/−12%; comparative median
+C1 −7.6%, C2 −4.8%, C3 −3.3%, C4 flat. A small, uniform win (the dispatch floor is on every resolve); no
+regression. It shipped on simplification, not the perf.
 
-- **Simpler + readable:** the memos become plain `dict[int, Callable]`; the invariant collapses to "the memo
-  is valid until the registry changes, and changing it clears the memo," replacing the snapshot-version-before-build
-  subtlety (a whole docstring paragraph today). Keep `_version` only for `is_validated` (validation
-  freshness), decoupled from the memo.
-- **Faster:** removes the per-resolve tuple-index + int-compare — part of the exact dispatch floor that
-  capped C2. No new state (removes the version tuples).
-- **Companion (optional):** post-3.0, `_warn_and_reopen_if_closed` collapses to an inlined `if self.closed:
-  raise` (closed→error, which the [DI-concurrency research](audits/2026-07-18-di-concurrency-contract-report.md)
-  validates against .NET's `ObjectDisposedException`) — one fewer dispatch frame.
+**Competitive standing held** (re-measured 2026-07-19, py3.14 GIL, median-of-medians over 5 reps, CV
+1-3.9%, on a *different* machine than the pre-C2 table above — read the ratios, not the absolutes), as
+**modern-di ÷ rival (>1 = modern-di slower; bold = modern-di faster)**:
 
-**Needs (like C2):** a design pass, a free-threaded soundness check (`clear()` vs `get()` race only during
-configure, which the contract puts out of bounds — verify), and a benchmark to confirm the win before
-asserting a number.
+| Scenario | dishka | dependency-injector (Cython) | that-depends | wireup |
+|---|---|---|---|---|
+| C1 transient | 1.20x | **0.75x** | 1.00x | 1.67x |
+| C2 warm singleton | 1.14x | 4.50x | 3.31x | 2.90x |
+| C3 deep chain | 1.81x | **0.53x** | **0.78x** | 1.28x |
+| C4 async lifecycle | 1.04x | **0.18x** | **0.74x** | **0.70x** |
 
-**Revisit trigger:** the live next perf step; pick up when perf work resumes.
+modern-di stays mid-pack and the only zero-dependency pure-Python framework holding its own: it beats the
+Cython `dependency-injector` on 3 of 4, is within 1.04-1.20x of `dishka` on C1/C2/C4, and beats
+`that-depends`/`wireup` on the async lifecycle. Every ratio nudged slightly toward modern-di vs the pre-A2
+table, consistent with the uniform dispatch-floor win. **The one clear gap — C2 warm singleton, 3-4.5x
+behind the slot-memoized rivals (dependency-injector 61 ns C-slot, that-depends 83 ns, wireup 95 ns) — is
+what the dropped C2 lever targeted, and stays open by design** (closing it was ruled not worth the machinery).
 
 ## Opt-in DEBUG resolution tracing (ERR-8) — from 2026-07-05 3.0 UX research
 
