@@ -33,15 +33,15 @@ class SignatureItem:
 
         # union type
         if isinstance(type_, types.UnionType) or typing.get_origin(type_) is typing.Union:
-            args = [typing.get_origin(x) or x for x in typing.get_args(type_)]
-            if types.NoneType in args:
+            union_members = [typing.get_origin(x) or x for x in typing.get_args(type_)]
+            non_none_members = [member for member in union_members if member is not types.NoneType]
+            if len(non_none_members) != len(union_members):
                 result["is_nullable"] = True
-                args.remove(types.NoneType)
 
-            if len(args) > 1:
-                result["args"] = args
-            elif args:
-                result["arg_type"] = args[0]
+            if len(non_none_members) > 1:
+                result["args"] = non_none_members
+            elif non_none_members:
+                result["arg_type"] = non_none_members[0]
 
         # generic — parameterized generics are not resolvable by type
         elif typing.get_origin(type_) is not None:
