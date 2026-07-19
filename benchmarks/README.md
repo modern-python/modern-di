@@ -23,6 +23,8 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G11 | `validate()` on a wide 10-sibling graph (isolated via `pedantic`) | graph-validation traversal, fan-out |
 | G12 | Resolve a depth-6 chain with one unrelated override active | override front-guard (`fetch_override`) tax |
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
+| G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
+| G15 | Concurrent first-resolve, N threads (double-checked creation lock) | free-threaded creation-lock contention |
 
 **Rules.** Containers are built/warmed in setup, never inside the timed call —
 **except G8**, the cold scenario, which builds the root container *inside* the
@@ -36,6 +38,27 @@ round runs the full graph walk. Every benchmark asserts the resolved graph is
 correct. G7 is wall-clock only — instruction-count tooling cannot measure the
 awaited teardown, and a single reused event loop keeps loop overhead out of the
 signal as far as practical.
+
+### Concurrency (G14/G15)
+
+G14/G15 use a custom N-thread harness (`test_guard_concurrency.py`) — pytest-benchmark
+times a parallel batch of worker threads released together behind a barrier,
+parametrized over thread count `{1, 2, 4}` so the scaling trend shows within one run.
+The GIL vs free-threaded (PEP 703) comparison comes from running the file under each
+build (same version/arch):
+
+```
+uv run --python 3.14t --with pytest-benchmark pytest benchmarks/test_guard_concurrency.py
+```
+
+CI's guard-bench runs one GIL interpreter, so the free-threaded numbers are a manual
+run. **Finding:** resolution is thread-safe but its throughput **does not scale** with
+threads on a free-threaded build — cached-hit batch time is flat-to-worse as threads
+rise and matches the GIL, while a pure-compute control on the same harness scales
+~3.5x at 4 threads. The bottleneck is concurrent access to shared hot-path objects
+(registry resolver/cache dicts, container, cached value), not the GIL; first-resolve
+additionally serializes on the double-checked creation lock. Read the thread-count
+*trend*, not absolutes — throughput benches are noisy and guard-bench is non-gating.
 
 ## Comparative tier (`benchmarks/comparative/`, isolated project)
 
