@@ -79,6 +79,13 @@ not **Stable**. See the report for the full argument.
   lock; racing them against live `resolve()` is inherently unordered (it always
   was, GIL or not). `close` / `open` are the same: tear a container down only
   after concurrent resolution has stopped.
-- **Performance, not correctness, is the open question.** Whether the
-  per-container lock contends under heavy parallel first-resolution is unmeasured
-  and out of scope for the Beta claim (report §7).
+- **Thread-safe, but resolve throughput does not scale across cores.** Measured
+  (guard benchmarks G14/G15): concurrent resolution is correct and per-op latency
+  is competitive, but adding threads does not raise throughput on a free-threaded
+  build — it tracks the GIL. The cause is CPython's atomic reference counting of
+  the objects every resolve shares (the returned singleton value, the provider
+  objects, the compiled-resolver closures and their captured cells), not the
+  per-container lock and not anything modern-di can remove without immortalizing
+  those objects (no public CPython API). It is a CPython-level limitation that its
+  own expanding deferred reference counting (PEP 703) will lift for free as it
+  reaches ordinary instances. See the [free-threaded scaling diagnosis](../planning/deferred.md).
