@@ -40,6 +40,17 @@ Flask, gRPC, Celery, arq, taskiq, and aiogram.**
 | License | MIT | Apache-2.0 | BSD-3 | BSD | — |
 | Adoption | newest, very active | established, large community | most popular, mature | mature | built into FastAPI |
 
+On the **typed-resolution** row: modern-di keeps the concrete static type end to
+end. `resolve(SomeType)` is typed `SomeType` (not `Any`), and the injection
+marker for integrations, `Annotated[T, from_di(dep)]`, type-checks as `T` — the
+same clean shape as Dishka's `FromDishka[T]` and FastAPI's
+`Annotated[T, Depends(...)]`. That is a deliberate design point, not an accident:
+the older marker spellings erase the type — `dependency-injector`'s
+`Provider[Animal]` annotation infers the base `Animal` rather than a concrete
+subtype, and a bare `x = Depends(fn)` is typed `Any`. It also needs no
+type-checker plugin to hold — see the
+[non-goal on static wiring verification](design-decisions.md#non-goals).
+
 ## Honest comparison
 
 ### vs Dishka

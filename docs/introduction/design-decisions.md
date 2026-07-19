@@ -40,7 +40,7 @@ New features get added only when existing primitives genuinely cannot solve the 
 
 ## Non-goals
 
-Beyond the choices above, three more things are deliberately out of scope. Naming them here is meant to save you from filing (or us from re-litigating) the same feature request.
+Beyond the choices above, four more things are deliberately out of scope. Naming them here is meant to save you from filing (or us from re-litigating) the same feature request.
 
 ### Auto-binding / auto-registration
 
@@ -65,6 +65,14 @@ Beyond the choices above, three more things are deliberately out of scope. Namin
 **Why:** Rendering is a standalone subsystem (choosing, drawing, and maintaining a diagram toolchain) rather than an extension of an existing primitive, so it sits outside the conservative feature set and the zero-dependency guarantee. `validate()`'s aggregated, all-errors-at-once text report already surfaces the graph's problems without a new dependency or output format.
 
 **Alternative:** None shipped today. If you need a picture of the graph, walk `Group.get_providers()` yourself and feed the edges to the diagram tool of your choice.
+
+### Static / compile-time wiring verification (a type-checker plugin)
+
+**What:** modern-di ships no static dependency-graph checker and no type-checker plugin (mypy, pyright, or `ty`). Whole-graph verification is the opt-in runtime [`validate()`](../providers/lifecycle.md), which walks the graph for missing providers, scope-direction violations, and cycles and reports them all at once — on top of the declaration-time `UnsupportedCreatorParameterError` that already fires when a creator can't be wired.
+
+**Why:** In the wider field, true compile-time wiring checks are a property of compiled-language toolchains — Dagger's annotation processor, Google Wire's codegen, Koin's K2 compiler plugin — and where they exist they *replace* runtime verification rather than extend it (Koin's docs tell users to delete their `verify()` tests). A Python type-checker plugin can't cheaply emulate that: pyright supports no third-party plugins by design, `ty` (which modern-di itself uses) has none either, and only mypy exposes one — a plugin API its own docs call experimental, changed without deprecation. Such a plugin would serve only mypy users, duplicate `validate()`, and not even help modern-di's own toolchain.
+
+**Alternative:** Call `container.validate()` (or construct with `validate=True`) in a startup path or a single test — it is runtime, so it works identically under mypy, pyright, and `ty`, with no plugin to install.
 
 ## See also
 
