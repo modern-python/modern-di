@@ -109,27 +109,29 @@ path is higher-risk for a conservative library.
 child-build dominates a realistic request cycle enough to justify hot-path branches. Measure net,
 both tiers (guard `G6b` + comparative `C4`), before shipping.
 
-## Concurrent / free-threaded throughput benchmark — needs a custom harness — from 2026-07-19 remaining-axes eval
+## Free-threaded resolve throughput does not scale — from 2026-07-19 concurrency benchmark (G14/G15)
 
-The 2026-07-19 benchmark-axes evaluation shipped cold (G8/C5), context (G9/C6), validate (G10/G11),
-override (G12), and teardown (G13). The one axis **not** delivered is concurrent-resolution
-throughput: how resolution scales across threads, and how much the double-checked singleton-creation
-lock (`CacheItem.get_or_create`) contends — the forward-looking differentiator vs lock-free rivals
-(that-depends' lock-free slot) under free-threading (PEP 703). It is the real competitive story on
-3.14t, and modern-di already supports free-threading at Beta ([`concurrency.md`](../architecture/concurrency.md)).
+The 2026-07-19 benchmark-axes evaluation shipped **all** the pytest-benchmarkable axes: cold (G8/C5),
+context (G9/C6), validate (G10/G11), override (G12), teardown (G13), and now concurrency (G14/G15,
+change [`2026-07-19.07`](changes/2026-07-19.07-concurrency-benchmarks.md), guard-only custom N-thread
+harness). What the concurrency benchmark **revealed** is the real deferred item: modern-di's concurrent
+resolve is thread-**safe** but its throughput **does not scale** with threads on a free-threaded build
+(PEP 703). Cached-hit batch time is flat-to-worse as threads rise and matches the GIL, while a
+pure-compute control on the same harness scales ~3.5x at 4 threads — so the bottleneck is concurrent
+access to shared hot-path objects (registry resolver/cache dicts, container, cached value: atomic
+refcounting + per-object dict synchronization under free-threading), not the GIL. First-resolve also
+serializes on the double-checked creation lock ([`concurrency.md`](../architecture/concurrency.md)).
 
-**Why it is not a quick add:** `pytest-benchmark` measures single-thread wall time only. Throughput
-needs a **custom harness** — N worker threads behind a start barrier, each resolving from one shared
-warm container, measuring aggregate ops/sec — run under both the GIL and free-threaded 3.14t (CI has
-the `3.14t` job). Two sub-cases matter: (a) concurrent resolve of an already-**cached** singleton
-(read-mostly; should scale near-linearly on 3.14t if no false contention), and (b) concurrent
-**first** resolve of a singleton (the double-checked lock's contention window). Throughput numbers are
-noisy; the harness must control for that (fixed op count, warmup, median of repeats). A comparative
-version is hard — each framework's thread-safety contract differs — so **guard-tier first**.
+**The open work:** whether resolve throughput *can* scale free-threaded without breaking the
+zero-dependency, single-source-of-truth design — e.g. immortalizing shared providers/resolvers to cut
+refcount traffic, per-thread caches, or reducing shared-dict touches on the read path. Each trades
+against the conservative-feature-set and the shared-registry model; measure against G14/G15 before
+committing. A comparative version (vs that-depends' lock-free slot) stays out until the contracts map
+fairly. This is the forward-looking differentiator, so it matters if free-threading adoption grows.
 
-**Revisit trigger:** free-threading promoted past Beta, a user-reported contention issue, or a rival
-publishing free-threaded throughput numbers. Guard-tier custom harness first; comparative only if the
-contracts can be mapped fairly. See the [nogil-support research](audits/2026-07-17-nogil-support-research-report.md).
+**Revisit trigger:** free-threading promoted past Beta, a user reporting that resolution does not use
+their cores, or a rival publishing free-threaded scaling numbers. See the
+[nogil-support research](audits/2026-07-17-nogil-support-research-report.md) and G14/G15.
 
 The other two evaluated axes were **declined** (not deferred): a *comparative* override scenario
 (each framework's override/mock API differs too much to compare; G12 covers modern-di) and a larger
