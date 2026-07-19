@@ -101,13 +101,7 @@ class Container:
         self.context_registry = ContextRegistry(context=context or {})
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
-        if parent_container:
-            self.providers_registry = parent_container.providers_registry
-            self.overrides_registry = parent_container.overrides_registry
-        else:
-            self.providers_registry = ProvidersRegistry()
-            self.providers_registry.register(Container, container_provider)
-            self.overrides_registry = OverridesRegistry()
+        self._setup_registries(parent_container)
         if groups:
             all_providers: list[AbstractProvider[typing.Any]] = []
             for one_group in groups:
@@ -125,6 +119,20 @@ class Container:
                 exceptions.UnvalidatedContainerWarning,
                 stacklevel=2,
             )
+
+    def _setup_registries(self, parent_container: "typing_extensions.Self | None") -> None:
+        """Share the parent's providers/overrides registries, or create fresh ones on a root.
+
+        A root seeds its providers registry with ``container_provider`` so ``Container``
+        resolves to the resolving container.
+        """
+        if parent_container:
+            self.providers_registry = parent_container.providers_registry
+            self.overrides_registry = parent_container.overrides_registry
+        else:
+            self.providers_registry = ProvidersRegistry()
+            self.providers_registry.register(Container, container_provider)
+            self.overrides_registry = OverridesRegistry()
 
     def build_child_container(
         self,

@@ -109,7 +109,53 @@ class WiringPlan:
         registry: "ProvidersRegistry",
         owner: "Factory[typing.Any]",
     ) -> "WiringPlan":
-        """Partition *parsed_kwargs* into wiring buckets. Never raises."""
+        """Partition *parsed_kwargs* into wiring buckets. Never raises.
+
+        Two phases: a by-type pass over ``parsed_kwargs``, then an overlay pass for any
+        explicit ``kwargs={...}`` entries — each bucketing into the same four dicts.
+        """
+        provider_kwargs, static_kwargs, context_kwargs, unwireable = cls._wire_by_type(
+            parsed_kwargs=parsed_kwargs,
+            kwargs=kwargs,
+            registry=registry,
+            owner=owner,
+        )
+
+        if kwargs:
+            cls._apply_overlay(
+                kwargs=kwargs,
+                parsed_kwargs=parsed_kwargs,
+                provider_kwargs=provider_kwargs,
+                static_kwargs=static_kwargs,
+                context_kwargs=context_kwargs,
+            )
+
+        return cls(
+            provider_kwargs=provider_kwargs,
+            static_kwargs=static_kwargs,
+            context_kwargs=context_kwargs,
+            unwireable=unwireable,
+            pure_provider=not static_kwargs and not context_kwargs,
+        )
+
+    @staticmethod
+    def _wire_by_type(
+        *,
+        parsed_kwargs: dict[str, SignatureItem],
+        kwargs: dict[str, typing.Any] | None,
+        registry: "ProvidersRegistry",
+        owner: "Factory[typing.Any]",
+    ) -> tuple[
+        dict[str, "AbstractProvider[typing.Any]"],
+        dict[str, typing.Any],
+        dict[str, "tuple[ContextProvider[typing.Any], SignatureItem]"],
+        "list[tuple[str, SignatureItem]]",
+    ]:
+        """Bucket each parsed parameter by resolving its type; the overlay pass runs after.
+
+        Returns the four buckets ``(provider, static, context, unwireable)``. A name also present
+        in explicit ``kwargs={...}`` is skipped here — ``_apply_overlay`` owns it.
+        """
         provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
         static_kwargs: dict[str, typing.Any] = {}
         context_kwargs: dict[str, tuple[ContextProvider[typing.Any], SignatureItem]] = {}
@@ -117,7 +163,7 @@ class WiringPlan:
 
         for name, item in parsed_kwargs.items():
             if kwargs and name in kwargs:
-                continue  # supplied as a static kwarg below
+                continue  # supplied as a static kwarg by the overlay pass
 
             provider = find_dep_provider(registry, owner, item)
             if provider is not None:
@@ -136,22 +182,7 @@ class WiringPlan:
             # UNWIRABLE: record the (name, item) pair but do not raise
             unwireable.append((name, item))
 
-        if kwargs:
-            cls._apply_overlay(
-                kwargs=kwargs,
-                parsed_kwargs=parsed_kwargs,
-                provider_kwargs=provider_kwargs,
-                static_kwargs=static_kwargs,
-                context_kwargs=context_kwargs,
-            )
-
-        return cls(
-            provider_kwargs=provider_kwargs,
-            static_kwargs=static_kwargs,
-            context_kwargs=context_kwargs,
-            unwireable=unwireable,
-            pure_provider=not static_kwargs and not context_kwargs,
-        )
+        return provider_kwargs, static_kwargs, context_kwargs, unwireable
 
     @staticmethod
     def _apply_overlay(
