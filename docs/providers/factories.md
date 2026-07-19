@@ -31,6 +31,7 @@ class Dependencies(Group):
 
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 # Resolve by provider reference
 instance = container.resolve_provider(Dependencies.independent_factory)
 assert isinstance(instance, IndependentFactory)
@@ -80,6 +81,7 @@ class Dependencies(Group):
 
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 singleton_instance1 = container.resolve_provider(Dependencies.singleton)
 singleton_instance2 = container.resolve_provider(Dependencies.singleton)
 
@@ -198,6 +200,7 @@ class Dependencies(Group):
 
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 service = container.resolve(Service)
 assert service.cache is None  # no Cache provider registered -> None injected
 ```
@@ -290,6 +293,7 @@ class Dependencies(Group):
 
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 
 try:
     container.resolve(object)

@@ -73,22 +73,25 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
         use_lock: bool = True,
-        validate: bool | None = None,
+        validate: bool = True,
     ) -> None:
         """Build a container at ``scope``.
 
-        ``validate`` enables the provider-graph check (cycles, scope ordering,
-        missing dependencies) but runs it **deferred**: ``True`` and the default
-        (``None``) both enable it, and it runs once at container entry
-        (:meth:`open`/``with``) or on the first resolve — never in ``__init__``.
-        Deferring lets a framework integration register its context providers
-        after construction and still have the complete graph validated.
-        ``validate=False`` disables the check entirely; call
-        :meth:`validate` explicitly for a construction-time check. Only a root
-        container validates; children (with ``parent_container`` set) never do.
-        ``context`` seeds this container's context registry. A root container
-        owns fresh registries; a child shares the parent's providers/overrides
-        registries and inherits its scope map.
+        A container starts **unopened** (``closed=True``): it must be entered via
+        :meth:`open` / ``with`` / ``async with`` before it can :meth:`resolve` or
+        :meth:`build_child_container`; using it before then raises
+        :class:`~modern_di.exceptions.ContainerClosedError`.
+
+        ``validate`` (default ``True``) enables the provider-graph check (cycles,
+        scope ordering, missing dependencies), which runs **once at open()** —
+        never in ``__init__`` and never on resolve. Deferring to ``open`` lets a
+        framework integration register its context providers after construction
+        and still have the complete graph validated. ``validate=False`` disables
+        the check entirely; call :meth:`validate` explicitly for a
+        construction-time check. Only a root container validates; children (with
+        ``parent_container`` set) never do. ``context`` seeds this container's
+        context registry. A root container owns fresh registries; a child shares
+        the parent's providers/overrides registries and inherits its scope map.
         """
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
@@ -96,7 +99,7 @@ class Container:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         self._lock = threading.RLock() if use_lock else None
         self._validated = False
-        self.closed = False
+        self.closed = True  # unopened: enter via open()/with before resolving or building children
         self.scope = scope
         self.parent_container = parent_container
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
@@ -120,10 +123,10 @@ class Container:
             for one_group in groups:
                 all_providers.extend(one_group.get_providers())
             self.providers_registry.add_providers(*all_providers)
-        # Both-deferred: True and the default enable validation but run it at open()/first-resolve
-        # (root-only), so an integration's context providers registered after construction are in the
-        # graph before validation runs. False disables. Construction-time = call validate() explicitly.
-        self._validate_enabled = validate is not False and parent_container is None
+        # Root-only, run at open(): validation runs once when the container is entered, so an
+        # integration's context providers registered after construction are in the graph before it
+        # runs. False disables. Construction-time = call validate() explicitly.
+        self._validate_enabled = validate and parent_container is None
 
     def build_child_container(
         self,
@@ -197,8 +200,6 @@ class Container:
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         """Resolve a specific provider by reference via its compiled resolver."""
         self._raise_if_closed()
-        if self._validate_enabled and not self._validated:
-            self.validate()  # first-resolve fallback for a container never entered via with/open()
         try:
             return self.providers_registry.resolver_for(provider)(self)
         except RecursionError as exc:
@@ -317,15 +318,18 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def open(self) -> None:
-        """Reopen a closed container so it can resolve and build children again.
+        """Open the container so it can resolve and build children.
 
-        Called by ``__enter__``/``__aenter__`` to reopen on re-entry. Use it
-        directly when a callback-style lifecycle (e.g. a startup hook) cannot
-        wrap the container in a ``with`` block. Reopening an already-open
-        container is a no-op.
+        Mandatory: a freshly-constructed container starts unopened and must be
+        opened (here, or via ``with``/``async with`` which call this) before any
+        :meth:`resolve` or :meth:`build_child_container`. Also reopens a closed
+        container on re-entry. Use it directly when a callback-style lifecycle
+        (e.g. a startup hook) cannot wrap the container in a ``with`` block.
+        Opening an already-open container is a no-op.
 
-        If validation is enabled (``validate`` was not ``False``) and has not yet
-        run, it runs here — once; a plain close/reopen does not re-walk the graph.
+        If validation is enabled (``validate`` was not ``False``; root only) and
+        has not yet run, it runs here — once; a plain close/reopen does not
+        re-walk the graph.
         """
         self.closed = False
         if self._validate_enabled and not self._validated:

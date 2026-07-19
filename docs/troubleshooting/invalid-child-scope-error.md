@@ -19,9 +19,11 @@ Pass a scope whose value is strictly greater than the parent's:
 from modern_di import Scope
 
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
+app_container.open()
 
 # Wrong: SESSION is not deeper than SESSION
 mid = app_container.build_child_container(scope=Scope.SESSION)
+mid.open()
 bad = mid.build_child_container(scope=Scope.SESSION)  # raises InvalidChildScopeError
 
 # Right

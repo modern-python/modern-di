@@ -71,6 +71,7 @@ class Dependencies(Group):
 
 # Pass validate=True to detect cycles and scope-chain errors at startup
 container = Container(groups=[Dependencies], validate=True)
+container.open()  # open before use; validates once (root). `with` does this for you (next section)
 settings = container.resolve(Settings)
 print(settings.database_url)
 ```

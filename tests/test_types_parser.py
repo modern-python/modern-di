@@ -248,6 +248,7 @@ def test_parameterized_generic_param_supplied_via_kwargs_is_allowed() -> None:
     sentinel = [_GenericDep()]
     provider = providers.Factory(creator=_generic_param_creator, kwargs={"x": sentinel})
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(str, provider)
     assert container.resolve(str) == str(sentinel)
 
@@ -260,6 +261,7 @@ def test_parameterized_generic_param_with_default_is_allowed() -> None:
     assert _generic_param_with_default(("a",)) == str(("a",))
     provider = providers.Factory(creator=_generic_param_with_default)
     container = Container(scope=Scope.APP)
+    container.open()
     container.providers_registry.register(str, provider)
     assert container.resolve(str) == str(())
 

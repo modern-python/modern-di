@@ -2,30 +2,33 @@
 
 **Symptom**
 
-Raised when resolving from, or building a child of, a container after it was closed.
+Raised when resolving from, or building a child of, a container that is **not open** — either one
+never opened, or one closed after use. The message reads: `Container (scope APP) is not open — enter
+it with with/async with or call open() ...`.
 
 **Cause**
 
-`container.close_sync()` / `close_async()` (or exiting a `with container:` block) marks the container
-closed. Any further `resolve()`, `resolve_provider()`, or `build_child_container()` call on that
-container raises this error — there is no self-heal.
+A container starts **unopened**: a freshly-constructed `Container(...)` must be entered before use.
+Entering it (`with` / `async with` / `container.open()`) opens it; `container.close_sync()` /
+`close_async()` (or exiting a `with container:` block) marks it closed again. While unopened or
+closed, any `resolve()`, `resolve_provider()`, or `build_child_container()` call raises this error —
+there is no self-heal.
 
 **Fix**
 
-Re-enter the container before reusing it:
+Open the container before using it:
 
 ```python
-with container:
+with container:                 # opens on enter, closes on exit
     container.resolve(Settings)
-# closed here
 
-with container:                 # reopened cleanly
+with container:                 # reopened cleanly for the next unit of work
     container.resolve(Settings)
 ```
 
-Or call `container.open()` explicitly if a context manager doesn't fit your flow. Build a fresh
-container per unit of work (e.g. one per request) instead of trying to reuse a closed one across
-units of work.
+Or call `container.open()` explicitly if a context manager doesn't fit your flow (e.g. a framework
+startup hook). Building a child requires the parent be open first, and the returned child must itself
+be opened before use. Build a fresh child container per unit of work (e.g. one per request).
 
 ## See also
 

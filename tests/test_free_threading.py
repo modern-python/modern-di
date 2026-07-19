@@ -40,6 +40,7 @@ class _StressGroup(Group):
 
 def test_concurrent_resolution_shares_app_singletons() -> None:
     container = Container(groups=[_StressGroup], validate=True)
+    container.open()
     n = 32
     barrier = threading.Barrier(n)
     top_results: list[_Top | None] = [None] * n

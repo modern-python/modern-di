@@ -12,10 +12,11 @@ from modern_di import Container, Scope, providers, exceptions
 
 `modern-di` creates instances on first resolve. There is no `init_resources()` or "eager startup" call — if a provider is never resolved, its creator never runs.
 
-If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook.
+If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook — after opening the container.
 
 ```python
 container = Container(groups=[Dependencies], validate=True)
+container.open()  # required before resolving; also validates once (root)
 
 # Warm caches at startup
 container.resolve(AsyncEngine)
@@ -105,12 +106,12 @@ finalizer; the sync path is only a safety net.
 
 ## Closing and reopening
 
-Entering `with container:` (or `async with`) opens the container; exiting calls
-`close_sync()` / `close_async()`, which run the finalizers (in reverse-creation order, as
-above) and mark the container closed.
+A freshly-constructed container starts **unopened**: entering `with container:` (or `async with`, or
+a direct `container.open()`) opens it; exiting calls `close_sync()` / `close_async()`, which run the
+finalizers (in reverse-creation order, as above) and mark the container closed.
 
-While a container is closed, resolving a dependency — or building a child container — raises
-`ContainerClosedError` (see
+While a container is unopened or closed, resolving a dependency — or building a child container —
+raises `ContainerClosedError` (see
 [Migration: To 3.x](../migration/to-3.x.md#1-closed-containers-raise-instead-of-self-healing)).
 Re-entering `with container:` reopens it cleanly, and resolution works again:
 
@@ -150,6 +151,7 @@ Each container has its own finalizers — the ones for the providers it cached. 
 
 ```python
 app_container = Container(groups=[Dependencies], validate=True)
+app_container.open()  # open the root before building children (validates once)
 
 async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     session = request_container.resolve(AsyncSession)
@@ -165,8 +167,8 @@ Framework integrations handle this automatically: they build the REQUEST child c
 
 ## Validation
 
-`Container(groups=[...], validate=True)` runs the following checks — deferred, at container entry
-(`open()`/`with`) or first resolve, not at construction:
+`Container(groups=[...], validate=True)` runs the following checks — once at container entry
+(`open()`/`with`), not at construction and not on resolve:
 
 - **Cycle detection.** Provider A depending on B depending on A raises `CircularDependencyError`
   (see [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md)).

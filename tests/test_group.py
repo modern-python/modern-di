@@ -42,6 +42,7 @@ def test_group_inherits_providers_from_parent() -> None:
         b = providers.Factory(creator=_B)
 
     container = Container(groups=[Child])
+    container.open()
     assert isinstance(container.resolve(_A), _A)
     assert isinstance(container.resolve(_B), _B)
 
@@ -54,6 +55,7 @@ def test_group_subclass_overrides_parent_provider() -> None:
         a = providers.Factory(creator=_A, bound_type=_B)  # override; resolve _B yields _A instance
 
     container = Container(groups=[Child])
+    container.open()
     assert isinstance(container.resolve(_B), _A)
 
 
@@ -168,7 +170,9 @@ def test_group_scope_stamps_defaulted_providers() -> None:
     assert RequestGroup.svc.scope is Scope.REQUEST
     assert RequestGroup.ctx.scope is Scope.REQUEST
     app_container = Container(groups=[RequestGroup], validate=True)
+    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
     assert isinstance(request_container.resolve(_Svc), _Svc)
 
 

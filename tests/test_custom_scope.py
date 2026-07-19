@@ -30,6 +30,7 @@ class TenantService:
 
 def test_build_child_at_custom_scope_from_step() -> None:
     step_container = Container(scope=Scope.STEP)
+    step_container.open()
     tenant_container = step_container.build_child_container(scope=MyScope.TENANT)
     assert tenant_container.scope is MyScope.TENANT
     assert tenant_container.parent_container is step_container
@@ -37,6 +38,7 @@ def test_build_child_at_custom_scope_from_step() -> None:
 
 def test_build_child_at_custom_scope_from_app_skips_intermediate() -> None:
     app_container = Container()
+    app_container.open()
     tenant_container = app_container.build_child_container(scope=MyScope.TENANT)
     assert tenant_container.scope is MyScope.TENANT
 
@@ -46,7 +48,9 @@ def test_factory_resolves_through_custom_scope_container() -> None:
         svc = providers.Factory(scope=MyScope.TENANT, creator=TenantService)
 
     app_container = Container(groups=[TenantGroup])
+    app_container.open()
     tenant_container = app_container.build_child_container(scope=MyScope.TENANT)
+    tenant_container.open()
 
     instance = tenant_container.resolve(TenantService)
     assert isinstance(instance, TenantService)
@@ -57,6 +61,7 @@ def test_resolve_at_custom_scope_from_app_raises_scope_not_initialized() -> None
         svc = providers.Factory(scope=MyScope.TENANT, creator=TenantService)
 
     app_container = Container(groups=[TenantGroup])
+    app_container.open()
     with pytest.raises(ScopeNotInitializedError, match="TENANT") as exc:
         app_container.resolve(TenantService)
     assert exc.value.provider_scope is MyScope.TENANT
@@ -66,6 +71,7 @@ def test_resolve_at_custom_scope_from_app_raises_scope_not_initialized() -> None
 def test_resolve_app_provider_from_custom_scope_with_skipped_chain() -> None:
     # A standalone tenant container that never went through APP -> ... chain
     tenant_container = Container(scope=MyScope.TENANT)
+    tenant_container.open()
     app_factory = providers.Factory(creator=lambda: "x")
     with pytest.raises(ScopeSkippedError, match="APP"):
         tenant_container.resolve_provider(app_factory)
@@ -73,6 +79,7 @@ def test_resolve_app_provider_from_custom_scope_with_skipped_chain() -> None:
 
 def test_invalid_child_scope_uses_parent_enum_for_allowed_list() -> None:
     tenant_container = Container(scope=MyScope.TENANT)
+    tenant_container.open()
     with pytest.raises(InvalidChildScopeError) as exc:
         tenant_container.build_child_container(scope=MyScope.TENANT)
     # allowed_scopes must be drawn from the parent's own enum class (MyScope),
@@ -82,6 +89,7 @@ def test_invalid_child_scope_uses_parent_enum_for_allowed_list() -> None:
 
 def test_invalid_child_scope_with_conflicting_value() -> None:
     app_container = Container()
+    app_container.open()
     with pytest.raises(InvalidChildScopeError) as exc:
         app_container.build_child_container(scope=ConflictingScope.SAME_AS_APP)
     assert exc.value.parent_scope is Scope.APP
@@ -117,8 +125,11 @@ def test_caching_isolated_across_tenant_containers() -> None:
         )
 
     app_container = Container(groups=[TenantGroup])
+    app_container.open()
     tenant_a = app_container.build_child_container(scope=MyScope.TENANT)
+    tenant_a.open()
     tenant_b = app_container.build_child_container(scope=MyScope.TENANT)
+    tenant_b.open()
 
     instance_a = tenant_a.resolve(TenantService)
     instance_b = tenant_b.resolve(TenantService)
@@ -128,6 +139,7 @@ def test_caching_isolated_across_tenant_containers() -> None:
 
 def test_auto_derive_within_custom_enum() -> None:
     tenant_container = Container(scope=MyScope.TENANT)
+    tenant_container.open()
     bg_container = tenant_container.build_child_container()
     assert bg_container.scope is MyScope.BACKGROUND_JOB
 
@@ -141,12 +153,14 @@ def test_auto_derive_with_gapped_custom_enum() -> None:
     # Non-contiguous values: the next scope is the smallest member greater than the
     # current one, not current.value + 1 (which would not be a valid member).
     tenant_container = Container(scope=GappedScope.TENANT)
+    tenant_container.open()
     bg_container = tenant_container.build_child_container()
     assert bg_container.scope is GappedScope.BACKGROUND_JOB
 
 
 def test_auto_derive_at_deepest_gapped_scope_raises_max() -> None:
     bg_container = Container(scope=GappedScope.BACKGROUND_JOB)
+    bg_container.open()
     with pytest.raises(MaxScopeReachedError):
         bg_container.build_child_container()
 
@@ -167,5 +181,6 @@ def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
         TWO = 2
 
     parent = Container(scope=ZeroEnum.ONE)
+    parent.open()
     with pytest.raises(InvalidChildScopeError):
         parent.build_child_container(scope=ZeroEnum.ZERO)

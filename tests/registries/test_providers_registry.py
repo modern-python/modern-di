@@ -139,6 +139,7 @@ def test_concurrent_first_resolve_of_same_provider_does_not_false_cycle(
         root = providers.Factory(creator=_Root, scope=Scope.APP)
 
     container = Container(groups=[_G], validate=False)
+    container.open()
     real_compile = pr_mod.compile_resolver
     entered = threading.Event()
     release = threading.Event()

@@ -38,6 +38,7 @@ class Dependencies(Group):
 
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 
 connection = container.resolve(DatabaseConnection)
 assert connection.config.host == "localhost"

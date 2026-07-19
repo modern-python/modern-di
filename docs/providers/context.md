@@ -47,11 +47,13 @@ class Dependencies(Group):
 
 # Provide custom context when building the child container
 container = Container(groups=[Dependencies], validate=True)
+container.open()  # open the root before building children (validates once)
 custom_context = CustomContext(user_id="123", tenant_id="abc")
 request_container = container.build_child_container(
     scope=Scope.REQUEST,
     context={CustomContext: custom_context}
 )
+request_container.open()
 
 # Now resolve the factory — it will receive the custom context automatically
 user_info = request_container.resolve_provider(Dependencies.user_info)
@@ -82,6 +84,7 @@ Context never propagates between containers. A `ContextProvider` reads the conte
     # ❌ Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
     # Setting it on the APP parent has no effect.
     app_container = Container(validate=True)
+    app_container.open()
     app_container.set_context(CustomContext, value)  # ignored for REQUEST-scoped providers
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     ```
@@ -147,10 +150,12 @@ modern_di_fastapi.setup_di(app, container)
 # at runtime — never None.
 ```
 
-The `| None = None` on `request` is what keeps `validate=True` usable. `validate()`
-runs inside the `Container(...)` call, *before* `setup_di()` registers
-`fastapi.Request`'s `ContextProvider`; a required parameter with no provider would
-raise [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md).
+The `| None = None` on `request` is what keeps `validate=True` usable. Validation is
+deferred to when the container is **opened** (the integration opens it as part of the
+app lifecycle); annotating `request` as optional means the check skips it regardless of
+whether `fastapi.Request`'s `ContextProvider` is registered by then — a required
+parameter with no provider would raise
+[`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md).
 A defaulted parameter is skipped by that check, and at runtime the integration has
 registered the provider and set the per-request context, so the real `Request` is
 injected — the parameter is `None` only when resolved with no context set, which the

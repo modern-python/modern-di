@@ -4,10 +4,12 @@
 is the authoritative catch-all for three classes of bug: **circular dependencies**, **inverted scope
 dependencies**, and **missing required dependencies**.
 
-## Enabling validation — deferred by default
+## Enabling validation — at open(), once
 
-Validation is enabled by default but runs **deferred**: not in `__init__`, but once at container entry
-(`open()` / `with`) or on the first `resolve`, whichever comes first.
+Validation is enabled by default but runs **deferred to `open()`**: not in `__init__`, and not on
+resolve, but once when the container is entered (`open()` / `with` / `async with`). A container must be
+opened before use anyway (see the [mandatory-open lifecycle](containers.md#mandatory-open-lifecycle)),
+so `open()` is the single, guaranteed validation trigger.
 
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup])  # __init__ does NOT validate
@@ -15,30 +17,29 @@ with container:  # validation runs here, once
     ...
 ```
 
-`validate` is tri-state (`bool | None`, default `None`) — see the [constructor table](containers.md#creating-a-root-container)
-for the full parameter reference — and **both-deferred**: `validate=True` and the default (`None`) are
-identical, both enabling validation and both deferring it to entry/first-resolve. `validate=False`
-disables it entirely with zero runtime cost. There is no eager, construction-time validation and no
-`UnvalidatedContainerWarning`; for a construction-time check, call `container.validate()` explicitly:
+`validate` is a plain `bool` (default `True`) — see the [constructor table](containers.md#creating-a-root-container)
+for the full parameter reference. `True` (the default) enables validation at `open()`; `validate=False`
+disables it entirely with zero runtime cost. There is no eager, construction-time validation; for a
+construction-time check, call `container.validate()` explicitly:
 
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup])
 container.validate()  # runs now; raises ValidationFailedError if any issue found
 ```
 
-**Why deferred.** A framework integration typically registers its own context providers (e.g. the
-request object) *after* the user constructs the container, via [`add_providers`](containers.md#integration-seam).
-Eager validation at construction would fail on that still-incomplete graph. Deferring to the first
-`open()`/resolve means the whole graph — user groups plus integration-registered providers — is present
-before the single validation walk runs. Only a **root** container validates; children (built via
-`build_child_container`) never do, since the registry they share is validated tree-wide by the root.
+**Why at open() rather than __init__.** A framework integration typically registers its own context
+providers (e.g. the request object) *after* the user constructs the container, via
+[`add_providers`](containers.md#integration-seam). Eager validation at construction would fail on that
+still-incomplete graph. Deferring to `open()` means the whole graph — user groups plus
+integration-registered providers — is present before the single validation walk runs. Only a **root**
+container validates; children (built via `build_child_container`) never do, since the registry they
+share is validated tree-wide by the root.
 
-**Once only.** The per-container `_validate_enabled` flag (set in `__init__` to `validate is not False
-and parent_container is None`) gates whether validation runs at all; the `_validated` flag records that
-it has. Both `open()` and the first-resolve fallback in `resolve_provider` run `self.validate()` only
-`if self._validate_enabled and not self._validated`. Because `close()` leaves `_validated` untouched
-(it only sets `closed = True`), a plain close→reopen does **not** re-walk the graph — validation is
-paid exactly once over the container's lifetime.
+**Once only.** The per-container `_validate_enabled` flag (set in `__init__` to `validate and
+parent_container is None`) gates whether validation runs at all; the `_validated` flag records that it
+has. `open()` runs `self.validate()` only `if self._validate_enabled and not self._validated`.
+Because `close()` leaves `_validated` untouched (it only sets `closed = True`), a plain close→reopen
+does **not** re-walk the graph — validation is paid exactly once over the container's lifetime.
 
 ## What validate() checks
 

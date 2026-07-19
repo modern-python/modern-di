@@ -22,6 +22,7 @@ class Dependencies(Group):
     my_factory = providers.Factory(my_creator, scope=Scope.APP)
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 result = container.resolve(str)
 # result: "Container scope: APP"
 ```
@@ -45,6 +46,7 @@ class Dependencies(Group):
     )
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 result = container.resolve(str)
 # result: "resolved from APP scope"
 ```
@@ -57,7 +59,9 @@ ran the resolve, so a `REQUEST` child resolves `Container` to *itself*:
 
 ```python
 app_container = Container(scope=Scope.APP, validate=True)
+app_container.open()
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
+request_container.open()
 
 assert app_container.resolve(Container) is app_container
 assert request_container.resolve(Container) is request_container  # the child, not the APP root

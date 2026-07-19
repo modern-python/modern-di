@@ -21,14 +21,18 @@ straight to a deep one:
 
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)
+app_container.open()
 
 # Wrong: jumps straight past REQUEST
 action_container = app_container.build_child_container(scope=Scope.ACTION)
+action_container.open()
 action_container.resolve(RequestScopedThing)  # raises ScopeSkippedError
 
 # Right: build through REQUEST first
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
+request_container.open()
 action_container = request_container.build_child_container(scope=Scope.ACTION)
+action_container.open()
 action_container.resolve(RequestScopedThing)
 ```
 

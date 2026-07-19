@@ -52,6 +52,7 @@ class Dependencies(Group):
 
 
 container = Container(groups=[Dependencies], validate=True)
+container.open()
 
 concrete = container.resolve(PostgresRepository)
 abstract = container.resolve(Repository)
