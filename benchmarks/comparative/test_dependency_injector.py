@@ -123,3 +123,51 @@ def test_c4_request_lifecycle(benchmark):
     finally:
         loop.close()
     assert result.closed is True
+
+
+# --- C5 cold: instantiate a fresh container + first resolve, per call ---------
+# The DeclarativeContainer subclass wires at class definition (import). Per call this instantiates
+# a fresh container (deep-copies the provider graph -- the dominant cost) and resolves; the number
+# is ~98% instance clone, not resolution (see README caveat).
+def test_c5_cold_first_resolve(benchmark):
+    def _cold():
+        container = ChainContainer()
+        return container.c0()
+
+    result = benchmark(_cold)
+    assert isinstance(result, C0)
+
+
+# --- C6 context: per-request runtime value via Dependency + override ----------
+# dependency-injector wires by provider REFERENCE, not by type: the runtime value is a
+# providers.Dependency node supplied per request via .override() (see README caveat).
+class RequestObj:
+    pass
+
+
+class AppDep:
+    pass
+
+
+class Handler:
+    def __init__(self, app_dep: AppDep, request: RequestObj) -> None:
+        self.app_dep = app_dep
+        self.request = request
+
+
+class ContextContainer(containers.DeclarativeContainer):
+    app_dep = providers.Singleton(AppDep)
+    request = providers.Dependency(instance_of=RequestObj)
+    handler = providers.Factory(Handler, app_dep=app_dep, request=request)
+
+
+def test_c6_context(benchmark):
+    container = ContextContainer()
+
+    def _one_request():
+        with container.request.override(RequestObj()):
+            return container.handler()
+
+    result = benchmark(_one_request)
+    assert isinstance(result, Handler)
+    assert isinstance(result.request, RequestObj)

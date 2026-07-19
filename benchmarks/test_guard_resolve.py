@@ -201,3 +201,37 @@ def test_g5_cross_scope(benchmark):
     result = benchmark(req.resolve_provider, CrossScopeGroup.req_svc)
     assert isinstance(result, RequestService)
     assert isinstance(result.app, AppService)
+
+
+# --- G9 subject graph: context value injected by type + an APP dep ----------
+class RequestObj:  # a fresh per-request runtime value (e.g. a framework Request)
+    pass
+
+
+@dataclasses.dataclass(slots=True)
+class AppDep:
+    pass
+
+
+@dataclasses.dataclass(slots=True)
+class Handler:
+    req: RequestObj
+    dep: AppDep
+
+
+class ContextGroup(Group):
+    app_dep = providers.Factory(creator=AppDep, scope=Scope.APP)
+    req_ctx = providers.ContextProvider(RequestObj, scope=Scope.REQUEST)
+    # transient -> folds the runtime context value on every resolve (the non-pure kwargs path)
+    handler = providers.Factory(creator=Handler, scope=Scope.REQUEST)
+
+
+def test_g9_context_resolve(benchmark):
+    # Isolates the context-folding (non-pure kwargs) path C1-C5 never touch: a factory mixing a
+    # runtime context value with a provider dep. Container + child built in setup; only resolve timed.
+    app = Container(scope=Scope.APP, groups=[ContextGroup], validate=False)
+    req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})
+    result = benchmark(req.resolve_provider, ContextGroup.handler)
+    assert isinstance(result, Handler)
+    assert isinstance(result.req, RequestObj)
+    assert isinstance(result.dep, AppDep)

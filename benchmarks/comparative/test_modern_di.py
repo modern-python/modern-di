@@ -121,3 +121,48 @@ def test_c4_request_lifecycle(benchmark):
         loop.close()
     assert isinstance(result, Connection)
     assert result.closed is True
+
+
+# --- C5 cold: fresh container build + first-resolve compile of the chain -----
+def test_c5_cold_first_resolve(benchmark):
+    def _cold():
+        c = Container(scope=Scope.APP, groups=[ChainGroup], validate=False)
+        return c.resolve_provider(ChainGroup.c0)
+
+    result = benchmark(_cold)
+    assert isinstance(result, C0)
+
+
+# --- C6 context: per-request runtime value by type + a shared app dep --------
+class RequestObj:
+    pass
+
+
+@dataclasses.dataclass(slots=True)
+class AppDep:
+    pass
+
+
+@dataclasses.dataclass(slots=True)
+class Handler:
+    req: RequestObj
+    dep: AppDep
+
+
+class ContextGroup(Group):
+    app_dep = providers.Factory(creator=AppDep, scope=Scope.APP, cache=True)
+    req_ctx = providers.ContextProvider(RequestObj, scope=Scope.REQUEST)
+    handler = providers.Factory(creator=Handler, scope=Scope.REQUEST)
+
+
+def test_c6_context(benchmark):
+    app = Container(scope=Scope.APP, groups=[ContextGroup], validate=False)
+
+    def _one_request():
+        req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})
+        return req.resolve_provider(ContextGroup.handler)
+
+    result = benchmark(_one_request)
+    assert isinstance(result, Handler)
+    assert isinstance(result.req, RequestObj)
+    assert isinstance(result.dep, AppDep)
