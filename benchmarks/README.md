@@ -21,6 +21,8 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G9 | Context resolve: request value by type + APP dep, warm child | non-pure context-folding path |
 | G10 | `validate()` on a depth-6 chain (isolated via `pedantic`) | graph-validation traversal, deep |
 | G11 | `validate()` on a wide 10-sibling graph (isolated via `pedantic`) | graph-validation traversal, fan-out |
+| G12 | Resolve a depth-6 chain with one unrelated override active | override front-guard (`fetch_override`) tax |
+| G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 
 **Rules.** Containers are built/warmed in setup, never inside the timed call —
 **except G8**, the cold scenario, which builds the root container *inside* the

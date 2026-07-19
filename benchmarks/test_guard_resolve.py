@@ -235,3 +235,28 @@ def test_g9_context_resolve(benchmark):
     assert isinstance(result, Handler)
     assert isinstance(result.req, RequestObj)
     assert isinstance(result.dep, AppDep)
+
+
+# --- G12 subject graph: depth-6 chain + one unrelated overridable provider ---
+class Sentinel:
+    pass
+
+
+class OverrideChainGroup(Group):
+    c5 = providers.Factory(creator=C5, scope=Scope.APP)
+    c4 = providers.Factory(creator=C4, scope=Scope.APP)
+    c3 = providers.Factory(creator=C3, scope=Scope.APP)
+    c2 = providers.Factory(creator=C2, scope=Scope.APP)
+    c1 = providers.Factory(creator=C1, scope=Scope.APP)
+    c0 = providers.Factory(creator=C0, scope=Scope.APP)
+    sentinel = providers.Factory(creator=Sentinel, scope=Scope.APP)
+
+
+def test_g12_override_active_resolve(benchmark):
+    # Override front-guard tax: an UNRELATED override flips has_overrides True, so every node in the
+    # depth-6 chain pays a fetch_override lookup per resolve (the path a test suite with mocks hits).
+    container = Container(scope=Scope.APP, groups=[OverrideChainGroup], validate=False)
+    container.override(OverrideChainGroup.sentinel, Sentinel())
+    container.resolve_provider(OverrideChainGroup.c0)  # warm
+    result = benchmark(container.resolve_provider, OverrideChainGroup.c0)
+    assert isinstance(result, C0)
