@@ -6,8 +6,8 @@ Resolving the alias delegates straight back through the container, so overrides 
 
 ## Parameters
 
-`Alias(source_type, *, scope=UNSET, bound_type=UNSET)` — `scope` is deprecated and ignored (see
-below). `source_type` may also be passed as a keyword (`source_type=`).
+`Alias(source_type, *, bound_type=UNSET)` — `source_type` may also be passed as a keyword
+(`source_type=`).
 
 ### source_type
 
@@ -17,9 +17,7 @@ The type whose registered provider should answer the call. At resolution time, t
 
 The type the alias is registered under in the providers registry — i.e. the type you pass to `container.resolve(...)`. Defaults to `source_type` (which makes the alias a no-op); set it to the abstract or `Protocol` type you want resolvable.
 
-### scope
-
-**Deprecated and ignored.** An alias's effective scope is derived from its source provider — the alias itself holds no instance and applies no caching. Passing `scope=` to `Alias(...)` emits a `DeprecationWarning`; the parameter will be removed in a future release.
+An alias holds no instance and applies no caching; its effective scope is derived from its source provider.
 
 ## Basic Usage
 
