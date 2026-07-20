@@ -100,3 +100,28 @@ trust-posture cost is fixed regardless of how small the win is.
 **Verdict: real.** This objection survives unbundling intact. It is the one
 that does the load-bearing work in the synthesis, and it is a maintainer-values
 call, not a measurement.
+
+### 4.3 Free-threading / nogil — VERDICT: real (open, modern-di-specific)
+
+**Assumed.** (The generic competitor audit never covered this — it is
+modern-di's own.) Free-threading changes how compiled resolvers behave.
+
+**Unbundled.** Not a dependency question, and not one the rival audits answer.
+Today's compiled-closure resolvers already capture shared state in cells; the
+`deferred.md` cell-capture item flags that every `LOAD_DEREF` of a shared
+capture is a read whose free-threaded refcount behavior is
+implementation-dependent, and the free-threading support sits at **Beta (P1,
+correctness-only)** per the 2026-07-17 report. An `exec` resolver would
+replace captured cells with generated-module globals — a *different* sharing
+model (module dict vs cell), not obviously better or worse, and one the current
+Beta contract and stress tests were not written against.
+
+**Weighed:** whichever direction it cuts, it adds a second concurrency model to
+reason about under a contract that is only Beta. That is cost, not win, and it
+cannot be retired without the parallel-resolution stress work the nogil report
+(§7) already scoped as out-of-scope-for-now.
+
+**Verdict: real (open).** Not disqualifying, but a genuine unpriced cost
+specific to this codebase; mark the module-globals-vs-cells sharing question as
+an explicit open item for any future spike, not something this desk doc
+resolves.
