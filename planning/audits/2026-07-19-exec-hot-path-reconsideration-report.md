@@ -179,7 +179,7 @@ mitigations does not clear the bar.
 **Recommendation — re-decline (no-go).** Keep `exec` codegen out of the resolve
 hot path and leave `deferred.md`'s stance in place: the shipped
 closure-compiled resolver stays the single resolve path. The reasoning is not
-"exec is impure" — §1 retires that — but that the honest ledger is lopsided:
+"exec is impure" — §2 retires that — but that the honest ledger is lopsided:
 the exclusive win is a bounded 1.3-1.9x confined to high-arity and deep-chain
 graphs, while the standing maintainability/trust cost (§4.2) is real and
 unavoidable, the free-threading model shift (§4.3) is a real unpriced cost under
