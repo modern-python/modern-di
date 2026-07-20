@@ -39,7 +39,7 @@ in one pass (not just the one a particular resolve happens to hit) — prefer it
 ```python
 from modern_di import Container
 
-# Option 1: enable validation (runs deferred, at container entry / first resolve)
+# Option 1: enable validation (runs deferred, at container entry via open()/with)
 container = Container(groups=[MyGroup], validate=True)
 
 # Option 2: validate explicitly at construction (validate=False disables the
