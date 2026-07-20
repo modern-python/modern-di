@@ -1178,53 +1178,33 @@ def test_transient_positional_binding_typeerror_wraps() -> None:
         container.resolve_provider(G.thing)
 
 
-def _resolve_creator_call_error(
-    factory: "providers.Factory[typing.Any]", bound_type: type
-) -> exceptions.CreatorCallError:
-    """Resolve `factory` in its own container and return the CreatorCallError it raises."""
-    container = Container(scope=Scope.APP, validate=False)
-    container.open()
-    container.providers_registry.register(bound_type, factory)
-    with pytest.raises(exceptions.CreatorCallError) as exc_info:
-        container.resolve(bound_type)
-    return exc_info.value
+def test_from_type_error_wraps_binding_and_prepends_step() -> None:
+    def _one_arg(x: int) -> int:
+        return x
+
+    arg = 5
+    assert _one_arg(arg) == arg  # exercise body
+
+    step = exceptions.ResolutionStep(scope=Scope.APP, name="one_arg", location=None)
+    try:
+        _one_arg()  # ty: ignore[missing-argument]  # missing arg: binding TypeError, no inner frame (tb_next is None)
+    except TypeError as exc:
+        error = exceptions.CreatorCallError.from_type_error(creator=_one_arg, exc=exc, resolution_step=lambda: step)
+    assert isinstance(error, exceptions.CreatorCallError)
+    assert error.dependency_path == [step]  # the step was prepended
+    assert "creator-call-error" in str(error)  # docs slug intact
+    assert error.creator is _one_arg
 
 
-def test_creator_call_error_str_is_identical_across_transient_and_cached() -> None:
-    # The tb_next binding-error rule is inlined in four places (factory._call_creator plus three
-    # resolver_compiler closures). Nothing else asserts the copies AGREE. For a fixed creator+scope,
-    # a re-inlined copy must render byte-identically to its reused/canonical sibling:
-    #   - positional pair: resolve_positional (transient) vs create_positional (cached)
-    #   - kwargs pair:      resolve/build_kwargs (transient) vs Factory._call_creator (cached)
-    # A single copy drifting its message, dropping prepend_step, or changing the docs slug breaks one
-    # of these equalities.
-    transient_pos = _resolve_creator_call_error(
-        providers.Factory(creator=_cov_needs_one_arg, bound_type=_CovOneArgResult, skip_creator_parsing=True),
-        _CovOneArgResult,
-    )
-    cached_pos = _resolve_creator_call_error(
-        providers.Factory(
-            creator=_cov_needs_one_arg, bound_type=_CovOneArgResult, skip_creator_parsing=True, cache=True
-        ),
-        _CovOneArgResult,
-    )
-    transient_kw = _resolve_creator_call_error(
-        providers.Factory(creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}),
-        int,
-    )
-    cached_kw = _resolve_creator_call_error(
-        providers.Factory(
-            creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}, cache=True
-        ),
-        int,
-    )
+def test_from_type_error_returns_none_for_creator_body_typeerror() -> None:
+    def _body_raises() -> None:
+        len(5)  # ty: ignore[invalid-argument-type]  # TypeError inside the body (inner frame present)
 
-    assert str(transient_pos) == str(cached_pos)  # positional copies agree
-    assert str(transient_kw) == str(cached_kw)  # kwargs copies agree
-
-    # Cross-convention structural floor: all four wrapped, prepended a step, and carry the docs slug.
-    for error in (transient_pos, cached_pos, transient_kw, cached_kw):
-        rendered = str(error)
-        assert "Failed to call creator" in rendered  # the wrap happened
-        assert "Cannot resolve dependency chain:" in rendered  # a resolution step was prepended
-        assert "creator-call-error" in rendered  # docs slug intact
+    step = exceptions.ResolutionStep(scope=Scope.APP, name="body", location=None)
+    try:
+        _body_raises()  # TypeError from inside the body: inner frame present (tb_next set)
+    except TypeError as exc:
+        result = exceptions.CreatorCallError.from_type_error(
+            creator=_body_raises, exc=exc, resolution_step=lambda: step
+        )
+    assert result is None

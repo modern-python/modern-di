@@ -213,11 +213,11 @@ hierarchy are. See [2026-07-14-error-text-is-not-a-contract](../planning/decisio
 
 ## Step 6 — Creator call and caching
 
-The resolver calls the creator with the built arguments. A `TypeError` from the call is handled by a `tb_next`
-guard reused across every resolver (and by `Factory._call_creator`, which the cached kwargs path still reuses):
-an argument-binding failure (no inner traceback frame) is wrapped in a `CreatorCallError` with this provider's
-step prepended, while a `TypeError` raised *inside* the creator body (inner frame present) propagates unchanged,
-like any other error.
+The resolver calls the creator with the built arguments. A `TypeError` from the call is routed through
+`CreatorCallError.from_type_error` — one classmethod every resolver and `Factory._call_creator` call from
+their `except TypeError` block: an argument-binding failure (no inner traceback frame) becomes a
+`CreatorCallError` with this provider's step prepended, while a `TypeError` raised *inside* the creator body
+(inner frame present) returns `None` and is re-raised unchanged, like any other error.
 
 - **Transient** (no `cache_settings`) — the built instance is returned immediately; the creator re-runs on every
   resolve.
