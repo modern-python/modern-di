@@ -79,3 +79,24 @@ number but no source line (audit §3b#5; confirmed against the vendored
 **Verdict: mitigable.** Fully solvable, but only by adopting and maintaining
 the attrs linecache discipline — a real, standing cost that lands in §4.2, not
 a free win.
+
+### 4.2 Maintainability / audit trust — VERDICT: real (does not dissolve)
+
+**Assumed.** Generated-source machinery is ongoing maintenance load, and a DI
+layer users wire their whole app through carries a "no magic" trust posture
+that runtime-assembled code erodes.
+
+**Unbundled.** Also not a dependency question — but unlike §4.1 it has no clean
+neutralizer. The attrs linecache discipline from §4.1 IS this cost: a
+script-builder, hygiene rules, a unique-filename scheme, and a second mental
+model (read the generator, not the resolver) that every future contributor
+must hold. Today's `resolver_compiler.py` closures are readable Python in the
+file; generated source is not.
+
+**Weighed against the prize (§3):** the win this cost buys is 0-4% at fixed
+arity, 1.3-1.9x only on construction-heavy graphs. The maintenance and
+trust-posture cost is fixed regardless of how small the win is.
+
+**Verdict: real.** This objection survives unbundling intact. It is the one
+that does the load-bearing work in the synthesis, and it is a maintainer-values
+call, not a measurement.
