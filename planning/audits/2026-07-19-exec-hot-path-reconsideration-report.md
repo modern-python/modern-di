@@ -125,3 +125,23 @@ cannot be retired without the parallel-resolution stress work the nogil report
 specific to this codebase; mark the module-globals-vs-cells sharing question as
 an explicit open item for any future spike, not something this desk doc
 resolves.
+
+### 4.4 Deployment / exec bans — VERDICT: mitigable (via additive fallback)
+
+**Assumed.** Some locked-down runtimes and security policies forbid `exec`
+(RestrictedPython-style sandboxes, audited environments). A pure-Python DI
+library that requires `exec` on the only resolve path excludes them.
+
+**Unbundled.** Not a dependency question; a deployment-surface question.
+
+**Neutralizer.** Keep the shipped closure resolver as the always-available
+path and add `exec` codegen as an *optional, additive* second resolver behind
+a capability check / fallback — never a replacement. This dissolves the ban
+objection, but it **reframes the whole proposal**: `exec` becomes a *second*
+resolver to maintain alongside the closure one, which multiplies the §4.2
+maintenance cost (two resolve paths, two test matrices, two concurrency models
+per §4.3) rather than replacing it.
+
+**Verdict: mitigable — but the mitigation raises the §4.2 cost.** The clean way
+to satisfy exec-banned environments is exactly the way that makes the
+maintenance objection worse.
