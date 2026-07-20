@@ -114,13 +114,16 @@ modern-di's own.) Free-threading changes how compiled resolvers behave.
 
 **Unbundled.** Not a dependency question, and not one the rival audits answer.
 Today's compiled-closure resolvers already capture shared state in cells; the
-`deferred.md` cell-capture item flags that every `LOAD_DEREF` of a shared
-capture is a read whose free-threaded refcount behavior is
-implementation-dependent, and the free-threading support sits at **Beta (P1,
-correctness-only)** per the 2026-07-17 report. An `exec` resolver would
-replace captured cells with generated-module globals — a *different* sharing
-model (module dict vs cell), not obviously better or worse, and one the current
-Beta contract and stress tests were not written against.
+`deferred.md` cell-capture item *measures* that these shared captures cap
+free-threaded throughput — every `LOAD_DEREF` of a shared cell increfs it, so
+atomic refcount contention bounds parallel resolve scaling. That is a measured
+performance ceiling, not a correctness bug, and it is not liftable by modern-di
+(the fix is CPython's PEP 703). Separately, the free-threading support itself
+sits at **Beta (P1, correctness-only)** per the 2026-07-17 report. An `exec`
+resolver would replace captured cells with generated-module globals — a
+*different* sharing model (module dict vs cell) whose contention profile is
+unmeasured, not obviously better or worse, and one the current Beta contract
+and stress tests were not written against.
 
 **Weighed:** whichever direction it cuts, it adds a second concurrency model to
 reason about under a contract that is only Beta. That is cost, not win, and it

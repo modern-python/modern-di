@@ -47,10 +47,12 @@ no win the measurement denies.
 **Holding: re-decline.** The shipped closure-compiled resolver stays the
 single resolve path; `exec` codegen stays out, additive or otherwise.
 
-**Revisit trigger:** a user-reported, real-world resolve bottleneck on a
-high-arity node or a deep singleton/scoped chain — the two forms where `exec`
-could pay — that the closure resolver provably cannot close. A synthetic
-micro-benchmark or a hypothetical does not qualify.
+## Revisit trigger
+
+A user-reported, real-world resolve bottleneck on a high-arity node or a deep
+singleton/scoped chain — the two forms where `exec` could pay — that the closure
+resolver provably cannot close. A synthetic micro-benchmark or a hypothetical
+does not qualify.
 
 *Filed at `planning/decisions/2026-07-19-exec-hot-path-declined.md`, linked
 from the codegen-ceiling item in [`planning/deferred.md`](../deferred.md).*
