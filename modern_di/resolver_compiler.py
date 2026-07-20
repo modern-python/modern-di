@@ -107,10 +107,11 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
             try:  # inlined Factory._call_creator, positional
                 return creator(*args)
             except TypeError as exc:
-                if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+                error = exceptions.CreatorCallError.from_type_error(
+                    creator=creator, exc=exc, resolution_step=resolution_step
+                )
+                if error is None:
                     raise  # a TypeError from inside the creator body propagates unchanged
-                error = exceptions.CreatorCallError(creator=creator, original_error=exc)
-                error.prepend_step(resolution_step())
                 raise error from exc
 
         return resolve_positional
@@ -139,10 +140,11 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
         try:  # inlined Factory._call_creator
             return creator(**kwargs)
         except TypeError as exc:
-            if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+            error = exceptions.CreatorCallError.from_type_error(
+                creator=creator, exc=exc, resolution_step=resolution_step
+            )
+            if error is None:
                 raise  # a TypeError from inside the creator body propagates unchanged
-            error = exceptions.CreatorCallError(creator=creator, original_error=exc)
-            error.prepend_step(resolution_step())
             raise error from exc
 
     return resolve
@@ -181,10 +183,11 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
             try:
                 return creator(*args)
             except TypeError as exc:
-                if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+                error = exceptions.CreatorCallError.from_type_error(
+                    creator=creator, exc=exc, resolution_step=resolution_step
+                )
+                if error is None:
                     raise  # a TypeError from inside the creator body propagates unchanged
-                error = exceptions.CreatorCallError(creator=creator, original_error=exc)
-                error.prepend_step(resolution_step())
                 raise error from exc
 
         build_cold = build_args

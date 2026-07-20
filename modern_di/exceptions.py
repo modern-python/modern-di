@@ -375,6 +375,26 @@ class CreatorCallError(ResolutionError):
             f"Failed to call creator {creator_name}: {original_error}. Check kwargs and skip_creator_parsing usage."
         )
 
+    @classmethod
+    def from_type_error(
+        cls,
+        *,
+        creator: typing.Any,  # noqa: ANN401
+        exc: TypeError,
+        resolution_step: "typing.Callable[[], ResolutionStep]",
+    ) -> "CreatorCallError | None":
+        """Wrap an argument-binding ``TypeError`` as a ``CreatorCallError`` with the resolution step prepended.
+
+        A ``TypeError`` raised *inside* the creator body (it carries an inner traceback frame) is not a
+        binding failure: return ``None`` so the caller re-raises it unchanged. The resolution step is built
+        only when wrapping, never on the propagate path.
+        """
+        if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
+            return None
+        error = cls(creator=creator, original_error=exc)
+        error.prepend_step(resolution_step())
+        return error
+
 
 class CircularDependencyError(ResolutionError):
     """A dependency cycle was detected by ``validate()`` or the runtime resolve guard.
