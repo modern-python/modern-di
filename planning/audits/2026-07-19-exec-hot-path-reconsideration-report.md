@@ -10,7 +10,11 @@ planning/changes/2026-07-19.13-exec-hot-path-reconsideration.md. Baseline: 5a940
 hot-path gap, filed in `deferred.md` as "a stance, not a task." Its stated
 ground — "rejected for a zero-dependency library" — conflates two things.
 
-**Verdict:** (filled in Task 7)
+**Verdict:** Re-decline (no-go) — the reframe holds (dependency-purity was never
+the objection), but the bounded 1.3-1.9x prize (§3) is outweighed by two real
+costs (§4.2 maintainability, §4.3 free-threading) that the two mitigable rows
+(§4.1, §4.4) only deepen. Reopens only on a user-reported high-arity or
+deep-chain bottleneck closures provably cannot close.
 
 ## 1. The reframe: "zero-dependency" is not the objection
 
@@ -145,3 +149,53 @@ per §4.3) rather than replacing it.
 **Verdict: mitigable — but the mitigation raises the §4.2 cost.** The clean way
 to satisfy exec-banned environments is exactly the way that makes the
 maintenance objection worse.
+
+## 5. Synthesis & recommendation
+
+Laid against the gate, the ledger does not net out in `exec`'s favor. §3 fixes
+the prize: 0-4% at fixed arity — inside the noise band a hand-unrolled closure
+already occupies — and 1.3-1.9x only on the two narrow forms (high-arity nodes,
+deep singleton/scoped chains) where inlining collapses per-frame closure calls.
+That is the entire upside, and it is bounded by measurement, not argument. On
+the cost side, two of the four rows survive unbundling intact: §4.2
+(maintainability / audit-trust) has no neutralizer — the generated-source
+machinery, hygiene rules, and second mental model are a fixed standing load
+regardless of how small the win is — and §4.3 (free-threading) is a genuine,
+modern-di-specific open cost that swaps captured cells for module globals under
+a concurrency contract still at Beta, and cannot be retired without the
+parallel-resolution stress work already scoped out. The two "mitigable" rows do
+not offset this: §4.1's debuggability fix *is* the attrs linecache discipline,
+which is itself the §4.2 cost; and §4.4's clean answer to exec-bans — an
+additive fallback resolver — keeps the closure path and bolts `exec` on beside
+it, doubling the resolve surface, the test matrix, and the §4.3 concurrency
+question. Every path that neutralizes an objection pays for it in §4.2. The
+reframe in §1 is sound — "it adds a dependency" was never the real objection —
+but dissolving that framing manufactures no win the measurement denies (§3's
+guardrail). A bounded prize bought with two real costs plus cost-raising
+mitigations does not clear the bar.
+
+**Recommendation — re-decline (no-go).** Keep `exec` codegen out of the resolve
+hot path and leave `deferred.md`'s stance in place: the shipped
+closure-compiled resolver stays the single resolve path. The reasoning is not
+"exec is impure" — §1 retires that — but that the honest ledger is lopsided:
+the exclusive win is a bounded 1.3-1.9x confined to high-arity and deep-chain
+graphs, while the standing maintainability/trust cost (§4.2) is real and
+unavoidable, the free-threading model shift (§4.3) is a real unpriced cost under
+a Beta contract, and the only clean fixes for the debuggability (§4.1) and
+exec-ban (§4.4) objections both deepen the §4.2 cost rather than escape it.
+Closures already capture ~80-90% of the ceiling with readable in-file Python; the
+marginal construction-heavy speedup does not justify a second resolver, a second
+concurrency model, and a permanent generated-source discipline. No narrow form
+surfaced in the rows that clears the bar freshly enough to escalate a hybrid —
+even the additive-fallback shape that would make a hybrid deployable is the
+very thing that multiplies the load-bearing cost.
+
+**One measured trigger reopens this, and only one:** a user-reported,
+real-world resolve bottleneck on a high-arity node or a deep singleton/scoped
+chain — the two §3 forms — that the closure resolver provably cannot close.
+That is a bottleneck closures cannot close, established from a real workload,
+not a synthetic micro-benchmark and not a hypothetical. Absent that signal, the
+1.3-1.9x is a number without a victim, and the costs above bind.
+
+*This recommendation is argued from the evidence in §3-§4; the ruling is the
+maintainer's.*
