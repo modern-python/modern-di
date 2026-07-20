@@ -51,3 +51,31 @@ those two is inside the 0-4% band, where `exec` buys effectively nothing.
 
 **This section is the guardrail:** reconsidering the ethos cannot manufacture a
 win the measurement denies. A dissolved objection is not a win.
+
+## 4. Objection ledger
+
+Each row: what the 2026-07-16 audit assumed → unbundle it from
+dependency-purity → the neutralizer (or its absence) → verdict.
+
+### 4.1 Debuggability — VERDICT: mitigable (fully, at a known cost)
+
+**Assumed.** Generated code produces opaque tracebacks; you cannot step
+through what you cannot see.
+
+**Unbundled.** This has nothing to do with dependencies; it is a tooling
+question with a documented answer.
+
+**Neutralizer.** attrs registers generated source into `linecache.cache`
+under a unique `<attrs generated ...>` filename (`_linecache_and_compile`,
+`_generate_unique_filename`, `_compile_and_eval`; competitor-perf audit §4),
+so exceptions inside generated code yield real tracebacks and PDB steps
+through. modern-di would have to add the same: build the script as data,
+register it in `linecache`, `_`-prefix injected names, route builtins through
+a passed name. The anti-pattern to avoid is `wireup`, which does NOT register
+generated source in `linecache` — its tracebacks show a frame name and line
+number but no source line (audit §3b#5; confirmed against the vendored
+`factory_compiler.py`).
+
+**Verdict: mitigable.** Fully solvable, but only by adopting and maintaining
+the attrs linecache discipline — a real, standing cost that lands in §4.2, not
+a free win.
