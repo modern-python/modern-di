@@ -28,3 +28,26 @@ claims, each adjudicated on its own below:
 4. Deployment / exec bans — runtimes and policies that forbid `exec`.
 
 Each is judged against one binding constraint, stated next.
+
+## 3. The performance gate (the binding constraint)
+
+Every objection below is judged against this measured ceiling, taken as
+established from the 2026-07-16 audit (not re-measured here):
+
+- At **fixed arity**, `exec` codegen is **0-4%** faster than a hand-unrolled
+  closure (196 ns generic / 109 ns closure / 104 ns codegen; §1). Closures
+  capture ~80-90% of the ceiling.
+- `exec`'s **only exclusive win** is unrolling to arbitrary argument count:
+  ~1.5-2x, and **only at high arity** (§2 scaling table).
+- Translated to modern-di's shipped resolver, the real-world gap is the
+  **1.3-1.9x behind dishka/wireup on transient (C1) and deep-chain (C3) only**
+  (`deferred.md`) — exactly the per-node closure-call frame (~13 ns/frame)
+  those two eliminate by inlining dep calls into generated source.
+
+So the prize is bounded. The narrow forms where `exec` could actually pay:
+**(a) high-arity nodes** (the unroll win), and **(b) deep singleton/scoped
+chains** (inline the whole chain, collapse N frames to ~1). Anything outside
+those two is inside the 0-4% band, where `exec` buys effectively nothing.
+
+**This section is the guardrail:** reconsidering the ethos cannot manufacture a
+win the measurement denies. A dissolved objection is not a win.
