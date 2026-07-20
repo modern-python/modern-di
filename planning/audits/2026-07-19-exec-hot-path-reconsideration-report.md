@@ -10,13 +10,15 @@ planning/changes/2026-07-19.13-exec-hot-path-reconsideration.md. Baseline: 5a940
 hot-path gap, filed in `deferred.md` as "a stance, not a task." Its stated
 ground — "rejected for a zero-dependency library" — conflates two things.
 
-**Verdict:** Re-decline (no-go) — the reframe holds (dependency-purity was never
-the objection), but the bounded 1.3-1.9x prize (§3) is outweighed by two real
+## 1. Summary
+
+**Verdict: re-decline (no-go).** The reframe holds — dependency-purity was never
+the objection — but the bounded 1.3-1.9x prize (§3) is outweighed by two real
 costs (§4.2 maintainability, §4.3 free-threading) that the two mitigable rows
 (§4.1, §4.4) only deepen. Reopens only on a user-reported high-arity or
 deep-chain bottleneck closures provably cannot close.
 
-## 1. The reframe: "zero-dependency" is not the objection
+## 2. The reframe: "zero-dependency" is not the objection
 
 `exec` is a stdlib builtin; it imports nothing. `dataclasses`, `attrs`, and
 `cattrs` all `exec`-codegen and add zero dependencies. So a compiled-source
@@ -39,10 +41,10 @@ Every objection below is judged against this measured ceiling, taken as
 established from the 2026-07-16 audit (not re-measured here):
 
 - At **fixed arity**, `exec` codegen is **0-4%** faster than a hand-unrolled
-  closure (196 ns generic / 109 ns closure / 104 ns codegen; §1). Closures
-  capture ~80-90% of the ceiling.
+  closure (196 ns generic / 109 ns closure / 104 ns codegen; competitor-perf
+  audit §1). Closures capture ~80-90% of the ceiling.
 - `exec`'s **only exclusive win** is unrolling to arbitrary argument count:
-  ~1.5-2x, and **only at high arity** (§2 scaling table).
+  ~1.5-2x, and **only at high arity** (competitor-perf audit §2 scaling table).
 - Translated to modern-di's shipped resolver, the real-world gap is the
   **1.3-1.9x behind dishka/wireup on transient (C1) and deep-chain (C3) only**
   (`deferred.md`) — exactly the per-node closure-call frame (~13 ns/frame)
@@ -169,7 +171,7 @@ which is itself the §4.2 cost; and §4.4's clean answer to exec-bans — an
 additive fallback resolver — keeps the closure path and bolts `exec` on beside
 it, doubling the resolve surface, the test matrix, and the §4.3 concurrency
 question. Every path that neutralizes an objection pays for it in §4.2. The
-reframe in §1 is sound — "it adds a dependency" was never the real objection —
+reframe in §2 is sound — "it adds a dependency" was never the real objection —
 but dissolving that framing manufactures no win the measurement denies (§3's
 guardrail). A bounded prize bought with two real costs plus cost-raising
 mitigations does not clear the bar.
