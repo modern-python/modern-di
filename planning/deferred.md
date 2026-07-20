@@ -51,7 +51,10 @@ lifecycle, and trails the two `exec`-codegen frameworks by 1.3-1.9x on transient
   construction-heavy graphs is the accepted floor without `exec`; revisit only if that stance changes.
 
 **Revisit trigger:** a user-reported warm-singleton bottleneck. The C2 swap was tried and dropped (above);
-the codegen ceiling is a stance, not a task. The dispatch-floor simplification (below) shipped in #347.
+the codegen ceiling is a stance, not a task. Adjudicated 2026-07-19: see
+[`planning/decisions/2026-07-19-exec-hot-path-declined.md`](decisions/2026-07-19-exec-hot-path-declined.md)
+(re-declined) and the [reconsideration report](audits/2026-07-19-exec-hot-path-reconsideration-report.md).
+The dispatch-floor simplification (below) shipped in #347.
 See the [competitor-perf research](audits/2026-07-16-competitor-perf-research-report.md) (the design
 evidence: closures capture ~80-90% of the ceiling, `exec` buys 0-4% at fixed arity).
 
