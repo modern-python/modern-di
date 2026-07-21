@@ -71,6 +71,15 @@ app = Starlette(routes=[Route("/report", get_report)])
 setup_di(app, Container(groups=[AppGroup], validate=True))
 ```
 
+!!! warning "Deployment: mounted sub-apps and disabled lifespan"
+    Starlette only opens the root container from the ASGI **lifespan** event.
+    A `setup_di`-wired app **mounted as a sub-application**
+    (`app.mount("/sub", subapp)`) never receives that event from its parent,
+    and deployments that disable lifespan (e.g. Mangum `lifespan="off"`) skip
+    it too — the first request then raises `ContainerClosedError`. Call
+    `setup_di` on the **top-level served app**, or open the root yourself
+    (`container.open()` / `with`) before serving.
+
 ### 3. Scopes
 
 See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule) —

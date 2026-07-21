@@ -202,7 +202,11 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
   deployments hit `ContainerClosedError` on the first unit of work while the
   tested pool stays green. `open()` and `close_*` are idempotent, so overlapping
   hooks are safe. If the framework offers no lifecycle hook at all, the root's
-  open/close is the caller's to own — document it.
+  open/close is the caller's to own — document it. On ASGI, the lifespan scope
+  is optional: a mounted sub-application never receives it from its parent,
+  and some deployments disable it (e.g. Mangum `lifespan="off"`) — an app
+  wired there still serves requests with a closed root, so `setup_di` belongs
+  on the top-level served app, or the caller opens the root itself.
 
 ## Scope mapping
 

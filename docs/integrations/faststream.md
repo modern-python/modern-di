@@ -120,6 +120,16 @@ class AppGroup(Group):
     )
 ```
 
+## Testing
+
+!!! warning "Pair the test broker with `TestApp` in the same `with` statement"
+    When testing DI-using subscribers, pair the test broker (`TestNatsBroker`,
+    etc.) with `TestApp` in the **same** `with` / `async with` statement.
+    FastStream's `TestBroker` decides whether to run app `on_startup` hooks by
+    inspecting that statement; `async with TestNatsBroker(broker):` alone
+    starts the broker without running `on_startup`, so the root container
+    stays closed and the first published message raises `ContainerClosedError`.
+
 ## See also
 
 - [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
