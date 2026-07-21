@@ -64,6 +64,13 @@ async def get_report(
 
 `setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it — those fire when the broker's worker process starts and stops, so a script that just calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.
 
+!!! warning "Deployment: `run_receiver_task` skips startup by default"
+    `taskiq.api.run_receiver_task(...)` defaults `run_startup=False`, which
+    skips the worker startup that opens the root container — the first task
+    then raises `ContainerClosedError`. Pass `run_startup=True` (or open the
+    root yourself before consuming) when embedding a receiver with
+    `run_receiver_task`.
+
 ## Scopes
 
 The integration creates a `Scope.REQUEST` child container **for each task** the worker executes. REQUEST-scoped providers (and their finalizers) live for the duration of that one task — the child container is closed after the task returns, including when it raises. APP-scoped providers persist for the whole worker process; `setup_di` opens the APP container on `WORKER_STARTUP` and runs `await container.close_async()` on `WORKER_SHUTDOWN`.

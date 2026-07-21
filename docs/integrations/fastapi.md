@@ -63,6 +63,15 @@ async def get_report(
     return report.as_dict()
 ```
 
+!!! warning "Deployment: mounted sub-apps and disabled lifespan"
+    FastAPI only opens the root container from the ASGI **lifespan** event. A
+    `setup_di`-wired app **mounted as a sub-application** (`app.mount("/sub",
+    subapp)`) never receives that event from its parent, and deployments that
+    disable lifespan (e.g. Mangum `lifespan="off"`) skip it too — the first
+    request then raises `ContainerClosedError`. Call `setup_di` on the
+    **top-level served app**, or open the root yourself (`container.open()` /
+    `with`) before serving.
+
 ## Websockets
 
 Websockets add `SESSION` scope between `APP` and `REQUEST` — see [the scope

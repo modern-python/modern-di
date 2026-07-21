@@ -185,6 +185,28 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
   container on the error path.
 - **Match async vs sync to the framework.** Async frameworks use
   `close_async`; a synchronous CLI uses `close_sync`.
+- **Open the root *after* its connection providers are registered.** `open()`
+  runs `validate()`, so every connection/context provider must already be on the
+  container — a service that requires the connection object *by type* fails
+  validation otherwise. When `setup_di` is what registers those providers and the
+  caller owns the root's lifecycle (a framework with no startup hook — Flask,
+  gRPC), the order is `setup_di(app, container)` **then** `open()` (or `with`);
+  opening first validates against a container that has no connection provider yet.
+  Document that ordering for the caller.
+- **Open the root in *every* execution context the framework runs work in.** A
+  worker may dispatch units of work from more than one place: Celery fires
+  `worker_process_init` only for the prefork/solo pools, never for the
+  gevent / eventlet / threads pools (which run in the main worker process).
+  Wire open/close to a hook that fires for *all* of them — e.g. `worker_init` /
+  `worker_shutdown` *in addition to* the per-process signals — or those
+  deployments hit `ContainerClosedError` on the first unit of work while the
+  tested pool stays green. `open()` and `close_*` are idempotent, so overlapping
+  hooks are safe. If the framework offers no lifecycle hook at all, the root's
+  open/close is the caller's to own — document it. On ASGI, the lifespan scope
+  is optional: a mounted sub-application never receives it from its parent,
+  and some deployments disable it (e.g. Mangum `lifespan="off"`) — an app
+  wired there still serves requests with a closed root, so `setup_di` belongs
+  on the top-level served app, or the caller opens the root itself.
 
 ## Scope mapping
 
