@@ -86,6 +86,17 @@ Rules:
   parent raises `ContainerClosedError` (see [Lifecycle: close and reopen](#lifecycle-close-and-reopen)
   below). The returned child itself starts unopened and must be entered before use.
 
+  This guard is **not** redundant with the resolve-time closed-check, and that is why it is kept.
+  A compiled resolver navigates to the scope-owning container and checks *its* `closed` flag
+  ([resolution.md](resolution.md) / `resolver_compiler.py`), so a resolve that reaches an unopened
+  ancestor does raise on its own. But a provider resolvable **at the open child's own scope**
+  (`target == container`) skips every ancestor closed-check, and children never validate
+  ([validate](#validate-a-plain-bool) — validation runs only at *root* `open()`). Without this
+  guard you could build a child off a never-opened root, open the child, and resolve child-scoped
+  providers against a graph whose cycles/scope errors were **never checked**. The build guard is
+  the single enforcement point that forces `root.open()` (hence validation) to happen before any
+  child can exist and resolve.
+
 The child gets its own, independent `_scope_map` dict that includes all ancestors plus itself,
 enabling `find_container(scope)` to walk up to any ancestor scope in O(1).
 
