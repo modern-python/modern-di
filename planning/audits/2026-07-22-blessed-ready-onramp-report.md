@@ -69,16 +69,16 @@ repo), `../modern-di-<name>/modern_di_<name>/main.py`,
 
 | Integration | D1 setup | D2 example | D3 lifespan | D4 steps(L) | D5 | D6 readme | Verdict | Σ |
 |---|---|---|---|---|---|---|---|---|
-| aiogram | 2 (1 action; `../modern-di-aiogram/modern_di_aiogram/main.py:41-49`) | 1 (`../modern-di-aiogram/README.md:34-63`) | 2 (`../modern-di-aiogram/modern_di_aiogram/main.py:41-49`; no documented root-open caveat) | 1 (L=8; `../modern-di-aiogram/README.md:34-63`) | 1 (@inject required, inherent — aiogram's name-based contextual-data injection can't evaluate `FromDI` marker defaults, so no per-param provider seam; `docs/integrations/aiogram.md:1-2`, `../modern-di-aiogram/modern_di_aiogram/main.py:62-90`) | 1 (missing canonical-example line; `../modern-di-aiogram/README.md:22-24`) | not yet | 8 |
+| aiogram | 2 (1 action; `../modern-di-aiogram/modern_di_aiogram/main.py:41-49`) | 1 (`../modern-di-aiogram/README.md:34-63`) | 2 (`../modern-di-aiogram/modern_di_aiogram/main.py:41-49`; no documented root-open caveat) | 1 (L=8; `../modern-di-aiogram/README.md:34-63`) | 1 (@inject required, inherent — aiogram's name-based contextual-data injection can't evaluate `FromDI` marker defaults, so no per-param provider seam; `docs/integrations/aiogram.md:3`, `../modern-di-aiogram/modern_di_aiogram/main.py:62-90`) | 1 (missing canonical-example line; `../modern-di-aiogram/README.md:22-24`) | not yet | 8 |
 | aiohttp | 2 (1 action; `../modern-di-aiohttp/modern_di_aiohttp/main.py:76-82`) | 1 (`../modern-di-aiohttp/README.md:34-69`) | 2 (`../modern-di-aiohttp/modern_di_aiohttp/main.py:76-82`; no documented root-open caveat) | 1 (L=8; `../modern-di-aiohttp/README.md:34-69`) | 1 (@inject required, inherent — no DI seam, handler is `async def handler(request)`; `docs/integrations/aiohttp.md:3`, `../modern-di-aiohttp/modern_di_aiohttp/main.py:88-96`) | 1 (missing canonical-example line; `../modern-di-aiohttp/README.md:22-24`) | not yet | 8 |
 | arq | 2 (1 action; `../modern-di-arq/modern_di_arq/main.py:84-117`) | 1 (`../modern-di-arq/README.md:34-75`) | 2 (`../modern-di-arq/modern_di_arq/main.py:84-117`; no documented root-open caveat) | 1 (L=8; `../modern-di-arq/README.md:34-75`) | 1 (@inject required, inherent — arq calls the task as `coroutine(ctx, *args, **kwargs)`, no per-param provider seam; `../modern-di-arq/modern_di_arq/main.py:134-135,131-188`) | 1 (missing canonical-example line; `../modern-di-arq/README.md:22-24`) | not yet | 8 |
 | celery | 2 (1 action; `../modern-di-celery/modern_di_celery/main.py:15-41`) | 1 (`../modern-di-celery/README.md:34-71`) | 1 (root owned by `setup_di`, main.py:15-41; per-task child owned by `@inject`/`DITask`, not `setup_di`, main.py:54-88; documented `task_always_eager` root-open caveat, `../modern-di-celery/README.md:73` and `docs/integrations/celery.md:64,140-175`) | 1 (L=8; `../modern-di-celery/README.md:34-71`) | 1 (@inject required, inherent — task is a plain callable invoked with its own args, no per-param provider seam; `docs/integrations/celery.md:138`, `../modern-di-celery/modern_di_celery/main.py:54-88`) | 1 (missing canonical-example line; `../modern-di-celery/README.md:22-24`) | not yet | 7 |
 | fastapi | 2 (1 action; `../modern-di-fastapi/modern_di_fastapi/main.py:47-51`) | 2 (`../modern-di-fastapi/README.md:24`) | 1 (`../modern-di-fastapi/modern_di_fastapi/main.py:47-60` owns both sides; documented mounted-sub-app/disabled-lifespan caveat, `docs/integrations/fastapi.md:66-73`) | 2 (L=7; `../modern-di-fastapi/README.md:36-67`) | 2 (no handler decorator — `FromDI` is a `fastapi.Depends` parameter default; `../modern-di-fastapi/modern_di_fastapi/main.py:73-76`) | 2 (all elements present and ordered; `../modern-di-fastapi/README.md:1-91`) | not yet | 11 |
 | faststream | 2 (1 action; `../modern-di-faststream/modern_di_faststream/main.py:60-78`) | 1 (`../modern-di-faststream/README.md:34-67`) | 1 (`../modern-di-faststream/modern_di_faststream/main.py:60-78` owns both sides; documented `TestBroker`/`TestApp` caveat, `docs/integrations/faststream.md:125-131`) | 2 (L=7; `../modern-di-faststream/README.md:34-67`) | 2 (no handler decorator — `FromDI` is a `faststream.Depends` parameter default; `../modern-di-faststream/modern_di_faststream/main.py:90-96`) | 1 (missing canonical-example line; `../modern-di-faststream/README.md:22-24`) | not yet | 9 |
-| flask | 1 (2 actions: `setup_di` + manual `container.open()`; `../modern-di-flask/modern_di_flask/main.py:28-43`, `../modern-di-flask/README.md:63-65`) | 1 (`../modern-di-flask/README.md:34-66`) | 1 (`setup_di` owns only the per-request child, `main.py:28-43`; root teardown is manual, `docs/integrations/flask.md:123-127`) | 1 (L=9; `../modern-di-flask/README.md:34-66`) | 1 (@inject required, inherent — no DI seam / no `Depends`, view is a plain callable; `docs/integrations/flask.md:2-4`, `../modern-di-flask/modern_di_flask/main.py:61-74`) | 1 (missing canonical-example line; `../modern-di-flask/README.md:22-24`) | not yet | 6 |
+| flask | 1 (2 actions: `setup_di` + manual `container.open()`; `../modern-di-flask/modern_di_flask/main.py:28-43`, `../modern-di-flask/README.md:63-65`) | 1 (`../modern-di-flask/README.md:34-66`) | 1 (`setup_di` owns only the per-request child, `main.py:28-43`; root teardown is manual, `docs/integrations/flask.md:123-127`) | 1 (L=9; `../modern-di-flask/README.md:34-66`) | 1 (@inject required, inherent — no DI seam / no `Depends`, view is a plain callable; `docs/integrations/flask.md:3-4`, `../modern-di-flask/modern_di_flask/main.py:61-74`) | 1 (missing canonical-example line; `../modern-di-flask/README.md:22-24`) | not yet | 6 |
 | grpc | 1 (2 actions: manual `container.open()`/`close_sync()` + `DIInterceptor` registration; `../modern-di-grpc/README.md:75-84`) | 1 (`../modern-di-grpc/README.md:34-85`) | 1 (`DIInterceptor` owns only the per-RPC child, `../modern-di-grpc/modern_di_grpc/main.py:137-156`; root lifecycle is manual, `../modern-di-grpc/README.md:87` and `docs/integrations/grpc.md:153-162`) | 0 (L=10; `../modern-di-grpc/README.md:34-85`) | 1 (@inject required, inherent — gRPC always calls a servicer method as fixed `(request, context)`, no per-param provider seam; `docs/integrations/grpc.md:177-178`, `../modern-di-grpc/modern_di_grpc/main.py:45-80`) | 1 (missing canonical-example line; `../modern-di-grpc/README.md:22-24`) | not yet | 5 |
 | litestar | 2 (1 action; `../modern-di-litestar/modern_di_litestar/main.py:64-70`) | 2 (`../modern-di-litestar/README.md:24`) | 2 (`../modern-di-litestar/modern_di_litestar/main.py:64-70` owns both sides; no documented root-open caveat) | 2 (L=7; `../modern-di-litestar/README.md:34-97`) | 2 (no handler decorator — `FromDI` is a Litestar `Provide` dependency; `../modern-di-litestar/modern_di_litestar/main.py:92-93`) | 2 (all elements present and ordered; `../modern-di-litestar/README.md:1-154`) | blessed-ready | 12 |
-| starlette | 2 (1 action; `../modern-di-starlette/modern_di_starlette/main.py:73-78`) | 1 (`../modern-di-starlette/README.md:34-72`) | 1 (`../modern-di-starlette/modern_di_starlette/main.py:73-78` owns both sides; documented mounted-sub-app/disabled-lifespan caveat, `docs/integrations/starlette.md:74-81`) | 1 (L=8; `../modern-di-starlette/README.md:34-72`) | 1 (@inject required, inherent — no DI seam / no `Depends`, endpoint is a plain ASGI callable; `docs/integrations/starlette.md:2-4`, `../modern-di-starlette/modern_di_starlette/main.py:84-100`) | 1 (missing canonical-example line; `../modern-di-starlette/README.md:22-24`) | not yet | 7 |
+| starlette | 2 (1 action; `../modern-di-starlette/modern_di_starlette/main.py:73-78`) | 1 (`../modern-di-starlette/README.md:34-72`) | 1 (`../modern-di-starlette/modern_di_starlette/main.py:73-78` owns both sides; documented mounted-sub-app/disabled-lifespan caveat, `docs/integrations/starlette.md:74-81`) | 1 (L=8; `../modern-di-starlette/README.md:34-72`) | 1 (@inject required, inherent — no DI seam / no `Depends`, endpoint is a plain ASGI callable; `docs/integrations/starlette.md:3-4`, `../modern-di-starlette/modern_di_starlette/main.py:84-100`) | 1 (missing canonical-example line; `../modern-di-starlette/README.md:22-24`) | not yet | 7 |
 | taskiq | 2 (1 action; `../modern-di-taskiq/modern_di_taskiq/main.py:19-31`) | 1 (`../modern-di-taskiq/README.md:34-70`) | 1 (`../modern-di-taskiq/modern_di_taskiq/main.py:19-31` owns both sides; documented `run_receiver_task(run_startup=False)` caveat, `docs/integrations/taskiq.md:67-72`) | 2 (L=7; `../modern-di-taskiq/README.md:34-70`) | 2 (no handler decorator — `FromDI` is a `TaskiqDepends` parameter default; `../modern-di-taskiq/modern_di_taskiq/main.py:59-62`) | 1 (missing canonical-example line; `../modern-di-taskiq/README.md:22-24`) | not yet | 9 |
 | typer | 1 (2 actions: `setup_di` + manual `with container:`; `../modern-di-typer/modern_di_typer/main.py:18-24`, `../modern-di-typer/README.md:59-61`) | 1 (`../modern-di-typer/README.md:32-62`) | 0 (`setup_di` owns neither side: root is opened manually via `with container:`, `README.md:59-61`; the per-command child is built inside `@inject`'s wrapper, not by `setup_di`, `../modern-di-typer/modern_di_typer/main.py:18-24,31-34,69-83`) | 1 (L=9; `../modern-di-typer/README.md:32-62`) | 1 (@inject required, inherent — command params are CLI parsing (`typer.Option`/`Argument`), no per-param provider seam; `docs/integrations/typer.md:72`, `../modern-di-typer/modern_di_typer/main.py:52-86`) | 1 (missing canonical-example line; `../modern-di-typer/README.md:22-24`) | not yet | 5 |
 
@@ -93,12 +93,12 @@ lack an equivalent per-parameter provider-evaluation hook, so `@inject` is **inh
 (D5=1)** — every one is a 1, none a 0 (no framework exposes an unused seam):
 
 - **flask → 1 (inherent).** "Flask has no dependency-injection system of its own …
-  there is no `Depends`" (`docs/integrations/flask.md:2-4`); a view is a plain callable.
+  there is no `Depends`" (`docs/integrations/flask.md:3-4`); a view is a plain callable.
   No per-parameter provider seam. (`auto_inject` still applies `@inject` under the hood
   by wrapping `app.view_functions`, `../modern-di-flask/modern_di_flask/main.py:46-52` —
   an adapter convenience, not a framework seam.)
 - **starlette → 1 (inherent).** "Starlette has no dependency-injection system of its
-  own … there is no `Depends`" (`docs/integrations/starlette.md:2-4`); endpoints are
+  own … there is no `Depends`" (`docs/integrations/starlette.md:3-4`); endpoints are
   plain ASGI callables. No per-parameter provider seam.
 - **aiohttp → 1 (inherent).** "aiohttp has no dependency-injection system of its own"
   (`docs/integrations/aiohttp.md:3`); a handler is `async def handler(request)`. No
@@ -112,7 +112,7 @@ lack an equivalent per-parameter provider-evaluation hook, so `@inject` is **inh
   (`../modern-di-arq/modern_di_arq/main.py:134-135`); `ctx` is a plain dict with no
   per-parameter provider hook. No seam.
 - **aiogram → 1 (inherent; closest call).** "aiogram has no dependency-injection system
-  of its own" (`docs/integrations/aiogram.md:1-2`). aiogram *does* have **name-based
+  of its own" (`docs/integrations/aiogram.md:3`). aiogram *does* have **name-based
   contextual-data injection** (middleware `data` dict → handler kwargs matched by
   parameter name), and the adapter uses it to pass the child container. But that
   mechanism matches by *name* and never evaluates a parameter *default* as a provider
@@ -183,7 +183,7 @@ block only, no dedicated starter. D3=1: `setup_di` owns both sides (`main.py:73-
 a documented mounted-sub-app/disabled-lifespan root-open caveat applies
 (`docs/integrations/starlette.md:74-81`). D4=1: L=8 (`README.md:34-72`). D5=1: `@inject`
 required and inherent — no DI seam, endpoint is a plain ASGI callable
-(`docs/integrations/starlette.md:2-4`). D6=1: missing canonical-example line
+(`docs/integrations/starlette.md:3-4`). D6=1: missing canonical-example line
 (`README.md:22-24`).
 
 **flask — not yet (Σ=6).** D1=1: two actions — `setup_di` plus a manual
@@ -191,7 +191,7 @@ required and inherent — no DI seam, endpoint is a plain ASGI callable
 Usage block only, no dedicated starter. D3=1: `setup_di` owns only the per-request
 child; root teardown is manual (`docs/integrations/flask.md:123-127`). D4=1: L=9
 (`README.md:34-66`). D5=1: `@inject` required and inherent — no DI seam, view is a
-plain callable (`docs/integrations/flask.md:2-4`). D6=1: missing canonical-example line
+plain callable (`docs/integrations/flask.md:3-4`). D6=1: missing canonical-example line
 (`README.md:22-24`).
 
 **grpc — not yet (Σ=5), a hard fail.** D1=1: two actions — manual
@@ -235,9 +235,10 @@ ranks first, since it is the cheapest path to a second blessed-ready row.
    cross-cutting gap — 10 of 12 integrations, and D2 is one of the three
    verdict-blocking essentials (§1 verdict rule). Grounding: §2 shows D2=1 for
    aiogram, aiohttp, arq, celery, faststream, flask, grpc, starlette, taskiq,
-   typer (inline Usage block only, generic "browse templates" footer,
-   `README.md:22-24` pattern repeated across all 10 rows); the same 10 are D6=1
-   for the identical missing canonical-example line. §5 Finding 2 re-confirms
+   typer (inline Usage block only, generic "browse templates" footer — each
+   row's own Usage-block cite already in §2); the same 10 are D6=1 for the
+   identical missing canonical-example line (the `README.md:22-24` pattern
+   repeated across all 10 rows). §5 Finding 2 re-confirms
    only fastapi and litestar link a dedicated starter. Cost: split in two —
    building a runnable starter per framework is code/new-repo work (highest cost
    item here); once a starter exists, adding the README's `Usage example:` line
