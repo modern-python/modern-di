@@ -216,12 +216,170 @@ parameters are CLI parsing declarations (`typer.Option`/`Argument`), no per-para
 
 ## §4 Prioritized backlog
 
-<!-- filled in Task 4 -->
+Ranked by leverage (integrations touched / newcomer-facing weight) × cost (docs vs
+code vs new repo). The `not yet` integration with the fewest, cheapest sub-2 dims
+ranks first, since it is the cheapest path to a second blessed-ready row.
+
+1. **fastapi — close the D3 root-open caveat (Σ=11, only D3=1 blocks the verdict).**
+   Leverage: flips one integration to blessed-ready — the single cheapest verdict
+   flip available, since D1/D2/D4/D5/D6 already score 2 (§2 fastapi row). Cost:
+   likely doc-only or unfixable — the caveat is a mounted-ASGI-sub-app /
+   disabled-lifespan deployment context where the root's open hook structurally
+   cannot fire (`docs/integrations/fastapi.md:66-73`), the same class of limit as
+   D5's inherent `@inject`. **Tag: per-integration.** First action: confirm whether
+   any code-level mitigation exists before accepting it as a documented, permanent
+   D3=1 (mirroring the D5 rationale's "inherent, not a gap" treatment).
+
+2. **Build canonical starter templates and link them — 10 of 12 lack D2=2, the
+   identical 10 lack D6's canonical-example line.** Leverage: the single biggest
+   cross-cutting gap — 10 of 12 integrations, and D2 is one of the three
+   verdict-blocking essentials (§1 verdict rule). Grounding: §2 shows D2=1 for
+   aiogram, aiohttp, arq, celery, faststream, flask, grpc, starlette, taskiq,
+   typer (inline Usage block only, generic "browse templates" footer,
+   `README.md:22-24` pattern repeated across all 10 rows); the same 10 are D6=1
+   for the identical missing canonical-example line. §5 Finding 2 re-confirms
+   only fastapi and litestar link a dedicated starter. Cost: split in two —
+   building a runnable starter per framework is code/new-repo work (highest cost
+   item here); once a starter exists, adding the README's `Usage example:` line
+   is a one-line docs fix. **Tag: templates** (build) **+ README-normalization**
+   (link).
+
+3. **`@inject`-asymmetry thread — document the rationale, do not unify.**
+   Leverage: cross-cutting (all 8 `@inject` integrations), but the fix is
+   explanatory, not code. Grounding: §2's D5 rationale (lines 85–129) shows all 8
+   score D5=1 (inherent) and none scores 0 (avoidable-but-not-avoided) — §5
+   Finding 4 re-confirms via the fresh `@inject` grep split. Cost: low — write
+   down, once, why decorator-free vs `@inject` splits along "does the framework
+   expose a per-parameter provider-evaluation hook," so newcomers read it as a
+   framework constraint rather than an inconsistency in modern-di. **Tag:
+   @inject-asymmetry.**
+
+4. **faststream, taskiq — close the D3 root-open caveat (Σ=9 each, same pattern as
+   item 1).** Leverage: 2 integrations, next-closest to blessed-ready once item 2
+   lands (D2/D6 fixed, leaving only D3). Grounding: faststream's `TestBroker`/
+   `TestApp` caveat (`docs/integrations/faststream.md:125-131`) and taskiq's
+   `run_receiver_task(run_startup=False)` caveat (`docs/integrations/taskiq.md:67-72`)
+   — both documented-deployment-context gaps like fastapi's, not code omissions.
+   Cost: same as item 1 — verify unfixability before accepting as permanent.
+   **Tag: per-integration.**
+
+5. **aiogram, aiohttp, arq — trim the quickstart by one line (Σ=8 each, D4=1 at
+   L=8).** Leverage: 3 integrations, one line over the D4 ≤7 bar
+   (`README.md:34-63`, `:34-69`, `:34-75` respectively). D5=1 for all three is
+   inherent (§2 D5 rationale) and not part of this item. Cost: low — a quickstart
+   rewrite is a docs edit, not a code change; once item 2 lands these three also
+   pick up D2/D6. **Tag: README-normalization.**
+
+6. **celery, starlette — close D3 (Σ=7 each, next-worst lifespan gap).** Leverage:
+   2 integrations. Cost differs per-row: starlette's D3=1 is the same
+   mounted-sub-app/disabled-lifespan caveat as fastapi
+   (`docs/integrations/starlette.md:74-81`) — likely unfixable, same treatment as
+   item 1. Celery's D3=1 is architecturally different and code-fixable: `setup_di`
+   owns only the root; the per-task child scope is opened inside `@inject`/
+   `DITask`, not `setup_di` (`../modern-di-celery/modern_di_celery/main.py:54-88`),
+   plus a `task_always_eager` caveat (`README.md:73`) — closing the child-scope
+   half is a real adapter change. **Tag: per-integration.**
+
+7. **flask — wire root lifecycle into `setup_di` (Σ=6, D1=1 and D3=1 share one
+   root cause).** Leverage: 1 integration, but fixes two dimensions at once — both
+   gaps trace to the same fact: `setup_di` owns only the per-request child, so the
+   user manually calls `container.open()` (D1's second action) and owns root
+   teardown by hand (D3's manual half) — `../modern-di-flask/modern_di_flask/main.py:28-43`,
+   `docs/integrations/flask.md:123-127`. Cost: moderate code change (wrap root
+   open/close into `setup_di`, e.g. via a Flask app-context teardown hook).
+   **Tag: per-integration.**
+
+8. **grpc — hard fail (Σ=5, D4=0, worst quickstart).** Leverage: 1 integration.
+   Cost: highest of the per-integration items — needs both a lifecycle fix (root
+   lifecycle is manual, `DIInterceptor` owns only the per-RPC child,
+   `../modern-di-grpc/README.md:87`) and a quickstart trim from L=10 down to ≤9
+   (ideally ≤7) to clear the D4=0 hard-fail bar. **Tag: per-integration.**
+
+9. **typer — hard fail (Σ=5, D3=0, only integration where `setup_di` owns neither
+   lifecycle side).** Leverage: 1 integration. Cost: highest-risk architecture
+   change — the root is opened manually via `with container:`
+   (`README.md:59-61`) and the per-command child scope is built inside
+   `@inject`'s wrapper rather than `setup_di`
+   (`../modern-di-typer/modern_di_typer/main.py:18-24,31-34,69-83`), so fixing D3
+   means routing command invocation itself through `setup_di`. **Tag:
+   per-integration.**
 
 ## §5 Cross-cutting findings
 
-<!-- filled in Task 4 -->
+**Finding 1 — the `@inject` split is 4-vs-8, re-confirming §2 D5.** Fresh grep,
+2026-07-23, `for d in …; do grep -c "@inject" ../modern-di-$d/README.md; done`:
+
+```
+aiogram @inject=4
+aiohttp @inject=3
+arq @inject=2
+celery @inject=3
+fastapi @inject=0
+faststream @inject=0
+flask @inject=4
+grpc @inject=3
+litestar @inject=0
+starlette @inject=3
+taskiq @inject=0
+typer @inject=2
+```
+
+Zero-count READMEs — fastapi, faststream, litestar, taskiq — are exactly the 4
+rows §2 scores D5=2 (no handler decorator). Nonzero READMEs — aiogram, aiohttp,
+arq, celery, flask, grpc, starlette, typer — are exactly the 8 rows §2 scores
+D5=1. **No discrepancy; §2 stands as re-verified**, including grpc, which the
+originating change file (`planning/changes/2026-07-22.01-blessed-ready-onramp-audit.md`)
+flagged as missing from an earlier "7 of 12" count — this audit's §2 already
+carries grpc as the 8th `@inject` integration.
+
+**Finding 2 — exactly 2 of 12 READMEs link a dedicated starter, re-confirming §2
+D2.** Fresh grep, `grep -q "Usage example:" ../modern-di-$d/README.md`:
+
+```
+fastapi: dedicated starter
+litestar: dedicated starter
+```
+
+Only fastapi and litestar matched — exactly the 2 rows §2 scores D2=2. The other
+10 are D2=1 (inline Usage block only). **No discrepancy.**
+
+**Finding 3 — no integration ships an `examples/` dir.** `[ -d
+../modern-di-$d/examples ]` produced no output for any of the 12 subjects — the
+loop completed with zero hits. This confirms the spec's opening premise (the
+FastAPI and Litestar SQLAlchemy templates, linked externally, are the only
+canonical starters anywhere in the ecosystem; nothing is vendored as an
+in-repo `examples/` tree by any adapter). **No discrepancy.**
+
+**Finding 4 — D5 has no 0s: the `@inject`-asymmetry thread is "document," not
+"unify."** Across the 8 `@inject`-requiring integrations, §2's D5 rationale
+(report lines 85–129) traces each to the same root cause — the host framework
+exposes no per-parameter provider-evaluation hook (no `Depends`-equivalent) — so
+`@inject` is inherent, never avoidable-but-unused. Every one of the 8 scores 1;
+none scores 0. Combined with Finding 1's grep, the split is real and consistent,
+not an oversight: the fix is a documentation thread (§4 item 3), not a code
+unification.
+
+**Finding 5 — D3's 8 sub-2 rows split into two different root causes, which
+changes their fix cost.** Four rows (fastapi, faststream, taskiq, starlette)
+score D3=1 for a **documented deployment-context caveat only** — `setup_di`
+already owns both sides in code, but a specific runtime context prevents the
+root hook from firing (mounted ASGI sub-app / disabled lifespan for fastapi and
+starlette, `TestBroker`/`TestApp` for faststream, `run_receiver_task(run_startup=False)`
+for taskiq). These look structurally like D5's inherent limits and may not be
+code-fixable. Three rows (flask, grpc, typer) score D3=1 or D3=0 for a different
+reason — `setup_di` (or its equivalent hook) literally does not own root
+lifecycle in the normal code path, no caveat needed — which **is** a
+code-fixable adapter gap. Celery is the one **hybrid** row: it carries both
+patterns at once — `setup_di` owns the root but not the per-task child scope
+(the flask/grpc-style code gap, `../modern-di-celery/modern_di_celery/main.py:54-88`)
+*and* a documented `task_always_eager` root-open caveat (`README.md:73`). §4
+tags the caveat-only group for verification-then-accept (per-integration, low
+cost) and the code-gap group (plus celery's code-gap half) for a real lifecycle
+rewrite (per-integration, higher cost).
 
 ## Appendix: modern-di-pytest (not scored)
 
-<!-- filled in Task 5 -->
+`modern-di-pytest` is excluded from this audit's scoring — as a pytest plugin
+its on-ramp shape (fixture-driven container construction and reset semantics)
+differs from the app-framework setup_di/lifespan/handler-decorator axes §1
+scores; see `docs/integrations/pytest.md` for its own onboarding guide.
