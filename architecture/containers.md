@@ -8,8 +8,9 @@ providers — resolution, scoping, overriding — flows through a `Container`.
 ```python
 from modern_di import Container, Scope, Group
 
-class MyGroup(Group):
-    ...
+
+class MyGroup(Group): ...
+
 
 container = Container(scope=Scope.APP, groups=[MyGroup])
 ```
@@ -52,12 +53,12 @@ via `with` / `async with`, or call `open()` directly:
 
 ```python
 with Container(scope=Scope.APP, groups=[MyGroup]) as container:
-    container.resolve(...)          # opened -> usable; validated once on entry (root only)
+    container.resolve(...)  # opened -> usable; validated once on entry (root only)
 # exit closes it; re-entering reopens
 
 # callback-style lifecycle (no with-block available):
 container = Container(scope=Scope.APP, groups=[MyGroup])
-container.open()                     # opens + validates (root, once)
+container.open()  # opens + validates (root, once)
 ```
 
 The full lifecycle is: **construct → (unopened: use raises) → `open()`/`with` (root validates once) →

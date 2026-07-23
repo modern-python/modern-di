@@ -16,7 +16,7 @@ class Alias(AbstractProvider[types.T_co]):
         self,
         source_type: type[types.T_co],
         *,
-        bound_type: type | None | types.UnsetType = types.UNSET,
+        bound_type: type | types.UnsetType | None = types.UNSET,
     ) -> None:
         # Always a concrete IntEnum (never UNSET), so `_scope_defaulted` stays False and
         # group-default stamping skips aliases. An alias's effective scope is derived from its source.

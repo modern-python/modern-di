@@ -80,8 +80,7 @@ Nothing new at line granularity here; the audits' function-level picture holds.
 - **Where:** `resolver_compiler.py:48-52`, inside `_positional_names`:
   ```python
   if names and any(
-      p.kind is inspect.Parameter.POSITIONAL_ONLY
-      for p in inspect.signature(f._creator).parameters.values()
+      p.kind is inspect.Parameter.POSITIONAL_ONLY for p in inspect.signature(f._creator).parameters.values()
   ):
       return None
   ```

@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 @dataclasses.dataclass(kw_only=True, slots=True)
 class CacheSettings(typing.Generic[types.T_co]):
     clear_cache: bool = True
-    finalizer: typing.Callable[[types.T_co], None | typing.Awaitable[None]] | None = None
+    finalizer: typing.Callable[[types.T_co], typing.Awaitable[None] | None] | None = None
     is_async_finalizer: bool = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
@@ -41,7 +41,7 @@ class Factory(AbstractProvider[types.T_co]):
         creator: typing.Callable[..., types.T_co],
         *,
         scope: enum.IntEnum | types.UnsetType = types.UNSET,
-        bound_type: type | None | types.UnsetType = types.UNSET,
+        bound_type: type | types.UnsetType | None = types.UNSET,
         kwargs: dict[str, typing.Any] | None = None,
         cache: bool | CacheSettings[types.T_co] | None = None,
         skip_creator_parsing: bool = False,
@@ -86,7 +86,7 @@ class Factory(AbstractProvider[types.T_co]):
         self._creator = creator
         self.cache_settings = resolved_cache
         self._kwargs = kwargs
-        self._cached_definition_site: str | None | types.UnsetType = types.UNSET
+        self._cached_definition_site: str | types.UnsetType | None = types.UNSET
 
     @staticmethod
     def _validate_kwargs_against_signature(

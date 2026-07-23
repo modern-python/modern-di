@@ -14,6 +14,7 @@ attributes:
 ```python
 from modern_di import providers, Group, Scope
 
+
 class AppProviders(Group):
     db_pool = providers.Factory(create_pool, scope=Scope.APP)
     user_repo = providers.Factory(UserRepository, scope=Scope.REQUEST)
