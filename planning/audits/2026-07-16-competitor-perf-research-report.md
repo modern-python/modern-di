@@ -110,9 +110,10 @@ compiled functions. Real dumped output for a cached `C→B→A` chain:
 def get_A(getter, exits, cache, context, container, has):
     if key_A_cache in cache:
         return cache[key_A_cache]
-    solved = key_A_cache()          # key_A_cache IS class A
+    solved = key_A_cache()  # key_A_cache IS class A
     cache[key_A_cache] = solved
     return solved
+
 
 def get_B(getter, exits, cache, context, container, has):
     if key_B_cache in cache:
@@ -120,7 +121,8 @@ def get_B(getter, exits, cache, context, container, has):
     try:
         solved = key_B_cache(get_A(getter, exits, cache, context, container, has))
     except NoFactoryError as e:
-        e.add_path(val_Factory); raise
+        e.add_path(val_Factory)
+        raise
     cache[key_B_cache] = solved
     return solved
 ```
@@ -165,7 +167,9 @@ def _wireup_factory(container):
     with _singleton_lock:
         if (res := storage.get(OBJ_ID, _SENTINEL)) is not _SENTINEL:
             return res
-        instance = ORIGINAL_FACTORY(cfg = factories[_dep_obj_id_cfg].factory(container),)
+        instance = ORIGINAL_FACTORY(
+            cfg=factories[_dep_obj_id_cfg].factory(container),
+        )
         storage[OBJ_ID] = instance
         factories[OBJ_FACTORY_KEY].factory = _create_singleton_instance_factory(instance)
         return instance

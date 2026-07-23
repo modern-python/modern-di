@@ -47,10 +47,17 @@ finally:
 **Reproduction.**
 ```python
 from modern_di import Container, providers
-class B: pass
+
+
+class B:
+    pass
+
+
 class A:
     def __init__(self, container: Container):
         self.b = container.resolve(B)
+
+
 gb = providers.Factory(creator=B, cache_settings=providers.CacheSettings())
 ga = providers.Factory(creator=A, cache_settings=providers.CacheSettings())
 c = Container()
@@ -77,6 +84,7 @@ for one_provider in self.providers_registry:
 for dep_provider in provider.get_dependencies(self).values():
     _visit(dep_provider)
 
+
 # modern_di/providers/factory.py
 def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
     scoped_container = container.find_container(self.scope)
@@ -87,15 +95,20 @@ def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvide
 import dataclasses
 from modern_di import Container, Group, Scope, providers
 
+
 @dataclasses.dataclass(kw_only=True, slots=True)
 class Dep: ...
+
+
 @dataclasses.dataclass(kw_only=True, slots=True)
 class Svc:
     dep: Dep
 
+
 class G(Group):
     dep = providers.Factory(scope=Scope.REQUEST, creator=Dep)
     svc = providers.Factory(scope=Scope.REQUEST, creator=Svc)
+
 
 Container(groups=[G], validate=True)
 # ScopeNotInitializedError: Provider of scope REQUEST cannot be resolved in container of scope APP.
@@ -131,9 +144,13 @@ else:
 ```python
 from modern_di import Container, providers
 
+
 class SelfRef: ...
+
+
 def make(x: int | SelfRef = 1) -> SelfRef:
     return SelfRef()
+
 
 f = providers.Factory(creator=make)
 c = Container()
@@ -176,10 +193,12 @@ if not scope:
 import enum
 from modern_di import Container
 
+
 class CS(enum.IntEnum):
     ZERO = 0
     ONE = 1
     TWO = 2
+
 
 c = Container(scope=CS.ONE)
 child = c.build_child_container(scope=CS.ZERO)
@@ -218,13 +237,16 @@ from modern_di import Container, Group, Scope, providers
 
 DEFAULT = datetime.datetime(2024, 1, 1)
 
+
 @dataclasses.dataclass(kw_only=True, slots=True)
 class Svc:
     ts: datetime.datetime = DEFAULT
 
+
 class G(Group):
     ts = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
     svc = providers.Factory(creator=Svc)
+
 
 Container(groups=[G]).resolve(Svc)  # ArgumentResolutionError; DEFAULT is ignored
 ```
@@ -259,6 +281,7 @@ return self.__class__(scope=scope, parent_container=self, context=context)
 **Reproduction.**
 ```python
 from modern_di import Container, Scope
+
 root = Container(use_lock=False)
 child = root.build_child_container(scope=Scope.REQUEST)
 assert root.lock is None
@@ -285,13 +308,17 @@ self.providers_registry.register(type(self), container_provider)
 ```python
 from modern_di import Container, Group, providers
 
+
 class MyContainer(Container): ...
+
 
 class S:
     def __init__(self, di_container: Container) -> None: ...
 
+
 class G(Group):
     svc = providers.Factory(creator=S)
+
 
 MyContainer(groups=[G]).resolve(S)
 # ArgumentResolutionError: Argument di_container of type Container cannot be resolved
@@ -317,6 +344,7 @@ self.scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
 **Reproduction.**
 ```python
 from modern_di import Container
+
 c = Container(scope=99)
 repr(c)  # AttributeError: 'int' object has no attribute 'name'
 ```
@@ -342,11 +370,14 @@ return result
 ```python
 from modern_di import Container, Group, providers
 
+
 def f(a: int = 1) -> int:
     return a
 
+
 class G(Group):
-    p = providers.Factory(creator=f, kwargs={'a': 1, 'nonexistent': 'oops'})
+    p = providers.Factory(creator=f, kwargs={"a": 1, "nonexistent": "oops"})
+
 
 Container(groups=[G]).resolve(int)
 # TypeError: f() got an unexpected keyword argument 'nonexistent'
@@ -430,6 +461,7 @@ def test_container_sync_context_manager() -> None:
 ```python
 def sync_finalizer(_: SimpleCreator) -> None:
     pass
+
 
 async def test_app_singleton() -> None:
     app_container = Container(groups=[MyGroup])
@@ -530,14 +562,20 @@ def get_providers(cls) -> list[AbstractProvider[typing.Any]]:
 ```python
 from modern_di import Container, Group, providers
 
+
 class A: ...
+
+
 class B: ...
+
 
 class Base(Group):
     a = providers.Factory(creator=A)
 
+
 class Child(Base):
     b = providers.Factory(creator=B)
+
 
 c = Container(groups=[Child])
 c.resolve(B)  # OK
@@ -563,6 +601,7 @@ def close_sync(self) -> None:
         self.settings.finalizer(self.cache)
     self._clear()
 
+
 def _clear(self) -> None:
     if self.settings and self.settings.clear_cache:
         self.cache = types.UNSET
@@ -573,15 +612,20 @@ def _clear(self) -> None:
 from modern_di import Container, Group, providers
 
 calls = []
+
+
 class G(Group):
     f = providers.Factory(
-        creator=lambda: 'r',
+        creator=lambda: "r",
         cache_settings=providers.CacheSettings(clear_cache=False, finalizer=calls.append),
     )
 
+
 c = Container(groups=[G])
 c.resolve_provider(G.f)
-c.close_sync(); c.close_sync(); c.close_sync()
+c.close_sync()
+c.close_sync()
+c.close_sync()
 assert len(calls) == 3  # finalizer fired three times on the same resource
 ```
 

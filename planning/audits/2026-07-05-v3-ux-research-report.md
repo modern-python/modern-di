@@ -416,8 +416,9 @@ what was checked and corrected.
   ```python
   def db_session(pool: DatabasePool) -> typing.Iterator[Session]:
       session = pool.acquire()
-      yield session          # instance delivered here
-      session.close()        # runs as a finalizer at container close (LIFO)
+      yield session  # instance delivered here
+      session.close()  # runs as a finalizer at container close (LIFO)
+
 
   session = providers.Factory(scope=Scope.REQUEST, creator=db_session, cache=True)
   ```
@@ -556,7 +557,7 @@ what was checked and corrected.
 - **Sketch (amended):**
 
   ```python
-  repo = providers.Factory(UserRepository)              # == Factory(creator=UserRepository)
+  repo = providers.Factory(UserRepository)  # == Factory(creator=UserRepository)
   # signature: Factory(creator, *, scope=..., ...)      # positional-OR-keyword, NOT positional-only:
   #                                                     # a `/` would break every existing creator= call site
   ```
@@ -584,8 +585,8 @@ what was checked and corrected.
 - **Sketch:**
 
   ```python
-  class RequestGroup(Group, scope=Scope.REQUEST):        # via __init_subclass__(scope=...)
-      repo = providers.Factory(UserRepository)           # inherits REQUEST
+  class RequestGroup(Group, scope=Scope.REQUEST):  # via __init_subclass__(scope=...)
+      repo = providers.Factory(UserRepository)  # inherits REQUEST
       audit = providers.Factory(Audit, scope=Scope.APP)  # explicit still wins
   ```
 
@@ -700,9 +701,9 @@ what was checked and corrected.
 - **Sketch:**
 
   ```python
-  with container.override(UserGroup.api_client, mock_client):   # returned handle is a CM
-      ...                                                       # __exit__ restores the prior override
-  container.override(UserGroup.api_client, mock_client)         # imperative callers unaffected
+  with container.override(UserGroup.api_client, mock_client):  # returned handle is a CM
+      ...  # __exit__ restores the prior override
+  container.override(UserGroup.api_client, mock_client)  # imperative callers unaffected
   ```
 
   `override(provider, obj)` returns a small handle object; used as a context manager, `__exit__` resets

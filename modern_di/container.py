@@ -66,7 +66,7 @@ class Container:
         "scope",
     )
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         scope: enum.IntEnum = Scope.APP,
         parent_container: typing.Optional["typing_extensions.Self"] = None,
