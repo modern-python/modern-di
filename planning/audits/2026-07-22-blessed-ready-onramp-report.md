@@ -220,14 +220,25 @@ Ranked by leverage (integrations touched / newcomer-facing weight) × cost (docs
 code vs new repo). The `not yet` integration with the fewest, cheapest sub-2 dims
 ranks first, since it is the cheapest path to a second blessed-ready row.
 
-**Resolution (2026-07-25):** the **D3 / root-lifecycle** items below (1, 4, and the
-lifecycle halves of 6, 7, 8, 9) are ruled **inherent by design** — no integration
-code changes; see [decision: D3 root-lifecycle gaps are inherent](../decisions/2026-07-25-d3-root-lifecycle-inherent.md).
-The **`@inject` item (3)** is likewise ruled **inherent** — `@inject` is required
-only where the framework offers no per-parameter seam; see
-[decision: the @inject asymmetry is inherent](../decisions/2026-07-25-inject-asymmetry-inherent.md).
-The **canonical-example** items (2, 5, and the D2/D6 halves) shipped — every
-integration now clears D2/D6.
+**Resolution (2026-07-25):** every backlog item below is resolved.
+
+- **Canonical example** (item 2 + the D2/D6 halves of 5-9): **shipped** — all 12
+  integrations now clear D2/D6.
+- **D3 / root-lifecycle** (items 1, 4, and the lifecycle halves of 6-9): ruled
+  **inherent by design**; see [decision: D3 root-lifecycle gaps are inherent](../decisions/2026-07-25-d3-root-lifecycle-inherent.md).
+- **`@inject`** (item 3): ruled **inherent** — `@inject` is required only where
+  the framework offers no per-parameter seam; see
+  [decision: the @inject asymmetry is inherent](../decisions/2026-07-25-inject-asymmetry-inherent.md).
+- **D1 / D4** (item 5 + the D1/D4 halves of 7-9): **derived** from the inherent
+  D3/D5 above — no independent trim. Item 5's "one-line trim" does not hold: the
+  only line over the D4 bar is the inherent `@inject` line. See
+  [decision: D1/D4 sub-2 scores are derived](../decisions/2026-07-25-d1-d4-derived-inherent.md).
+
+**Blessed-ready is now 4** (litestar + aiogram, aiohttp, arq): the canonical-example
+rollout flipped three, since D4=1 and D5=1 do not block the verdict. That is the
+ceiling under the inherent rulings — the other eight are each gated by a
+framework-inherent D3 (and, for flask/grpc/typer, D1), every one with a revisit
+trigger.
 
 1. **fastapi — close the D3 root-open caveat (Σ=11, only D3=1 blocks the verdict).**
    Leverage: flips one integration to blessed-ready — the single cheapest verdict
