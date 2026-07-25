@@ -370,9 +370,27 @@ Each official integration is its own repository and PyPI package, mirroring the
       `test_commands.py` (resolution through `FromDI`), and `test_websockets.py`
       where the framework has websockets. Aim for the same 100%-coverage gate
       `modern-di` holds.
+- **Canonical example** (`examples/`). Ship a runnable `examples/app.py` (plus an
+  empty `examples/__init__.py`) demonstrating the recommended wiring: an
+  APP-scoped `Settings` plus one work-scoped service that depends on it by type,
+  resolved into a single handler/task/command via the framework's real idiom.
+  Use the `typing.Annotated[T, FromDI(...)]` marker form, not a `= FromDI(...)`
+  default (the default-call form trips ruff `B008`). Name the example's types to
+  match the integration's `docs/integrations/<framework>.md` snippet; diverge
+  only where testability requires it (e.g. return a value the test can assert).
+  A `tests/test_example.py` **smoke test** drives it through the repo's own
+  in-memory test double (test client / eager mode / in-memory broker — whatever
+  the existing tests use) and asserts the **real injected output**, never a mock.
+  The smoke test must cover `examples/app.py` to **100%** under the coverage
+  gate — do **not** add a coverage `omit`; mark `# pragma: no cover` only on a
+  genuinely unreachable boot line (`if __name__ == "__main__"` / server-run).
+  Link it from the README with a `Usage example: [examples/](./examples)` line
+  directly under `Full guide:`.
 - **Mirror `modern-di`'s** `CLAUDE.md`, `Justfile`, and `architecture/` truth
   home. Keep resolution sync-only and add no runtime dependency beyond the
-  framework and `modern-di`.
+  framework and `modern-di`. `ruff` is unpinned and CI floats it forward, so keep
+  `CPY001` (no per-file copyright header) in the lint `ignore` and reflow any
+  pre-existing Markdown-embedded code fences the current `ruff` reformats.
 - **Docs.** Add a `docs/integrations/<framework>.md` usage page **in the
   `modern-di` repo** and a nav entry for it in `mkdocs.yml` (under the matching
   family group: Web / Tasks & events / Bots / RPC / CLI / Testing). Follow the
@@ -427,6 +445,9 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] Tests cover lifespan (incl. restart), resolution through `FromDI`, and
       context injection from the connection object; coverage gate green.
 - [ ] Usage page + `mkdocs.yml` nav entry added in the `modern-di` repo.
+- [ ] `examples/app.py` (+ smoke test asserting real injected output, 100%
+      coverage, no `omit`) and a README `Usage example: [examples/](./examples)`
+      line.
 - [ ] `CLAUDE.md`, `Justfile`, `architecture/` mirrored;
       [planning-convention](https://github.com/lesnik512/planning-convention)
       followed.
