@@ -220,6 +220,12 @@ Ranked by leverage (integrations touched / newcomer-facing weight) × cost (docs
 code vs new repo). The `not yet` integration with the fewest, cheapest sub-2 dims
 ranks first, since it is the cheapest path to a second blessed-ready row.
 
+**Resolution (2026-07-25):** the **D3 / root-lifecycle** items below (1, 4, and the
+lifecycle halves of 6, 7, 8, 9) are ruled **inherent by design** — no integration
+code changes; see [decision: D3 root-lifecycle gaps are inherent](../decisions/2026-07-25-d3-root-lifecycle-inherent.md).
+The **canonical-example** items (2, 5, and the D2/D6 halves) shipped — every
+integration now clears D2/D6.
+
 1. **fastapi — close the D3 root-open caveat (Σ=11, only D3=1 blocks the verdict).**
    Leverage: flips one integration to blessed-ready — the single cheapest verdict
    flip available, since D1/D2/D4/D5/D6 already score 2 (§2 fastapi row). Cost:
