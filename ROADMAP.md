@@ -49,7 +49,10 @@ Strawberry, Quart, RQ, APScheduler, Jobify, Flet, ag2.
 - **Optional OpenTelemetry instrumentation** of resolution and finalization.
 
 ### Docs & ecosystem
-- More recipes and example apps; comparison and migration guides.
+- **Canonical on-ramp per integration** — every official integration ships a
+  runnable `examples/` app plus a normalized README `Usage example:` link, so a
+  newcomer can adopt it in one sitting; **shipped**.
+- More recipes; comparison and migration guides.
 
 ## Explicitly not planned
 
