@@ -123,6 +123,31 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
     assert errors_seen == []
 
 
+def test_validation_enabled_defaults_off_and_round_trips() -> None:
+    registry = ProvidersRegistry()
+    assert registry.is_validation_enabled() is False
+    registry.set_validation_enabled(enabled=True)
+    assert registry.is_validation_enabled() is True
+
+
+def test_pending_errors_round_trip_and_are_taken_once() -> None:
+    registry = ProvidersRegistry()
+    assert registry.has_pending_errors() is False
+    error = ValueError("boom")
+    registry.set_pending_errors([error])
+    assert registry.has_pending_errors() is True
+    assert registry.take_pending_errors() == [error]
+    assert registry.has_pending_errors() is False
+    assert registry.take_pending_errors() == []
+
+
+def test_mutation_clears_pending_errors() -> None:
+    registry = ProvidersRegistry()
+    registry.set_pending_errors([ValueError("stale")])
+    registry.add_providers(providers.Factory(creator=lambda: "x", bound_type=str))
+    assert registry.has_pending_errors() is False
+
+
 def test_concurrent_first_resolve_of_same_provider_does_not_false_cycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

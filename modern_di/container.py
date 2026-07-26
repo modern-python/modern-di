@@ -205,35 +205,46 @@ class Container:
         except RecursionError as exc:
             _handle_recursion_error(provider, self, exc)
 
+    def _walk_errors(self) -> list[tuple[bool, Exception]]:
+        """Walk the graph once, returning `(is_monotone, error)` in walk order.
+
+        Monotone errors (cycles, inverted scopes) can only be *added* by registering more
+        providers, so they are safe to raise against a graph that is not yet complete.
+        """
+        walked: list[tuple[bool, Exception]] = []
+        graph = DependencyGraph()
+        for event in graph.walk(self.providers_registry, self):
+            # Event is a closed 4-variant union — every variant handled below.
+            match event:
+                case NodeEntered(provider):
+                    walked.extend((False, issue) for issue in provider.iter_validation_issues(self))
+                case DependenciesError(_, error):
+                    walked.append((False, error))
+                case Edge(parent, name, dep):
+                    dep_scope = graph.terminal_scope(dep, self)
+                    if dep_scope > graph.terminal_scope(parent, self):
+                        walked.append(
+                            (
+                                True,
+                                exceptions.InvalidScopeDependencyError(
+                                    provider=parent,
+                                    parameter_name=name,
+                                    dep_provider=dep,
+                                    dep_scope=dep_scope,
+                                ),
+                            )
+                        )
+                case Cycle(providers):
+                    walked.append((True, build_cycle_error(providers)))
+        return walked
+
     def validate(self) -> None:
         reg = self.providers_registry
         if reg.is_validated():
             self._validated = True
             return  # already validated at this registry state — no re-walk
 
-        validation_errors: list[Exception] = []
-        graph = DependencyGraph()
-        for event in graph.walk(reg, self):
-            # Event is a closed 4-variant union — every variant handled below.
-            match event:
-                case NodeEntered(provider):
-                    validation_errors.extend(provider.iter_validation_issues(self))
-                case DependenciesError(_, error):
-                    validation_errors.append(error)
-                case Edge(parent, name, dep):
-                    dep_scope = graph.terminal_scope(dep, self)
-                    if dep_scope > graph.terminal_scope(parent, self):
-                        validation_errors.append(
-                            exceptions.InvalidScopeDependencyError(
-                                provider=parent,
-                                parameter_name=name,
-                                dep_provider=dep,
-                                dep_scope=dep_scope,
-                            )
-                        )
-                case Cycle(providers):
-                    validation_errors.append(build_cycle_error(providers))
-
+        validation_errors = [error for _, error in self._walk_errors()]
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
         self._validated = True

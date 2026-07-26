@@ -14,7 +14,16 @@ if typing.TYPE_CHECKING:
 
 
 class ProvidersRegistry:
-    __slots__ = ("_building", "_lock", "_plans", "_providers", "_resolvers", "_validated")
+    __slots__ = (
+        "_building",
+        "_lock",
+        "_pending_errors",
+        "_plans",
+        "_providers",
+        "_resolvers",
+        "_validated",
+        "_validation_enabled",
+    )
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -23,6 +32,8 @@ class ProvidersRegistry:
         self._resolvers: dict[int, typing.Callable[[Container], typing.Any]] = {}
         self._building = threading.local()  # per-thread compile-in-flight set; the cycle guard is per-call-stack
         self._validated = False
+        self._pending_errors: list[Exception] = []
+        self._validation_enabled = False
 
     def __len__(self) -> int:
         return len(self._providers)
@@ -37,6 +48,28 @@ class ProvidersRegistry:
     def mark_validated(self) -> None:
         """Mark the graph validated; any later mutation clears this."""
         self._validated = True
+
+    def is_validation_enabled(self) -> bool:
+        """Return whether this tree's root enabled the graph check."""
+        return self._validation_enabled
+
+    def set_validation_enabled(self, *, enabled: bool) -> None:
+        """Record the root's `validate` argument; the flag is tree-wide, like the registry."""
+        self._validation_enabled = enabled
+
+    def has_pending_errors(self) -> bool:
+        """Return whether a construction-time walk deferred any completeness errors."""
+        return bool(self._pending_errors)
+
+    def set_pending_errors(self, errors: list[Exception]) -> None:
+        """Hold completeness errors found before the graph was complete."""
+        self._pending_errors = errors
+
+    def take_pending_errors(self) -> list[Exception]:
+        """Return the held completeness errors and clear them."""
+        errors = self._pending_errors
+        self._pending_errors = []
+        return errors
 
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
@@ -129,7 +162,7 @@ class ProvidersRegistry:
             self._invalidate()
 
     def _invalidate(self) -> None:
-        """Drop the memoized plans/resolvers and the validation flag — the registry changed.
+        """Drop the memoized plans/resolvers, the validation flag and any held errors — the registry changed.
 
         Called under `self._lock` by every mutation. Clearing has the same breadth the old version
         bump did (a bump invalidated every memo anyway) and frees stale entries eagerly. Sound
@@ -138,3 +171,4 @@ class ProvidersRegistry:
         self._plans.clear()
         self._resolvers.clear()
         self._validated = False
+        self._pending_errors = []

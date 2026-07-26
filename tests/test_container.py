@@ -338,6 +338,29 @@ def test_validate_accumulates_multiple_errors() -> None:
     assert CircularDependencyError in error_types
 
 
+def test_walk_errors_partitions_monotone_from_completeness() -> None:
+    # Cycles and inverted scopes are monotone (registering more providers can only add them);
+    # missing dependencies are not, so they are classified separately.
+    class _Missing: ...
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class _NeedsMissing:
+        missing: _Missing
+
+    class G(Group):
+        a = providers.Factory(creator=CycleA)
+        b = providers.Factory(creator=CycleB)
+        svc = providers.Factory(creator=_NeedsMissing)
+
+    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    walked = container._walk_errors()  # noqa: SLF001
+
+    monotone = [type(error).__name__ for is_monotone, error in walked if is_monotone]
+    completeness = [type(error).__name__ for is_monotone, error in walked if not is_monotone]
+    assert monotone == ["CircularDependencyError"]
+    assert completeness == ["ArgumentResolutionError"]
+
+
 def test_validate_detects_cycle_across_scopes() -> None:
     class CrossScopeCycleGroup(Group):
         a = providers.Factory(scope=Scope.REQUEST, creator=CycleA)
