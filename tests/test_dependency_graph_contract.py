@@ -66,14 +66,14 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
         x = Factory(scope=Scope.APP, creator=X)
 
     container = Container(scope=Scope.APP, groups=[G], validate=True)
-    container.validate()  # deferred: run validation once so the flag is set before we forbid re-walking
+    container.validate()  # already validated at construction (clean graph) -- confirms the flag is set
 
     def _explode(*_: object, **__: object) -> object:  # pragma: no cover
         msg = "re-walked"
         raise AssertionError(msg)
 
     monkeypatch.setattr(dependency_graph.DependencyGraph, "walk", _explode)
-    container.validate()  # short-circuited on the _validated flag -> no walk
+    container.validate()  # short-circuited on the registry's validated flag -> no walk
 
 
 def test_runtime_guard_converts_unvalidated_cycle() -> None:

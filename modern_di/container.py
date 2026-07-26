@@ -56,7 +56,6 @@ class Container:
         "_lock",
         "_scope_map",
         "_validate_enabled",
-        "_validated",
         "cache_registry",
         "closed",
         "context_registry",
@@ -98,7 +97,6 @@ class Container:
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         self._lock = threading.RLock() if use_lock else None
-        self._validated = False
         self.closed = True  # unopened: enter via open()/with before resolving or building children
         self.scope = scope
         self.parent_container = parent_container
@@ -123,10 +121,12 @@ class Container:
             for one_group in groups:
                 all_providers.extend(one_group.get_providers())
             self.providers_registry.add_providers(*all_providers)
-        # Root-only, run at open(): validation runs once when the container is entered, so an
-        # integration's context providers registered after construction are in the graph before it
-        # runs. False disables. Construction-time = call validate() explicitly.
+        # Root-only. Monotone issues (cycles, inverted scopes) raise here: registering more providers
+        # can only add such an error, never remove one. Completeness is held for first use.
         self._validate_enabled = validate and parent_container is None
+        if self._validate_enabled:
+            self.providers_registry.set_validation_enabled(enabled=True)
+            self._eager_validate()
 
     def build_child_container(
         self,
@@ -241,14 +241,32 @@ class Container:
     def validate(self) -> None:
         reg = self.providers_registry
         if reg.is_validated():
-            self._validated = True
             return  # already validated at this registry state — no re-walk
 
         validation_errors = [error for _, error in self._walk_errors()]
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
-        self._validated = True
         reg.mark_validated()
+
+    def _eager_validate(self) -> None:
+        """Raise the graph's monotone issues now; hold its completeness issues for first use."""
+        walked = self._walk_errors()
+        monotone = [error for is_monotone, error in walked if is_monotone]
+        if monotone:
+            raise exceptions.ValidationFailedError(errors=monotone)
+        pending = [error for is_monotone, error in walked if not is_monotone]
+        if pending:
+            self.providers_registry.set_pending_errors(pending)
+        else:
+            self.providers_registry.mark_validated()
+
+    def _complete_validation(self) -> None:
+        """Finish the deferred half of the check: raise the held issues, or re-walk if the graph moved."""
+        reg = self.providers_registry
+        pending = reg.take_pending_errors()
+        if pending:
+            raise exceptions.ValidationFailedError(errors=pending)
+        self.validate()
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
         """Register providers on this (root) container after construction.
@@ -256,26 +274,28 @@ class Container:
         This is the blessed seam for framework integrations that discover providers
         after the container is built. Root-only: calling this on a child container
         raises :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since
-        the providers registry is shared tree-wide. If validation has run **on this
-        container** (via ``validate=True`` at construction or a manual :meth:`validate`
-        call — ``_validated`` is per-container, not inherited from a parent), it is
-        re-validated after registering, so a newly-added provider that breaks the
-        graph raises :class:`~modern_di.exceptions.ValidationFailedError` here rather
-        than later. Atomic: if that re-validation raises *any* exception, the whole
-        batch is removed again before the error propagates — either the batch is
-        fully registered and valid, or the container is unchanged. Registration is a
+        the providers registry is shared tree-wide. If validation is enabled, the
+        monotone half (cycles, inverted scopes) re-runs immediately against the new
+        graph; the completeness half (missing dependencies, dangling aliases) is
+        re-deferred to first use, since a later ``add_providers`` call may still
+        complete the graph. Atomic: if the monotone re-check raises *any* exception,
+        the whole batch is removed again before the error propagates — either the
+        batch is fully registered, or the container is unchanged. Registration is a
         startup-time operation: concurrent ``add_providers`` calls on the same root
         are not coordinated beyond the registry's internal lock.
         """
         if self.parent_container is not None:
             raise exceptions.ChildContainerRegistrationError(scope=self.scope)
-        self.providers_registry.add_providers(*providers)
-        if self._validated:
+        reg = self.providers_registry
+        # Read before mutating: `add_providers` invalidates the registry, clearing `is_validated`.
+        recheck = reg.is_validation_enabled() or reg.is_validated()
+        reg.add_providers(*providers)
+        if recheck:
             try:
-                self.validate()
+                self._eager_validate()
             except Exception:
                 added_types = [provider.bound_type for provider in providers if provider.bound_type]
-                self.providers_registry._remove_providers(*added_types)  # noqa: SLF001
+                reg._remove_providers(*added_types)  # noqa: SLF001
                 raise
 
     async def close_async(self) -> None:
@@ -343,8 +363,9 @@ class Container:
         re-walk the graph.
         """
         self.closed = False
-        if self._validate_enabled and not self._validated:
-            self.validate()
+        reg = self.providers_registry
+        if reg.is_validation_enabled() and not reg.is_validated():
+            self._complete_validation()
 
     def _raise_if_closed(self) -> None:
         """Raise if this container is closed; callers reopen explicitly via `open()`/`with`."""

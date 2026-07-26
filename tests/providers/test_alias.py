@@ -117,9 +117,8 @@ def test_alias_participates_in_cycle_detection() -> None:
         concrete = providers.Factory(creator=Concrete)
         iface_alias = providers.Alias(source_type=Concrete, bound_type=Iface)
 
-    container = Container(groups=[G], validate=True)
     with pytest.raises(ValidationFailedError) as exc:
-        container.open()  # deferred validation runs at entry
+        Container(groups=[G], validate=True)  # monotone: raises at construction
     [issue] = exc.value.errors
     assert isinstance(issue, CircularDependencyError)
     assert "Concrete" in str(issue)
@@ -295,9 +294,8 @@ class _XfourGroup(Group):
 
 
 def test_validate_flags_shallow_caller_depending_through_alias_on_deeper_source() -> None:
-    container = Container(scope=Scope.APP, groups=[_XfourGroup], validate=True)
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        container.open()  # deferred validation runs at entry
+        Container(scope=Scope.APP, groups=[_XfourGroup], validate=True)  # monotone: raises at construction
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
     assert "REQUEST" in str(exc_info.value)
 
@@ -346,9 +344,8 @@ class _AliasOfAliasGroup(Group):
 
 def test_validate_follows_alias_of_alias_to_terminal_scope() -> None:
     # caller(APP) -> top(alias) -> mid(alias) -> terminal(REQUEST): effective scope follows 2 hops -> flagged
-    container = Container(scope=Scope.APP, groups=[_AliasOfAliasGroup], validate=True)
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        container.open()  # deferred validation runs at entry
+        Container(scope=Scope.APP, groups=[_AliasOfAliasGroup], validate=True)  # monotone: raises at construction
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
     assert "REQUEST" in str(exc_info.value)
 
