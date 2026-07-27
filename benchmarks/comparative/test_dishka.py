@@ -13,6 +13,12 @@ from dishka import Provider, Scope, from_context, make_async_container, make_con
 
 _BATCH = 100
 
+# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+_ROUNDS = 200
+_ITERATIONS = 1000
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
+
 
 class Dep:
     pass
@@ -73,7 +79,7 @@ def test_c1_transient_dishka(benchmark):
     p.provide(Dep, cache=False)
     p.provide(Service, cache=False)
     container = make_container(p)
-    result = benchmark(container.get, Service)
+    result = benchmark.pedantic(container.get, args=(Service,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
@@ -83,7 +89,7 @@ def test_c2_singleton_dishka(benchmark):
     p.provide(Service)
     container = make_container(p)
     container.get(Service)
-    result = benchmark(container.get, Service)
+    result = benchmark.pedantic(container.get, args=(Service,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
@@ -92,7 +98,7 @@ def test_c3_deep_chain_dishka(benchmark):
     for cls in (C0, C1, C2, C3, C4, C5):
         p.provide(cls, cache=False)
     container = make_container(p)
-    result = benchmark(container.get, C0)
+    result = benchmark.pedantic(container.get, args=(C0,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
@@ -111,7 +117,7 @@ def test_c4_request_lifecycle_dishka(benchmark):
         return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_run_batch)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.run_until_complete(container.close())
         loop.close()

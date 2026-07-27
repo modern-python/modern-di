@@ -9,6 +9,8 @@ Three fairness rules this file must keep:
   variant is fair to both halves of the rival set, so the table compares each against its match.
 - The 3.x lifecycle is explicit: `open()` on the root and per request, as the guard tier and the
   docs both do.
+- Every published scenario (C1-C4) is timed with `benchmark.pedantic` at a pinned
+  `rounds x iterations`, identical in all five files. See the note on the constants below.
 """
 
 import asyncio
@@ -17,6 +19,19 @@ from modern_di import Container, Group, Scope, providers
 
 
 _BATCH = 100
+
+# Pinned timing shape for the published scenarios (C1-C4). pytest-benchmark's auto-calibration
+# picks `iterations` per benchmark, so one cell can land at iterations=1 while the cell it is
+# divided by lands at 25: the first carries the whole per-round timer pair and sits on the
+# platform timer's ~42 ns grid, the second amortizes both away. A published ratio must not divide
+# a grid-snapped number by an unsnapped one, so every framework pins the same values.
+# `warmup_rounds=1` replaces the warm-up that calibration used to provide free.
+_ROUNDS = 200
+_ITERATIONS = 1000
+# C4 is already a batch of _BATCH cycles (>=147 us per call), so a handful of iterations puts the
+# timer pair below 0.01% of the cell while keeping enough rounds for a stable median.
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
 
 
 class Dep:
@@ -97,14 +112,16 @@ class LifecycleGroup(Group):
 def test_c1_transient_by_ref_modern_di(benchmark):
     c = Container(scope=Scope.APP, groups=[TransientGroup])
     c.open()
-    result = benchmark(c.resolve_provider, TransientGroup.svc)
+    result = benchmark.pedantic(
+        c.resolve_provider, args=(TransientGroup.svc,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, Service)
 
 
 def test_c1_transient_by_type_modern_di(benchmark):
     c = Container(scope=Scope.APP, groups=[TransientGroup])
     c.open()
-    result = benchmark(c.resolve, Service)
+    result = benchmark.pedantic(c.resolve, args=(Service,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
@@ -113,7 +130,9 @@ def test_c2_singleton_by_ref_modern_di(benchmark):
     c = Container(scope=Scope.APP, groups=[SingletonGroup])
     c.open()
     c.resolve_provider(SingletonGroup.svc)  # warm
-    result = benchmark(c.resolve_provider, SingletonGroup.svc)
+    result = benchmark.pedantic(
+        c.resolve_provider, args=(SingletonGroup.svc,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, Service)
 
 
@@ -121,7 +140,7 @@ def test_c2_singleton_by_type_modern_di(benchmark):
     c = Container(scope=Scope.APP, groups=[SingletonGroup])
     c.open()
     c.resolve(Service)  # warm
-    result = benchmark(c.resolve, Service)
+    result = benchmark.pedantic(c.resolve, args=(Service,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
@@ -129,14 +148,16 @@ def test_c2_singleton_by_type_modern_di(benchmark):
 def test_c3_deep_chain_by_ref_modern_di(benchmark):
     c = Container(scope=Scope.APP, groups=[ChainGroup])
     c.open()
-    result = benchmark(c.resolve_provider, ChainGroup.c0)
+    result = benchmark.pedantic(
+        c.resolve_provider, args=(ChainGroup.c0,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, C0)
 
 
 def test_c3_deep_chain_by_type_modern_di(benchmark):
     c = Container(scope=Scope.APP, groups=[ChainGroup])
     c.open()
-    result = benchmark(c.resolve, C0)
+    result = benchmark.pedantic(c.resolve, args=(C0,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
@@ -160,7 +181,7 @@ def test_c4_request_lifecycle_modern_di(benchmark):
         return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_run_batch)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.close()
     assert len(result) == _BATCH

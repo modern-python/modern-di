@@ -12,6 +12,12 @@ from dependency_injector import containers, providers
 
 _BATCH = 100
 
+# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+_ROUNDS = 200
+_ITERATIONS = 1000
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
+
 
 class Dep:
     pass
@@ -90,20 +96,20 @@ class LifecycleContainer(containers.DeclarativeContainer):
 
 def test_c1_transient_dependency_injector(benchmark):
     container = TransientContainer()
-    result = benchmark(container.service)
+    result = benchmark.pedantic(container.service, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
 def test_c2_singleton_dependency_injector(benchmark):
     container = SingletonContainer()
     container.service()  # warm the singleton
-    result = benchmark(container.service)
+    result = benchmark.pedantic(container.service, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
 def test_c3_deep_chain_dependency_injector(benchmark):
     container = ChainContainer()
-    result = benchmark(container.c0)
+    result = benchmark.pedantic(container.c0, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
@@ -127,7 +133,7 @@ def test_c4_request_lifecycle_dependency_injector(benchmark):
         return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_run_batch)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.close()
     assert len(result) == _BATCH

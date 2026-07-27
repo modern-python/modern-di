@@ -1,5 +1,6 @@
 """The published comparative tables are generated, not hand-assembled — this guards the generator."""
 
+import ast
 import pathlib
 import re
 
@@ -9,6 +10,52 @@ from benchmarks.report import build_table, parse_run
 
 _COMPARATIVE = pathlib.Path(__file__).resolve().parent.parent / "benchmarks" / "comparative"
 _BATCH_LITERAL = re.compile(r"^_BATCH\s*=\s*(\d+)$", re.MULTILINE)
+_PUBLISHED = re.compile(r"^test_c[1-4]_")
+
+
+def _comparative_sources() -> list[pathlib.Path]:
+    """Return the five comparative framework files, in a fixed order so a missing file fails loudly."""
+    sources = sorted(_COMPARATIVE.glob("test_*.py"))
+    assert [path.name for path in sources] == [
+        "test_dependency_injector.py",
+        "test_dishka.py",
+        "test_modern_di.py",
+        "test_that_depends.py",
+        "test_wireup.py",
+    ]
+    return sources
+
+
+def _module_constants(tree: ast.Module) -> dict[str, int]:
+    """Module-level `_NAME = <int>` assignments."""
+    return {
+        node.targets[0].id: node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.targets[0], ast.Name)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, int)
+    }
+
+
+def _timing_shape(tree: ast.Module) -> dict[str, tuple[str, str]]:
+    """Map each published test to the (rounds, iterations) constant names its `pedantic` call uses.
+
+    A published test that never calls `benchmark.pedantic` is absent from the mapping, which is
+    what makes "every published cell is pinned" assertable rather than assumed.
+    """
+    shape: dict[str, tuple[str, str]] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef) or not _PUBLISHED.match(node.name):
+            continue
+        for call in ast.walk(node):
+            if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Attribute):
+                continue
+            if call.func.attr != "pedantic":
+                continue
+            named = {kw.arg: ast.unparse(kw.value) for kw in call.keywords}
+            shape[node.name] = (named["rounds"], named["iterations"])
+    return shape
 
 
 def _run(**medians: float) -> dict:
@@ -139,16 +186,42 @@ def test_comparative_batch_literals_match_the_report_divisor() -> None:
     # report.BATCH divides the C4 batch median into the published per-request figure. If a
     # comparative file's _BATCH drifts from it, the page publishes a number wrong by that factor
     # with nothing failing. The comparative venv is separate, so these are read as text.
-    sources = sorted(_COMPARATIVE.glob("test_*.py"))
-    assert [path.name for path in sources] == [
-        "test_dependency_injector.py",
-        "test_dishka.py",
-        "test_modern_di.py",
-        "test_that_depends.py",
-        "test_wireup.py",
-    ]
+    sources = _comparative_sources()
     found = {path.name: _BATCH_LITERAL.findall(path.read_text(encoding="utf-8")) for path in sources}
     assert found == {name: [str(report.BATCH)] for name in found}
+
+
+def test_every_published_scenario_pins_the_same_rounds_and_iterations() -> None:
+    # pytest-benchmark auto-calibrates `iterations` per benchmark, so one cell can land at 1 (full
+    # per-round timer overhead, snapped to the platform timer's grid) while the cell it is divided
+    # by lands at 25. A published ratio must not mix the two, so C1-C4 pin the shape explicitly and
+    # every framework pins the same numbers. Parsed with `ast` — the comparative venv is separate.
+    trees = {path.name: ast.parse(path.read_text(encoding="utf-8")) for path in _comparative_sources()}
+
+    # 1. Every published test is pinned via `benchmark.pedantic`, none left on auto-calibration.
+    shapes = {name: _timing_shape(tree) for name, tree in trees.items()}
+    published = {
+        name: sorted(
+            node.name for node in tree.body if isinstance(node, ast.FunctionDef) and _PUBLISHED.match(node.name)
+        )
+        for name, tree in trees.items()
+    }
+    assert {name: sorted(shape) for name, shape in shapes.items()} == published
+
+    # 2. C1-C3 share one shape and C4 another, consistently, in every file.
+    for name, shape in shapes.items():
+        for test, constants in shape.items():
+            expected = ("_C4_ROUNDS", "_C4_ITERATIONS") if test.startswith("test_c4_") else ("_ROUNDS", "_ITERATIONS")
+            assert constants == expected, f"{name}::{test}"
+
+    # 3. Those constants hold identical values across all five frameworks, and no cell runs at
+    #    iterations=1 (which is the state that puts a cell on the timer grid in the first place).
+    keys = ("_ROUNDS", "_ITERATIONS", "_C4_ROUNDS", "_C4_ITERATIONS")
+    values = {name: {key: _module_constants(tree)[key] for key in keys} for name, tree in trees.items()}
+    reference = values["test_modern_di.py"]
+    assert values == dict.fromkeys(values, reference)
+    assert reference["_ITERATIONS"] > 1
+    assert reference["_C4_ITERATIONS"] > 1
 
 
 def test_build_table_shows_across_run_iqr_percent_on_modern_di_cell() -> None:

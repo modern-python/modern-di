@@ -14,6 +14,12 @@ import wireup
 
 _BATCH = 100
 
+# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+_ROUNDS = 200
+_ITERATIONS = 1000
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
+
 
 @wireup.injectable(lifetime="transient")
 class Dep:
@@ -90,21 +96,23 @@ async def connection_factory() -> AsyncIterator[Connection]:
 def test_c1_transient_wireup(benchmark):
     container = wireup.create_sync_container(injectables=[Dep, Service])
     with container.enter_scope() as scope:
-        result = benchmark(scope.get, Service)
+        result = benchmark.pedantic(scope.get, args=(Service,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
 def test_c2_singleton_wireup(benchmark):
     container = wireup.create_sync_container(injectables=[SDep, SingletonService])
     container.get(SingletonService)  # warm
-    result = benchmark(container.get, SingletonService)
+    result = benchmark.pedantic(
+        container.get, args=(SingletonService,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, SingletonService)
 
 
 def test_c3_deep_chain_wireup(benchmark):
     container = wireup.create_sync_container(injectables=[C0, C1, C2, C3, C4, C5])
     with container.enter_scope() as scope:
-        result = benchmark(scope.get, C0)
+        result = benchmark.pedantic(scope.get, args=(C0,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
@@ -123,7 +131,7 @@ def test_c4_request_lifecycle_wireup(benchmark):
         return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_run_batch)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.close()
     assert len(result) == _BATCH

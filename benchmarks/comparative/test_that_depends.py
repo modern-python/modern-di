@@ -14,6 +14,12 @@ from that_depends.providers.context_resources import fetch_context_item_by_type
 
 _BATCH = 100
 
+# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+_ROUNDS = 200
+_ITERATIONS = 1000
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
+
 
 class Dep:
     pass
@@ -94,18 +100,22 @@ class LifecycleContainer(BaseContainer):
 
 
 def test_c1_transient_that_depends(benchmark):
-    result = benchmark(TransientContainer.service.resolve_sync)
+    result = benchmark.pedantic(
+        TransientContainer.service.resolve_sync, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, Service)
 
 
 def test_c2_singleton_that_depends(benchmark):
     SingletonContainer.service.resolve_sync()  # warm the cache
-    result = benchmark(SingletonContainer.service.resolve_sync)
+    result = benchmark.pedantic(
+        SingletonContainer.service.resolve_sync, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, Service)
 
 
 def test_c3_deep_chain_that_depends(benchmark):
-    result = benchmark(ChainContainer.c0.resolve_sync)
+    result = benchmark.pedantic(ChainContainer.c0.resolve_sync, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
@@ -123,7 +133,7 @@ def test_c4_request_lifecycle_that_depends(benchmark):
         return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_run_batch)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.close()
     assert len(result) == _BATCH
