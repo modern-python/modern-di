@@ -41,8 +41,7 @@ def test_g16_resolve_by_type(benchmark):
 # --- G17 subject graph: the same resolve against a 200-provider registry ----
 _REGISTRY_SIZE = 200
 _FILLER_TYPES = [
-    dataclasses.dataclass(slots=True)(type(f"Filler{i}", (), {"__annotations__": {}}))
-    for i in range(_REGISTRY_SIZE)
+    dataclasses.dataclass(slots=True)(type(f"Filler{i}", (), {"__annotations__": {}})) for i in range(_REGISTRY_SIZE)
 ]
 _WIDE_REGISTRY_GROUP = type(
     "WideRegistryGroup",
