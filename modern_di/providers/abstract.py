@@ -66,14 +66,6 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         """Return the provider this transparently forwards to, or None if resolution terminates here."""
         return None
 
-    def has_dangling_redirect(self, container: "Container") -> bool:  # noqa: ARG002
-        """Whether ``redirect_target`` returned None only because the target is unregistered.
-
-        Distinguishes a genuine terminal from a chain that bottomed out on a missing provider,
-        whose scope is therefore a placeholder. Default: this provider does not redirect at all.
-        """
-        return False
-
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:  # noqa: ARG002
         """Yield validation-time issues for this provider. Default: no issues."""
         return iter(())

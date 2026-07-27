@@ -425,8 +425,8 @@ def test_alias_redirect_target_none_when_dangling() -> None:
     assert G.abstract.redirect_target(container) is None
 
 
-# A dangling redirect makes the scope verdict speculative: its scope is a placeholder fallback,
-# not a real registered scope, so an inversion measured against it is not trustworthy
+# A genuine scope inversion through an alias must still raise, even measured against a custom
+# IntEnum whose members sit entirely below the built-in Scope.APP
 
 
 class _BelowApp(enum.IntEnum):
@@ -479,28 +479,3 @@ def test_dangling_alias_at_a_shallower_scope_validates_clean_once_registered() -
     container = Container(scope=_BelowApp.ROOT, groups=[G])
     container.validate()
     assert container.providers_registry.is_validated() is True
-
-
-def test_validate_suppresses_an_inversion_measured_against_a_dangling_alias() -> None:
-    class _Below(enum.IntEnum):
-        ROOT = 0
-        REQ = 5
-
-    class Iface: ...
-
-    class Concrete: ...
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Svc:
-        dep: Iface
-
-    class G(Group):
-        alias = providers.Alias(Concrete, bound_type=Iface)  # source never registered
-        svc = providers.Factory(creator=Svc, scope=_Below.ROOT)
-
-    container = Container(scope=_Below.ROOT, groups=[G])
-    with pytest.raises(ValidationFailedError) as exc:
-        container.validate()
-    kinds = {type(error).__name__ for error in exc.value.errors}
-    assert "AliasSourceNotRegisteredError" in kinds
-    assert "InvalidScopeDependencyError" not in kinds  # speculative: the placeholder scope is not real

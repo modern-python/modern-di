@@ -111,15 +111,11 @@ class DependencyGraph:
                 return event.providers
         return None
 
-    def terminal_provider(
-        self, provider: "AbstractProvider[typing.Any]", container: "Container"
-    ) -> "AbstractProvider[typing.Any]":
-        """Follow ``redirect_target`` hops to the provider resolution actually terminates at.
+    def terminal_scope(self, provider: "AbstractProvider[typing.Any]", container: "Container") -> enum.IntEnum:
+        """Follow ``redirect_target`` hops to the terminal provider and return its scope.
 
-        A redirect cycle is broken via the ``seen`` guard, returning the last provider on the
-        chain instead of looping forever; ``walk()`` reports that cycle separately. Ask the
-        result's ``has_dangling_redirect`` whether the chain ended on a missing target, which
-        makes its scope a placeholder rather than the real terminal one.
+        A redirect cycle is broken via the ``seen`` guard, falling back to the starting
+        provider's own scope instead of looping forever; ``walk()`` reports that cycle separately.
         """
         seen: set[int] = set()
         while (nxt := provider.redirect_target(container)) is not None:
@@ -127,11 +123,7 @@ class DependencyGraph:
                 break
             seen.add(provider.provider_id)
             provider = nxt
-        return provider
-
-    def terminal_scope(self, provider: "AbstractProvider[typing.Any]", container: "Container") -> enum.IntEnum:
-        """Scope of the provider that ``terminal_provider`` lands on — an alias reports its source's."""
-        return self.terminal_provider(provider, container).scope
+        return provider.scope
 
     def _walk_from(
         self,

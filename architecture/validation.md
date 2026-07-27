@@ -123,22 +123,6 @@ one. The error is recorded as `InvalidScopeDependencyError` (see `exceptions.py`
 which names the provider, the parameter, the dependent provider, and the offending scopes. The walk
 continues into the dependency so further issues in that subtree are also surfaced.
 
-**One suppression: a dangling redirect on the dependency side.** If `dep`'s terminal provider is a
-dangling `Alias` — one whose source type is not registered — its terminal scope is a placeholder (see
-[Terminal scope and alias transparency](#terminal-scope-and-alias-transparency)), not a measurement of
-anything real: `Scope.APP`, the value `terminal_scope` falls back to, is the minimum only over the
-built-in `Scope`, and [scopes.md](scopes.md) accepts any standalone `IntEnum` whose members may sit
-below it. Comparing against it would be speculative, so `validate()` checks
-`dep_terminal.has_dangling_redirect(container)` (`AbstractProvider.has_dangling_redirect`, `False` by
-default, overridden by `Alias` to test its source's registration) and skips the inversion error for
-that edge when it is `True`. Nothing is lost: the dangling alias is already reported on its own, as
-`AliasSourceNotRegisteredError`, from the same walk (a `DependenciesError` event, since the alias's own
-dependency lookup raises). A genuine inversion through a *registered* alias — whose terminal scope is
-real — is still reported. Only the *dependency* side of an edge needs this check: a dangling alias
-raises from `get_dependencies`, so it never emits an edge as a *parent*, and a redirecting parent
-always shares its dependency's terminal provider, making the two scopes equal and the edge
-un-inverted by construction.
-
 ### Missing required dependencies
 
 When the walk enters a provider (the `NodeEntered` event, emitted before that provider's dependencies are
@@ -149,14 +133,13 @@ entry.
 
 ## Terminal scope and alias transparency
 
-`validate()`'s scope-ordering check uses `DependencyGraph.terminal_provider(provider, container)` on both
-sides of every dependency edge — not `provider.scope` directly. `terminal_scope(provider, container)` is
-the thin `.scope` accessor over it, for callers that need only the verdict.
+`validate()`'s scope-ordering check uses `DependencyGraph.terminal_scope(provider, container)` on both
+sides of every dependency edge — not `provider.scope` directly.
 
-`terminal_provider` follows the `AbstractProvider.redirect_target(container)` node hook from provider to
+`terminal_scope` follows the `AbstractProvider.redirect_target(container)` node hook from provider to
 provider until it reaches one whose resolution terminates there (`redirect_target` returns `None`), then
-returns that terminal provider, whose `.scope` is the answer. The hook defaults to `None` on
-`AbstractProvider`, so for most providers the terminal is the provider itself, in a single step. `Alias` overrides `redirect_target` to
+returns that terminal provider's `.scope`. The hook defaults to `None` on `AbstractProvider`, so for most
+providers `terminal_scope` returns `self.scope` in a single step. `Alias` overrides `redirect_target` to
 return its source provider (and `None` when the source type is unregistered), so `terminal_scope` follows
 an alias chain to its terminal non-alias target and reports **that provider's scope**. This makes
 validation transitive through aliases. Consider:
@@ -171,20 +154,16 @@ The alias's terminal scope is `REQUEST` (the scope of `Impl`). When `validate()`
 edge, it compares `APP` against `REQUEST` and raises `InvalidScopeDependencyError`. Without `terminal_scope`,
 the alias's own `scope` attribute (defaulting to `APP`) would mask the true depth of the dependency.
 
-Two edge cases in the walk are handled safely:
+Two edge cases in `terminal_scope` are handled safely:
 
-- **Redirect cycle**: if the chain revisits a provider (tracked in `terminal_provider`'s `seen` set), it
-  breaks out and returns the last provider on the chain instead of looping forever. The cycle
+- **Redirect cycle**: if the chain revisits a provider (tracked in `terminal_scope`'s `seen` set), it
+  breaks out and falls back to the starting provider's own `.scope` instead of looping forever. The cycle
   itself is separately detected and reported as a `Cycle` event by the walk, which traverses the same
   `source` edge.
 - **Dangling source**: if an alias's source type is not registered, `redirect_target` returns `None`, so
-  the chain stops at the alias and its own `.scope` (`Scope.APP`) stands in. The dangling source is
-  separately reported by the alias's dependency lookup raising `AliasSourceNotRegisteredError` during
-  the walk (a `ResolutionError`, surfaced as a `DependenciesError` event). Because that scope is a
-  placeholder, `AbstractProvider.has_dangling_redirect(container)` — `False` by default, overridden by
-  `Alias` to test its source's registration — tells the two apart, and `validate()` skips the inversion
-  check on that edge rather than comparing against a placeholder (see
-  [Inverted scope dependencies](#inverted-scope-dependencies)).
+  the chain stops at the alias and falls back to its `.scope`. The dangling source is separately
+  reported by the alias's dependency lookup raising `AliasSourceNotRegisteredError` during the walk
+  (a `ResolutionError`, surfaced as a `DependenciesError` event).
 
 ## Exception types
 
