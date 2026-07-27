@@ -12,6 +12,14 @@ import typing
 from that_depends import BaseContainer, ContextScopes, container_context, providers
 from that_depends.providers.context_resources import fetch_context_item_by_type
 
+_BATCH = 100
+
+# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+_ROUNDS = 200
+_ITERATIONS = 1000
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
+
 
 class Dep:
     pass
@@ -91,44 +99,52 @@ class LifecycleContainer(BaseContainer):
     connection = providers.ContextResource(_connection)
 
 
-def test_c1_transient(benchmark):
-    result = benchmark(TransientContainer.service.resolve_sync)
+def test_c1_transient_that_depends(benchmark):
+    result = benchmark.pedantic(
+        TransientContainer.service.resolve_sync, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, Service)
 
 
-def test_c2_singleton(benchmark):
+def test_c2_singleton_that_depends(benchmark):
     SingletonContainer.service.resolve_sync()  # warm the cache
-    result = benchmark(SingletonContainer.service.resolve_sync)
+    result = benchmark.pedantic(
+        SingletonContainer.service.resolve_sync, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1
+    )
     assert isinstance(result, Service)
 
 
-def test_c3_deep_chain(benchmark):
-    result = benchmark(ChainContainer.c0.resolve_sync)
+def test_c3_deep_chain_that_depends(benchmark):
+    result = benchmark.pedantic(ChainContainer.c0.resolve_sync, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
-def test_c4_request_lifecycle(benchmark):
+def test_c4_request_lifecycle_that_depends(benchmark):
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
+    async def _one() -> Connection:
         async with container_context(LifecycleContainer, scope=ContextScopes.REQUEST):
             return await LifecycleContainer.connection.resolve()
 
-    def _one() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.close()
-    assert result.closed is True
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)
 
 
 # --- C5 cold: rebuild the 6 Factory objects + first resolve, per call ---------
 # that-depends wires at class definition (module import), so a class-level container has no
 # per-call cold step. This rebuilds the Factory chain per call as the closest build+resolve
 # analog; it measures 6x Factory.__init__ + one resolve, NOT a container build (see README caveat).
-def test_c5_cold_first_resolve(benchmark):
+def test_c5_cold_first_resolve_that_depends(benchmark):
     def _cold():
         c5 = providers.Factory(C5)
         c4 = providers.Factory(C4, c5=c5.cast)
@@ -163,7 +179,7 @@ class ContextContainer(BaseContainer):
     handler = providers.Factory(Handler, request_obj=request_obj.cast, app_dep=app_dep.cast)
 
 
-def test_c6_context(benchmark):
+def test_c6_context_that_depends(benchmark):
     def _one_request():
         ro = RequestObj()
         with container_context(global_context={"request": ro}):

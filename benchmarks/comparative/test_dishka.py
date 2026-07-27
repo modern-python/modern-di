@@ -11,6 +11,14 @@ from collections.abc import AsyncIterable
 
 from dishka import Provider, Scope, from_context, make_async_container, make_container, provide
 
+_BATCH = 100
+
+# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+_ROUNDS = 200
+_ITERATIONS = 1000
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
+
 
 class Dep:
     pass
@@ -66,55 +74,59 @@ class ConnProvider(Provider):
         await c.aclose()
 
 
-def test_c1_transient(benchmark):
+def test_c1_transient_dishka(benchmark):
     p = Provider(scope=Scope.APP)
     p.provide(Dep, cache=False)
     p.provide(Service, cache=False)
     container = make_container(p)
-    result = benchmark(container.get, Service)
+    result = benchmark.pedantic(container.get, args=(Service,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
-def test_c2_singleton(benchmark):
+def test_c2_singleton_dishka(benchmark):
     p = Provider(scope=Scope.APP)
     p.provide(Dep)
     p.provide(Service)
     container = make_container(p)
     container.get(Service)
-    result = benchmark(container.get, Service)
+    result = benchmark.pedantic(container.get, args=(Service,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
-def test_c3_deep_chain(benchmark):
+def test_c3_deep_chain_dishka(benchmark):
     p = Provider(scope=Scope.APP)
     for cls in (C0, C1, C2, C3, C4, C5):
         p.provide(cls, cache=False)
     container = make_container(p)
-    result = benchmark(container.get, C0)
+    result = benchmark.pedantic(container.get, args=(C0,), rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
-def test_c4_request_lifecycle(benchmark):
+def test_c4_request_lifecycle_dishka(benchmark):
     container = make_async_container(ConnProvider())
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
+    async def _one() -> Connection:
         async with container() as req:
             return await req.get(Connection)
 
-    def _one() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.run_until_complete(container.close())
         loop.close()
-    assert result.closed is True
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)
 
 
 # --- C5 cold: build Provider + make_container + first resolve, per call -------
-def test_c5_cold_first_resolve(benchmark):
+def test_c5_cold_first_resolve_dishka(benchmark):
     def _cold():
         p = Provider(scope=Scope.APP)
         for cls in (C0, C1, C2, C3, C4, C5):
@@ -150,7 +162,7 @@ class _ReqProvider(Provider):
     handler = provide(Handler, scope=Scope.REQUEST)
 
 
-def test_c6_context(benchmark):
+def test_c6_context_dishka(benchmark):
     container = make_container(_AppProvider(), _ReqProvider())
 
     def _one_request():

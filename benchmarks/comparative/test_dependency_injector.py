@@ -10,6 +10,14 @@ import asyncio
 
 from dependency_injector import containers, providers
 
+_BATCH = 100
+
+# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+_ROUNDS = 200
+_ITERATIONS = 1000
+_C4_ROUNDS = 100
+_C4_ITERATIONS = 3
+
 
 class Dep:
     pass
@@ -86,50 +94,57 @@ class LifecycleContainer(containers.DeclarativeContainer):
     connection = providers.Resource(_init_connection)
 
 
-def test_c1_transient(benchmark):
+def test_c1_transient_dependency_injector(benchmark):
     container = TransientContainer()
-    result = benchmark(container.service)
+    result = benchmark.pedantic(container.service, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
-def test_c2_singleton(benchmark):
+def test_c2_singleton_dependency_injector(benchmark):
     container = SingletonContainer()
     container.service()  # warm the singleton
-    result = benchmark(container.service)
+    result = benchmark.pedantic(container.service, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Service)
 
 
-def test_c3_deep_chain(benchmark):
+def test_c3_deep_chain_dependency_injector(benchmark):
     container = ChainContainer()
-    result = benchmark(container.c0)
+    result = benchmark.pedantic(container.c0, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, C0)
 
 
-def test_c4_request_lifecycle(benchmark):
+def test_c4_request_lifecycle_dependency_injector(benchmark):
+    # The container is built ONCE in setup, like every other framework here. Building it inside the
+    # timed call (as this benchmark used to) deep-copies the provider graph per request -- ~29% of
+    # the old number -- a cost a real dependency-injector app pays once at startup.
+    container = LifecycleContainer()
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
-        container = LifecycleContainer()
+    async def _one() -> Connection:
         await container.init_resources()
         conn = await container.connection()
         await container.shutdown_resources()
         return conn
 
-    def _one() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one)
+        result = benchmark.pedantic(_run_batch, rounds=_C4_ROUNDS, iterations=_C4_ITERATIONS, warmup_rounds=1)
     finally:
         loop.close()
-    assert result.closed is True
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)
 
 
 # --- C5 cold: instantiate a fresh container + first resolve, per call ---------
 # The DeclarativeContainer subclass wires at class definition (import). Per call this instantiates
 # a fresh container (deep-copies the provider graph -- the dominant cost) and resolves; the number
 # is ~98% instance clone, not resolution (see README caveat).
-def test_c5_cold_first_resolve(benchmark):
+def test_c5_cold_first_resolve_dependency_injector(benchmark):
     def _cold():
         container = ChainContainer()
         return container.c0()
@@ -161,7 +176,7 @@ class ContextContainer(containers.DeclarativeContainer):
     handler = providers.Factory(Handler, app_dep=app_dep, request=request)
 
 
-def test_c6_context(benchmark):
+def test_c6_context_dependency_injector(benchmark):
     container = ContextContainer()
 
     def _one_request():

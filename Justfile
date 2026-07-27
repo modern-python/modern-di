@@ -42,6 +42,11 @@ bench:
 bench-compare:
     uv run --project benchmarks/comparative pytest benchmarks/comparative/ --benchmark-only
 
+# Run the comparative tier N times and print the published markdown ratio table.
+# This is what generates the table in docs/introduction/performance.md — never hand-assemble it.
+bench-report runs="5":
+    uv run --no-sync python benchmarks/report.py --runs {{ runs }}
+
 # Build + publish to PyPI. Version comes from the git tag ($GITHUB_REF_NAME); no pyproject bump.
 # Auth via PyPI Trusted Publishing (OIDC); uv publish auto-detects the CI id-token.
 publish:
