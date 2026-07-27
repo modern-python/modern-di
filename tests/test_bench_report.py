@@ -263,8 +263,13 @@ def test_build_table_footnote_reports_worst_spread_in_that_table() -> None:
             strict=True,
         )
     ]
+    # The footnote bounds each side's OWN median, which is not what the ± on a ratio cell reports
+    # (that is the paired-ratio spread), so it says which quantity it is naming.
     footnote = _footnote(build_table(runs), "By-reference resolution")
-    assert footnote == "_Across-run IQR (5 runs): modern-di ≤13.6%, rivals ≤7.1%._"
+    assert footnote == (
+        "_Across-run IQR of each side's own median (5 runs): modern-di ≤13.6%, rivals ≤7.1%. "
+        "The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._"
+    )
 
 
 def test_build_table_single_run_has_no_iqr_annotation_or_footnote() -> None:

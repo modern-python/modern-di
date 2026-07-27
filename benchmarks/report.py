@@ -14,6 +14,11 @@ Ratios are **paired per run**: one run measures both sides under the same machin
 published statistic is the median of the per-run ratios, not a ratio of two independently-reduced
 medians. Pairing also gives each ratio a well-defined across-run IQR, published as `±X.X%` on the
 cell -- a ratio of two medians has none, which is why these columns used to be bare.
+
+Two different across-run IQRs therefore appear per table and are named apart: the `±` on a cell is
+the spread of that cell's own reduced values (paired ratios for a ratio cell, medians for the
+modern-di column), while the footnote bounds each *side's own median*. They do not agree, and
+must not be presented as if they did.
 """
 
 import argparse
@@ -179,9 +184,13 @@ def _render(table: Table, parsed: list[dict[tuple[str, str], float]]) -> str:
         lines.append("| " + " | ".join(cells) + " |")
     if modern_di_pcts and rival_pcts:
         lines.append("")
+        # Named explicitly: this bounds each side's OWN median, which is not the quantity the
+        # ± on a ratio cell reports. Both are across-run IQRs; leaving them unlabelled let the
+        # footnote read as contradicting cells above it whose paired spread is larger.
         lines.append(
-            f"_Across-run IQR ({len(parsed)} runs): modern-di ≤{max(modern_di_pcts):.1f}%, "
-            f"rivals ≤{max(rival_pcts):.1f}%._"
+            f"_Across-run IQR of each side's own median ({len(parsed)} runs): "
+            f"modern-di ≤{max(modern_di_pcts):.1f}%, rivals ≤{max(rival_pcts):.1f}%. "
+            f"The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._"
         )
     return "\n".join(lines)
 
