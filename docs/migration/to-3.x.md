@@ -311,6 +311,12 @@ filterwarnings = [
     happens to still be inside `modern_di`, so they *would* match — the inconsistency is exactly
     why `module=` isn't part of the recipe above.
 
+    **Changed again in 3.1.** `ContainerClosedWarning` now computes its `stacklevel` (via
+    `_caller_stacklevel`) so it attributes *outside* `modern_di`, and `ContextValueNoneWarning`
+    has no raise sites left at all — so on 3.1 a `module=r"modern_di(\..*)?"` filter escalates
+    none of the five. The paragraph above describes 2.x, which is what this page's recipe runs
+    against.
+
 If the broad category filter is too wide for your process (e.g. another dependency's
 `DeprecationWarning`s should stay warnings), escalate the three dedicated subclasses individually
 instead — this covers switches 1, 4, and 5 precisely, but not 2 and 3, since those two have no

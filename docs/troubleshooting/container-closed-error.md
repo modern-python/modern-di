@@ -17,10 +17,10 @@ closed after use, raised `ContainerClosedError`. As of 3.1:
   open/closed state — it only reads the parent's shared registries and scope map, so a closed (or
   never-opened) parent is irrelevant to it, and the child it returns starts closed too, same as any
   fresh container.
-- Reusing a container **after an explicit close** self-heals the moment it is actually resolved from
-  — directly, or through a descendant whose resolve reaches back into its scope — via
-  `close_sync()`, `close_async()`, or exiting a `with`/`async with` block: the container reopens and
-  the call succeeds, but it first emits `ContainerClosedWarning`, a `RuntimeWarning` carrying
+- Reusing a container **after an explicit close** — `close_sync()`, `close_async()`, or exiting a
+  `with`/`async with` block — self-heals the moment the container is actually resolved from, either
+  directly or through a descendant whose resolve reaches back into its scope: the container reopens
+  and the call succeeds, but it first emits `ContainerClosedWarning`, a `RuntimeWarning` carrying
   `.container_scope`. Building a child of that closed container does not, on its own, trigger any of
   this.
 - `open()` remains the fail-fast verb: call it (or enter via `with`/`async with`) to run validation
