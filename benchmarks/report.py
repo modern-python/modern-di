@@ -17,6 +17,7 @@ cell -- a ratio of two medians has none, which is why these columns used to be b
 """
 
 import argparse
+import contextlib
 import dataclasses
 import json
 import pathlib
@@ -195,12 +196,20 @@ def main() -> None:
     """Run the comparative suite N times and print the published table."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=int, default=5, help="how many full suite runs to reduce")
+    parser.add_argument(
+        "--json-dir",
+        type=pathlib.Path,
+        default=None,
+        help="keep the raw per-run pytest-benchmark JSON here (default: a temp dir, discarded)",
+    )
     args = parser.parse_args()
 
     runs: list[dict] = []
-    with tempfile.TemporaryDirectory() as tmp:
+    with contextlib.ExitStack() as stack:
+        tmp = args.json_dir or pathlib.Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        tmp.mkdir(parents=True, exist_ok=True)
         for index in range(args.runs):
-            out = pathlib.Path(tmp) / f"run-{index}.json"
+            out = tmp / f"run-{index}.json"
             subprocess.run(  # noqa: S603
                 [  # noqa: S607
                     "uv",
