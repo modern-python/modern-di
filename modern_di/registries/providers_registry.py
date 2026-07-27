@@ -14,14 +14,7 @@ if typing.TYPE_CHECKING:
 
 
 class ProvidersRegistry:
-    __slots__ = (
-        "_building",
-        "_lock",
-        "_plans",
-        "_providers",
-        "_resolvers",
-        "_validated",
-    )
+    __slots__ = ("_building", "_lock", "_plans", "_providers", "_resolvers", "_validated")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -57,8 +50,8 @@ class ProvidersRegistry:
         """Return `provider`'s memoized wiring plan, building it on a miss.
 
         A plan is a pure function of the provider and this registry's contents, memoized per
-        `provider_id` and cleared whenever the registry mutates (`register` / `add_providers` /
-        removal). Shared tree-wide: a container and every child share one registry, so a
+        `provider_id` and cleared whenever the registry mutates (`register` / `add_providers`).
+        Shared tree-wide: a container and every child share one registry, so a
         deeper-scope provider builds its plan once, not once per child. Build inputs are passed
         by value (not a closure) so the hot cache-hit path allocates nothing.
         """

@@ -229,9 +229,10 @@ class InvalidScopeTypeError(ContainerError):
 class ContainerClosedError(ContainerError):
     """No longer raised; kept importable for back-compat. Attr: ``container_scope``.
 
-    Through 3.0 a not-open container raised this. As of 3.1 a constructed container prepares
-    itself on first use and a closed one reopens with :class:`ContainerClosedWarning`, so
-    nothing raises this class. Removed in 4.0.
+    Through 3.0 a not-open container raised this. As of 3.1 a container is open from
+    construction, and reusing one after an explicit close reopens it instead — implicitly
+    with :class:`ContainerClosedWarning`, or silently via :meth:`Container.open`. Nothing
+    raises this class anymore. Removed in 4.0.
     """
 
     docs_slug = "container-closed-error"
