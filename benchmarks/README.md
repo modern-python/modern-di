@@ -83,12 +83,16 @@ graph shape. Local-only (`just bench-compare`); never in CI. Deps are pinned in
 
 ### Per-framework idiomatic mapping
 
-Each framework uses its **natural** request-scope + resource-teardown idiom (not
-modern-di's scope names forced onto it). C1-C3 are synchronous resolves for every
-framework. C4 is not sync-vs-sync: modern-di resolves synchronously under an async
-finalizer, while dishka / that-depends / dependency-injector / wireup all force an
-awaited resolve — so C4 measures the whole request lifecycle, not an isolated
-resolve.
+Each framework uses its **natural** request-scope + resource-teardown idiom (not modern-di's
+scope names forced onto it). C1-C3 are synchronous resolves for every framework, and exist in
+**two variants for modern-di**: by-reference (`resolve_provider`) and by-type (`resolve`).
+dishka and wireup expose only by-type lookup; that-depends and dependency-injector only
+by-reference. Each published row therefore compares one modern-di variant against the rivals
+whose API matches it -- a single modern-di column would be unfair to one half of the set
+(by-type costs ~11% more). C4 is not sync-vs-sync: modern-di resolves synchronously under an
+async finalizer, while dishka / that-depends / dependency-injector / wireup all force an
+awaited resolve -- so C4 measures the whole request lifecycle, not an isolated resolve, and is
+timed as a batch of K=100 cycles per loop entry.
 
 | Framework (pin) | C1 transient | C2 singleton | C4 scoped + async teardown | C4 resolve |
 |-----------------|--------------|--------------|----------------------------|------------|
