@@ -28,8 +28,9 @@ inspect or iterate all providers declared on a group hierarchy.
 
 ### `find_container(scope)`
 
-`find_container(scope)` walks `_scope_map` and returns the container registered at
-`scope`; raises `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
+`find_container(scope)` returns `self` immediately when `scope` is the resolving container's own
+scope; otherwise it looks `scope` up in `_scope_map` and returns the ancestor registered there,
+raising `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
 It is the primitive the compiled resolvers use to locate the container at a provider's
 scope when it differs from the resolving container's.
 
@@ -42,8 +43,11 @@ scope when it differs from the resolving container's.
 
 - **`parent_container`** — constructor kwarg and slot; the direct parent of a child container,
   or `None` for a root. Passing a `scope ≤ parent.scope` raises `InvalidChildScopeError`.
-- **`_scope_map`** — `dict[IntEnum, Container]` mapping every scope in the chain to its
-  container; built at construction time and inherited (plus the new scope) by each child.
+- **`_scope_map`** — `dict[IntEnum, Container]` mapping each **ancestor's** scope to its container;
+  built at construction time, a child inheriting its parent's map plus the parent itself. A root's
+  map is empty. The container is never in its own map — that self-reference would make every
+  container a reference cycle — and `find_container` never needs it, since it short-circuits on
+  its own scope first.
 - **`_lock`** — a `threading.RLock` instance, or `None` when the container was created with
   `use_lock=False`. A cached `Factory`'s compiled resolver hands it to `CacheItem.get_or_create`,
   which gates the cold-miss build so one instance is created per cache key.
