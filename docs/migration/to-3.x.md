@@ -262,8 +262,8 @@ An earlier version of this note said every pattern shown above under "After (3.0
 working unchanged, including that `with`/`open()` "still validates, still fails fast." That
 part was wrong and has been corrected here: **validation is explicit-only as of 3.1.**
 `open()` (and `with`/`async with`, which call it) no longer runs `validate()` — it only
-clears `closed`, unconditionally, with no completeness check. Nothing validates
-automatically: not construction, not `open()`, not `add_providers`, not `resolve()`.
+clears `closed`, unconditionally. Nothing validates automatically: not construction,
+not `open()`, not `add_providers`, not `resolve()`.
 `container.validate()` is the only thing that walks the graph, and `Container(validate=...)`
 is deprecated — passing `True` or `False` is ignored and emits `ValidateArgumentWarning`
 (a `DeprecationWarning`), removed in 4.0. So in the "After (3.0)" example above, the comment

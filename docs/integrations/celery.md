@@ -52,7 +52,9 @@ class AppGroup(Group):
 
 
 app = Celery("myapp", broker="redis://localhost")
-setup_di(app, Container(groups=[AppGroup]))
+container = Container(groups=[AppGroup])
+setup_di(app, container)
+container.validate()  # fails fast on a broken graph before the worker runs
 
 
 @app.task
@@ -99,7 +101,9 @@ class AppGroup(Group):
 
 
 app = Celery("myapp", broker="redis://localhost", task_cls=DITask)
-setup_di(app, Container(groups=[AppGroup]))
+container = Container(groups=[AppGroup])
+setup_di(app, container)
+container.validate()  # fails fast on a broken graph before the worker runs
 
 
 @app.task
@@ -127,7 +131,9 @@ class AppGroup(Group):
 
 
 app = Celery("myapp", broker="redis://localhost")
-setup_di(app, Container(groups=[AppGroup]))
+container = Container(groups=[AppGroup])
+setup_di(app, container)
+container.validate()  # fails fast on a broken graph before the worker runs
 
 
 @app.task(base=DITask)
@@ -161,7 +167,8 @@ class AppGroup(Group):
 app = Celery("myapp", broker="memory://", backend="cache+memory://")
 app.conf.task_always_eager = True
 app.conf.task_store_eager_result = True
-setup_di(app, Container(groups=[AppGroup]))
+container = Container(groups=[AppGroup])
+setup_di(app, container)
 
 
 @app.task

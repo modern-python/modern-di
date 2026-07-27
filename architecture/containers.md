@@ -69,7 +69,9 @@ Reusing a closed container **implicitly** — a `resolve` / `resolve_provider` /
 that reaches it without going through `open()` / `with` first, directly or by building a child and
 resolving through it — reopens it and emits `ContainerClosedWarning` (a `RuntimeWarning`, so it is
 visible outside `__main__`, unlike `DeprecationWarning`); calling `open()` explicitly reopens silently,
-since a deliberate reopen is not a diagnostic-worthy event. See [Lifecycle: close and
+since a deliberate reopen is not a diagnostic-worthy event. The warning is per container, not per
+resolve: a closed REQUEST child resolving an APP-scoped provider through a closed APP parent reopens
+and warns twice, once for each closed container the resolve passes through. See [Lifecycle: close and
 reopen](#lifecycle-close-and-reopen) for what close and reopen do to the cache, and [Open and
 reopen](#open-and-reopen-context-manager-protocol) for `_prepare()` / `open()` mechanics.
 

@@ -425,7 +425,8 @@ def test_alias_redirect_target_none_when_dangling() -> None:
     assert G.abstract.redirect_target(container) is None
 
 
-# A dangling redirect makes the scope verdict speculative, so its inversion is not monotone
+# A dangling redirect makes the scope verdict speculative: its scope is a placeholder fallback,
+# not a real registered scope, so an inversion measured against it is not trustworthy
 
 
 class _BelowApp(enum.IntEnum):

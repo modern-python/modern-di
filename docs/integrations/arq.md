@@ -64,7 +64,9 @@ class WorkerSettings:
     redis_settings = RedisSettings(host="localhost")
 
 
-setup_di(WorkerSettings, Container(groups=[AppGroup]))
+container = Container(groups=[AppGroup])
+setup_di(WorkerSettings, container)
+container.validate()  # fails fast on a broken graph before the worker runs
 ```
 
 Run the worker as usual — `arq mymodule.WorkerSettings` — and enqueue jobs from
