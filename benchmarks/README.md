@@ -104,6 +104,28 @@ timed as a batch of K=100 cycles per loop entry.
 | dependency-injector 4.49.1 | `Factory` | `Singleton` | async-gen `Resource`, `init/shutdown_resources` | await |
 | wireup 2.12.0 | `injectable(transient)` + scope | `injectable` (singleton default) | async-gen `injectable(scoped)`, async container | await |
 
+**Fixed timing shape for the published scenarios (C1-C4).** pytest-benchmark auto-calibrates
+`iterations` per benchmark per run, which in practice left some cells at `iterations=1` -- each
+median carrying a whole per-round timer pair and snapped to the platform timer's ~42 ns grid --
+while others ran at 20-100 and amortized both away. A published ratio must not divide a
+grid-snapped number by an unsnapped one, so C1-C4 use `benchmark.pedantic` at a shape pinned
+**identically in all five files**: C1-C3 at `rounds=200, iterations=1000`, C4 at
+`rounds=100, iterations=3` (C4's callable is already a batch of `K = 100` cycles, so a few
+iterations put the timer pair below 0.01% of the cell). `warmup_rounds=1` replaces the warm-up
+calibration used to provide; every other setup stays outside the timed call exactly as before.
+`tests/test_bench_report.py` parses the five files and fails if a published scenario drops off
+the pinned shape or the numbers drift apart. C5/C6 are not published on the page and stay on
+auto-calibration.
+
+Levelling this axis moved published cells **in both directions**. Cells that had been at
+`iterations=1` each shed ~30-50 ns of per-round overhead, and dishka shed proportionally more
+than modern-di did, so modern-di's C1 and C3 ratios against dishka got *worse*, not better.
+C4's estimator also shifted: a round is now the mean of `iterations` batches, so a right-skewed
+distribution reports nearer its mean -- modern-di's C4 mean was 24% above its median at
+`iterations=1`, and its published per-request figure rose accordingly. The mean itself did not
+move (245.9 us before, 248.0 us after on the same machine), so that is a change of estimator,
+not of measured work.
+
 **Thread-safety configuration differs, at each framework's default.** dishka's `make_container`
 defaults to `lock_factory=<class '_thread.lock'>`, so every `get()` in C1-C3 acquires a lock;
 `make_async_container` defaults to `asyncio.Lock`. modern-di's cached-read path is lock-free by
