@@ -73,8 +73,12 @@ is quick orientation; `architecture/` holds the authoritative account.
 - **Cutting a release (maintainers)** is tag-driven via
   [`.github/workflows/release.yml`](.github/workflows/release.yml): write the
   notes at `planning/releases/<version>.md` (used verbatim as the GitHub Release
-  body), then push a bare semver tag off green `main` —
-  `git tag 2.19.2 && git push origin 2.19.2`. The workflow runs `just publish`
+  body), then push a bare-semver-**named** tag off green `main` —
+  `git tag -m "modern-di 2.19.2" 2.19.2 && git push origin 2.19.2`. Only the tag
+  *name* must be bare semver (that is what the workflow matches); the tag object
+  itself may be annotated or signed, and `-m` is required whenever
+  `tag.gpgsign`/`tag.forceSignAnnotated` is set — without it `git tag` aborts
+  with `fatal: no tag message?`. The workflow runs `just publish`
   (the tag sets the version via `uv version`; no `pyproject.toml` bump) to PyPI,
   then creates the GitHub Release — PyPI first, so a failed publish creates no
   Release. Pre-releases use the PEP 440 form (`2.0.0rc1`, not `2.0.0-alpha.5`).
