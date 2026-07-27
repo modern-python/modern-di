@@ -31,20 +31,20 @@ resolve from it):
    reopening a container while other threads still resolve from it is not
    supported.**
 
-First-touch prepare is the one exception folded into the concurrent resolve
-phase rather than the single-threaded configure phase: a container is usable
-without an explicit `open()` (see
-[containers.md](containers.md#optional-open-lifecycle)), so its first resolve
-may itself need to prepare it. That preparation — finishing any deferred
-validation, then clearing `closed` — runs inside `_prepare()`, under the
-container's own `_lock` when `use_lock=True`. It re-checks `closed` after
-acquiring the lock, so a thread that loses the race to prepare simply finds
-the container already open and returns without redoing the work. Preparation
-is idempotent under that race: the validation walk is pure (it only reads the
-registry and builds exceptions) and the `closed = False` write happens last,
-after any validation error would already have been raised — so two threads
-racing a container's first touch prepare it exactly once and never
-double-warn.
+Reuse-after-close is a race the concurrent resolve phase does handle, distinct
+from the unsupported race above: once a container has settled into the closed
+state at a single-threaded edge, nothing prevents several threads from then
+independently calling `resolve` on that (now-closed) container at once — each
+unaware the others are doing the same. A container is open from construction
+(see [containers.md](containers.md#optional-open-lifecycle)), so this is the
+only path back to `closed = True` in the first place. `resolve_provider` calls
+`_prepare()` whenever `self.closed` is `True`, under the container's own
+`_lock` when `use_lock=True`. It re-checks `closed` after acquiring the lock,
+so a thread that loses the race to reopen simply finds the container already
+open and returns without warning again. `closed = False` is the last thing
+`_prepare()` does, after the warning is already emitted, so N threads racing a
+closed container produce exactly one `ContainerClosedWarning` and one reopen —
+never a double-warn.
 
 ## The model
 

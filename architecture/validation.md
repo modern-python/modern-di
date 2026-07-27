@@ -4,83 +4,33 @@
 is the authoritative catch-all for three classes of bug: **circular dependencies**, **inverted scope
 dependencies**, and **missing required dependencies**.
 
-## Enabling validation: monotone at construction, complete at first use
+## When validation runs
 
-Validation is enabled by default and splits into two halves that run at different times, because the
-two halves behave differently against a graph that is not yet complete:
-
-- **Monotone half (cycles, inverted scopes) — `__init__`.** Registering more providers can only ever
-  *add* a cycle or an inverted-scope edge, never remove one that was already there: a missing
-  dependency contributes no edge at all — there is nothing yet to walk into. So an incomplete graph
-  can only ever *under*-report these two checks, with one carve-out below. That makes them safe to
-  run the moment a root container is constructed, before any integration has had a chance to register
-  its own providers.
-
-  **The dangling-redirect carve-out.** A dangling `Alias` — one whose source type is not registered —
-  has no terminal provider to read a scope from, so `terminal_scope` falls back to the alias's own
-  hardcoded `Scope.APP` (see
-  [Terminal scope and alias transparency](#terminal-scope-and-alias-transparency)). That value is a
-  *placeholder*, not a measurement: `Scope.APP` is the minimum only over the built-in `Scope`, and
-  [scopes.md](scopes.md) accepts any standalone `IntEnum`, whose members may sit below it. An edge
-  whose dependency side terminates on a dangling redirect could therefore be reported as inverted
-  against a scope the real source never had. So that one case is classified **non-monotone** and
-  deferred to the completeness half instead of raised from `__init__`. Nothing is lost: the dangling
-  alias is already reported as a completeness error in its own right
-  (`AliasSourceNotRegisteredError`), and once the source is registered the re-walk reads the true
-  terminal scope and reports any genuine inversion then. Only the *dependency* side needs this
-  treatment — a dangling alias raises from `get_dependencies`, so it never emits an edge as a
-  *parent*, and a redirecting parent always shares its dependency's terminal provider, making the
-  two scopes equal and the edge un-inverted by construction.
-- **Completeness half (missing dependencies, dangling aliases) — first use.** Both depend on the graph
-  actually being complete: a provider missing at construction time may still be registered a moment
-  later via [`add_providers`](containers.md#integration-seam). Raising eagerly would fail on a graph a
-  framework integration has not finished assembling yet, so this half is held and checked once the
-  graph is actually used.
-
-```python
-container = Container(scope=Scope.APP, groups=[MyGroup])  # __init__ raises a cycle or inverted scope now
-container.resolve(...)  # first use raises any held completeness errors, then resolves
-```
-
-`validate` is a plain `bool` (default `True`) — see the [constructor table](containers.md#creating-a-root-container)
-for the full parameter reference. `True` (the default) enables both halves; `validate=False` disables
-both entirely, with zero runtime cost — no walk ever runs, at construction or otherwise. For an
-immediate, full check of both halves, call `container.validate()` explicitly:
+`container.validate()` is the only thing that walks the graph. Nothing validates at construction, at
+`open()`, at [`add_providers`](containers.md#integration-seam), or at `resolve()` — a container is fully
+usable, and stays usable, without ever calling `validate()`. Call it explicitly, whenever you want the
+whole graph checked at once:
 
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup])
-container.validate()  # runs now, both halves; raises ValidationFailedError if any issue found
+container.validate()  # walks now; raises ValidationFailedError if any issue is found
 ```
 
-Only a **root** container's `__init__` walks the graph; children (built via `build_child_container`)
-never do. That is safe because all three pieces of validation state live on the shared
-`ProvidersRegistry` — not on any individual `Container` (`Container` has no per-container validated
-flag):
+`Container(validate=...)` exists only for backward compatibility: passing `True` or `False` is ignored
+and emits `exceptions.ValidateArgumentWarning` (a `DeprecationWarning`) — see the [constructor
+table](containers.md#creating-a-root-container). The argument is removed in 4.0; there is no way to make
+construction validate.
 
-- **the enabled bit** — `ProvidersRegistry.is_validation_enabled()`, written once by the root that owns
-  the registry, from its `validate` argument;
-- **the pending completeness errors** — `ProvidersRegistry.has_pending_errors()` /
-  `take_pending_errors()`, set by whichever walk found them and consumed by whichever container is
-  prepared first;
-- **the `_validated` flag** — see *Once only*, below.
-
-Because the registry is shared tree-wide, whichever container in the tree is used first — root or
-child, via the private `_prepare()` the resolve path calls on a closed container (see
-[Optional-open lifecycle](containers.md#optional-open-lifecycle)) — completes the deferred half for the
-whole tree. The gate is `not reg.is_validated() and (reg.is_validation_enabled() or
-reg.has_pending_errors())`. The `has_pending_errors()` disjunct matters for a `validate=False` root that
-still called `container.validate()` manually: `is_validation_enabled()` is `False` forever on that
-registry, so without also checking for pending errors, completeness errors a later `add_providers` call
-deferred would be dead state nothing could ever surface.
-
-**Once only.** `ProvidersRegistry` carries a `_validated: bool`, set once a walk finds no errors of
-either kind. A root's `__init__` walk that finds a clean graph marks it validated immediately, so the
-runtime `RecursionError`-to-`CircularDependencyError` guard (see the blockquote below) short-circuits
-from construction onward, not just from first use. Every registry mutation (`register` /
-`add_providers` / `_remove_providers`) clears `_validated` back to `False`, so any change to the graph
-re-arms both the deferred completeness check and the runtime guard. A plain `close()` / reopen never
-touches the registry, so it never re-arms validation on its own — validation is paid exactly once per
-registry state, however many containers in the tree end up preparing.
+**The `_validated` flag memoizes, it does not gate.** `ProvidersRegistry` carries a `_validated: bool`
+(`is_validated()` / `mark_validated()`) that records only whether the *last* walk of the current
+registry contents found no errors — it plays no role in deciding whether to validate, since nothing does
+that automatically. `validate()` checks it first and returns immediately if still `True`, so a repeat
+`validate()` after a clean walk is free. Every registry mutation (`register` / `add_providers` /
+removal) clears it back to `False`, so the next `validate()` re-walks. The same flag arms the runtime
+`RecursionError`-to-`CircularDependencyError` guard (see the blockquote below): once a walk has
+confirmed the graph acyclic, an escaped `RecursionError` is known to be genuine self-recursion and
+re-raises untouched, with no re-walk. Before any `validate()` call, `_validated` is `False` from
+construction — the guard only short-circuits after someone has actually validated.
 
 ## What validate() checks
 
@@ -160,9 +110,9 @@ read identically. See [resolution.md](resolution.md#one-renderer) for that drawe
 > cycle in the graph) is re-raised untouched, not misreported as a circular dependency. Both the guard and
 > `validate()` consume
 > the one `DependencyGraph` walker: `validate()` collects *all* errors of *all* kinds up front, while the guard
-> only answers "is a cycle reachable from here" on an already-exhausted stack. Run with `validate=True` (or call
-> `container.validate()`) in development to surface *every* cycle (and other wiring bugs) before the first resolve,
-> rather than only the one a particular resolve happens to hit.
+> only answers "is a cycle reachable from here" on an already-exhausted stack. Call `container.validate()` in
+> development to surface *every* cycle (and other wiring bugs) before the first resolve, rather than only the
+> one a particular resolve happens to hit.
 
 ### Inverted scope dependencies
 
@@ -172,6 +122,22 @@ scope, the dependency is inverted: a shallower-lived provider cannot hold a refe
 one. The error is recorded as `InvalidScopeDependencyError` (see `exceptions.py` for the exact message),
 which names the provider, the parameter, the dependent provider, and the offending scopes. The walk
 continues into the dependency so further issues in that subtree are also surfaced.
+
+**One suppression: a dangling redirect on the dependency side.** If `dep`'s terminal provider is a
+dangling `Alias` — one whose source type is not registered — its terminal scope is a placeholder (see
+[Terminal scope and alias transparency](#terminal-scope-and-alias-transparency)), not a measurement of
+anything real: `Scope.APP`, the value `terminal_scope` falls back to, is the minimum only over the
+built-in `Scope`, and [scopes.md](scopes.md) accepts any standalone `IntEnum` whose members may sit
+below it. Comparing against it would be speculative, so `validate()` checks
+`dep_terminal.has_dangling_redirect(container)` (`AbstractProvider.has_dangling_redirect`, `False` by
+default, overridden by `Alias` to test its source's registration) and skips the inversion error for
+that edge when it is `True`. Nothing is lost: the dangling alias is already reported on its own, as
+`AliasSourceNotRegisteredError`, from the same walk (a `DependenciesError` event, since the alias's own
+dependency lookup raises). A genuine inversion through a *registered* alias — whose terminal scope is
+real — is still reported. Only the *dependency* side of an edge needs this check: a dangling alias
+raises from `get_dependencies`, so it never emits an edge as a *parent*, and a redirecting parent
+always shares its dependency's terminal provider, making the two scopes equal and the edge
+un-inverted by construction.
 
 ### Missing required dependencies
 
@@ -216,9 +182,9 @@ Two edge cases in the walk are handled safely:
   separately reported by the alias's dependency lookup raising `AliasSourceNotRegisteredError` during
   the walk (a `ResolutionError`, surfaced as a `DependenciesError` event). Because that scope is a
   placeholder, `AbstractProvider.has_dangling_redirect(container)` — `False` by default, overridden by
-  `Alias` to test its source's registration — tells the two apart, and an inversion measured against a
-  dangling terminal is classified non-monotone (see
-  [the carve-out](#enabling-validation-monotone-at-construction-complete-at-first-use)).
+  `Alias` to test its source's registration — tells the two apart, and `validate()` skips the inversion
+  check on that edge rather than comparing against a placeholder (see
+  [Inverted scope dependencies](#inverted-scope-dependencies)).
 
 ## Exception types
 
