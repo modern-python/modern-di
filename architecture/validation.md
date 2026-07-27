@@ -4,42 +4,70 @@
 is the authoritative catch-all for three classes of bug: **circular dependencies**, **inverted scope
 dependencies**, and **missing required dependencies**.
 
-## Enabling validation — at open(), once
+## Enabling validation — monotone at construction, complete at first use
 
-Validation is enabled by default but runs **deferred to `open()`**: not in `__init__`, and not on
-resolve, but once when the container is entered (`open()` / `with` / `async with`). A container must be
-opened before use anyway (see the [mandatory-open lifecycle](containers.md#mandatory-open-lifecycle)),
-so `open()` is the single, guaranteed validation trigger.
+Validation is enabled by default and splits into two halves that run at different times, because the
+two halves behave differently against a graph that is not yet complete:
+
+- **Monotone half (cycles, inverted scopes) — `__init__`.** Registering more providers can only ever
+  *add* a cycle or an inverted-scope edge, never remove one that was already there: a missing
+  dependency contributes no edge at all (there is nothing yet to walk into), and a dangling `Alias` —
+  one whose source type is not registered — falls back to its own scope rather than masking the true
+  depth of a target that does not exist yet (see
+  [Terminal scope and alias transparency](#terminal-scope-and-alias-transparency)). So an incomplete
+  graph can only ever *under*-report these two checks, never produce a false positive. That makes them
+  safe to run the moment a root container is constructed, before any integration has had a chance to
+  register its own providers.
+- **Completeness half (missing dependencies, dangling aliases) — first use.** Both depend on the graph
+  actually being complete: a provider missing at construction time may still be registered a moment
+  later via [`add_providers`](containers.md#integration-seam). Raising eagerly would fail on a graph a
+  framework integration has not finished assembling yet, so this half is held and checked once the
+  graph is actually used.
 
 ```python
-container = Container(scope=Scope.APP, groups=[MyGroup])  # __init__ does NOT validate
-with container:  # validation runs here, once
-    ...
+container = Container(scope=Scope.APP, groups=[MyGroup])  # __init__ raises a cycle or inverted scope now
+container.resolve(...)  # first use raises any held completeness errors, then resolves
 ```
 
 `validate` is a plain `bool` (default `True`) — see the [constructor table](containers.md#creating-a-root-container)
-for the full parameter reference. `True` (the default) enables validation at `open()`; `validate=False`
-disables it entirely with zero runtime cost. There is no eager, construction-time validation; for a
-construction-time check, call `container.validate()` explicitly:
+for the full parameter reference. `True` (the default) enables both halves; `validate=False` disables
+both entirely, with zero runtime cost — no walk ever runs, at construction or otherwise. For an
+immediate, full check of both halves, call `container.validate()` explicitly:
 
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup])
-container.validate()  # runs now; raises ValidationFailedError if any issue found
+container.validate()  # runs now, both halves; raises ValidationFailedError if any issue found
 ```
 
-**Why at open() rather than __init__.** A framework integration typically registers its own context
-providers (e.g. the request object) *after* the user constructs the container, via
-[`add_providers`](containers.md#integration-seam). Eager validation at construction would fail on that
-still-incomplete graph. Deferring to `open()` means the whole graph — user groups plus
-integration-registered providers — is present before the single validation walk runs. Only a **root**
-container validates; children (built via `build_child_container`) never do, since the registry they
-share is validated tree-wide by the root.
+Only a **root** container's `__init__` walks the graph; children (built via `build_child_container`)
+never do. That is safe because all three pieces of validation state live on the shared
+`ProvidersRegistry` — not on any individual `Container` (`Container` has no per-container validated
+flag):
 
-**Once only.** The per-container `_validate_enabled` flag (set in `__init__` to `validate and
-parent_container is None`) gates whether validation runs at all; the `_validated` flag records that it
-has. `open()` runs `self.validate()` only `if self._validate_enabled and not self._validated`.
-Because `close()` leaves `_validated` untouched (it only sets `closed = True`), a plain close→reopen
-does **not** re-walk the graph — validation is paid exactly once over the container's lifetime.
+- **the enabled bit** — `ProvidersRegistry.is_validation_enabled()`, written once by the root that owns
+  the registry, from its `validate` argument;
+- **the pending completeness errors** — `ProvidersRegistry.has_pending_errors()` /
+  `take_pending_errors()`, set by whichever walk found them and consumed by whichever container is
+  prepared first;
+- **the `_validated` flag** — see *Once only*, below.
+
+Because the registry is shared tree-wide, whichever container in the tree is used first — root or
+child, via the private `_prepare()` the resolve path calls on a closed container (see
+[Optional-open lifecycle](containers.md#optional-open-lifecycle)) — completes the deferred half for the
+whole tree. The gate is `not reg.is_validated() and (reg.is_validation_enabled() or
+reg.has_pending_errors())`. The `has_pending_errors()` disjunct matters for a `validate=False` root that
+still called `container.validate()` manually: `is_validation_enabled()` is `False` forever on that
+registry, so without also checking for pending errors, completeness errors a later `add_providers` call
+deferred would be dead state nothing could ever surface.
+
+**Once only.** `ProvidersRegistry` carries a `_validated: bool`, set once a walk finds no errors of
+either kind. A root's `__init__` walk that finds a clean graph marks it validated immediately, so the
+runtime `RecursionError`-to-`CircularDependencyError` guard (see the blockquote below) short-circuits
+from construction onward, not just from first use. Every registry mutation (`register` /
+`add_providers` / `_remove_providers`) clears `_validated` back to `False`, so any change to the graph
+re-arms both the deferred completeness check and the runtime guard. A plain `close()` / reopen never
+touches the registry, so it never re-arms validation on its own — validation is paid exactly once per
+registry state, however many containers in the tree end up preparing.
 
 ## What validate() checks
 
