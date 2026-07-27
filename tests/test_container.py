@@ -439,20 +439,13 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
         Container(scope=Scope.APP, parent_container=request)
 
 
-def test_resolve_on_closed_container_raises() -> None:
+def test_resolve_after_close_sync_on_never_opened_container_self_heals() -> None:
+    # close_sync() on a container that was never truly open leaves it indistinguishable from a
+    # fresh one: the next resolve prepares it, same as if close_sync() had never been called.
     container = Container(scope=Scope.APP, validate=False)
     container.close_sync()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
-    assert container.closed is True  # no self-heal: still closed after the raise
-
-
-def test_build_child_on_closed_container_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)
-    container.close_sync()
-    with pytest.raises(ContainerClosedError):
-        container.build_child_container(scope=Scope.REQUEST)
-    assert container.closed is True  # no self-heal: still closed after the raise
+    assert container.resolve(Container) is container
+    assert container.closed is False
 
 
 def test_reenter_reopens_closed_container() -> None:
@@ -462,11 +455,10 @@ def test_reenter_reopens_closed_container() -> None:
         assert container.resolve(Container) is container
 
 
-async def test_closed_container_async_path_raises() -> None:
+async def test_resolve_after_close_async_on_never_opened_container_self_heals() -> None:
     container = Container(scope=Scope.APP, validate=False)
     await container.close_async()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
+    assert container.resolve(Container) is container
 
 
 class _PersistentBroker: ...
@@ -499,8 +491,11 @@ async def test_async_context_manager_reopens() -> None:
         assert container.resolve(Container) is container
 
 
-def test_open_reopens_closed_container() -> None:
+def test_open_reopens_container_closed_after_real_open() -> None:
+    # A container that was genuinely opened, then closed, still raises on the implicit (resolve)
+    # path -- open() is the deliberate bypass that reopens it.
     container = Container(scope=Scope.APP, validate=False)
+    container.open()
     container.close_sync()
     with pytest.raises(ContainerClosedError):
         container.resolve(Container)
@@ -523,25 +518,50 @@ def test_open_on_open_container_is_noop() -> None:
         assert container.resolve(Container) is container
 
 
-# --- 3.0 mandatory-open lifecycle -----------------------------------------------------------------
+# --- open() is optional: first use prepares the container --------------------------------------
 
 
 def test_fresh_container_starts_unopened() -> None:
-    # 3.0: a just-constructed container is not open; it must be entered before use.
+    # A just-constructed container is not open, but it is usable: the first resolve prepares it.
     container = Container(scope=Scope.APP, validate=False)
     assert container.closed is True
 
 
-def test_unopened_container_resolve_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)  # never opened
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
+def test_fresh_container_resolves_without_open() -> None:
+    container = Container(scope=Scope.APP, validate=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # a never-opened container must not warn
+        assert container.resolve(Container) is container
+    assert container.closed is False  # first touch prepared it
 
 
-def test_unopened_container_build_child_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)  # never opened
-    with pytest.raises(ContainerClosedError):
-        container.build_child_container(scope=Scope.REQUEST)
+def test_fresh_container_builds_child_and_child_resolves_without_open() -> None:
+    app = Container(scope=Scope.APP, validate=False)
+    child = app.build_child_container(scope=Scope.REQUEST)
+    assert child.resolve(Container) is child
+    assert app.closed is True  # parenting a child does not open the parent
+
+
+def test_build_child_off_closed_parent_is_allowed() -> None:
+    app = Container(scope=Scope.APP, validate=False)
+    app.open()
+    app.close_sync()
+    child = app.build_child_container(scope=Scope.REQUEST)  # no raise: builds nothing, resolves nothing
+    assert child.scope is Scope.REQUEST
+
+
+def test_first_touch_raises_held_completeness_errors() -> None:
+    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])  # never opened
+    with pytest.raises(ValidationFailedError):
+        container.resolve(_DeferBrokenService)
+
+
+def test_child_first_touch_raises_held_completeness_errors() -> None:
+    # Validation state lives on the shared registry, so a child-only path cannot skip it.
+    root = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
+    child = root.build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(ValidationFailedError):
+        child.resolve(_DeferBrokenService)
 
 
 def test_construction_validates_root_once_and_open_or_resolve_do_not(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -567,8 +587,6 @@ def test_child_from_build_requires_open_and_does_not_validate(monkeypatch: pytes
     with Container(scope=Scope.APP, validate=False) as app:
         child = app.build_child_container(scope=Scope.REQUEST)
         assert child.closed is True  # child starts unopened too
-        with pytest.raises(ContainerClosedError):
-            child.resolve(Container)
 
         calls = {"n": 0}
         real = Container.validate
@@ -678,9 +696,8 @@ def test_valid_graph_validates_clean_at_entry_without_warning() -> None:
             pass
 
 
-def test_resolve_on_unopened_container_raises_before_validating() -> None:
-    # 3.0: resolve on a never-opened container raises ContainerClosedError; it does NOT validate
-    # (validation moved to open()), so the broken graph is never even walked here.
+def test_resolve_on_unopened_container_validates_then_raises() -> None:
+    # resolve on a never-opened container prepares it first, which completes the held validation.
     @dataclasses.dataclass(kw_only=True, slots=True)
     class Missing:
         pass
@@ -693,8 +710,8 @@ def test_resolve_on_unopened_container_raises_before_validating() -> None:
         svc = providers.Factory(creator=Service)
 
     container = Container(scope=Scope.APP, groups=[G])  # constructs fine; broken graph not yet checked
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Service)  # unopened -> closed error, not ValidationFailedError
+    with pytest.raises(ValidationFailedError):
+        container.resolve(Service)  # unopened -> prepares, which raises the held completeness error
 
 
 def test_child_container_never_validates() -> None:
@@ -965,8 +982,8 @@ def test_add_providers_on_closed_root_registers_fine() -> None:
 
     container.add_providers(str_factory)  # no ContainerClosedError: registration doesn't touch closed state
 
-    with pytest.raises(ContainerClosedError):
-        container.resolve(str)
+    # never truly opened, so the next resolve self-heals rather than raising
+    assert container.resolve(str) == "added"
 
 
 def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None:
@@ -1154,14 +1171,11 @@ def test_invalid_graph_does_not_raise_at_construction() -> None:
         container.open()  # validation runs at container entry
 
 
-def test_validation_runs_at_open_not_resolve() -> None:
-    # Validation lives only in open(): resolving an unopened container raises ContainerClosedError, while
-    # open() walks the (broken) graph and surfaces ValidationFailedError.
+def test_validation_completes_at_first_touch() -> None:
+    # First use prepares the container, which completes the held validation and surfaces it.
     container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
-    with pytest.raises(ContainerClosedError):
-        container.resolve(_DeferBrokenService)
     with pytest.raises(ValidationFailedError):
-        container.open()
+        container.resolve(_DeferBrokenService)
 
 
 def test_deferred_validation_raises_via_context_manager_entry() -> None:

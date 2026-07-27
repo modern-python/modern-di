@@ -67,3 +67,27 @@ def test_concurrent_resolution_shares_app_singletons() -> None:
     assert not errors
     assert len({id(result) for result in top_results}) == 1  # exactly one shared APP singleton
     assert all(request_ok)  # every child resolved that same singleton through its request object
+
+
+def test_concurrent_first_touch_prepares_once() -> None:
+    class G(Group):
+        leaf = providers.Factory(creator=_Leaf, scope=Scope.APP, cache=True)
+
+    container = Container(scope=Scope.APP, groups=[G])  # never opened; validation on
+    n = 8
+    results: list[_Leaf] = []
+    barrier = threading.Barrier(n)
+
+    def worker() -> None:
+        barrier.wait()  # maximize the odds every thread sees closed=True at once
+        results.append(container.resolve_provider(G.leaf))
+
+    threads = [threading.Thread(target=worker) for _ in range(n)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(results) == n
+    assert all(result is results[0] for result in results)  # prepared once; one singleton
+    assert container.closed is False

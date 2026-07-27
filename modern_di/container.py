@@ -1,3 +1,4 @@
+import contextlib
 import enum
 import threading
 import typing
@@ -53,6 +54,7 @@ class Container:
     """
 
     __slots__ = (
+        "_ever_opened",
         "_lock",
         "_scope_map",
         "_validate_enabled",
@@ -76,18 +78,18 @@ class Container:
     ) -> None:
         """Build a container at ``scope``.
 
-        A container starts **unopened** (``closed=True``): it must be entered via
-        :meth:`open` / ``with`` / ``async with`` before it can :meth:`resolve` or
-        :meth:`build_child_container`; using it before then raises
-        :class:`~modern_di.exceptions.ContainerClosedError`.
+        A container is usable as soon as it is constructed: the first :meth:`resolve`
+        prepares it (runs any deferred validation and marks it open). :meth:`open` and
+        ``with`` / ``async with`` stay available for fail-fast startup and for running
+        finalizers on the way out.
 
         ``validate`` (default ``True``) enables the provider-graph check (cycles,
-        scope ordering, missing dependencies), which runs **once at open()** —
-        never in ``__init__`` and never on resolve. Deferring to ``open`` lets a
-        framework integration register its context providers after construction
-        and still have the complete graph validated. ``validate=False`` disables
-        the check entirely; call :meth:`validate` explicitly for a
-        construction-time check. Only a root container validates; children (with
+        scope ordering, missing dependencies), whose monotone half (cycles, inverted
+        scopes) runs in ``__init__`` and whose completeness half runs once at first use.
+        Deferring completeness lets a framework integration register its context
+        providers after construction and still have the complete graph validated.
+        ``validate=False`` disables the check entirely; call :meth:`validate` explicitly
+        for a construction-time check. Only a root container validates; children (with
         ``parent_container`` set) never do. ``context`` seeds this container's
         context registry. A root container owns fresh registries; a child shares
         the parent's providers/overrides registries and inherits its scope map.
@@ -97,7 +99,8 @@ class Container:
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         self._lock = threading.RLock() if use_lock else None
-        self.closed = True  # unopened: enter via open()/with before resolving or building children
+        self.closed = True  # not open yet; the first resolve prepares it
+        self._ever_opened = False
         self.scope = scope
         self.parent_container = parent_container
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
@@ -134,8 +137,6 @@ class Container:
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
-        self._raise_if_closed()
-
         if scope is None:
             # `_next_deeper` is the smallest member deeper than this one, so non-contiguous
             # custom enums (e.g. TENANT=6, JOB=10) work, not just `value + 1`.
@@ -199,7 +200,8 @@ class Container:
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         """Resolve a specific provider by reference via its compiled resolver."""
-        self._raise_if_closed()
+        if self.closed:
+            self._prepare()
         try:
             return self.providers_registry.resolver_for(provider)(self)
         except RecursionError as exc:
@@ -349,28 +351,35 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def open(self) -> None:
-        """Open the container so it can resolve and build children.
+        """Prepare the container now, instead of on first use.
 
-        Mandatory: a freshly-constructed container starts unopened and must be
-        opened (here, or via ``with``/``async with`` which call this) before any
-        :meth:`resolve` or :meth:`build_child_container`. Also reopens a closed
-        container on re-entry. Use it directly when a callback-style lifecycle
-        (e.g. a startup hook) cannot wrap the container in a ``with`` block.
-        Opening an already-open container is a no-op.
-
-        If validation is enabled (``validate`` was not ``False``; root only) and
-        has not yet run, it runs here — once; a plain close/reopen does not
-        re-walk the graph.
+        Optional: a constructed container prepares itself on the first :meth:`resolve` or
+        on the first resolve through a child. Call this to fail fast at startup (it runs
+        any deferred validation) and to reopen a closed container deliberately. Opening an
+        already-open container is a no-op.
         """
-        self.closed = False
+        self._ensure_ready()
+
+    def _ensure_ready(self) -> None:
+        """Finish any deferred validation, then mark this container open."""
         reg = self.providers_registry
         if not reg.is_validated() and (reg.is_validation_enabled() or reg.has_pending_errors()):
             self._complete_validation()
+        self.closed = False
+        self._ever_opened = True
 
-    def _raise_if_closed(self) -> None:
-        """Raise if this container is closed; callers reopen explicitly via `open()`/`with`."""
-        if self.closed:
-            raise exceptions.ContainerClosedError(container_scope=self.scope)
+    def _prepare(self) -> None:
+        """Implicit open from the resolve path: a not-open container prepares itself on first use.
+
+        A container that has never been open self-heals silently. One that was genuinely opened
+        before and has since been closed explicitly still raises here — :meth:`open` bypasses
+        this check to reopen it deliberately.
+        """
+        with self._lock or contextlib.nullcontext():
+            if self.closed:  # re-checked under the lock: another thread may have prepared already
+                if self._ever_opened:
+                    raise exceptions.ContainerClosedError(container_scope=self.scope)
+                self._ensure_ready()
 
     def __enter__(self) -> "typing_extensions.Self":
         self.open()

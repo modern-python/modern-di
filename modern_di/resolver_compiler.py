@@ -98,7 +98,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
                     return override
             target = container if container.scope == scope else _navigate(container, scope, resolution_step)
             if target.closed:
-                target._raise_if_closed()  # noqa: SLF001
+                target._prepare()  # noqa: SLF001
             try:  # build the positional args from the dependency resolvers (a dependency can raise ResolutionError)
                 args = [r(target) for r in pos]
             except _STEP_ERRORS as exc:
@@ -125,7 +125,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
         # Navigate once; same-scope deps (the common case) skip the find_container call.
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
-            target._raise_if_closed()  # noqa: SLF001
+            target._prepare()  # noqa: SLF001
         try:  # build the kwargs dict from provider/static/context bindings
             kwargs = {name: r(target) for name, r in prov}
             if not pure:
@@ -219,7 +219,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
                 return override
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
-            target._raise_if_closed()  # noqa: SLF001
+            target._prepare()  # noqa: SLF001
         cache_item = target.cache_registry.fetch_cache_item(f)
         cached = cache_item.cache
         if cached is not types.UNSET:
@@ -261,7 +261,7 @@ def _compile_unwireable_factory(
                 return override
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
-            target._raise_if_closed()  # noqa: SLF001
+            target._prepare()  # noqa: SLF001
         error = build_error(arg_name=arg_name, item=item, registry=target.providers_registry)
         error.prepend_step(resolution_step())
         raise error
