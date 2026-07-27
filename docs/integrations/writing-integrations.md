@@ -107,9 +107,11 @@ depends on how the framework runs handlers:
 
   `Container` implements both sync and async context-manager protocols
   (`__enter__`/`__exit__`, `__aenter__`/`__aexit__`) — `async with`/`with` on a
-  freshly built child opens it (a no-op, since a new child is already open) and
-  closes it on exit, equivalent to a `try`/`finally` around `close_async`/`close_sync`
-  but without hand-writing it.
+  freshly built child opens it and closes it on exit, equivalent to a
+  `try`/`finally` around `close_async`/`close_sync` but without hand-writing it.
+  A freshly built child is usable immediately either way — the first resolve
+  through it would prepare it on its own — so the `with`/`async with` here buys
+  fail-fast validation and guaranteed cleanup, not a required open step.
 
   For a **single** connection kind with no dispatch to do, call
   `integrations.bind(my_provider, connection)` directly — it returns the same
@@ -172,41 +174,39 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
 ## Lifecycle rules
 
 - **Reopen the root container on startup.** A container that was closed on
-  shutdown raises `ContainerClosedError` if reused without reopening. Reopening
-  on each startup lets a second lifespan cycle (test client re-entry, broker
-  restart) work.
+  shutdown self-heals if reused without reopening — the next resolve emits
+  `ContainerClosedWarning` and reopens it — but reopening explicitly on each
+  startup avoids the warning and lets a second lifespan cycle (test client
+  re-entry, broker restart) work cleanly.
     - With a context-manager lifespan: `async with fetch_di_container(app): yield`
       — `__aenter__` reopens, `__aexit__` closes. Compose *around* any existing
       lifespan rather than replacing it.
     - With callback hooks: `app.on_startup(container.open)` and
-      `app.after_shutdown(container.close_async)`. Reopening an already-open
-      container is a no-op.
+      `app.after_shutdown(container.close_async)`. Calling `open()` on an
+      already-open container is **not** a no-op — it re-runs any validation the
+      registry is still holding — but costs nothing once the graph is clean.
 - **Always close the child container in `finally`.** Never leak a unit-of-work
   container on the error path.
 - **Match async vs sync to the framework.** Async frameworks use
   `close_async`; a synchronous CLI uses `close_sync`.
-- **Open the root *after* its connection providers are registered.** `open()`
-  runs `validate()`, so every connection/context provider must already be on the
-  container — a service that requires the connection object *by type* fails
-  validation otherwise. When `setup_di` is what registers those providers and the
-  caller owns the root's lifecycle (a framework with no startup hook — Flask,
-  gRPC), the order is `setup_di(app, container)` **then** `open()` (or `with`);
-  opening first validates against a container that has no connection provider yet.
-  Document that ordering for the caller.
 - **Open the root in *every* execution context the framework runs work in.** A
   worker may dispatch units of work from more than one place: Celery fires
   `worker_process_init` only for the prefork/solo pools, never for the
   gevent / eventlet / threads pools (which run in the main worker process).
   Wire open/close to a hook that fires for *all* of them — e.g. `worker_init` /
-  `worker_shutdown` *in addition to* the per-process signals — or those
-  deployments hit `ContainerClosedError` on the first unit of work while the
-  tested pool stays green. `open()` and `close_*` are idempotent, so overlapping
-  hooks are safe. If the framework offers no lifecycle hook at all, the root's
-  open/close is the caller's to own — document it. On ASGI, the lifespan scope
-  is optional: a mounted sub-application never receives it from its parent,
-  and some deployments disable it (e.g. Mangum `lifespan="off"`) — an app
-  wired there still serves requests with a closed root, so `setup_di` belongs
-  on the top-level served app, or the caller opens the root itself.
+  `worker_shutdown` *in addition to* the per-process signals. Where a hook
+  exists, open there: it fails fast at startup and gets finalizers to run at
+  shutdown. Where no hook fires for a given pool, work still succeeds — the
+  root prepares itself on first use — but nothing ever closes it, so that
+  pool's finalizers never run. `open()` and `close_*` are idempotent, so
+  overlapping hooks are safe. If the framework offers no lifecycle hook at
+  all, the root's open/close is the caller's to own — document it. On ASGI,
+  the lifespan scope is optional: a mounted sub-application never receives it
+  from its parent, and some deployments disable it (e.g. Mangum
+  `lifespan="off"`) — an app wired there still serves requests (the root
+  prepares itself on first use), but nothing closes it, so `setup_di` belongs
+  on the top-level served app, or the caller opens (and closes) the root
+  itself.
 
 ## Scope mapping
 
@@ -431,8 +431,9 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `fetch_di_container` reads the root container back out of framework state.
 - [ ] A per-unit-of-work builder opens a child container at the right scope,
       injects the connection as context, and closes it in `finally`.
-- [ ] Root container **reopens on startup** so restarts don't raise
-      `ContainerClosedError`.
+- [ ] Root container **reopens on startup** so a restart doesn't rely on the
+      implicit-reuse warning (`ContainerClosedWarning`) and gets finalizers
+      wired to shutdown.
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves it via
       `resolve_dependency` — use `modern_di.integrations.from_di` (or a

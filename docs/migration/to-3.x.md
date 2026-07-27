@@ -247,6 +247,14 @@ Because there is no 2.x signal for this one, the [readiness recipe](#readiness-r
 below cannot surface it in advance — a green 2.x suite under that recipe still needs every
 construct-then-use call site audited for a matching `with`/`open()` before it can run against 3.0.
 
+**Changed again in 3.1.** This requirement is relaxed, not reversed: see the
+[3.1 release notes](https://github.com/modern-python/modern-di/releases) for the full
+change. A container is usable immediately after construction again — the first `resolve`
+prepares it — and reusing a container after an explicit close warns (`ContainerClosedWarning`)
+and reopens instead of raising `ContainerClosedError`. Every pattern shown above under
+"After (3.0)" keeps working unchanged in 3.1 — `with`/`open()` still opens, still validates,
+still fails fast — this switch just stops being mandatory for code that skips it.
+
 ## Readiness recipe: escalating warnings to errors with `filterwarnings`
 
 This is the one place in the docs that lists the full `filterwarnings` escalation recipe; every

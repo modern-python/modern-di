@@ -71,18 +71,24 @@ Catch `ContainerError` for any container/scope failure.
 - **`InvalidScopeTypeError`** — raised by the `Container` constructor when `scope` is not an
   `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
-- **`ContainerClosedError`** — raised when you resolve from, or build a child of, a closed
-  container; there is no self-heal. Re-enter the container via `with`/`async with`, or call
-  `container.open()`, before reusing it — see
+- **`ContainerClosedError`** — no longer raised as of modern-di 3.1; kept importable for back-compat
+  and removed in 4.0. A container prepares itself on first use instead — resolving from, or building
+  a child of, a container that was **explicitly closed** reopens it and emits
+  `ContainerClosedWarning` (a `RuntimeWarning`, not a `ModernDIError`); one that was simply never
+  opened reopens silently. Re-enter the container via `with`/`async with`, or call
+  `container.open()`, to reopen it deliberately (silently) instead — see
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening).
   See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
-- **`ValidationFailedError`** — raised by `Container.validate()` (and, deferred, by
-  `Container(..., validate=True)`) when the graph has problems. Catch this for validation results; its
+- **`ValidationFailedError`** — raised by `Container.validate()`, and by `Container(...,
+  validate=True)` (the default) when the graph has problems. Catch this for validation results; its
   `.errors` attribute holds the list of individual issues (each itself a `ResolutionError` or
-  `RegistrationError`), and `str()` renders them all, grouped by error kind. Both the default and
-  `validate=True` enable validation but run it **deferred** — at container entry (`open()`/`with`) or
-  first resolve, not at construction — so an integration's context providers registered after
-  construction are in the graph before the check runs. Pass `validate=False` to disable it. See
+  `RegistrationError`), and `str()` renders them all, grouped by error kind. Validation splits by
+  timing: cycles and inverted-scope dependencies can only ever be *added* by registering more
+  providers, so that half is checked immediately in `Container.__init__`; missing dependencies and
+  dangling aliases depend on the graph being complete, so that half is held and checked once, at
+  container entry (`open()`/`with`) or first resolve — whichever comes first — so an integration's
+  context providers registered after construction (e.g. via `add_providers`) are in the graph before
+  the check runs. Pass `validate=False` to disable both halves. See
   [Migration: To 3.x](../migration/to-3.x.md) and
   [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
 

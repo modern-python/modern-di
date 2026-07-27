@@ -66,10 +66,11 @@ async def get_report(
 
 !!! warning "Deployment: `run_receiver_task` skips startup by default"
     `taskiq.api.run_receiver_task(...)` defaults `run_startup=False`, which
-    skips the worker startup that opens the root container — the first task
-    then raises `ContainerClosedError`. Pass `run_startup=True` (or open the
-    root yourself before consuming) when embedding a receiver with
-    `run_receiver_task`.
+    skips the worker startup that opens the root container — tasks still run
+    (the root prepares itself on first use), but nothing ever closes it, so
+    its finalizers never run at shutdown. Pass `run_startup=True` (or open
+    and close the root yourself around consuming) when embedding a receiver
+    with `run_receiver_task`.
 
 ## Scopes
 

@@ -86,3 +86,17 @@ ergonomics — most plausibly the typer CLI, where the callback fix would then b
 worth its composition cost. Also: if a Category-B framework gains a
 startup/shutdown lifecycle hook it currently lacks, its `setup_di` should own the
 root and this row is reopened.
+
+## Amendment (2026-07-26)
+
+The revisit trigger above fired: a maintainer-reported root-lifecycle friction —
+the hard `ContainerClosedError` failure mode every documented caveat in this
+audit relies on — was addressed on 2026-07-26 by making `open()` optional in the
+core (`modern-di` 3.1: a not-open root now prepares itself on first use instead
+of raising). That fix landed in `modern_di.Container` itself, not in any
+integration's `setup_di`/lifecycle wiring, so this decision's conclusion —
+**no integration code changes** — still stands: every caveat this audit
+documented changes failure mode (from a hard raise to "finalizers silently
+don't run") rather than disappearing, and the per-integration deployment notes
+were reworded to say so, but no integration's lifecycle code changed. Status
+stays `accepted`.

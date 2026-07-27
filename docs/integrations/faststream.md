@@ -128,7 +128,9 @@ class AppGroup(Group):
     FastStream's `TestBroker` decides whether to run app `on_startup` hooks by
     inspecting that statement; `async with TestNatsBroker(broker):` alone
     starts the broker without running `on_startup`, so the root container
-    stays closed and the first published message raises `ContainerClosedError`.
+    stays unopened — published messages still get handled (the root prepares
+    itself on first use), but nothing ever closes it, so its finalizers never
+    run.
 
 ## See also
 

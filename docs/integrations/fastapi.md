@@ -67,10 +67,11 @@ async def get_report(
     FastAPI only opens the root container from the ASGI **lifespan** event. A
     `setup_di`-wired app **mounted as a sub-application** (`app.mount("/sub",
     subapp)`) never receives that event from its parent, and deployments that
-    disable lifespan (e.g. Mangum `lifespan="off"`) skip it too — the first
-    request then raises `ContainerClosedError`. Call `setup_di` on the
-    **top-level served app**, or open the root yourself (`container.open()` /
-    `with`) before serving.
+    disable lifespan (e.g. Mangum `lifespan="off"`) skip it too — requests
+    still succeed (the root prepares itself on first use), but nothing ever
+    closes it, so its finalizers never run at shutdown. Call `setup_di` on
+    the **top-level served app**, or open (and close) the root yourself
+    (`container.open()` / `with`) before serving.
 
 ## Websockets
 

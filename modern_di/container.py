@@ -373,8 +373,10 @@ class Container:
 
         Optional: a constructed container prepares itself on the first :meth:`resolve` or
         on the first resolve through a child. Call this to fail fast at startup (it runs
-        any deferred validation) and to reopen a closed container deliberately. Opening an
-        already-open container is a no-op.
+        any deferred validation) and to reopen a closed container deliberately. Calling it
+        on an already-open container is **not** a no-op: it still re-runs any validation the
+        registry is holding (e.g. completeness errors a later ``add_providers`` call left
+        pending), though this costs nothing once the graph is clean.
         """
         with self._lock or contextlib.nullcontext():
             self._ensure_ready()

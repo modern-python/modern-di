@@ -12,13 +12,12 @@ from modern_di import Container, Scope, providers, exceptions
 
 `modern-di` creates instances on first resolve. There is no `init_resources()` or "eager startup" call — if a provider is never resolved, its creator never runs.
 
-If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook — after opening the container.
+If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook.
 
 ```python
 container = Container(groups=[Dependencies], validate=True)
-container.open()  # required before resolving; also validates once (root)
 
-# Warm caches at startup
+# Warm caches at startup — resolving prepares the container (validates once, root) as a side effect
 container.resolve(AsyncEngine)
 container.resolve(Settings)
 ```
@@ -106,14 +105,17 @@ finalizer; the sync path is only a safety net.
 
 ## Closing and reopening
 
-A freshly-constructed container starts **unopened**: entering `with container:` (or `async with`, or
-a direct `container.open()`) opens it; exiting calls `close_sync()` / `close_async()`, which run the
-finalizers (in reverse-creation order, as above) and mark the container closed.
+A constructed container is usable immediately — there is no required `open()` step. The first
+`resolve()` (or `build_child_container()` followed by a resolve through the child) prepares a
+not-yet-open container silently. Entering `with container:` (or `async with`, or a direct
+`container.open()`) prepares it explicitly instead — useful to fail fast at startup, before the
+first unit of work; exiting calls `close_sync()` / `close_async()`, which run the finalizers (in
+reverse-creation order, as above) and mark the container closed.
 
-While a container is unopened or closed, resolving a dependency — or building a child container —
-raises `ContainerClosedError` (see
-[Migration: To 3.x](../migration/to-3.x.md#1-closed-containers-raise-instead-of-self-healing)).
-Re-entering `with container:` reopens it cleanly, and resolution works again:
+Resolving from (or building a child of) a container **that was explicitly closed** reopens it and
+emits `ContainerClosedWarning` — a signal that a reference to the container is being held past its
+lifetime, unless the reuse is deliberate. Re-entering `with container:` (or calling `open()`
+directly) reopens it silently instead, since a deliberate reopen isn't diagnostic-worthy:
 
 ```python
 container = Container(groups=[Dependencies], validate=True)
@@ -122,11 +124,16 @@ with container:
     container.resolve(Settings)
 # closed here — finalizers ran
 
-# container.resolve(Settings)  -> raises ContainerClosedError
+container.resolve(Settings)  # warns ContainerClosedWarning, then reopens and resolves
 
-with container:                 # reopened
+with container:                 # reopened silently — no warning
     container.resolve(Settings)
 ```
+
+See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md) for what
+`ContainerClosedWarning` means and how to respond to it, and
+[Migration: To 3.x](../migration/to-3.x.md#1-closed-containers-raise-instead-of-self-healing) for how
+this differed in 3.0.
 
 How a cached instance survives this cycle depends on its `CacheSettings`:
 
@@ -151,7 +158,7 @@ Each container has its own finalizers — the ones for the providers it cached. 
 
 ```python
 app_container = Container(groups=[Dependencies], validate=True)
-app_container.open()  # open the root before building children (validates once)
+app_container.open()  # optional: fails fast here instead of on first use; not required before building children
 
 async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     session = request_container.resolve(AsyncSession)
@@ -167,14 +174,21 @@ Framework integrations handle this automatically: they build the REQUEST child c
 
 ## Validation
 
-`Container(groups=[...], validate=True)` runs the following checks — once at container entry
-(`open()`/`with`), not at construction and not on resolve:
+`Container(groups=[...], validate=True)` (the default) runs the following checks, split by when
+they can safely run:
 
-- **Cycle detection.** Provider A depending on B depending on A raises `CircularDependencyError`
-  (see [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md)).
-- **Scope chain check.** A provider that depends on a shorter-lived provider raises an error (see
-  [The scope dependency rule](scopes.md#the-scope-dependency-rule)).
-- **Missing providers.** A creator parameter typed `Foo` with no registered `Foo` provider raises an error.
+- **Cycle detection** and **scope chain check** run **at construction** — `Container(...)` itself
+  raises `CircularDependencyError` (see [Troubleshooting: Circular
+  dependency](../troubleshooting/circular-dependency.md)) or an inverted-scope error (see [The scope
+  dependency rule](scopes.md#the-scope-dependency-rule)) immediately if the graph as registered so
+  far already has the problem. Registering more providers later can only ever add such an issue,
+  never remove one, so it's safe to check right away.
+- **Missing providers.** A creator parameter typed `Foo` with no registered `Foo` provider is only
+  knowable once the graph is complete, so this check is held and runs once at container entry
+  (`open()`/`with`) or first use (`resolve()`/`resolve_provider()`/a resolve through a child) —
+  whichever happens first. This lets a framework integration register its own providers (e.g. via
+  `add_providers`) after construction and still have the complete graph validated before anything
+  resolves.
 
 Validation has no runtime cost after startup. Turn it on — it catches the bugs you don't want to discover under load.
 
