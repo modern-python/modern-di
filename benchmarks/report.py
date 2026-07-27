@@ -96,9 +96,28 @@ def parse_run(payload: dict) -> dict[tuple[str, str], float]:
     return parsed
 
 
-def _median_of_medians(runs: list[dict[tuple[str, str], float]], key: tuple[str, str]) -> float | None:
+@dataclasses.dataclass(frozen=True, slots=True)
+class _Cell:
+    """One reduced (scenario, framework) cell: the across-run median, plus its spread.
+
+    `iqr_pct` is the interquartile range of the run values, as a percentage of `median` --
+    None when fewer than 2 runs report this key, since IQR is undefined for a single value.
+    """
+
+    median: float
+    iqr_pct: float | None
+
+
+def _reduce_cell(runs: list[dict[tuple[str, str], float]], key: tuple[str, str]) -> _Cell | None:
+    """Reduce one (scenario, framework) cell across runs; None if no run reports this key."""
     values = [run[key] for run in runs if key in run]
-    return statistics.median(values) if values else None
+    if not values:
+        return None
+    median = statistics.median(values)
+    if len(values) < 2:  # noqa: PLR2004
+        return _Cell(median, None)
+    q1, _q2, q3 = statistics.quantiles(values, n=4, method="inclusive")
+    return _Cell(median, (q3 - q1) / median * 100)
 
 
 def _format_time(seconds: float) -> str:
@@ -108,20 +127,37 @@ def _format_time(seconds: float) -> str:
 def _render(table: Table, parsed: list[dict[tuple[str, str], float]]) -> str:
     header = "| Scenario | modern-di | " + " | ".join(f"vs {r.replace('_', '-')}" for r in table.rivals) + " |"
     lines = [f"### {table.title}", "", header, "|" + "---|" * (len(table.rivals) + 2)]
+    modern_di_pcts: list[float] = []
+    rival_pcts: list[float] = []
     for row in table.rows:
-        ours = _median_of_medians(parsed, (row.modern_di_key, "modern_di"))
+        ours = _reduce_cell(parsed, (row.modern_di_key, "modern_di"))
         if ours is None:
             continue
         # The divisor cancels in the ratio (both sides are batched alike); it only scales our cell.
-        cells = [row.label, _format_time(ours / row.divisor)]
+        # It also cancels in iqr_pct, a ratio of the (equally-scaled) IQR to the (equally-scaled)
+        # median, so the annotation needs no separate adjustment.
+        cell = _format_time(ours.median / row.divisor)
+        if ours.iqr_pct is not None:
+            cell += f" ±{ours.iqr_pct:.1f}%"
+            modern_di_pcts.append(ours.iqr_pct)
+        cells = [row.label, cell]
         for rival in table.rivals:
-            theirs = _median_of_medians(parsed, (row.rival_key, rival))
+            theirs = _reduce_cell(parsed, (row.rival_key, rival))
             if theirs is None:
                 cells.append("n/a")
                 continue
-            ratio = ours / theirs
+            # Ratio columns stay bare: a ratio of two medians has no clean IQR of its own.
+            ratio = ours.median / theirs.median
             cells.append(f"**{ratio:.2f}**" if ratio < 1.0 else f"{ratio:.2f}")
+            if theirs.iqr_pct is not None:
+                rival_pcts.append(theirs.iqr_pct)
         lines.append("| " + " | ".join(cells) + " |")
+    if modern_di_pcts and rival_pcts:
+        lines.append("")
+        lines.append(
+            f"_Across-run IQR ({len(parsed)} runs): modern-di ≤{max(modern_di_pcts):.1f}%, "
+            f"rivals ≤{max(rival_pcts):.1f}%._"
+        )
     return "\n".join(lines)
 
 
