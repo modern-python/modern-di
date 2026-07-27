@@ -462,7 +462,7 @@ def test_inversion_through_a_registered_alias_still_raises() -> None:
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
 
 
-def test_registering_the_alias_source_later_surfaces_the_real_inversion() -> None:
+def test_alias_source_registered_via_add_providers_surfaces_inversion() -> None:
     container = Container(scope=_BelowApp.ROOT, groups=[_LateSourceGroup])
     container.add_providers(providers.Factory(scope=_BelowApp.REQ, creator=_LateConcrete))  # registers quietly
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
@@ -470,7 +470,7 @@ def test_registering_the_alias_source_later_surfaces_the_real_inversion() -> Non
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
 
 
-def test_dangling_alias_at_a_shallower_scope_validates_clean_once_registered() -> None:
+def test_alias_to_a_same_scope_source_validates_clean_below_app() -> None:
     class G(Group):
         late = providers.Alias(_LateConcrete, bound_type=_LateIface)
         concrete = providers.Factory(scope=_BelowApp.ROOT, creator=_LateConcrete)
