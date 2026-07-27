@@ -269,17 +269,23 @@ construct-then-use call sites for `with`/`open()` (switch 6) and, if you pass `v
 explicitly today, re-check any code that depends on validation happening at construction rather
 than at `open()` (switch 4).
 
-`ContainerClosedWarning` and `ContextValueNoneWarning` subclass `DeprecationWarning`;
-`UnvalidatedContainerWarning` subclasses `FutureWarning`; the `Alias(scope=)` and
-`Factory(cache_settings=)` warnings are plain `DeprecationWarning` (they have no dedicated
-subclass). Escalating both categories to errors therefore turns all five signals into failures a
-green test suite would catch:
+`ContainerClosedWarning` was a `DeprecationWarning` in 2.x. As of 3.1 it is a `RuntimeWarning`
+instead — deliberately, since CPython hides `DeprecationWarning` outside `__main__`, which would
+hide exactly the diagnostic this warning exists for — so the blanket categories below no longer
+catch it; add its dedicated-class filter alongside them. `ContextValueNoneWarning` subclasses
+`DeprecationWarning`; `UnvalidatedContainerWarning` subclasses `FutureWarning`; the `Alias(scope=)`
+and `Factory(cache_settings=)` warnings are plain `DeprecationWarning` (they have no dedicated
+subclass). Escalating both categories to errors, plus `ContainerClosedWarning`'s own class,
+therefore turns all five signals into failures a green test suite would catch:
 
 ```python
 import warnings
 
+from modern_di import exceptions
+
 warnings.filterwarnings("error", category=DeprecationWarning)
 warnings.filterwarnings("error", category=FutureWarning)
+warnings.filterwarnings("error", category=exceptions.ContainerClosedWarning)
 ```
 
 plus the pytest variant:
@@ -289,6 +295,7 @@ plus the pytest variant:
 filterwarnings = [
     "error::DeprecationWarning",
     "error::FutureWarning",
+    "error::modern_di.exceptions.ContainerClosedWarning",
 ]
 ```
 

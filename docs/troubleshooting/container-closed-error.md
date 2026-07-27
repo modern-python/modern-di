@@ -10,11 +10,19 @@ failure mode.
 Through 3.0, resolving from (or building a child of) a container that had never been opened, or one
 closed after use, raised `ContainerClosedError`. As of 3.1:
 
-- A freshly-constructed container prepares itself on the first `resolve()` / `resolve_provider()` /
-  `build_child_container()` call — no `open()` step required, and nothing raises.
-- Reusing a container **after an explicit close** (`close_sync()`, `close_async()`, or exiting a
-  `with`/`async with` block) also self-heals — the container reopens and the call succeeds — but it
-  first emits `ContainerClosedWarning`, a `RuntimeWarning` carrying `.container_scope`.
+- A freshly-constructed container prepares itself on the first `resolve()` / `resolve_provider()`
+  call — no `open()` step required, and nothing raises. That includes a resolve reached through a
+  child: if the resolved provider's scope belongs to a not-yet-open ancestor, that ancestor is what
+  prepares, not the child. `build_child_container()` itself never checks or touches any container's
+  open/closed state — it only reads the parent's shared registries and scope map, so a closed (or
+  never-opened) parent is irrelevant to it, and the child it returns starts closed too, same as any
+  fresh container.
+- Reusing a container **after an explicit close** self-heals the moment it is actually resolved from
+  — directly, or through a descendant whose resolve reaches back into its scope — via
+  `close_sync()`, `close_async()`, or exiting a `with`/`async with` block: the container reopens and
+  the call succeeds, but it first emits `ContainerClosedWarning`, a `RuntimeWarning` carrying
+  `.container_scope`. Building a child of that closed container does not, on its own, trigger any of
+  this.
 - `open()` remains the fail-fast verb: call it (or enter via `with`/`async with`) to run validation
   and prepare the container up front, at startup, rather than on the first unit of work.
 
@@ -24,8 +32,9 @@ raises it anymore. It is removed in 4.0.
 
 **What `ContainerClosedWarning` means**
 
-Seeing it means a reference to an already-closed container was resolved from (or used to build a
-child) without going back through `open()`/`with` first. Two ways to respond:
+Seeing it means a reference to an already-closed container was resolved from — directly, or through
+a child container whose resolve reached back into the closed container's scope — without going back
+through `open()`/`with` first. Two ways to respond:
 
 - **Deliberate reuse** (e.g. a test harness or a callback-style lifecycle that closes and later
   restarts the same container object): call `container.open()`, or re-enter it with `with`/`async

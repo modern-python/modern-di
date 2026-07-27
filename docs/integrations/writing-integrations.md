@@ -189,6 +189,17 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
   container on the error path.
 - **Match async vs sync to the framework.** Async frameworks use
   `close_async`; a synchronous CLI uses `close_sync`.
+- **If you open the root explicitly, do it *after* its connection providers
+  are registered.** `open()` runs `_ensure_ready()` unconditionally, so it
+  still raises a completeness error the registry is holding — e.g. a service
+  that depends on the connection object *by type* before that provider
+  exists on the container. Relying on implicit first-use preparation instead
+  of an explicit `open()` sidesteps this (first use is always after
+  `setup_di` has registered), but a caller who owns the root's lifecycle and
+  calls `open()` explicitly (a framework with no startup hook — Flask,
+  gRPC) must still order `setup_di(app, container)` **then** `open()` (or
+  `with`); opening first still validates against a container that has no
+  connection provider yet. Document that ordering for the caller.
 - **Open the root in *every* execution context the framework runs work in.** A
   worker may dispatch units of work from more than one place: Celery fires
   `worker_process_init` only for the prefork/solo pools, never for the

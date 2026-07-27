@@ -106,16 +106,22 @@ finalizer; the sync path is only a safety net.
 ## Closing and reopening
 
 A constructed container is usable immediately — there is no required `open()` step. The first
-`resolve()` (or `build_child_container()` followed by a resolve through the child) prepares a
-not-yet-open container silently. Entering `with container:` (or `async with`, or a direct
-`container.open()`) prepares it explicitly instead — useful to fail fast at startup, before the
-first unit of work; exiting calls `close_sync()` / `close_async()`, which run the finalizers (in
-reverse-creation order, as above) and mark the container closed.
+`resolve()` / `resolve_provider()` call prepares a not-yet-open container silently — including when
+that call arrives through a child: a resolve whose provider scope belongs to a not-yet-open ancestor
+prepares *that ancestor*, not the child doing the resolving. `build_child_container()` itself never
+checks or touches any container's open/closed state — it only reads the parent's shared registries
+and scope map, so a closed (or never-opened) parent is irrelevant to it, and the returned child
+starts closed too, same as any fresh container. Entering `with container:` (or `async with`, or a
+direct `container.open()`) prepares a container explicitly instead — useful to fail fast at startup,
+before the first unit of work; exiting calls `close_sync()` / `close_async()`, which run the
+finalizers (in reverse-creation order, as above) and mark the container closed.
 
-Resolving from (or building a child of) a container **that was explicitly closed** reopens it and
-emits `ContainerClosedWarning` — a signal that a reference to the container is being held past its
-lifetime, unless the reuse is deliberate. Re-entering `with container:` (or calling `open()`
-directly) reopens it silently instead, since a deliberate reopen isn't diagnostic-worthy:
+Resolving from a container **that was explicitly closed** — directly, or through a child whose
+resolve reaches back into that container's scope — reopens it and emits `ContainerClosedWarning` — a
+signal that a reference to the container is being held past its lifetime, unless the reuse is
+deliberate. Building a child of a closed container does not, by itself, trigger any of this. Re-entering
+`with container:` (or calling `open()` directly) reopens it silently instead, since a deliberate
+reopen isn't diagnostic-worthy:
 
 ```python
 container = Container(groups=[Dependencies], validate=True)

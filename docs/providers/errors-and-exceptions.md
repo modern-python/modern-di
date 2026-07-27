@@ -72,10 +72,12 @@ Catch `ContainerError` for any container/scope failure.
   `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
 - **`ContainerClosedError`** — no longer raised as of modern-di 3.1; kept importable for back-compat
-  and removed in 4.0. A container prepares itself on first use instead — resolving from, or building
-  a child of, a container that was **explicitly closed** reopens it and emits
-  `ContainerClosedWarning` (a `RuntimeWarning`, not a `ModernDIError`); one that was simply never
-  opened reopens silently. Re-enter the container via `with`/`async with`, or call
+  and removed in 4.0. A container prepares itself on first use instead: resolving from a container
+  that was **explicitly closed** — directly, or through a child whose resolve reaches back into its
+  scope — reopens it and emits `ContainerClosedWarning` (a `RuntimeWarning`, not a `ModernDIError`);
+  one that was simply never opened prepares silently. `build_child_container()` itself never checks
+  or touches any container's open/closed state — building a child of a closed parent triggers neither
+  the reopen nor the warning by itself. Re-enter the container via `with`/`async with`, or call
   `container.open()`, to reopen it deliberately (silently) instead — see
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening).
   See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
