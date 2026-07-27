@@ -93,23 +93,23 @@ class LifecycleContainer(BaseContainer):
     connection = providers.ContextResource(_connection)
 
 
-def test_c1_transient(benchmark):
+def test_c1_transient_that_depends(benchmark):
     result = benchmark(TransientContainer.service.resolve_sync)
     assert isinstance(result, Service)
 
 
-def test_c2_singleton(benchmark):
+def test_c2_singleton_that_depends(benchmark):
     SingletonContainer.service.resolve_sync()  # warm the cache
     result = benchmark(SingletonContainer.service.resolve_sync)
     assert isinstance(result, Service)
 
 
-def test_c3_deep_chain(benchmark):
+def test_c3_deep_chain_that_depends(benchmark):
     result = benchmark(ChainContainer.c0.resolve_sync)
     assert isinstance(result, C0)
 
 
-def test_c4_request_lifecycle(benchmark):
+def test_c4_request_lifecycle_that_depends(benchmark):
     loop = asyncio.new_event_loop()
 
     async def _one() -> Connection:
@@ -134,7 +134,7 @@ def test_c4_request_lifecycle(benchmark):
 # that-depends wires at class definition (module import), so a class-level container has no
 # per-call cold step. This rebuilds the Factory chain per call as the closest build+resolve
 # analog; it measures 6x Factory.__init__ + one resolve, NOT a container build (see README caveat).
-def test_c5_cold_first_resolve(benchmark):
+def test_c5_cold_first_resolve_that_depends(benchmark):
     def _cold():
         c5 = providers.Factory(C5)
         c4 = providers.Factory(C4, c5=c5.cast)
@@ -169,7 +169,7 @@ class ContextContainer(BaseContainer):
     handler = providers.Factory(Handler, request_obj=request_obj.cast, app_dep=app_dep.cast)
 
 
-def test_c6_context(benchmark):
+def test_c6_context_that_depends(benchmark):
     def _one_request():
         ro = RequestObj()
         with container_context(global_context={"request": ro}):

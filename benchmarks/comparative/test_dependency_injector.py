@@ -88,26 +88,26 @@ class LifecycleContainer(containers.DeclarativeContainer):
     connection = providers.Resource(_init_connection)
 
 
-def test_c1_transient(benchmark):
+def test_c1_transient_dependency_injector(benchmark):
     container = TransientContainer()
     result = benchmark(container.service)
     assert isinstance(result, Service)
 
 
-def test_c2_singleton(benchmark):
+def test_c2_singleton_dependency_injector(benchmark):
     container = SingletonContainer()
     container.service()  # warm the singleton
     result = benchmark(container.service)
     assert isinstance(result, Service)
 
 
-def test_c3_deep_chain(benchmark):
+def test_c3_deep_chain_dependency_injector(benchmark):
     container = ChainContainer()
     result = benchmark(container.c0)
     assert isinstance(result, C0)
 
 
-def test_c4_request_lifecycle(benchmark):
+def test_c4_request_lifecycle_dependency_injector(benchmark):
     # The container is built ONCE in setup, like every other framework here. Building it inside the
     # timed call (as this benchmark used to) deep-copies the provider graph per request -- ~29% of
     # the old number -- a cost a real dependency-injector app pays once at startup.
@@ -138,7 +138,7 @@ def test_c4_request_lifecycle(benchmark):
 # The DeclarativeContainer subclass wires at class definition (import). Per call this instantiates
 # a fresh container (deep-copies the provider graph -- the dominant cost) and resolves; the number
 # is ~98% instance clone, not resolution (see README caveat).
-def test_c5_cold_first_resolve(benchmark):
+def test_c5_cold_first_resolve_dependency_injector(benchmark):
     def _cold():
         container = ChainContainer()
         return container.c0()
@@ -170,7 +170,7 @@ class ContextContainer(containers.DeclarativeContainer):
     handler = providers.Factory(Handler, app_dep=app_dep, request=request)
 
 
-def test_c6_context(benchmark):
+def test_c6_context_dependency_injector(benchmark):
     container = ContextContainer()
 
     def _one_request():

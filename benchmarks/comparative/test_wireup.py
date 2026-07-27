@@ -87,28 +87,28 @@ async def connection_factory() -> AsyncIterator[Connection]:
         conn.closed = True
 
 
-def test_c1_transient(benchmark):
+def test_c1_transient_wireup(benchmark):
     container = wireup.create_sync_container(injectables=[Dep, Service])
     with container.enter_scope() as scope:
         result = benchmark(scope.get, Service)
     assert isinstance(result, Service)
 
 
-def test_c2_singleton(benchmark):
+def test_c2_singleton_wireup(benchmark):
     container = wireup.create_sync_container(injectables=[SDep, SingletonService])
     container.get(SingletonService)  # warm
     result = benchmark(container.get, SingletonService)
     assert isinstance(result, SingletonService)
 
 
-def test_c3_deep_chain(benchmark):
+def test_c3_deep_chain_wireup(benchmark):
     container = wireup.create_sync_container(injectables=[C0, C1, C2, C3, C4, C5])
     with container.enter_scope() as scope:
         result = benchmark(scope.get, C0)
     assert isinstance(result, C0)
 
 
-def test_c4_request_lifecycle(benchmark):
+def test_c4_request_lifecycle_wireup(benchmark):
     container = wireup.create_async_container(injectables=[connection_factory])
     loop = asyncio.new_event_loop()
 
@@ -133,7 +133,7 @@ def test_c4_request_lifecycle(benchmark):
 # --- C5 cold: create_sync_container (codegen/exec) + first resolve, per call --
 # wireup exec-codegens a factory per provider inside create_sync_container, so this is dominated
 # by container construction, not resolution (see README caveat).
-def test_c5_cold_first_resolve(benchmark):
+def test_c5_cold_first_resolve_wireup(benchmark):
     def _cold():
         container = wireup.create_sync_container(injectables=[C0, C1, C2, C3, C4, C5])
         with container.enter_scope() as scope:
@@ -168,7 +168,7 @@ class CtxHandler:
         self.settings = settings
 
 
-def test_c6_context(benchmark):
+def test_c6_context_wireup(benchmark):
     container = wireup.create_sync_container(injectables=[_request_placeholder, CtxSettings, CtxHandler])
 
     def _one_request():

@@ -68,7 +68,7 @@ class ConnProvider(Provider):
         await c.aclose()
 
 
-def test_c1_transient(benchmark):
+def test_c1_transient_dishka(benchmark):
     p = Provider(scope=Scope.APP)
     p.provide(Dep, cache=False)
     p.provide(Service, cache=False)
@@ -77,7 +77,7 @@ def test_c1_transient(benchmark):
     assert isinstance(result, Service)
 
 
-def test_c2_singleton(benchmark):
+def test_c2_singleton_dishka(benchmark):
     p = Provider(scope=Scope.APP)
     p.provide(Dep)
     p.provide(Service)
@@ -87,7 +87,7 @@ def test_c2_singleton(benchmark):
     assert isinstance(result, Service)
 
 
-def test_c3_deep_chain(benchmark):
+def test_c3_deep_chain_dishka(benchmark):
     p = Provider(scope=Scope.APP)
     for cls in (C0, C1, C2, C3, C4, C5):
         p.provide(cls, cache=False)
@@ -96,7 +96,7 @@ def test_c3_deep_chain(benchmark):
     assert isinstance(result, C0)
 
 
-def test_c4_request_lifecycle(benchmark):
+def test_c4_request_lifecycle_dishka(benchmark):
     container = make_async_container(ConnProvider())
     loop = asyncio.new_event_loop()
 
@@ -120,7 +120,7 @@ def test_c4_request_lifecycle(benchmark):
 
 
 # --- C5 cold: build Provider + make_container + first resolve, per call -------
-def test_c5_cold_first_resolve(benchmark):
+def test_c5_cold_first_resolve_dishka(benchmark):
     def _cold():
         p = Provider(scope=Scope.APP)
         for cls in (C0, C1, C2, C3, C4, C5):
@@ -156,7 +156,7 @@ class _ReqProvider(Provider):
     handler = provide(Handler, scope=Scope.REQUEST)
 
 
-def test_c6_context(benchmark):
+def test_c6_context_dishka(benchmark):
     container = make_container(_AppProvider(), _ReqProvider())
 
     def _one_request():
