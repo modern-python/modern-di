@@ -33,7 +33,7 @@ class SingletonGroup(Group):
 
 
 def test_g1_transient_resolve(benchmark):
-    container = Container(scope=Scope.APP, groups=[TransientGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[TransientGroup])
     container.open()
     result = benchmark(container.resolve_provider, TransientGroup.svc)
     assert isinstance(result, Service)
@@ -41,7 +41,7 @@ def test_g1_transient_resolve(benchmark):
 
 
 def test_g2_cached_resolve(benchmark):
-    container = Container(scope=Scope.APP, groups=[SingletonGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[SingletonGroup])
     container.open()
     container.resolve_provider(SingletonGroup.svc)  # warm the cache
     result = benchmark(container.resolve_provider, SingletonGroup.svc)
@@ -89,7 +89,7 @@ class ChainGroup(Group):
 
 
 def test_g3_deep_chain(benchmark):
-    container = Container(scope=Scope.APP, groups=[ChainGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[ChainGroup])
     container.open()
     result = benchmark(container.resolve_provider, ChainGroup.c0)
     assert isinstance(result, C0)
@@ -176,7 +176,7 @@ class WideGroup(Group):
 
 
 def test_g4_wide_resolve(benchmark):
-    container = Container(scope=Scope.APP, groups=[WideGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[WideGroup])
     container.open()
     result = benchmark(container.resolve_provider, WideGroup.wide)
     assert isinstance(result, Wide)
@@ -200,7 +200,7 @@ class CrossScopeGroup(Group):
 
 
 def test_g5_cross_scope(benchmark):
-    app = Container(scope=Scope.APP, groups=[CrossScopeGroup], validate=False)
+    app = Container(scope=Scope.APP, groups=[CrossScopeGroup])
     app.open()
     req = app.build_child_container(scope=Scope.REQUEST)
     req.open()
@@ -235,7 +235,7 @@ class ContextGroup(Group):
 def test_g9_context_resolve(benchmark):
     # Isolates the context-folding (non-pure kwargs) path C1-C5 never touch: a factory mixing a
     # runtime context value with a provider dep. Container + child built in setup; only resolve timed.
-    app = Container(scope=Scope.APP, groups=[ContextGroup], validate=False)
+    app = Container(scope=Scope.APP, groups=[ContextGroup])
     app.open()
     req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})
     req.open()
@@ -263,7 +263,7 @@ class OverrideChainGroup(Group):
 def test_g12_override_active_resolve(benchmark):
     # Override front-guard tax: an UNRELATED override flips has_overrides True, so every node in the
     # depth-6 chain pays a fetch_override lookup per resolve (the path a test suite with mocks hits).
-    container = Container(scope=Scope.APP, groups=[OverrideChainGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[OverrideChainGroup])
     container.open()
     container.override(OverrideChainGroup.sentinel, Sentinel())
     container.resolve_provider(OverrideChainGroup.c0)  # warm

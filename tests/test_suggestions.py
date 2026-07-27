@@ -170,8 +170,7 @@ def test_argument_resolution_subclass_suggestion() -> None:
         db = providers.Factory(creator=PostgresDatabase)
         service = providers.Factory(creator=Service)
 
-    # validate=False: this exercises the resolve-time did-you-mean suggestion, not deferred validation.
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)
@@ -193,7 +192,7 @@ def test_argument_resolution_baseclass_suggestion() -> None:
         db = providers.Factory(creator=Database)
         service = providers.Factory(creator=Service)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)
@@ -216,7 +215,7 @@ def test_argument_resolution_typo_suggestion() -> None:
         repo = providers.Factory(creator=Repository)
         service = providers.Factory(creator=Service)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)
@@ -234,7 +233,7 @@ def test_argument_resolution_no_suggestions_when_nothing_matches() -> None:
     class G(Group):
         service = providers.Factory(creator=Service)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)

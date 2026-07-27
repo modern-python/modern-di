@@ -25,15 +25,11 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 | G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
 | G15 | Concurrent first-resolve, N threads (double-checked creation lock) | free-threaded creation-lock contention |
-| G16 | `Container(...)` alone, default `validate=True`, never opened, depth 6 | construction-time monotone walk |
 
 **Rules.** Containers are built/warmed in setup, never inside the timed call —
-**except G8 and G16**, which build the root container *inside* the timed call on
-purpose. G8 (its own file, `test_guard_cold.py`) measures the one-time
-construction + graph compile the other scenarios amortize away; G16 isolates
-construction alone, with the default `validate=True` and no `open()`, which is
-the one shape that pays for the construction-time monotone graph walk without
-ever amortizing it against a resolve.
+**except G8**, which builds the root container *inside* the timed call on
+purpose, measuring the one-time construction + graph compile the other
+scenarios amortize away.
 Cold-resolve scenarios (G1, G3, G4) use transient (uncached) providers so each
 timed call does the full wiring. G10/G11 use `benchmark.pedantic` with a
 per-round setup that builds a fresh unvalidated container (untimed), so they
@@ -123,8 +119,9 @@ instantiation, not resolution; that-depends wires at **import** and has no
 per-call build, so its cell is a `Factory`-reconstruction analog (6× `Factory.__init__`
 + resolve), not a container build. The honest reading is modern-di vs the
 build-time codegen frameworks (dishka/wireup), where staying `exec`-free wins by
-a wide margin. C5 aligns validation off (modern-di `validate=False`, dishka
-`skip_validation=True`) so it isolates build+compile.
+a wide margin. C5 aligns validation off (modern-di never validates unless
+`validate()` is called explicitly, dishka `skip_validation=True`) so it
+isolates build+compile.
 
 **Caveat — C6 is sync for all five** (a clean sync-vs-sync comparison, unlike
 C4), timing the per-request "supply value + resolve" cycle. Two structural

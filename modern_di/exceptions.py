@@ -264,6 +264,16 @@ class ContainerClosedWarning(RuntimeWarning):
         )
 
 
+class ValidateArgumentWarning(DeprecationWarning):
+    """`Container(validate=...)` is ignored; call `Container.validate()` instead."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "`Container(validate=...)` is ignored as of 3.1 and is removed in 4.0: "
+            "graph validation runs only when you call `container.validate()`."
+        )
+
+
 class UnvalidatedContainerWarning(FutureWarning):
     """Retained for back-compat of existing ``filterwarnings`` configs; no longer emitted.
 

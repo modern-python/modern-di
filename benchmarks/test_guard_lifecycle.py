@@ -24,7 +24,7 @@ class BuildGroup(Group):
 
 
 def test_g6_build_child_container(benchmark):
-    app = Container(scope=Scope.APP, groups=[BuildGroup], validate=False)
+    app = Container(scope=Scope.APP, groups=[BuildGroup])
     app.open()
     result = benchmark(app.build_child_container, scope=Scope.REQUEST)
     assert result.scope is Scope.REQUEST
@@ -33,7 +33,7 @@ def test_g6_build_child_container(benchmark):
 def test_g6b_build_child_container_auto_scope(benchmark):
     # Default path: no explicit scope -> auto-increment via _next_deeper. G6 passes an explicit
     # scope and never exercises it; this guards the memoized auto-increment step against regressing.
-    app = Container(scope=Scope.APP, groups=[BuildGroup], validate=False)
+    app = Container(scope=Scope.APP, groups=[BuildGroup])
     app.open()
     result = benchmark(app.build_child_container)
     assert result.scope is Scope.SESSION
@@ -58,7 +58,7 @@ class LifecycleGroup(Group):
 
 
 def test_g7_request_lifecycle(benchmark):
-    app = Container(scope=Scope.APP, groups=[LifecycleGroup], validate=False)
+    app = Container(scope=Scope.APP, groups=[LifecycleGroup])
     app.open()
     loop = asyncio.new_event_loop()
 
@@ -102,7 +102,7 @@ _TEARDOWN_PROVIDERS = [getattr(_TEARDOWN_GROUP, f"res{i}") for i in range(len(_R
 
 
 def test_g13_teardown_at_scale(benchmark):
-    app = Container(scope=Scope.APP, groups=[_TEARDOWN_GROUP], validate=False)
+    app = Container(scope=Scope.APP, groups=[_TEARDOWN_GROUP])
     app.open()
 
     def _one_request() -> Container:

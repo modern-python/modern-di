@@ -52,7 +52,7 @@ class _Deps(Group):
 
 
 def test_marker_resolve_delegates_to_container_resolve_dependency() -> None:
-    container = Container(groups=[_Deps], validate=True)
+    container = Container(groups=[_Deps])
     container.open()
     marker: Marker[_Service] = Marker(_Service)
 
@@ -123,7 +123,7 @@ def test_parse_markers_returns_empty_dict_when_no_markers() -> None:
 
 
 def test_resolve_markers_resolves_each_marker_by_name() -> None:
-    container = Container(groups=[_Deps], validate=True)
+    container = Container(groups=[_Deps])
     container.open()
     markers = {"service": Marker(_Service)}
 
@@ -133,7 +133,7 @@ def test_resolve_markers_resolves_each_marker_by_name() -> None:
 
 
 def test_resolve_markers_empty_input_returns_empty_dict() -> None:
-    container = Container(groups=[_Deps], validate=True)
+    container = Container(groups=[_Deps])
 
     assert resolve_markers(container, {}) == {}
 

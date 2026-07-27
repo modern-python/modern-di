@@ -71,7 +71,7 @@ def test_positional_path_binds_args_in_signature_order() -> None:
         c = providers.Factory(creator=_C, scope=Scope.APP)
         ordered = providers.Factory(creator=_make, scope=Scope.APP)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     plan = _plan(container.providers_registry, G.ordered)
     assert _positional_names(G.ordered, plan) is not None  # self-guard: positional path selected
@@ -185,7 +185,7 @@ def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyP
         c = providers.Factory(creator=_C, scope=Scope.APP)
         ordered = providers.Factory(creator=_make, scope=Scope.APP)
 
-    container = Container(groups=[G], validate=False)  # parse_creator already ran at G's class def
+    container = Container(groups=[G])  # parse_creator already ran at G's class def
     container.open()
     calls: list[object] = []
     real_signature = inspect.signature

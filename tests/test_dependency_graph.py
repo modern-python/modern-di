@@ -34,7 +34,7 @@ def test_walk_emits_node_then_edge_then_child() -> None:
         root = Factory(scope=Scope.APP, creator=Root)
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     events = list(DependencyGraph().walk([G.root, G.leaf], c))
     kinds = [type(e).__name__ for e in events]
     assert kinds[0] == "NodeEntered"
@@ -48,7 +48,7 @@ def test_walk_full_sequence_preorder() -> None:
         root = Factory(scope=Scope.APP, creator=Root)
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     events = list(DependencyGraph().walk([G.root], c))
     assert events == [
         NodeEntered(G.root),
@@ -62,7 +62,7 @@ def test_walk_emits_cycle_closing_on_first_node() -> None:
         a = Factory(scope=Scope.APP, creator=CycA)
         b = Factory(scope=Scope.APP, creator=CycB)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     cycles = [e for e in DependencyGraph().walk([G.a], c) if isinstance(e, Cycle)]
     assert cycles
     assert cycles[0].providers[0].provider_id == cycles[0].providers[-1].provider_id
@@ -73,7 +73,7 @@ def test_walk_cycle_edge_precedes_cycle_and_no_descent() -> None:
         a = Factory(scope=Scope.APP, creator=CycA)
         b = Factory(scope=Scope.APP, creator=CycB)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     events = list(DependencyGraph().walk([G.a], c))
     assert events == [
         NodeEntered(G.a),
@@ -98,7 +98,7 @@ def test_walk_visited_dep_not_re_entered() -> None:
         right = Factory(scope=Scope.APP, creator=R)
         shared = Factory(scope=Scope.APP, creator=Shared)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     events = list(DependencyGraph().walk([G.left, G.right], c))
     # Shared is a dep of both roots but entered exactly once.
     assert sum(isinstance(e, NodeEntered) and e.provider is G.shared for e in events) == 1
@@ -112,7 +112,7 @@ def test_walk_root_already_visited_is_skipped_entirely() -> None:
         root = Factory(scope=Scope.APP, creator=Root)
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     # leaf appears as a dep of root (first root) AND as a later root; the later root is skipped.
     events = list(DependencyGraph().walk([G.root, G.leaf], c))
     assert sum(isinstance(e, NodeEntered) and e.provider is G.leaf for e in events) == 1
@@ -122,7 +122,7 @@ def test_find_cycle_from_returns_none_when_acyclic() -> None:
     class G(Group):
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     assert DependencyGraph().find_cycle_from(G.leaf, c) is None
 
 
@@ -131,7 +131,7 @@ def test_find_cycle_from_returns_loop() -> None:
         a = Factory(scope=Scope.APP, creator=CycA)
         b = Factory(scope=Scope.APP, creator=CycB)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     cycle = DependencyGraph().find_cycle_from(G.a, c)
     assert cycle == [G.a, G.b, G.a]
 
@@ -148,7 +148,7 @@ def test_terminal_scope_follows_alias_chain() -> None:
         mid = Alias(source_type=ChainTerminal, bound_type=ChainMid)
         top = Alias(source_type=ChainMid, bound_type=ChainTop)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     assert DependencyGraph().terminal_scope(G.top, c) == Scope.REQUEST
 
 
@@ -161,7 +161,7 @@ def test_terminal_scope_alias_cycle_falls_back_to_self_scope() -> None:
         a = Alias(source_type=MutualY, bound_type=MutualX)
         b = Alias(source_type=MutualX, bound_type=MutualY)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     assert DependencyGraph().terminal_scope(G.a, c) == G.a.scope
 
 
@@ -174,7 +174,7 @@ def test_walk_dangling_dep_emits_dependencies_error() -> None:
         # Bound under Marker, sourced from the unregistered Missing -> get_dependencies raises.
         alias = Alias(Missing, bound_type=Marker)
 
-    c = Container(scope=Scope.APP, groups=[G], validate=False)
+    c = Container(scope=Scope.APP, groups=[G])
     events = list(DependencyGraph().walk([G.alias], c))
     assert isinstance(events[0], NodeEntered)
     assert events[0].provider is G.alias
@@ -200,7 +200,7 @@ def test_walk_emits_cycle_closed_through_kwargs_overlay() -> None:
     a = Factory(scope=Scope.APP, creator=KwCycA)
     b = Factory(scope=Scope.APP, creator=KwCycB, kwargs={"a": a})  # kwargs edge B -> A
 
-    c = Container(scope=Scope.APP, validate=False)
+    c = Container(scope=Scope.APP)
     c.providers_registry.add_providers(a, b)
 
     events = list(DependencyGraph().walk([a], c))

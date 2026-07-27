@@ -76,7 +76,6 @@ class Container:
         "_ever_closed",
         "_lock",
         "_scope_map",
-        "_validate_enabled",
         "cache_registry",
         "closed",
         "context_registry",
@@ -93,26 +92,24 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
         use_lock: bool = True,
-        validate: bool = True,
+        validate: bool | None = None,
     ) -> None:
         """Build a container at ``scope``.
 
         A container is usable as soon as it is constructed: the first :meth:`resolve`
-        prepares it (runs any deferred validation and marks it open). :meth:`open` and
-        ``with`` / ``async with`` stay available for fail-fast startup and for running
-        finalizers on the way out.
+        prepares it (marks it open). :meth:`open` and ``with`` / ``async with`` stay
+        available for deliberate startup and for running finalizers on the way out.
 
-        ``validate`` (default ``True``) enables the provider-graph check (cycles,
-        scope ordering, missing dependencies), whose monotone half (cycles, inverted
-        scopes) runs in ``__init__`` and whose completeness half runs once at first use.
-        Deferring completeness lets a framework integration register its context
-        providers after construction and still have the complete graph validated.
-        ``validate=False`` disables the check entirely; call :meth:`validate` explicitly
-        for a construction-time check. Only a root container validates; children (with
-        ``parent_container`` set) never do. ``context`` seeds this container's
-        context registry. A root container owns fresh registries; a child shares
-        the parent's providers/overrides registries and inherits its scope map.
+        ``validate`` is ignored and deprecated: passing it (either value) emits
+        :class:`~modern_di.exceptions.ValidateArgumentWarning` and changes nothing.
+        Graph validation (cycles, scope ordering, missing dependencies) runs only
+        when :meth:`validate` is called explicitly — construction, ``open()``, and
+        ``resolve()`` never trigger it. ``context`` seeds this container's context
+        registry. A root container owns fresh registries; a child shares the
+        parent's providers/overrides registries and inherits its scope map.
         """
+        if validate is not None:
+            warnings.warn(exceptions.ValidateArgumentWarning(), stacklevel=2)
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
@@ -143,12 +140,6 @@ class Container:
             for one_group in groups:
                 all_providers.extend(one_group.get_providers())
             self.providers_registry.add_providers(*all_providers)
-        # Root-only. Monotone issues (cycles, inverted scopes) raise here: registering more providers
-        # can only add such an error, never remove one. Completeness is held for first use.
-        self._validate_enabled = validate and parent_container is None
-        if self._validate_enabled:
-            self.providers_registry.set_validation_enabled(enabled=True)
-            self._eager_validate()
 
     def build_child_container(
         self,
@@ -226,102 +217,60 @@ class Container:
         except RecursionError as exc:
             _handle_recursion_error(provider, self, exc)
 
-    def _walk_errors(self) -> list[tuple[bool, Exception]]:
-        """Walk the graph once, returning `(is_monotone, error)` in walk order.
-
-        Monotone errors (cycles, inverted scopes) can only be *added* by registering more
-        providers, so they are safe to raise against a graph that is not yet complete.
-        """
-        walked: list[tuple[bool, Exception]] = []
+    def _walk_errors(self) -> list[Exception]:
+        """Walk the graph once, returning every wiring error in walk order."""
+        errors: list[Exception] = []
         graph = DependencyGraph()
         for event in graph.walk(self.providers_registry, self):
             # Event is a closed 4-variant union — every variant handled below.
             match event:
                 case NodeEntered(provider):
-                    walked.extend((False, issue) for issue in provider.iter_validation_issues(self))
+                    errors.extend(provider.iter_validation_issues(self))
                 case DependenciesError(_, error):
-                    walked.append((False, error))
+                    errors.append(error)
                 case Edge(parent, name, dep):
                     dep_terminal = graph.terminal_provider(dep, self)
                     dep_scope = dep_terminal.scope
-                    if dep_scope > graph.terminal_scope(parent, self):
-                        # A chain that bottoms out on an unregistered target reports a placeholder
-                        # scope, so the inversion it implies is speculative — registering the target
-                        # can remove it. Defer it; the dangling redirect is reported on its own.
-                        walked.append(
-                            (
-                                not dep_terminal.has_dangling_redirect(self),
-                                exceptions.InvalidScopeDependencyError(
-                                    provider=parent,
-                                    parameter_name=name,
-                                    dep_provider=dep,
-                                    dep_scope=dep_scope,
-                                ),
+                    # A chain bottoming out on an unregistered target reports a placeholder scope,
+                    # so the inversion it implies is speculative; the dangling redirect is reported
+                    # on its own by that node's dependency lookup.
+                    if dep_scope > graph.terminal_scope(parent, self) and not dep_terminal.has_dangling_redirect(self):
+                        errors.append(
+                            exceptions.InvalidScopeDependencyError(
+                                provider=parent,
+                                parameter_name=name,
+                                dep_provider=dep,
+                                dep_scope=dep_scope,
                             )
                         )
                 case Cycle(providers):
-                    walked.append((True, build_cycle_error(providers)))
-        return walked
+                    errors.append(build_cycle_error(providers))
+        return errors
 
     def validate(self) -> None:
         reg = self.providers_registry
         if reg.is_validated():
             return  # already validated at this registry state — no re-walk
 
-        validation_errors = [error for _, error in self._walk_errors()]
+        validation_errors = self._walk_errors()
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
         reg.mark_validated()
 
-    def _eager_validate(self) -> None:
-        """Raise the graph's monotone issues now; hold its completeness issues for first use."""
-        walked = self._walk_errors()
-        monotone = [error for is_monotone, error in walked if is_monotone]
-        if monotone:
-            raise exceptions.ValidationFailedError(errors=monotone)
-        pending = [error for is_monotone, error in walked if not is_monotone]
-        if pending:
-            self.providers_registry.set_pending_errors(pending)
-        else:
-            self.providers_registry.mark_validated()
-
-    def _complete_validation(self) -> None:
-        """Finish the deferred half of the check: raise the held issues, or re-walk if the graph moved."""
-        reg = self.providers_registry
-        pending = reg.take_pending_errors()
-        if pending:
-            raise exceptions.ValidationFailedError(errors=pending)
-        self.validate()
-
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
         """Register providers on this (root) container after construction.
 
-        This is the blessed seam for framework integrations that discover providers
-        after the container is built. Root-only: calling this on a child container
-        raises :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since
-        the providers registry is shared tree-wide. If validation is enabled, the
-        monotone half (cycles, inverted scopes) re-runs immediately against the new
-        graph; the completeness half (missing dependencies, dangling aliases) is
-        re-deferred to first use, since a later ``add_providers`` call may still
-        complete the graph. Atomic: if the monotone re-check raises *any* exception,
-        the whole batch is removed again before the error propagates — either the
-        batch is fully registered, or the container is unchanged. Registration is a
-        startup-time operation: concurrent ``add_providers`` calls on the same root
-        are not coordinated beyond the registry's internal lock.
+        The blessed seam for framework integrations that discover providers after the
+        container is built. Root-only: on a child this raises
+        :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since the registry
+        it mutates is shared tree-wide. Registration does not validate; the mutation clears
+        the registry's validated flag, so a later :meth:`validate` re-walks the new graph.
+        Registration is a startup-time operation: concurrent calls on the same root are not
+        coordinated beyond the registry's internal lock.
         """
         if self.parent_container is not None:
             raise exceptions.ChildContainerRegistrationError(scope=self.scope)
-        reg = self.providers_registry
-        # Read before mutating: `add_providers` invalidates the registry, clearing `is_validated`.
-        recheck = reg.is_validation_enabled() or reg.is_validated()
-        reg.add_providers(*providers)
-        if recheck:
-            try:
-                self._eager_validate()
-            except Exception:
-                added_types = [provider.bound_type for provider in providers if provider.bound_type]
-                reg._remove_providers(*added_types)  # noqa: SLF001
-                raise
+        self.providers_registry.add_providers(*providers)
 
     async def close_async(self) -> None:
         if not self.parent_container:
@@ -379,20 +328,15 @@ class Container:
         """Prepare the container now, instead of on first use.
 
         Optional: a constructed container prepares itself on the first :meth:`resolve` or
-        on the first resolve through a child. Call this to fail fast at startup (it runs
-        any deferred validation) and to reopen a closed container deliberately. Calling it
-        on an already-open container is **not** a no-op: it still re-runs any validation the
-        registry is holding (e.g. completeness errors a later ``add_providers`` call left
-        pending), though this costs nothing once the graph is clean.
+        on the first resolve through a child. Call this to reopen a closed container
+        deliberately. It does not validate the graph — call :meth:`validate` explicitly for
+        that. A no-op on an already-open container.
         """
         with self._lock or contextlib.nullcontext():
             self._ensure_ready()
 
     def _ensure_ready(self) -> None:
-        """Finish any deferred validation, then mark this container open."""
-        reg = self.providers_registry
-        if not reg.is_validated() and (reg.is_validation_enabled() or reg.has_pending_errors()):
-            self._complete_validation()
+        """Mark this container open."""
         self.closed = False
 
     def _prepare(self) -> None:

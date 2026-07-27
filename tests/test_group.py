@@ -169,7 +169,7 @@ def test_group_scope_stamps_defaulted_providers() -> None:
 
     assert RequestGroup.svc.scope is Scope.REQUEST
     assert RequestGroup.ctx.scope is Scope.REQUEST
-    app_container = Container(groups=[RequestGroup], validate=True)
+    app_container = Container(groups=[RequestGroup])
     app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     request_container.open()

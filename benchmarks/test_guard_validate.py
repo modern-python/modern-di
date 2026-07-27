@@ -4,10 +4,9 @@
 `Container.validate()` walks the whole provider graph (cycle detection + transitive-scope
 checks). It memoizes on the providers registry, so it does full work only once per registry;
 G10/G11 use `benchmark.pedantic` with a per-round setup that builds a fresh unvalidated
-container (untimed) and time `validate()` alone. On 3.1 the monotone half of that walk runs
-in `Container.__init__` and marks a clean graph validated, so this is a real startup cost;
-G10 guards the deep-chain traversal, G11 the wide fan-out, and G16 the construct-only
-container that pays for the walk without ever being opened. See benchmarks/README.md.
+container (untimed) and time `validate()` alone. `validate()` is the only trigger — construction
+never walks the graph — so G10 guards the deep-chain traversal and G11 the wide fan-out.
+See benchmarks/README.md.
 """
 
 import dataclasses
@@ -56,12 +55,13 @@ class ChainGroup(Group):
 
 
 def test_g10_validate_deep_chain(benchmark):
-    good = Container(scope=Scope.APP, groups=[ChainGroup], validate=True)  # raises if invalid
+    good = Container(scope=Scope.APP, groups=[ChainGroup])
+    good.validate()  # raises if invalid
     good.open()
     assert isinstance(good.resolve_provider(ChainGroup.c0), C0)
     benchmark.pedantic(
         lambda c: c.validate(),
-        setup=lambda: ((Container(scope=Scope.APP, groups=[ChainGroup], validate=False),), {}),
+        setup=lambda: ((Container(scope=Scope.APP, groups=[ChainGroup]),), {}),
         rounds=3000,
         iterations=1,
     )
@@ -147,22 +147,13 @@ class WideGroup(Group):
 
 
 def test_g11_validate_wide(benchmark):
-    good = Container(scope=Scope.APP, groups=[WideGroup], validate=True)  # raises if invalid
+    good = Container(scope=Scope.APP, groups=[WideGroup])
+    good.validate()  # raises if invalid
     good.open()
     assert isinstance(good.resolve_provider(WideGroup.wide), Wide)
     benchmark.pedantic(
         lambda c: c.validate(),
-        setup=lambda: ((Container(scope=Scope.APP, groups=[WideGroup], validate=False),), {}),
+        setup=lambda: ((Container(scope=Scope.APP, groups=[WideGroup]),), {}),
         rounds=3000,
         iterations=1,
     )
-
-
-# --- G16 subject: construct-only, default validate=True, never opened ------
-def test_g16_construct_only_validating(benchmark):
-    # The one cost split validation measurably raises: the monotone walk moved into __init__,
-    # so a container that is constructed and never opened now pays for it upfront. Construct-then-
-    # open is flat (G10/G11 time the same walk), which is why it needs its own scenario.
-    container = benchmark(lambda: Container(scope=Scope.APP, groups=[ChainGroup]))
-    assert container.providers_registry.is_validated() is True  # clean graph, walked at construction
-    assert container.closed is True  # never opened

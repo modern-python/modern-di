@@ -25,7 +25,7 @@ def test_cycle_path_and_locations_shape() -> None:
         a = Factory(scope=Scope.APP, creator=_A)
         b = Factory(scope=Scope.APP, creator=_B)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container = Container(scope=Scope.APP, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as ei:
         container.validate()
     cyc = next(e for e in ei.value.errors if isinstance(e, exceptions.CircularDependencyError))
@@ -52,7 +52,7 @@ def test_validate_collects_all_error_kinds_once() -> None:
         deep = Factory(scope=Scope.REQUEST, creator=Deep)
         shallow = Factory(scope=Scope.APP, creator=Shallow)  # deeper dep -> InvalidScopeDependencyError
 
-    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container = Container(scope=Scope.APP, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as ei:
         container.validate()
     assert any(isinstance(e, exceptions.ArgumentResolutionError) for e in ei.value.errors)
@@ -65,7 +65,7 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
     class G(Group):
         x = Factory(scope=Scope.APP, creator=X)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=True)
+    container = Container(scope=Scope.APP, groups=[G])
     container.validate()  # already validated at construction (clean graph) -- confirms the flag is set
 
     def _explode(*_: object, **__: object) -> object:  # pragma: no cover
@@ -81,7 +81,7 @@ def test_runtime_guard_converts_unvalidated_cycle() -> None:
         a = Factory(scope=Scope.APP, creator=_A)
         b = Factory(scope=Scope.APP, creator=_B)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container = Container(scope=Scope.APP, groups=[G])
     container.open()
     with pytest.raises(exceptions.CircularDependencyError):
         container.resolve(_A)

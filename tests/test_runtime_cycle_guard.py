@@ -95,7 +95,7 @@ def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
     # assertions after the `with` block) keeps this deterministic under coverage.py — see
     # `_SHALLOW_RECURSION_LIMIT` above. It mirrors the guard's own `except RecursionError` shape
     # in `resolve_provider`.
-    container = Container(groups=[CycleGroup], validate=False)  # exercise the runtime guard, not validation
+    container = Container(groups=[CycleGroup])  # exercise the runtime guard, not validation
     container.open()
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
@@ -127,7 +127,7 @@ def _assert_deep_chain_cycle_is_self_contained(exc: exceptions.CircularDependenc
 
 
 def test_deep_chain_cycle_is_self_contained() -> None:
-    container = Container(groups=[DeepCycleGroup], validate=False)  # exercise the runtime guard, not validation
+    container = Container(groups=[DeepCycleGroup])  # exercise the runtime guard, not validation
     container.open()
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
@@ -149,9 +149,9 @@ def test_self_recursing_creator_passes_through_recursion_error() -> None:
     class RecursiveGroup(Group):
         svc = providers.Factory(creator=recursive_creator, bound_type=str)
 
-    # validate=False keeps the registry unvalidated, so the guard runs find_cycle_from (no static cycle ->
-    # re-raise) rather than short-circuiting on the validated flag.
-    container = Container(groups=[RecursiveGroup], validate=False)
+    # The registry starts unvalidated (nothing here calls validate()), so the guard runs
+    # find_cycle_from (no static cycle -> re-raise) rather than short-circuiting on the validated flag.
+    container = Container(groups=[RecursiveGroup])
     container.open()
     with pytest.raises(RecursionError):
         container.resolve(str)
@@ -167,7 +167,8 @@ def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytes
     class G(Group):
         s = providers.Factory(scope=Scope.APP, creator=SelfRec)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=True)
+    container = Container(scope=Scope.APP, groups=[G])
+    container.validate()  # marks the graph validated -> the recursion guard short-circuits below
     container.open()
 
     def _explode(*_: object, **__: object) -> object:  # pragma: no cover
@@ -206,7 +207,7 @@ def test_cycle_error_is_canonical_and_self_contained() -> None:
         a = providers.Factory(creator=_CanonicalA, scope=Scope.APP)
         b = providers.Factory(creator=_CanonicalB, scope=Scope.APP)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container = Container(scope=Scope.APP, groups=[G])
     container.open()
     limit = sys.getrecursionlimit()
     sys.setrecursionlimit(80)

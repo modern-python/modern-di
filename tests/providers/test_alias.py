@@ -27,7 +27,7 @@ class MyGroup(Group):
 
 
 def test_alias_delegates_to_source() -> None:
-    container = Container(groups=[MyGroup], validate=True)
+    container = Container(groups=[MyGroup])
     container.open()
     concrete = container.resolve(PostgresRepository)
     abstract = container.resolve(AbstractRepository)
@@ -89,8 +89,7 @@ def test_alias_missing_source_raises_on_resolve() -> None:
     class G(Group):
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
-    # validate=False: this exercises the resolve-time dangling-source error, not deferred validation.
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository") as exc:
         container.resolve(AbstractRepository)
@@ -101,7 +100,7 @@ def test_alias_missing_source_raises_on_validate_provider() -> None:
     class G(Group):
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository"):
         container.resolve_provider(G.abstract)
@@ -118,8 +117,9 @@ def test_alias_participates_in_cycle_detection() -> None:
         concrete = providers.Factory(creator=Concrete)
         iface_alias = providers.Alias(source_type=Concrete, bound_type=Iface)
 
+    container = Container(groups=[G])
     with pytest.raises(ValidationFailedError) as exc:
-        Container(groups=[G], validate=True)  # monotone: raises at construction
+        container.validate()
     [issue] = exc.value.errors
     assert isinstance(issue, CircularDependencyError)
     assert "Concrete" in str(issue)
@@ -159,9 +159,9 @@ class _DanglingAliasGroup(Group):
 
 
 def test_validate_aggregates_dangling_alias_into_validation_failed_error() -> None:
-    container = Container(scope=Scope.APP, groups=[_DanglingAliasGroup], validate=True)
+    container = Container(scope=Scope.APP, groups=[_DanglingAliasGroup])
     with pytest.raises(ValidationFailedError) as exc_info:
-        container.open()  # deferred validation runs at entry
+        container.validate()
     errors = exc_info.value.errors
     assert any(isinstance(e, AliasSourceNotRegisteredError) for e in errors)
     min_expected_errors = 2
@@ -188,7 +188,8 @@ class _ChainGroup(Group):
 
 def test_alias_of_alias_resolves_to_source_and_validates() -> None:
     # all alias sources registered, so B-5 validate aggregation is not in play
-    container = Container(scope=Scope.APP, groups=[_ChainGroup], validate=True)
+    container = Container(scope=Scope.APP, groups=[_ChainGroup])
+    container.validate()
     container.open()
     impl = container.resolve(_ChainImpl)
     assert container.resolve(_ChainIfB) is impl
@@ -247,7 +248,7 @@ class _AliasChainErrGroup(Group):
 
 
 def test_alias_appears_in_resolution_error_chain() -> None:
-    container = Container(scope=Scope.APP, groups=[_AliasChainErrGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[_AliasChainErrGroup])
     container.open()
     with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
         container.resolve(_AliasTargetIface)
@@ -269,7 +270,7 @@ class _NullBoundAliasGroup(Group):
 
 
 def test_alias_null_bound_type_resolution_error_uses_repr_fallback() -> None:
-    container = Container(scope=Scope.APP, groups=[_NullBoundAliasGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[_NullBoundAliasGroup])
     container.open()
     with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
         container.resolve_provider(_NullBoundAliasGroup.iface)
@@ -295,8 +296,9 @@ class _XfourGroup(Group):
 
 
 def test_validate_flags_shallow_caller_depending_through_alias_on_deeper_source() -> None:
+    container = Container(scope=Scope.APP, groups=[_XfourGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        Container(scope=Scope.APP, groups=[_XfourGroup], validate=True)  # monotone: raises at construction
+        container.validate()
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
     assert "REQUEST" in str(exc_info.value)
 
@@ -319,7 +321,7 @@ class _OkGroup(Group):
 
 
 def test_validate_allows_same_scope_caller_through_alias() -> None:
-    Container(scope=Scope.APP, groups=[_OkGroup], validate=True).open()  # deferred validation runs at entry
+    Container(scope=Scope.APP, groups=[_OkGroup]).validate()  # must not raise
 
 
 class _ChainTerminal: ...
@@ -345,8 +347,9 @@ class _AliasOfAliasGroup(Group):
 
 def test_validate_follows_alias_of_alias_to_terminal_scope() -> None:
     # caller(APP) -> top(alias) -> mid(alias) -> terminal(REQUEST): effective scope follows 2 hops -> flagged
+    container = Container(scope=Scope.APP, groups=[_AliasOfAliasGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        Container(scope=Scope.APP, groups=[_AliasOfAliasGroup], validate=True)  # monotone: raises at construction
+        container.validate()
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
     assert "REQUEST" in str(exc_info.value)
 
@@ -364,7 +367,7 @@ class _MutualAliasGroup(Group):
 
 def test_terminal_scope_handles_mutual_alias_cycle() -> None:
     # Mutual aliases: terminal_scope must terminate via the `seen` guard and fall back to `a`'s own scope.
-    container = Container(scope=Scope.APP, groups=[_MutualAliasGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[_MutualAliasGroup])
     assert DependencyGraph().terminal_scope(_MutualAliasGroup.a, container) is _MutualAliasGroup.a.scope
     # validate() also reports the cycle separately.
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
@@ -385,7 +388,7 @@ def test_alias_accepts_positional_source_type() -> None:
         repo = providers.Factory(creator=PostgresRepository, cache=True)
         abstract = providers.Alias(PostgresRepository, bound_type=AbstractRepository)
 
-    container = Container(groups=[G], validate=True)
+    container = Container(groups=[G])
     container.open()
     assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
 
@@ -446,29 +449,23 @@ class _LateSourceGroup(Group):
     caller = providers.Factory(scope=_BelowApp.ROOT, creator=_LateCaller)
 
 
-def test_inversion_through_a_dangling_alias_is_deferred_not_raised() -> None:
-    container = Container(scope=_BelowApp.ROOT, groups=[_LateSourceGroup])  # must not raise
-    assert container.providers_registry.has_pending_errors() is True
-    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        container.open()
-    assert any(isinstance(e, AliasSourceNotRegisteredError) for e in exc_info.value.errors)
-
-
-def test_inversion_through_a_registered_alias_still_raises_at_construction() -> None:
+def test_inversion_through_a_registered_alias_still_raises() -> None:
     class G(Group):
         late = providers.Alias(_LateConcrete, bound_type=_LateIface)
         concrete = providers.Factory(scope=_BelowApp.REQ, creator=_LateConcrete)
         caller = providers.Factory(scope=_BelowApp.ROOT, creator=_LateCaller)
 
+    container = Container(scope=_BelowApp.ROOT, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        Container(scope=_BelowApp.ROOT, groups=[G])
+        container.validate()
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
 
 
 def test_registering_the_alias_source_later_surfaces_the_real_inversion() -> None:
     container = Container(scope=_BelowApp.ROOT, groups=[_LateSourceGroup])
+    container.add_providers(providers.Factory(scope=_BelowApp.REQ, creator=_LateConcrete))  # registers quietly
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
-        container.add_providers(providers.Factory(scope=_BelowApp.REQ, creator=_LateConcrete))
+        container.validate()
     assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
 
 
@@ -479,4 +476,30 @@ def test_dangling_alias_at_a_shallower_scope_validates_clean_once_registered() -
         caller = providers.Factory(scope=_BelowApp.ROOT, creator=_LateCaller)
 
     container = Container(scope=_BelowApp.ROOT, groups=[G])
+    container.validate()
     assert container.providers_registry.is_validated() is True
+
+
+def test_validate_suppresses_an_inversion_measured_against_a_dangling_alias() -> None:
+    class _Below(enum.IntEnum):
+        ROOT = 0
+        REQ = 5
+
+    class Iface: ...
+
+    class Concrete: ...
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Svc:
+        dep: Iface
+
+    class G(Group):
+        alias = providers.Alias(Concrete, bound_type=Iface)  # source never registered
+        svc = providers.Factory(creator=Svc, scope=_Below.ROOT)
+
+    container = Container(scope=_Below.ROOT, groups=[G])
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    kinds = {type(error).__name__ for error in exc.value.errors}
+    assert "AliasSourceNotRegisteredError" in kinds
+    assert "InvalidScopeDependencyError" not in kinds  # speculative: the placeholder scope is not real
