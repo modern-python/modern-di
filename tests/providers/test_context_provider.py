@@ -177,6 +177,20 @@ def test_context_provider_through_closed_owning_container_warns() -> None:
     assert app.closed is False  # the owning ancestor reopened itself
 
 
+def test_context_provider_does_not_prepare_an_already_open_container(monkeypatch: pytest.MonkeyPatch) -> None:
+    # `_prepare()` takes the container's RLock before re-checking `closed`, so calling it
+    # unconditionally would serialize every context resolve on the owning container's lock.
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app = Container(groups=[MyGroup], context={datetime.datetime: now})
+    app.open()
+
+    def _forbidden(*_: object) -> None:  # pragma: no cover - the assertion is that it never runs
+        pytest.fail("_prepare() must not run on an already-open container")
+
+    monkeypatch.setattr(Container, "_prepare", _forbidden)
+    assert app.resolve_provider(MyGroup.context_provider) == now
+
+
 # Q-12 — ContextProvider reads the registry at its OWN scope
 
 

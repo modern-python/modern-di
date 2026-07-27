@@ -1,12 +1,14 @@
 import copy
 import dataclasses
 import inspect
+import os
 import typing
 import warnings
 
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers, suggester
+from modern_di import container as container_module
 from modern_di.exceptions import (
     ArgumentResolutionError,
     ChildContainerRegistrationError,
@@ -539,6 +541,17 @@ def test_child_built_off_closed_parent_warns_only_when_the_parent_resolves() -> 
         child = app.build_child_container(scope=Scope.REQUEST)
     with pytest.warns(ContainerClosedWarning):
         child.resolve(_PersistentBroker)  # navigates to the closed APP owner
+
+
+def test_caller_stacklevel_does_not_skip_sibling_packages() -> None:
+    # `modern_di_fastapi/` is a *sibling* of `modern_di/`, not part of it: a warning raised through
+    # an integration must stop at the integration, not walk past it into framework code. Driven with
+    # a synthesized frame so the test needs no sibling package installed.
+    package_dir = container_module._PACKAGE_DIR  # noqa: SLF001
+    sibling = f"{package_dir.rstrip(os.sep)}_fastapi{os.sep}routing.py"
+    namespace: dict[str, typing.Any] = {}
+    exec(compile("def integration(fn):\n    return fn()\n", sibling, "exec"), namespace)  # noqa: S102
+    assert namespace["integration"](container_module._caller_stacklevel) == 1  # noqa: SLF001
 
 
 def test_container_closed_warning_message() -> None:

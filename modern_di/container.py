@@ -1,5 +1,6 @@
 import contextlib
 import enum
+import os
 import pathlib
 import sys
 import threading
@@ -47,7 +48,9 @@ def _handle_recursion_error(
     raise build_cycle_error(cycle) from exc
 
 
-_PACKAGE_DIR = str(pathlib.Path(__file__).parent)
+# Trailing separator included: without it the prefix test also swallows sibling packages
+# (`modern_di_fastapi/`, `modern_di_pytest/`, ...), attributing a warning past the integration.
+_PACKAGE_DIR = str(pathlib.Path(__file__).parent) + os.sep
 
 
 def _caller_stacklevel() -> int:
