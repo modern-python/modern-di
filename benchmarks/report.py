@@ -9,6 +9,11 @@ by-type lookup, that-depends and dependency-injector only by-reference. Each C1-
 one modern-di variant against the rivals whose API matches it, so no published cell is ever n/a.
 C4 does not split this way: modern-di resolves by reference throughout its C4 body, so that table
 compares it against all four rivals regardless of which lookup API they natively expose.
+
+Ratios are **paired per run**: one run measures both sides under the same machine state, so the
+published statistic is the median of the per-run ratios, not a ratio of two independently-reduced
+medians. Pairing also gives each ratio a well-defined across-run IQR, published as `±X.X%` on the
+cell -- a ratio of two medians has none, which is why these columns used to be bare.
 """
 
 import argparse
@@ -98,19 +103,18 @@ def parse_run(payload: dict) -> dict[tuple[str, str], float]:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class _Cell:
-    """One reduced (scenario, framework) cell: the across-run median, plus its spread.
+    """One published cell reduced across runs: the median, plus its spread.
 
-    `iqr_pct` is the interquartile range of the run values, as a percentage of `median` --
-    None when fewer than 2 runs report this key, since IQR is undefined for a single value.
+    `iqr_pct` is the interquartile range of the per-run values, as a percentage of `median` --
+    None when fewer than 2 runs contribute, since IQR is undefined for a single value.
     """
 
     median: float
     iqr_pct: float | None
 
 
-def _reduce_cell(runs: list[dict[tuple[str, str], float]], key: tuple[str, str]) -> _Cell | None:
-    """Reduce one (scenario, framework) cell across runs; None if no run reports this key."""
-    values = [run[key] for run in runs if key in run]
+def _reduce(values: list[float]) -> _Cell | None:
+    """Reduce per-run values to a median and its across-run IQR%; None if no run contributed."""
     if not values:
         return None
     median = statistics.median(values)
@@ -118,6 +122,23 @@ def _reduce_cell(runs: list[dict[tuple[str, str], float]], key: tuple[str, str])
         return _Cell(median, None)
     q1, _q2, q3 = statistics.quantiles(values, n=4, method="inclusive")
     return _Cell(median, (q3 - q1) / median * 100)
+
+
+def _reduce_cell(runs: list[dict[tuple[str, str], float]], key: tuple[str, str]) -> _Cell | None:
+    """Reduce one (scenario, framework) cell across runs; None if no run reports this key."""
+    return _reduce([run[key] for run in runs if key in run])
+
+
+def _reduce_ratio(
+    runs: list[dict[tuple[str, str], float]], ours: tuple[str, str], theirs: tuple[str, str]
+) -> _Cell | None:
+    """Reduce the ours/theirs ratio, paired within each run; None if no run reports both keys.
+
+    Pairing is what makes the ratio's IQR meaningful: a run measures both sides under the same
+    machine state, so dividing within the run cancels that state instead of carrying it into
+    two separately-reduced medians.
+    """
+    return _reduce([run[ours] / run[theirs] for run in runs if ours in run and theirs in run])
 
 
 def _format_time(seconds: float) -> str:
@@ -142,14 +163,17 @@ def _render(table: Table, parsed: list[dict[tuple[str, str], float]]) -> str:
             modern_di_pcts.append(ours.iqr_pct)
         cells = [row.label, cell]
         for rival in table.rivals:
-            theirs = _reduce_cell(parsed, (row.rival_key, rival))
-            if theirs is None:
+            # The divisor cancels inside the paired ratio too -- both sides are batched alike.
+            ratio = _reduce_ratio(parsed, (row.modern_di_key, "modern_di"), (row.rival_key, rival))
+            if ratio is None:
                 cells.append("n/a")
                 continue
-            # Ratio columns stay bare: a ratio of two medians has no clean IQR of its own.
-            ratio = ours.median / theirs.median
-            cells.append(f"**{ratio:.2f}**" if ratio < 1.0 else f"{ratio:.2f}")
-            if theirs.iqr_pct is not None:
+            text = f"**{ratio.median:.2f}**" if ratio.median < 1.0 else f"{ratio.median:.2f}"
+            if ratio.iqr_pct is not None:
+                text += f" ±{ratio.iqr_pct:.1f}%"
+            cells.append(text)
+            theirs = _reduce_cell(parsed, (row.rival_key, rival))
+            if theirs is not None and theirs.iqr_pct is not None:
                 rival_pcts.append(theirs.iqr_pct)
         lines.append("| " + " | ".join(cells) + " |")
     if modern_di_pcts and rival_pcts:

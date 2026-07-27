@@ -77,12 +77,54 @@ def test_build_table_takes_the_median_across_runs() -> None:
         )
         for median in (1e-6, 3e-6, 2e-6)
     ]
-    # median of (1, 3, 2) is 2 µs, so both ratios are exactly 1.00. modern-di now spans 3 runs
-    # with real spread (1, 3, 2 µs), so Fix 6 forces an IQR% onto the modern-di cell: quantiles
-    # of [1, 2, 3] (inclusive) are Q1=1.5, Q3=2.5 -> IQR 1.0 / median 2.0 * 100 = 50.0%.
+    # median of (1, 3, 2) is 2 µs, so the modern-di cell reads 2.00 µs; quantiles of [1, 2, 3]
+    # (inclusive) are Q1=1.5, Q3=2.5 -> IQR 1.0 / median 2.0 * 100 = 50.0%.
+    # The ratios are paired per run: (0.5, 1.5, 1.0) against each constant 2 µs rival -> median
+    # 1.00, quantiles Q1=0.75, Q3=1.25 -> IQR 0.5 / median 1.0 * 100 = 50.0%.
     assert _section(build_table(runs), "By-reference resolution") == [
-        ["C1 transient", "2.00 µs ±50.0%", "1.00", "1.00"]
+        ["C1 transient", "2.00 µs ±50.0%", "1.00 ±50.0%", "1.00 ±50.0%"]
     ]
+
+
+def test_build_table_ratio_is_median_of_paired_per_run_ratios() -> None:
+    # Each run measures both sides under the same machine state, so the ratio must be reduced
+    # per run, not as a ratio of two independently-reduced medians. Hand-computed:
+    #   modern-di (µs): 1, 2, 6      rival (µs): 2, 1, 3
+    #   per-run ratios:  0.5, 2.0, 2.0 -> median 2.00  (a ratio of medians would give 2/2 = 1.00)
+    #   quantiles of [0.5, 2.0, 2.0] (inclusive): Q1=1.25, Q3=2.0 -> IQR 0.75 / 2.0 * 100 = 37.5%
+    #   modern-di column: median 2 µs; quantiles of [1, 2, 6]: Q1=1.5, Q3=4.0 -> 2.5 / 2.0 = 125.0%
+    runs = [
+        _run(test_c1_transient_by_ref_modern_di=ours, test_c1_transient_dependency_injector=theirs)
+        for ours, theirs in ((1e-6, 2e-6), (2e-6, 1e-6), (6e-6, 3e-6))
+    ]
+    row = _section(build_table(runs), "By-reference resolution")[0]
+    assert row[:3] == ["C1 transient", "2.00 µs ±125.0%", "2.00 ±37.5%"]
+
+
+def test_build_table_bolds_a_sub_one_ratio_without_swallowing_its_annotation() -> None:
+    # modern-di (ns): 100, 100, 100; rival (ns): 200, 400, 400 -> ratios 0.5, 0.25, 0.25
+    # median 0.25; quantiles of [0.25, 0.25, 0.5] (inclusive): Q1=0.25, Q3=0.375
+    # -> IQR 0.125 / 0.25 * 100 = 50.0%. Bold marks the verdict; the ± stays outside it.
+    runs = [
+        _run(test_c1_transient_by_ref_modern_di=1e-7, test_c1_transient_dependency_injector=theirs)
+        for theirs in (2e-7, 4e-7, 4e-7)
+    ]
+    row = _section(build_table(runs), "By-reference resolution")[0]
+    assert row[2] == "**0.25** ±50.0%"
+
+
+def test_build_table_ratio_pairs_only_runs_reporting_both_sides() -> None:
+    # A rival missing from one run must not shift the pairing: only the two complete runs count.
+    # ratios: 1e-6/2e-6 = 0.5 and 3e-6/2e-6 = 1.5 -> median 1.00; quantiles of [0.5, 1.5]
+    # (inclusive) are Q1=0.75, Q3=1.25 -> IQR 0.5 / median 1.0 * 100 = 50.0%. Pairing the
+    # incomplete middle run instead (9e-6/2e-6 = 4.5) would move both the median and the IQR.
+    runs = [
+        _run(test_c1_transient_by_ref_modern_di=1e-6, test_c1_transient_dependency_injector=2e-6),
+        _run(test_c1_transient_by_ref_modern_di=9e-6),
+        _run(test_c1_transient_by_ref_modern_di=3e-6, test_c1_transient_dependency_injector=2e-6),
+    ]
+    row = _section(build_table(runs), "By-reference resolution")[0]
+    assert row[2] == "1.00 ±50.0%"
 
 
 def test_build_table_shows_across_run_iqr_percent_on_modern_di_cell() -> None:
@@ -94,8 +136,9 @@ def test_build_table_shows_across_run_iqr_percent_on_modern_di_cell() -> None:
     ]
     row = _section(build_table(runs), "By-reference resolution")[0]
     assert row[:2] == ["C1 transient", "310 ns ±4.8%"]
-    # the ratio column stays bare -- no spread is fabricated for a ratio of two medians
-    assert "±" not in row[2]
+    # the ratio column carries its own spread too: each run measures both sides under the same
+    # machine state, so the per-run ratios have a well-defined IQR (see the paired-ratio test below).
+    assert "±" in row[2]
 
 
 def test_build_table_footnote_reports_worst_spread_in_that_table() -> None:
