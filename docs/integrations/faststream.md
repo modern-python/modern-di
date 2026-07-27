@@ -54,7 +54,9 @@ class AppGroup(Group):
 
 broker = NatsBroker()
 app = faststream.FastStream(broker=broker)
-modern_di_faststream.setup_di(app, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+modern_di_faststream.setup_di(app, container)
+container.validate()  # after setup_di — its connection providers are now registered
 
 
 @broker.subscriber("orders.in")
@@ -127,10 +129,9 @@ class AppGroup(Group):
     etc.) with `TestApp` in the **same** `with` / `async with` statement.
     FastStream's `TestBroker` decides whether to run app `on_startup` hooks by
     inspecting that statement; `async with TestNatsBroker(broker):` alone
-    starts the broker without running `on_startup`, so the root container
-    stays unopened — published messages still get handled (the root prepares
-    itself on first use), but nothing ever closes it, so its finalizers never
-    run.
+    starts the broker without running `on_startup` — published messages still
+    get handled (the container is already open from construction), but
+    nothing ever closes it, so its finalizers never run.
 
 ## See also
 

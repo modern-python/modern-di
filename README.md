@@ -67,7 +67,7 @@ class Dependencies(Group):
     user_repository = providers.Factory(UserRepository, scope=Scope.REQUEST)
 
 
-with Container(groups=[Dependencies], validate=True) as container:
+with Container(groups=[Dependencies]) as container:
     with container.build_child_container(scope=Scope.REQUEST) as request:
         repo = request.resolve(UserRepository)
         print(repo.settings.database_url)

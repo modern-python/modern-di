@@ -249,11 +249,27 @@ construct-then-use call site audited for a matching `with`/`open()` before it ca
 
 **Changed again in 3.1.** This requirement is relaxed, not reversed: see the
 [3.1 release notes](https://github.com/modern-python/modern-di/releases) for the full
-change. A container is usable immediately after construction again — the first `resolve`
-prepares it — and reusing a container after an explicit close warns (`ContainerClosedWarning`)
-and reopens instead of raising `ContainerClosedError`. Every pattern shown above under
-"After (3.0)" keeps working unchanged in 3.1 — `with`/`open()` still opens, still validates,
-still fails fast — this switch just stops being mandatory for code that skips it.
+change. A container is **open from construction** again — `closed = False` the moment
+`Container(...)` returns, no `open()` step required — and reusing a container after an
+explicit close warns (`ContainerClosedWarning`) and reopens instead of raising
+`ContainerClosedError`.
+
+An earlier version of this note said every pattern shown above under "After (3.0)" kept
+working unchanged, including that `with`/`open()` "still validates, still fails fast." That
+part was wrong and has been corrected here: **validation is explicit-only as of 3.1.**
+`open()` (and `with`/`async with`, which call it) no longer runs `validate()` — it only
+clears `closed`, unconditionally, with no completeness check. Nothing validates
+automatically: not construction, not `open()`, not `add_providers`, not `resolve()`.
+`container.validate()` is the only thing that walks the graph, and `Container(validate=...)`
+is deprecated — passing `True` or `False` is ignored and emits `ValidateArgumentWarning`
+(a `DeprecationWarning`), removed in 4.0. So in the "After (3.0)" example above, the comment
+`# validate() already ran here` no longer holds in 3.1 — call `container.validate()`
+explicitly, right after construction (or after an integration's `setup_di` registers its own
+providers via `add_providers`, if you want the complete graph checked), for the same
+fail-fast check. `with`/`open()` still open the container and still guarantee `close_*` runs
+finalizers on the way out — that part of "After (3.0)" is unaffected — this switch (mandatory
+open) just stops being mandatory for code that skips it, and validation timing is fully
+decoupled from it.
 
 ## Readiness recipe: escalating warnings to errors with `filterwarnings`
 

@@ -46,14 +46,12 @@ class Dependencies(Group):
 
 
 # Provide custom context when building the child container
-container = Container(groups=[Dependencies], validate=True)
-container.open()  # open the root before building children (validates once)
+container = Container(groups=[Dependencies])
 custom_context = CustomContext(user_id="123", tenant_id="abc")
 request_container = container.build_child_container(
     scope=Scope.REQUEST,
     context={CustomContext: custom_context}
 )
-request_container.open()
 
 # Now resolve the factory — it will receive the custom context automatically
 user_info = request_container.resolve_provider(Dependencies.user_info)
@@ -83,8 +81,7 @@ Context never propagates between containers. A `ContextProvider` reads the conte
     ```python
     # ❌ Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
     # Setting it on the APP parent has no effect.
-    app_container = Container(validate=True)
-    app_container.open()
+    app_container = Container()
     app_container.set_context(CustomContext, value)  # ignored for REQUEST-scoped providers
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     ```
@@ -124,9 +121,7 @@ import fastapi
 import modern_di_fastapi
 
 
-def create_request_info(request: fastapi.Request | None = None) -> dict[str, str]:
-    if request is None:  # only at validate() time; the integration always sets it at runtime
-        return {}
+def create_request_info(request: fastapi.Request) -> dict[str, str]:
     return {"method": request.method, "url": str(request.url)}
 
 
@@ -140,32 +135,30 @@ class Dependencies(Group):
 
 ALL_GROUPS = [Dependencies]
 app = fastapi.FastAPI()
-# validate=True stays on: the optional `request` parameter (| None = None) lets
-# validation skip it, since fastapi.Request's ContextProvider is only registered
-# by setup_di() below — after the container (and its validate()) is built.
-container = Container(groups=ALL_GROUPS, validate=True)
+container = Container(groups=ALL_GROUPS)
 modern_di_fastapi.setup_di(app, container)
+# setup_di() registers fastapi.Request's ContextProvider, so the graph is complete
+# from here on — call validate() after this line, not before.
+container.validate()
 # The integration creates a REQUEST-scoped child container per request and
 # injects the fastapi.Request into its context, so `request` is the real object
-# at runtime — never None.
+# at runtime.
 ```
 
-The `| None = None` on `request` is what keeps `validate=True` usable. Validation is
-deferred to when the container is **opened** (the integration opens it as part of the
-app lifecycle); annotating `request` as optional means the check skips it regardless of
-whether `fastapi.Request`'s `ContextProvider` is registered by then — a required
-parameter with no provider would raise
-[`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md).
-A defaulted parameter is skipped by that check, and at runtime the integration has
-registered the provider and set the per-request context, so the real `Request` is
-injected — the parameter is `None` only when resolved with no context set, which the
-integration never does per request. The default is load-bearing only at validation
-time; it does not change runtime behaviour. (A defaulted `Factory` parameter keeps
-its own disposition in modern-di 3.0 — the 3.0 `ContextValueNotSetError` affects only
-a *direct* resolve of an unset context type, not a defaulted parameter, which still
-falls back to its default.) Prefer this to `validate=False`, which silences *all*
-validation; reach for `validate=False` (and validate after `setup_di()` instead)
-only if you'd rather keep the parameter required so a missing context fails loudly.
+Nothing validates automatically, so the ordering above is what matters: `fastapi.Request`'s
+`ContextProvider` only exists once `setup_di()` has registered it, so calling
+`container.validate()` **before** that line would raise
+[`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) for a required
+`request` parameter — the provider isn't there yet. Call `validate()` after `setup_di()`, as
+above, and a required parameter validates cleanly. See [Writing an
+integration](../integrations/writing-integrations.md#lifecycle-rules) for the same rule from the
+integration author's side.
+
+If you need to validate the rest of the graph before `setup_di()` runs — e.g. as part of a
+narrower, construction-time check — make the parameter optional instead
+(`request: fastapi.Request | None = None`), so `validate()` skips it regardless of whether the
+connection provider is registered yet; at runtime the integration still injects the real
+`Request`, since it always sets the per-request context before resolving.
 
 **Explicit usage (provider-based resolution).** Every integration also exports the underlying
 `ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,

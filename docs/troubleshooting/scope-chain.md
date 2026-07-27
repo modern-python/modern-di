@@ -47,9 +47,10 @@ class Dependencies(Group):
 
 ## Detect early
 
-`Container(groups=[...], validate=True)` runs this check at startup, before the first request. Always pass `validate=True` — the diagnostic is much clearer than the runtime symptoms.
+`container.validate()` runs this check at startup, before the first request. Call it — the
+diagnostic is much clearer than the runtime symptoms.
 
 ## See also
 
 - [Scopes](../providers/scopes.md#the-scope-dependency-rule) — the lifetime model and the "max of dependencies' scopes" rule.
-- [Lifecycle](../providers/lifecycle.md) — `validate=True` and other startup checks.
+- [Lifecycle](../providers/lifecycle.md) — `container.validate()` and other startup checks.

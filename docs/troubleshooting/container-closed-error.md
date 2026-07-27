@@ -10,21 +10,19 @@ failure mode.
 Through 3.0, resolving from (or building a child of) a container that had never been opened, or one
 closed after use, raised `ContainerClosedError`. As of 3.1:
 
-- A freshly-constructed container prepares itself on the first `resolve()` / `resolve_provider()`
-  call — no `open()` step required, and nothing raises. That includes a resolve reached through a
-  child: if the resolved provider's scope belongs to a not-yet-open ancestor, that ancestor is what
-  prepares, not the child. `build_child_container()` itself never checks or touches any container's
-  open/closed state — it only reads the parent's shared registries and scope map, so a closed (or
-  never-opened) parent is irrelevant to it, and the child it returns starts closed too, same as any
-  fresh container.
+- A container is **open from construction** — `closed = False` the moment `Container(...)` returns,
+  with no `open()` step required and nothing to raise. `build_child_container()` never checks or
+  touches any container's open/closed state — it only reads the parent's shared registries and scope
+  map — and the child it returns starts open too, same as any freshly-constructed container.
 - Reusing a container **after an explicit close** — `close_sync()`, `close_async()`, or exiting a
   `with`/`async with` block — self-heals the moment the container is actually resolved from, either
   directly or through a descendant whose resolve reaches back into its scope: the container reopens
   and the call succeeds, but it first emits `ContainerClosedWarning`, a `RuntimeWarning` carrying
   `.container_scope`. Building a child of that closed container does not, on its own, trigger any of
   this.
-- `open()` remains the fail-fast verb: call it (or enter via `with`/`async with`) to run validation
-  and prepare the container up front, at startup, rather than on the first unit of work.
+- `open()` stays available as the *explicit*, silent way to reopen a closed container — call it (or
+  re-enter via `with`/`async with`) when the reuse is deliberate, so no warning fires. It runs no
+  validation of its own; call `container.validate()` separately for a fail-fast check.
 
 `ContainerClosedError` itself is kept importable for 3.x back-compat — an `except
 exceptions.ContainerClosedError` clause does not break at import time — but nothing in the library

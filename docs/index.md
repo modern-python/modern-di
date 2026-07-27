@@ -69,9 +69,9 @@ class Dependencies(Group):
     settings = providers.Factory(Settings)
 
 
-# Pass validate=True to detect cycles and scope-chain errors at startup
-container = Container(groups=[Dependencies], validate=True)
-container.open()  # open before use; validates once (root). `with` does this for you (next section)
+# Call validate() to detect cycles and scope-chain errors up front, at startup
+container = Container(groups=[Dependencies])
+container.validate()
 settings = container.resolve(Settings)
 print(settings.database_url)
 ```
@@ -106,7 +106,7 @@ class Dependencies(Group):
     )
 
 
-with Container(groups=[Dependencies], validate=True) as container:
+with Container(groups=[Dependencies]) as container:
     first = container.resolve(Settings)
     second = container.resolve(Settings)
     print(id(first), id(second), first is second)  # same instance, cached on first resolve
@@ -158,7 +158,7 @@ class Dependencies(Group):
     user_repository = providers.Factory(UserRepository, scope=Scope.REQUEST)
 
 
-with Container(groups=[Dependencies], validate=True) as container:
+with Container(groups=[Dependencies]) as container:
     request_context = {RequestId: RequestId(value="req-1")}
     with container.build_child_container(scope=Scope.REQUEST, context=request_context) as request:
         repo = request.resolve(UserRepository)

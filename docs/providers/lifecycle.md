@@ -15,9 +15,9 @@ from modern_di import Container, Scope, providers, exceptions
 If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook.
 
 ```python
-container = Container(groups=[Dependencies], validate=True)
+container = Container(groups=[Dependencies])
 
-# Warm caches at startup — resolving prepares the container (validates once, root) as a side effect
+# Warm caches at startup
 container.resolve(AsyncEngine)
 container.resolve(Settings)
 ```
@@ -105,16 +105,13 @@ finalizer; the sync path is only a safety net.
 
 ## Closing and reopening
 
-A constructed container is usable immediately — there is no required `open()` step. The first
-`resolve()` / `resolve_provider()` call prepares a not-yet-open container silently — including when
-that call arrives through a child: a resolve whose provider scope belongs to a not-yet-open ancestor
-prepares *that ancestor*, not the child doing the resolving. `build_child_container()` itself never
-checks or touches any container's open/closed state — it only reads the parent's shared registries
-and scope map, so a closed (or never-opened) parent is irrelevant to it, and the returned child
-starts closed too, same as any fresh container. Entering `with container:` (or `async with`, or a
-direct `container.open()`) prepares a container explicitly instead — useful to fail fast at startup,
-before the first unit of work; exiting calls `close_sync()` / `close_async()`, which run the
-finalizers (in reverse-creation order, as above) and mark the container closed.
+A constructed container is **open from construction** — `closed = False` the moment `Container(...)`
+returns, with no `open()` step required before the first `resolve()` / `resolve_provider()` call.
+`build_child_container()` never checks or touches any container's open/closed state — it only reads
+the parent's shared registries and scope map — and the returned child starts open too, same as any
+fresh container. `close_sync()` / `close_async()` run the finalizers (in reverse-creation order, as
+above) and mark the container closed; entering `with container:` (or `async with`) is the idiomatic
+way to guarantee that close runs, even on an exception.
 
 Resolving from a container **that was explicitly closed** — directly, or through a child whose
 resolve reaches back into that container's scope — reopens it and emits `ContainerClosedWarning` — a
@@ -124,7 +121,7 @@ deliberate. Building a child of a closed container does not, by itself, trigger 
 reopen isn't diagnostic-worthy:
 
 ```python
-container = Container(groups=[Dependencies], validate=True)
+container = Container(groups=[Dependencies])
 
 with container:
     container.resolve(Settings)
@@ -163,8 +160,8 @@ How a cached instance survives this cycle depends on its `CacheSettings`:
 Each container has its own finalizers — the ones for the providers it cached. When a child container exits its `with` block, only the child's finalizers run; the parent's stay alive for as long as the parent does.
 
 ```python
-app_container = Container(groups=[Dependencies], validate=True)
-app_container.open()  # optional: fails fast here instead of on first use; not required before building children
+app_container = Container(groups=[Dependencies])
+app_container.validate()  # optional: fails fast here instead of at whichever resolve hits a problem first
 
 async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     session = request_container.resolve(AsyncSession)
@@ -180,25 +177,40 @@ Framework integrations handle this automatically: they build the REQUEST child c
 
 ## Validation
 
-`Container(groups=[...], validate=True)` (the default) runs the following checks, split by when
-they can safely run:
+`container.validate()` is the only thing that walks the graph. Nothing validates automatically —
+not construction, not `open()`, not `add_providers`, not `resolve()`. A container is fully usable,
+and stays usable, without ever calling `validate()`; a broken graph nobody validates simply surfaces
+at whichever resolve first hits the problem, as an ordinary resolution error.
 
-- **Cycle detection** and **scope chain check** run **at construction** — `Container(...)` itself
-  raises `CircularDependencyError` (see [Troubleshooting: Circular
-  dependency](../troubleshooting/circular-dependency.md)) or an inverted-scope error (see [The scope
-  dependency rule](scopes.md#the-scope-dependency-rule)) immediately if the graph as registered so
-  far already has the problem. Registering more providers later can only ever add such an issue,
-  never remove one, so it's safe to check right away.
-- **Missing providers.** A creator parameter typed `Foo` with no registered `Foo` provider is only
-  knowable once the graph is complete, so this check is held and runs once at container entry
-  (`open()`/`with`) or first use (`resolve()`/`resolve_provider()`/a resolve through a child) —
-  whichever happens first. This lets a framework integration register its own providers (e.g. via
-  `add_providers`) after construction and still have the complete graph validated before anything
-  resolves.
+Call it explicitly, whenever you want the whole graph checked at once — cycles, inverted scope
+dependencies, and missing required dependencies, all in a single pass:
 
-Validation has no runtime cost after startup. Turn it on — it catches the bugs you don't want to discover under load.
+```python
+container = Container(groups=[Dependencies])
+container.validate()  # walks now; raises ValidationFailedError if any issue is found
+```
 
-You can also call `container.validate()` manually after the container is built (useful in tests).
+It aggregates every issue it finds into one `exceptions.ValidationFailedError` rather than stopping
+at the first — see [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
+Call it right after building the container for a construction-time check, or later — e.g. a framework
+integration that registers its own providers after construction (via `add_providers`) should call it
+**after** that registration, so the complete graph is what gets checked; see [Writing an
+integration](../integrations/writing-integrations.md#lifecycle-rules).
+
+A repeat `validate()` after a clean walk is free — it memoizes against the registry's contents and
+only re-walks once something has changed it (`register`/`add_providers`/removal). Validation has no
+runtime cost after that. Turn it on in a startup path or a single test — it catches the bugs you
+don't want to discover under load.
+
+### The deprecated `validate` constructor argument
+
+`Container(validate=...)` still exists for backward compatibility. Passing `True` or `False` is
+ignored and emits `exceptions.ValidateArgumentWarning` (a `DeprecationWarning`); omitting it (the
+default) is silent either way. It changes nothing about the container built — there is no longer a
+spelling of the constructor that validates for you. The argument is removed in 4.0; call
+`container.validate()` instead. See [Migration: To
+3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default) for how this used to
+work.
 
 ## See also
 

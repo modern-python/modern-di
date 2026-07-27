@@ -52,7 +52,9 @@ class AppGroup(Group):
 
 
 broker = InMemoryBroker()
-setup_di(broker, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+setup_di(broker, container)
+container.validate()  # after setup_di — its connection providers are now registered
 
 
 @broker.task
@@ -67,10 +69,10 @@ async def get_report(
 !!! warning "Deployment: `run_receiver_task` skips startup by default"
     `taskiq.api.run_receiver_task(...)` defaults `run_startup=False`, which
     skips the worker startup that opens the root container — tasks still run
-    (the root prepares itself on first use), but nothing ever closes it, so
-    its finalizers never run at shutdown. Pass `run_startup=True` (or open
-    and close the root yourself around consuming) when embedding a receiver
-    with `run_receiver_task`.
+    (the container is already open from construction), but nothing ever
+    closes it, so its finalizers never run at shutdown. Pass
+    `run_startup=True` (or close the root yourself around consuming) when
+    embedding a receiver with `run_receiver_task`.
 
 ## Scopes
 

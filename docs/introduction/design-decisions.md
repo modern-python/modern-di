@@ -72,7 +72,7 @@ Beyond the choices above, four more things are deliberately out of scope. Naming
 
 **Why:** In the wider field, true compile-time wiring checks are a property of compiled-language toolchains — Dagger's annotation processor, Google Wire's codegen, Koin's K2 compiler plugin — and where they exist they *replace* runtime verification rather than extend it (Koin's docs tell users to delete their `verify()` tests). A Python type-checker plugin can't cheaply emulate that: pyright supports no third-party plugins by design, `ty` (which modern-di itself uses) has none either, and only mypy exposes one — a plugin API its own docs call experimental, changed without deprecation. Such a plugin would serve only mypy users, duplicate `validate()`, and not even help modern-di's own toolchain.
 
-**Alternative:** Call `container.validate()` (or construct with `validate=True`) in a startup path or a single test — it is runtime, so it works identically under mypy, pyright, and `ty`, with no plugin to install.
+**Alternative:** Call `container.validate()` explicitly in a startup path or a single test — it is runtime, so it works identically under mypy, pyright, and `ty`, with no plugin to install.
 
 ## See also
 

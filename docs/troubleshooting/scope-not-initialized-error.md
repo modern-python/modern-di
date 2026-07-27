@@ -19,7 +19,7 @@ built.
 Build the deeper-scoped container before resolving from it:
 
 ```python
-app_container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)
+app_container = Container(scope=Scope.APP, groups=[MyGroup])
 app_container.open()
 
 # Wrong: no REQUEST container exists yet

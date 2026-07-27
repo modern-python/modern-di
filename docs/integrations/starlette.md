@@ -68,7 +68,9 @@ async def get_report(
 
 
 app = Starlette(routes=[Route("/report", get_report)])
-setup_di(app, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+setup_di(app, container)
+container.validate()  # after setup_di — its connection providers are now registered
 ```
 
 !!! warning "Deployment: mounted sub-apps and disabled lifespan"
@@ -76,10 +78,10 @@ setup_di(app, Container(groups=[AppGroup], validate=True))
     A `setup_di`-wired app **mounted as a sub-application**
     (`app.mount("/sub", subapp)`) never receives that event from its parent,
     and deployments that disable lifespan (e.g. Mangum `lifespan="off"`) skip
-    it too — requests still succeed (the root prepares itself on first use),
-    but nothing ever closes it, so its finalizers never run at shutdown. Call
-    `setup_di` on the **top-level served app**, or open (and close) the root
-    yourself (`container.open()` / `with`) before serving.
+    it too — requests still succeed (the container is already open from
+    construction), but nothing ever closes it, so its finalizers never run at
+    shutdown. Call `setup_di` on the **top-level served app**, or close the
+    root yourself (`await container.close_async()`) at shutdown.
 
 ### 3. Scopes
 

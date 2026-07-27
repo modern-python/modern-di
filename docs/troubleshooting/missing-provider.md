@@ -27,10 +27,12 @@ The resolver walked the creator's signature, found a parameter typed `MissingDep
 Most common. If you split providers across `Database`, `UseCases`, `Cache`, you have to list them all:
 
 ```python
-container = Container(groups=[Database, UseCases, Cache], validate=True)
+container = Container(groups=[Database, UseCases, Cache])
+container.validate()
 ```
 
-Missing one group means none of its providers are registered. `validate=True` catches this at startup.
+Missing one group means none of its providers are registered. Calling `container.validate()` at
+startup catches this before the first request.
 
 ### 2. The creator has no return type annotation
 

@@ -53,7 +53,9 @@ class AppGroup(Group):
 
 
 app = fastapi.FastAPI()
-modern_di_fastapi.setup_di(app, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+modern_di_fastapi.setup_di(app, container)
+container.validate()  # after setup_di — its connection providers are now registered
 
 
 @app.get("/report")
@@ -68,10 +70,10 @@ async def get_report(
     `setup_di`-wired app **mounted as a sub-application** (`app.mount("/sub",
     subapp)`) never receives that event from its parent, and deployments that
     disable lifespan (e.g. Mangum `lifespan="off"`) skip it too — requests
-    still succeed (the root prepares itself on first use), but nothing ever
-    closes it, so its finalizers never run at shutdown. Call `setup_di` on
-    the **top-level served app**, or open (and close) the root yourself
-    (`container.open()` / `with`) before serving.
+    still succeed (the container is already open from construction), but
+    nothing ever closes it, so its finalizers never run at shutdown. Call
+    `setup_di` on the **top-level served app**, or close the root yourself
+    (`await container.close_async()`) at shutdown.
 
 ## Websockets
 

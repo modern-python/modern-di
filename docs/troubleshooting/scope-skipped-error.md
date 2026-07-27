@@ -20,7 +20,7 @@ Build child containers through every intermediate scope your providers need, rat
 straight to a deep one:
 
 ```python
-app_container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)
+app_container = Container(scope=Scope.APP, groups=[MyGroup])
 app_container.open()
 
 # Wrong: jumps straight past REQUEST

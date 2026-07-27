@@ -52,7 +52,7 @@ class AppGroup(Group):
 
 
 app = Celery("myapp", broker="redis://localhost")
-setup_di(app, Container(groups=[AppGroup], validate=True))
+setup_di(app, Container(groups=[AppGroup]))
 
 
 @app.task
@@ -99,7 +99,7 @@ class AppGroup(Group):
 
 
 app = Celery("myapp", broker="redis://localhost", task_cls=DITask)
-setup_di(app, Container(groups=[AppGroup], validate=True))
+setup_di(app, Container(groups=[AppGroup]))
 
 
 @app.task
@@ -127,7 +127,7 @@ class AppGroup(Group):
 
 
 app = Celery("myapp", broker="redis://localhost")
-setup_di(app, Container(groups=[AppGroup], validate=True))
+setup_di(app, Container(groups=[AppGroup]))
 
 
 @app.task(base=DITask)
@@ -161,7 +161,7 @@ class AppGroup(Group):
 app = Celery("myapp", broker="memory://", backend="cache+memory://")
 app.conf.task_always_eager = True
 app.conf.task_store_eager_result = True
-setup_di(app, Container(groups=[AppGroup], validate=True))
+setup_di(app, Container(groups=[AppGroup]))
 
 
 @app.task

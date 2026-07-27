@@ -77,7 +77,7 @@ Why the `PrimaryEngine` / `ReplicaEngine` subclasses: type-based resolution need
 
 ## Pitfalls
 
-- **The choice factory must be REQUEST-scoped.** It depends on the per-request `Request` object — an APP-scoped factory cannot consume request-scoped data and `validate=True` will reject it.
+- **The choice factory must be REQUEST-scoped.** It depends on the per-request `Request` object — an APP-scoped factory cannot consume request-scoped data and `container.validate()` will reject it.
 - **The framework integration provides `fastapi.Request` (or `litestar.Request`) automatically.** No need to declare a `ContextProvider` for it. For Litestar, use `litestar.Request`.
 - **Don't apply this to per-connection pooling decisions.** Engines (and their pools) are APP-scoped — the choice you make per request just selects which long-lived pool the session checks out from. Trying to make the engine itself REQUEST-scoped would create and dispose a pool every request.
 - **Watch for write-after-read in a single request.** If a `GET` handler ends up doing a write (e.g. updating a `last_seen_at` field), it'll go to the replica and fail. Either move the side-effect out of the read path, or pick a different routing predicate than HTTP method.

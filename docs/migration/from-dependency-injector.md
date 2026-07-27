@@ -81,7 +81,7 @@ Use this table as the index for the rest of the guide. Every provider class docu
 | `.provided` (attribute / item / method-call access on a provider) | No direct equivalent — see [§11](#11-no-direct-equivalent) | [§11](#11-no-direct-equivalent) |
 | `@inject` + `Provide[...]` + `container.wire(modules=[...])` (web) | `FromDI(T)` from the framework integration | [§6](#6-wiring-replacement), [§8](#8-framework-integration-and-routes) |
 | `@inject` + `Provide[...]` + `container.wire(modules=[...])` (non-web) | Explicit `container.resolve(T)` | [§6](#6-wiring-replacement) |
-| `DeclarativeContainer` | `Group` (schema) + `Container(groups=[...], validate=True)` (runtime) | [§2](#2-key-conceptual-shifts) |
+| `DeclarativeContainer` | `Group` (schema) + `Container(groups=[...])` (runtime), checked with `.validate()` | [§2](#2-key-conceptual-shifts) |
 | `container.init_resources()` | Lazy initialization — no equivalent needed | [§9](#9-testing-and-overrides) |
 | `container.shutdown_resources()` / `provider.shutdown()` | `container.close_sync()` / `await container.close_async()` | [§9](#9-testing-and-overrides) |
 | `provider.override(...)` / `with provider.override(...):` | `container.override(provider, mock)` / `with container.override(provider, mock):` — see [§9](#9-testing-and-overrides) | [§9](#9-testing-and-overrides) |
@@ -91,7 +91,7 @@ Use this table as the index for the rest of the guide. Every provider class docu
 
 1. Replace `DeclarativeContainer` with `Group`.
 2. Add an explicit `scope=` to each provider (defaults to `Scope.APP`).
-3. Create the runtime container with `Container(groups=[MyGroup], validate=True)`. In `modern-di`, `Group` is a schema only — you cannot resolve from it directly, unlike a `DeclarativeContainer` instance.
+3. Create the runtime container with `Container(groups=[MyGroup])`, then call `container.validate()` for whole-graph checks. In `modern-di`, `Group` is a schema only — you cannot resolve from it directly, unlike a `DeclarativeContainer` instance.
 
 **`Singleton` / `ThreadSafeSingleton`** → `providers.Factory(SomeClass, cache=True)` — no separate thread-safe class, since `modern-di`'s cache is lock-guarded by default. See [Cached factories](../providers/factories.md#cached-factories).
 
@@ -278,7 +278,7 @@ class AppGroup(Group):
     # one instance per request; built by build_child_container(scope=Scope.REQUEST)
     current_user = providers.Factory(UserFromRequest, scope=Scope.REQUEST)
 
-app_container = Container(scope=Scope.APP, groups=[AppGroup], validate=True)
+app_container = Container(scope=Scope.APP, groups=[AppGroup])
 request_container = app_container.build_child_container(scope=Scope.REQUEST, context={...})
 ```
 
@@ -331,10 +331,10 @@ See [Testing with overrides](../recipes/testing-overrides.md) for tree-wide shar
 |---|---|---|
 | Circular dependency | No cycle detection; a circular provider graph raises a bare `RecursionError` from Cython-level `deepcopy`, with no cycle path ([issue #811](https://github.com/ets-labs/python-dependency-injector/issues/811)) | `validate()` reports every cycle up front as `CircularDependencyError` with an arrow-chain `cycle_path`; even without `validate()`, a runtime cycle hit is caught and re-raised as `CircularDependencyError` (not a bare `RecursionError`) |
 | Unwired injection point | Silent: an un-wired function keeps the raw `Provide` marker as its default, surfacing as `AttributeError: 'Provide' object has no attribute ...` far from the actual mistake ([#658](https://github.com/ets-labs/python-dependency-injector/issues/658), [#521](https://github.com/ets-labs/python-dependency-injector/issues/521)) | No marker subsystem to leave unwired: a missing dependency fails at declaration time (`UnsupportedCreatorParameterError`) or resolve time (`ProviderNotRegisteredError`, `ArgumentResolutionError`) |
-| Whole-graph validation | None — errors surface one at a time, on first resolve, wherever the graph happens to break | `Container(..., validate=True)` walks the entire graph and raises one `ValidationFailedError` aggregating *every* wiring bug (cycles, inverted scopes, missing dependencies) at once |
+| Whole-graph validation | None — errors surface one at a time, on first resolve, wherever the graph happens to break | `container.validate()` walks the entire graph and raises one `ValidationFailedError` aggregating *every* wiring bug (cycles, inverted scopes, missing dependencies) at once |
 | Resolve by type | [No type-based resolution API](https://python-dependency-injector.ets-labs.org/wiring.html) — every call site needs an explicit `Provide[Container.x]` marker | `container.resolve(SomeType)` resolves directly from a type annotation; unregistered types get closest-match ("did you mean") suggestions |
 
-Run with `validate=True` during migration — the cycle row above is considerably noisier without it, since the error surfaces deep inside an already near-exhausted call stack instead of a clean, aggregated report.
+Call `container.validate()` explicitly during migration — the cycle row above is considerably noisier without it, since the error surfaces deep inside an already near-exhausted call stack instead of a clean, aggregated report.
 
 ## 11. No direct equivalent
 

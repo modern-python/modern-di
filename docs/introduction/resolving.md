@@ -37,8 +37,7 @@ class Dependencies(Group):
     db_connection = providers.Factory(DatabaseConnection, scope=Scope.APP)
 
 
-container = Container(groups=[Dependencies], validate=True)
-container.open()
+container = Container(groups=[Dependencies])
 
 connection = container.resolve(DatabaseConnection)
 assert connection.config.host == "localhost"
@@ -50,5 +49,5 @@ For union-typed parameters (`dep: A | B`), the resolver picks the *first* type i
 ## See also
 
 - [Scopes](../providers/scopes.md) — the scope chain governs which container resolves which provider.
-- [Lifecycle](../providers/lifecycle.md) — `Container(validate=True)` catches resolution problems at startup.
+- [Lifecycle](../providers/lifecycle.md) — `container.validate()` catches resolution problems at startup.
 - [Factories: `bound_type`](../providers/factories.md) — how the type lookup key is set, and how to opt out.
