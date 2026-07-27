@@ -51,8 +51,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies], validate=True)
-container.open()
+container = Container(groups=[Dependencies])
 
 concrete = container.resolve(PostgresRepository)
 abstract = container.resolve(Repository)
@@ -99,7 +98,7 @@ assert container.resolve(Repository) is mock_for_source
 
 ## Validation and cycle detection
 
-`Alias` participates in `container.validate()` (and `Container(..., validate=True)`):
+`Alias` participates in `container.validate()`:
 
 - If `source_type` is not registered, `AliasSourceNotRegisteredError` is raised eagerly.
 - The alias reports the source provider as a dependency, so cycles that pass through an alias are

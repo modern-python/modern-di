@@ -144,7 +144,7 @@ When a provider is passed inside `kwargs={...}`, `modern-di` detects it and reso
 
 
       # Group is a schema. Create the runtime container once at app start.
-      container = Container(groups=[Dependencies], validate=True)
+      container = Container(groups=[Dependencies])
       ```
 
 ### Per-provider replacements
@@ -229,7 +229,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies], validate=True)
+container = Container(groups=[Dependencies])
 
 with container.build_child_container(
     scope=Scope.REQUEST,
@@ -305,7 +305,7 @@ See [Testing with overrides](../recipes/testing-overrides.md) for override mecha
 
 ### Validation
 
-`Container(groups=[...], validate=True)` runs cycle detection and scope-chain checks at startup. Turn it on during migration — it catches missed scope changes and broken dependencies before the first request.
+`container.validate()` runs cycle detection and scope-chain checks. Call it explicitly at startup during migration — it catches missed scope changes and broken dependencies before the first request.
 
 ## 8. Framework integration and routes
 

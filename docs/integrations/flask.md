@@ -67,7 +67,9 @@ def get_report(report: typing.Annotated[Report, FromDI(Report)]) -> dict[str, st
 
 
 # call setup_di AFTER registering routes
-setup_di(app, Container(groups=[Dependencies], validate=True))
+container = Container(groups=[Dependencies])
+setup_di(app, container)
+container.validate()  # after setup_di — its connection providers are now registered
 ```
 
 `FromDI(dependency)` accepts either a provider reference (as above) or a plain
@@ -106,7 +108,9 @@ def hello(name: str, settings: typing.Annotated[Settings, FromDI(Dependencies.se
 
 
 # no @inject needed on individual views
-setup_di(app, Container(groups=[Dependencies], validate=True), auto_inject=True)
+container = Container(groups=[Dependencies])
+setup_di(app, container, auto_inject=True)
+container.validate()  # after setup_di — its connection providers are now registered
 ```
 
 A view that already carries `@inject` is left alone — `auto_inject` only wraps
@@ -137,7 +141,7 @@ class Dependencies(Group):
 
 
 app = Flask(__name__)
-setup_di(app, Container(groups=[Dependencies], validate=True))
+setup_di(app, Container(groups=[Dependencies]))
 
 # ... register an atexit hook, a CLI teardown command, or call this
 # explicitly wherever your process shuts down:

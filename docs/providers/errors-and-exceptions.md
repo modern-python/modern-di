@@ -71,18 +71,25 @@ Catch `ContainerError` for any container/scope failure.
 - **`InvalidScopeTypeError`** — raised by the `Container` constructor when `scope` is not an
   `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
-- **`ContainerClosedError`** — raised when you resolve from, or build a child of, a closed
-  container; there is no self-heal. Re-enter the container via `with`/`async with`, or call
-  `container.open()`, before reusing it — see
+- **`ContainerClosedError`** — no longer raised as of modern-di 3.1; kept importable for back-compat
+  and removed in 4.0. A container is open from construction, so there is nothing to raise: resolving
+  from a container that was **explicitly closed** — directly, or through a child whose resolve
+  reaches back into its scope — reopens it and emits `ContainerClosedWarning` (a `RuntimeWarning`,
+  not a `ModernDIError`) instead. `build_child_container()` itself never checks or touches any
+  container's open/closed state — building a child of a closed parent triggers neither the reopen nor
+  the warning by itself. Re-enter the container via `with`/`async with`, or call `container.open()`,
+  to reopen it deliberately (silently) instead — see
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening).
   See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
-- **`ValidationFailedError`** — raised by `Container.validate()` (and, deferred, by
-  `Container(..., validate=True)`) when the graph has problems. Catch this for validation results; its
-  `.errors` attribute holds the list of individual issues (each itself a `ResolutionError` or
-  `RegistrationError`), and `str()` renders them all, grouped by error kind. Both the default and
-  `validate=True` enable validation but run it **deferred** — at container entry (`open()`/`with`) or
-  first resolve, not at construction — so an integration's context providers registered after
-  construction are in the graph before the check runs. Pass `validate=False` to disable it. See
+- **`ValidationFailedError`** — raised only by `Container.validate()`. Catch this for validation
+  results; its `.errors` attribute holds the list of individual issues (each itself a
+  `ResolutionError` or `RegistrationError`), and `str()` renders them all, grouped by error kind.
+  Nothing validates automatically — not construction, not `open()`, not `add_providers`, not
+  `resolve()` — so call `validate()` explicitly whenever you want the whole graph checked; an
+  integration that registers its own providers after construction (via `add_providers`) should call
+  it **after** that registration. `Container(validate=...)` is a deprecated no-op: passing `True` or
+  `False` emits `ValidateArgumentWarning` and gates nothing. See
+  [Lifecycle: validation](lifecycle.md#validation),
   [Migration: To 3.x](../migration/to-3.x.md) and
   [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
 

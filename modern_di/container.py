@@ -1,7 +1,12 @@
+import contextlib
 import enum
+import os
+import pathlib
+import sys
 import threading
 import typing
 import warnings
+from types import FrameType
 
 from modern_di import exceptions, suggester, types
 from modern_di.dependency_graph import (
@@ -43,6 +48,21 @@ def _handle_recursion_error(
     raise build_cycle_error(cycle) from exc
 
 
+# Trailing separator included: without it the prefix test also swallows sibling packages
+# (`modern_di_fastapi/`, `modern_di_pytest/`, ...), attributing a warning past the integration.
+_PACKAGE_DIR = str(pathlib.Path(__file__).parent) + os.sep
+
+
+def _caller_stacklevel() -> int:
+    """Frames to skip so a warning points at the caller, not at modern_di internals."""
+    level = 1
+    frame: FrameType | None = sys._getframe(1)  # noqa: SLF001
+    while frame is not None and frame.f_code.co_filename.startswith(_PACKAGE_DIR):
+        level += 1
+        frame = frame.f_back
+    return level
+
+
 class Container:
     """DI container — the central object that resolves providers within a scope.
 
@@ -55,8 +75,6 @@ class Container:
     __slots__ = (
         "_lock",
         "_scope_map",
-        "_validate_enabled",
-        "_validated",
         "cache_registry",
         "closed",
         "context_registry",
@@ -73,33 +91,31 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
         use_lock: bool = True,
-        validate: bool = True,
+        validate: bool | None = None,
     ) -> None:
         """Build a container at ``scope``.
 
-        A container starts **unopened** (``closed=True``): it must be entered via
-        :meth:`open` / ``with`` / ``async with`` before it can :meth:`resolve` or
-        :meth:`build_child_container`; using it before then raises
-        :class:`~modern_di.exceptions.ContainerClosedError`.
+        A container is open from construction — no separate startup step is required
+        before the first :meth:`resolve`. :meth:`open` and ``with`` / ``async with``
+        stay available for reopening a closed container deliberately and for running
+        finalizers on the way out.
 
-        ``validate`` (default ``True``) enables the provider-graph check (cycles,
-        scope ordering, missing dependencies), which runs **once at open()** —
-        never in ``__init__`` and never on resolve. Deferring to ``open`` lets a
-        framework integration register its context providers after construction
-        and still have the complete graph validated. ``validate=False`` disables
-        the check entirely; call :meth:`validate` explicitly for a
-        construction-time check. Only a root container validates; children (with
-        ``parent_container`` set) never do. ``context`` seeds this container's
-        context registry. A root container owns fresh registries; a child shares
-        the parent's providers/overrides registries and inherits its scope map.
+        ``validate`` is ignored and deprecated: passing it (either value) emits
+        :class:`~modern_di.exceptions.ValidateArgumentWarning` and changes nothing.
+        Graph validation (cycles, scope ordering, missing dependencies) runs only
+        when :meth:`validate` is called explicitly — construction, ``open()``, and
+        ``resolve()`` never trigger it. ``context`` seeds this container's context
+        registry. A root container owns fresh registries; a child shares the
+        parent's providers/overrides registries and inherits its scope map.
         """
+        if validate is not None:
+            warnings.warn(exceptions.ValidateArgumentWarning(), stacklevel=2)
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         self._lock = threading.RLock() if use_lock else None
-        self._validated = False
-        self.closed = True  # unopened: enter via open()/with before resolving or building children
+        self.closed = False
         self.scope = scope
         self.parent_container = parent_container
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
@@ -123,10 +139,6 @@ class Container:
             for one_group in groups:
                 all_providers.extend(one_group.get_providers())
             self.providers_registry.add_providers(*all_providers)
-        # Root-only, run at open(): validation runs once when the container is entered, so an
-        # integration's context providers registered after construction are in the graph before it
-        # runs. False disables. Construction-time = call validate() explicitly.
-        self._validate_enabled = validate and parent_container is None
 
     def build_child_container(
         self,
@@ -134,8 +146,6 @@ class Container:
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
-        self._raise_if_closed()
-
         if scope is None:
             # `_next_deeper` is the smallest member deeper than this one, so non-contiguous
             # custom enums (e.g. TENANT=6, JOB=10) work, not just `value + 1`.
@@ -199,31 +209,28 @@ class Container:
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
         """Resolve a specific provider by reference via its compiled resolver."""
-        self._raise_if_closed()
+        if self.closed:
+            self._prepare()
         try:
             return self.providers_registry.resolver_for(provider)(self)
         except RecursionError as exc:
             _handle_recursion_error(provider, self, exc)
 
-    def validate(self) -> None:
-        reg = self.providers_registry
-        if reg.is_validated():
-            self._validated = True
-            return  # already validated at this registry state — no re-walk
-
-        validation_errors: list[Exception] = []
+    def _walk_errors(self) -> list[Exception]:
+        """Walk the graph once, returning every wiring error in walk order."""
+        errors: list[Exception] = []
         graph = DependencyGraph()
-        for event in graph.walk(reg, self):
+        for event in graph.walk(self.providers_registry, self):
             # Event is a closed 4-variant union — every variant handled below.
             match event:
                 case NodeEntered(provider):
-                    validation_errors.extend(provider.iter_validation_issues(self))
+                    errors.extend(provider.iter_validation_issues(self))
                 case DependenciesError(_, error):
-                    validation_errors.append(error)
+                    errors.append(error)
                 case Edge(parent, name, dep):
                     dep_scope = graph.terminal_scope(dep, self)
                     if dep_scope > graph.terminal_scope(parent, self):
-                        validation_errors.append(
+                        errors.append(
                             exceptions.InvalidScopeDependencyError(
                                 provider=parent,
                                 parameter_name=name,
@@ -232,40 +239,40 @@ class Container:
                             )
                         )
                 case Cycle(providers):
-                    validation_errors.append(build_cycle_error(providers))
+                    errors.append(build_cycle_error(providers))
+        return errors
 
+    def validate(self) -> None:
+        """Walk the static provider graph and raise on any wiring error.
+
+        Checks cycles, transitive scope ordering, and missing/unresolvable dependencies;
+        every error found is aggregated into a single :class:`~modern_di.exceptions.ValidationFailedError`
+        rather than raising on the first one. This is the only thing that validates —
+        construction, :meth:`open`, ``add_providers``, and ``resolve`` never do.
+        """
+        reg = self.providers_registry
+        if reg.is_validated():
+            return  # already validated at this registry state — no re-walk
+
+        validation_errors = self._walk_errors()
         if validation_errors:
             raise exceptions.ValidationFailedError(errors=validation_errors)
-        self._validated = True
         reg.mark_validated()
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
         """Register providers on this (root) container after construction.
 
-        This is the blessed seam for framework integrations that discover providers
-        after the container is built. Root-only: calling this on a child container
-        raises :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since
-        the providers registry is shared tree-wide. If validation has run **on this
-        container** (via ``validate=True`` at construction or a manual :meth:`validate`
-        call — ``_validated`` is per-container, not inherited from a parent), it is
-        re-validated after registering, so a newly-added provider that breaks the
-        graph raises :class:`~modern_di.exceptions.ValidationFailedError` here rather
-        than later. Atomic: if that re-validation raises *any* exception, the whole
-        batch is removed again before the error propagates — either the batch is
-        fully registered and valid, or the container is unchanged. Registration is a
-        startup-time operation: concurrent ``add_providers`` calls on the same root
-        are not coordinated beyond the registry's internal lock.
+        The blessed seam for framework integrations that discover providers after the
+        container is built. Root-only: on a child this raises
+        :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since the registry
+        it mutates is shared tree-wide. Registration does not validate; the mutation clears
+        the registry's validated flag, so a later :meth:`validate` re-walks the new graph.
+        Registration is a startup-time operation: concurrent calls on the same root are not
+        coordinated beyond the registry's internal lock.
         """
         if self.parent_container is not None:
             raise exceptions.ChildContainerRegistrationError(scope=self.scope)
         self.providers_registry.add_providers(*providers)
-        if self._validated:
-            try:
-                self.validate()
-            except Exception:
-                added_types = [provider.bound_type for provider in providers if provider.bound_type]
-                self.providers_registry._remove_providers(*added_types)  # noqa: SLF001
-                raise
 
     async def close_async(self) -> None:
         if not self.parent_container:
@@ -318,27 +325,24 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def open(self) -> None:
-        """Open the container so it can resolve and build children.
+        """Open the container, silently.
 
-        Mandatory: a freshly-constructed container starts unopened and must be
-        opened (here, or via ``with``/``async with`` which call this) before any
-        :meth:`resolve` or :meth:`build_child_container`. Also reopens a closed
-        container on re-entry. Use it directly when a callback-style lifecycle
-        (e.g. a startup hook) cannot wrap the container in a ``with`` block.
-        Opening an already-open container is a no-op.
-
-        If validation is enabled (``validate`` was not ``False``; root only) and
-        has not yet run, it runs here — once; a plain close/reopen does not
-        re-walk the graph.
+        Optional: a constructed container is already open. Use it to reopen a closed
+        container deliberately — an implicit reuse reopens too, but warns. Opening an
+        open container is a no-op. Validation is not run here; call :meth:`validate`.
         """
-        self.closed = False
-        if self._validate_enabled and not self._validated:
-            self.validate()
+        with self._lock or contextlib.nullcontext():
+            self.closed = False
 
-    def _raise_if_closed(self) -> None:
-        """Raise if this container is closed; callers reopen explicitly via `open()`/`with`."""
-        if self.closed:
-            raise exceptions.ContainerClosedError(container_scope=self.scope)
+    def _prepare(self) -> None:
+        """Reopen a closed container on implicit reuse, warning once."""
+        with self._lock or contextlib.nullcontext():
+            if self.closed:  # re-checked under the lock: another thread may have reopened already
+                warnings.warn(
+                    exceptions.ContainerClosedWarning(container_scope=self.scope),
+                    stacklevel=_caller_stacklevel(),
+                )
+                self.closed = False
 
     def __enter__(self) -> "typing_extensions.Self":
         self.open()

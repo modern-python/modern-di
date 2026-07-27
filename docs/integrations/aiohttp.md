@@ -66,7 +66,9 @@ async def get_report(
 
 app = web.Application()
 app.router.add_get("/report", get_report)
-setup_di(app, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+setup_di(app, container)
+container.validate()  # after setup_di — its connection providers are now registered
 ```
 
 ### 3. Scopes

@@ -27,7 +27,7 @@ class Dependencies(Group):
 ```
 
 If the source provider lives in a different `Group`, make sure that group is also passed to
-`Container(groups=[...])`. Run with `validate=True` so this is caught at startup rather than on first
+`Container(groups=[...])`. Call `container.validate()` so this is caught at startup rather than on first
 resolve.
 
 ## See also

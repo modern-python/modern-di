@@ -4,42 +4,33 @@
 is the authoritative catch-all for three classes of bug: **circular dependencies**, **inverted scope
 dependencies**, and **missing required dependencies**.
 
-## Enabling validation — at open(), once
+## When validation runs
 
-Validation is enabled by default but runs **deferred to `open()`**: not in `__init__`, and not on
-resolve, but once when the container is entered (`open()` / `with` / `async with`). A container must be
-opened before use anyway (see the [mandatory-open lifecycle](containers.md#mandatory-open-lifecycle)),
-so `open()` is the single, guaranteed validation trigger.
-
-```python
-container = Container(scope=Scope.APP, groups=[MyGroup])  # __init__ does NOT validate
-with container:  # validation runs here, once
-    ...
-```
-
-`validate` is a plain `bool` (default `True`) — see the [constructor table](containers.md#creating-a-root-container)
-for the full parameter reference. `True` (the default) enables validation at `open()`; `validate=False`
-disables it entirely with zero runtime cost. There is no eager, construction-time validation; for a
-construction-time check, call `container.validate()` explicitly:
+`container.validate()` is the only thing that walks the graph. Nothing validates at construction, at
+`open()`, at [`add_providers`](containers.md#integration-seam), or at `resolve()` — a container is fully
+usable, and stays usable, without ever calling `validate()`. Call it explicitly, whenever you want the
+whole graph checked at once:
 
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup])
-container.validate()  # runs now; raises ValidationFailedError if any issue found
+container.validate()  # walks now; raises ValidationFailedError if any issue is found
 ```
 
-**Why at open() rather than __init__.** A framework integration typically registers its own context
-providers (e.g. the request object) *after* the user constructs the container, via
-[`add_providers`](containers.md#integration-seam). Eager validation at construction would fail on that
-still-incomplete graph. Deferring to `open()` means the whole graph — user groups plus
-integration-registered providers — is present before the single validation walk runs. Only a **root**
-container validates; children (built via `build_child_container`) never do, since the registry they
-share is validated tree-wide by the root.
+`Container(validate=...)` exists only for backward compatibility: passing `True` or `False` is ignored
+and emits `exceptions.ValidateArgumentWarning` (a `DeprecationWarning`) — see the [constructor
+table](containers.md#creating-a-root-container). The argument is removed in 4.0; there is no way to make
+construction validate.
 
-**Once only.** The per-container `_validate_enabled` flag (set in `__init__` to `validate and
-parent_container is None`) gates whether validation runs at all; the `_validated` flag records that it
-has. `open()` runs `self.validate()` only `if self._validate_enabled and not self._validated`.
-Because `close()` leaves `_validated` untouched (it only sets `closed = True`), a plain close→reopen
-does **not** re-walk the graph — validation is paid exactly once over the container's lifetime.
+**The `_validated` flag memoizes, it does not gate.** `ProvidersRegistry` carries a `_validated: bool`
+(`is_validated()` / `mark_validated()`) that records only whether the *last* walk of the current
+registry contents found no errors — it plays no role in deciding whether to validate, since nothing does
+that automatically. `validate()` checks it first and returns immediately if still `True`, so a repeat
+`validate()` after a clean walk is free. `ProvidersRegistry` has only two mutators — `register` and
+`add_providers` — and both clear it back to `False`, so the next `validate()` re-walks. The same flag arms the runtime
+`RecursionError`-to-`CircularDependencyError` guard (see the blockquote below): once a walk has
+confirmed the graph acyclic, an escaped `RecursionError` is known to be genuine self-recursion and
+re-raises untouched, with no re-walk. Before any `validate()` call, `_validated` is `False` from
+construction — the guard only short-circuits after someone has actually validated.
 
 ## What validate() checks
 
@@ -71,8 +62,8 @@ routed through it is caught here rather than surfacing at resolve time as a bare
 
 **Validated-flag short-circuit.** `ProvidersRegistry` carries a `_validated: bool`, set by `mark_validated()`
 on a successful walk; a later `validate()` while `_validated` is still `True` returns immediately without
-re-walking, so a repeat `validate()` is free. Every registry mutation (`register` / `add_providers` /
-`_remove_providers`) clears `_validated` back to `False`, so any change to the graph re-arms both
+re-walking, so a repeat `validate()` is free. Its only two mutators, `register` and `add_providers`, both
+clear `_validated` back to `False`, so any change to the graph re-arms both
 `validate()` and the runtime guard. The flag lives on the registry, which is shared tree-wide, so validating
 any one container marks the graph clean for every container in the tree.
 
@@ -119,9 +110,9 @@ read identically. See [resolution.md](resolution.md#one-renderer) for that drawe
 > cycle in the graph) is re-raised untouched, not misreported as a circular dependency. Both the guard and
 > `validate()` consume
 > the one `DependencyGraph` walker: `validate()` collects *all* errors of *all* kinds up front, while the guard
-> only answers "is a cycle reachable from here" on an already-exhausted stack. Run with `validate=True` (or call
-> `container.validate()`) in development to surface *every* cycle (and other wiring bugs) before the first resolve,
-> rather than only the one a particular resolve happens to hit.
+> only answers "is a cycle reachable from here" on an already-exhausted stack. Call `container.validate()` in
+> development to surface *every* cycle (and other wiring bugs) before the first resolve, rather than only the
+> one a particular resolve happens to hit.
 
 ### Inverted scope dependencies
 
@@ -170,7 +161,7 @@ Two edge cases in `terminal_scope` are handled safely:
   itself is separately detected and reported as a `Cycle` event by the walk, which traverses the same
   `source` edge.
 - **Dangling source**: if an alias's source type is not registered, `redirect_target` returns `None`, so
-  `terminal_scope` stops at the alias and falls back to its `.scope`. The dangling source is separately
+  the chain stops at the alias and falls back to its `.scope`. The dangling source is separately
   reported by the alias's dependency lookup raising `AliasSourceNotRegisteredError` during the walk
   (a `ResolutionError`, surfaced as a `DependenciesError` event).
 

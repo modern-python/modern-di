@@ -32,11 +32,12 @@ class Dependencies(Group):
 
 **Integration-supplied context types.** If the missing type is one a framework
 integration provides at runtime (`fastapi.Request`, `taskiq.TaskiqMessage`, …), its
-`ContextProvider` is registered by `setup_di()` — which runs *after* the container
-is built, so `validate=True` (and the modern-di 3.0 validate-by-default) sees no
-provider for it yet. Make the parameter optional (`request: fastapi.Request | None = None`)
-so validation skips it; the integration still injects the real value at runtime. See
-[Framework Context Objects](../providers/context.md#framework-context-objects).
+`ContextProvider` is registered by `setup_di()` — so a `container.validate()` call made
+*before* `setup_di()` runs sees no provider for it yet and raises. Either call
+`validate()` **after** `setup_di()` (the provider is registered by then), or make the
+parameter optional (`request: fastapi.Request | None = None`) so validation skips it
+regardless of ordering; the integration still injects the real value at runtime either
+way. See [Framework Context Objects](../providers/context.md#framework-context-objects).
 
 Check `.suggestions` on the caught exception for a "did you mean" hint when a similarly-named type is
 registered instead.

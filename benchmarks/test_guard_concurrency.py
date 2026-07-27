@@ -65,7 +65,7 @@ _TOTAL_READS = 8000
 @pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
 def test_g14_concurrent_cached_hit(benchmark, n_threads):
     # Fixed total reads split across N threads: batch time drops with N iff the read path scales.
-    container = Container(scope=Scope.APP, groups=[CachedGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[CachedGroup])
     container.open()
     warm = container.resolve_provider(CachedGroup.obj)
     reads_per_thread = _TOTAL_READS // n_threads
@@ -93,12 +93,12 @@ _COLD_PROVIDERS = [getattr(_COLD_GROUP, f"c{i}") for i in range(_K_COLD)]
 def test_g15_concurrent_first_resolve(benchmark, n_threads):
     # All N threads race to first-resolve the SAME K cold singletons -> contention on each
     # creation lock. Fresh container per round (untimed setup) so every round actually creates.
-    check = Container(scope=Scope.APP, groups=[_COLD_GROUP], validate=False)
+    check = Container(scope=Scope.APP, groups=[_COLD_GROUP])
     check.open()
     assert all(check.resolve_provider(p) is not None for p in _COLD_PROVIDERS)
 
     def _setup() -> "tuple[tuple[Container], dict[str, object]]":
-        container = Container(scope=Scope.APP, groups=[_COLD_GROUP], validate=False)
+        container = Container(scope=Scope.APP, groups=[_COLD_GROUP])
         container.open()
         return (container,), {}
 

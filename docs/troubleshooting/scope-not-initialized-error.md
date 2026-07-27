@@ -19,15 +19,13 @@ built.
 Build the deeper-scoped container before resolving from it:
 
 ```python
-app_container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)
-app_container.open()
+app_container = Container(scope=Scope.APP, groups=[MyGroup])
 
 # Wrong: no REQUEST container exists yet
 app_container.resolve(RequestScopedThing)  # raises ScopeNotInitializedError
 
 # Right
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
-request_container.open()
 request_container.resolve(RequestScopedThing)
 ```
 

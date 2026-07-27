@@ -1,17 +1,20 @@
 import copy
 import dataclasses
 import inspect
+import os
 import typing
 import warnings
 
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers, suggester
+from modern_di import container as container_module
 from modern_di.exceptions import (
     ArgumentResolutionError,
     ChildContainerRegistrationError,
     CircularDependencyError,
     ContainerClosedError,
+    ContainerClosedWarning,
     DuplicateProviderTypeError,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
@@ -19,6 +22,7 @@ from modern_di.exceptions import (
     MaxScopeReachedError,
     ProviderNotRegisteredError,
     ScopeSkippedError,
+    ValidateArgumentWarning,
     ValidationFailedError,
 )
 from modern_di.providers.abstract import AbstractProvider
@@ -138,19 +142,10 @@ class CycleGroup(Group):
     b = providers.Factory(creator=CycleB)
 
 
-def test_validate_at_entry() -> None:
-    # 3.0: validate=True enables validation but defers it to container entry; it does not raise at __init__.
-    container = Container(groups=[CycleGroup], validate=True)
-    with pytest.raises(ValidationFailedError) as exc:
-        container.open()
-    [issue] = exc.value.errors
-    assert isinstance(issue, CircularDependencyError)
-
-
 def test_cycle_path_carries_definition_sites() -> None:
-    container = Container(groups=[CycleGroup], validate=True)
+    container = Container(groups=[CycleGroup])
     with pytest.raises(ValidationFailedError) as exc_info:
-        container.open()
+        container.validate()
     rendered = str(exc_info.value)
     lineno = inspect.getsourcelines(CycleA)[1]
     assert f"({CycleA.__module__}:{lineno})" in rendered
@@ -233,7 +228,7 @@ def test_validate_walks_deeper_scoped_providers() -> None:
     class G(Group):
         svc = providers.Factory(scope=Scope.REQUEST, creator=Service)
 
-    Container(groups=[G], validate=True).open()  # deferred validation runs at entry; must not raise
+    Container(groups=[G]).validate()  # must not raise
 
 
 def test_validate_raises_on_inverted_scope_dependency() -> None:
@@ -273,7 +268,7 @@ def test_validate_raises_on_inverted_scope_dependency_supplied_via_kwargs() -> N
     inner = providers.Factory(scope=Scope.REQUEST, creator=Inner)
     outer = providers.Factory(scope=Scope.APP, creator=Outer, kwargs={"inner": inner})
 
-    container = Container(validate=False)
+    container = Container()
     container.providers_registry.add_providers(inner, outer)
 
     with pytest.raises(ValidationFailedError) as exc:
@@ -338,6 +333,27 @@ def test_validate_accumulates_multiple_errors() -> None:
     assert CircularDependencyError in error_types
 
 
+def test_walk_errors_returns_flat_list_in_walk_order() -> None:
+    class _Missing: ...
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class _NeedsMissing:
+        missing: _Missing
+
+    class G(Group):
+        a = providers.Factory(creator=CycleA)
+        b = providers.Factory(creator=CycleB)
+        svc = providers.Factory(creator=_NeedsMissing)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    errors = container._walk_errors()  # noqa: SLF001
+
+    # Root order is registration order (a, b, svc): the cycle closes while walking from root
+    # `a`, so it is appended before `svc`'s missing dependency is reached.
+    error_types = [type(error).__name__ for error in errors]
+    assert error_types == ["CircularDependencyError", "ArgumentResolutionError"]
+
+
 def test_validate_detects_cycle_across_scopes() -> None:
     class CrossScopeCycleGroup(Group):
         a = providers.Factory(scope=Scope.REQUEST, creator=CycleA)
@@ -358,7 +374,7 @@ def test_validate_handles_factory_with_static_kwargs() -> None:
     class G(Group):
         svc = providers.Factory(creator=Service, kwargs={"name": "static"})
 
-    Container(groups=[G], validate=True).open()  # deferred validation runs at entry; must not raise
+    Container(groups=[G]).validate()  # must not raise
 
 
 def test_validation_failed_error_str_renders_inner_errors() -> None:
@@ -411,34 +427,26 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
         Container(scope=Scope.APP, parent_container=request)
 
 
-def test_resolve_on_closed_container_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)
+def test_resolve_on_closed_container_warns() -> None:
+    container = Container(scope=Scope.APP)
     container.close_sync()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
-    assert container.closed is True  # no self-heal: still closed after the raise
-
-
-def test_build_child_on_closed_container_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)
-    container.close_sync()
-    with pytest.raises(ContainerClosedError):
-        container.build_child_container(scope=Scope.REQUEST)
-    assert container.closed is True  # no self-heal: still closed after the raise
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
+    assert container.closed is False  # self-healed: reopened by the warning path
 
 
 def test_reenter_reopens_closed_container() -> None:
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
     container.close_sync()
     with container:  # __enter__ -> open() clears closed
         assert container.resolve(Container) is container
 
 
-async def test_closed_container_async_path_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)
+async def test_closed_container_async_path_warns() -> None:
+    container = Container(scope=Scope.APP)
     await container.close_async()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
 
 
 class _PersistentBroker: ...
@@ -450,38 +458,96 @@ class _AppBrokerGroup(Group):
     )
 
 
-def test_resolving_through_closed_parent_via_open_child_raises() -> None:
-    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup], validate=False)
+def test_resolving_through_closed_parent_via_open_child_warns() -> None:
+    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
     app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
     child.open()
     app.close_sync()
-    with pytest.raises(ContainerClosedError):
-        child.resolve(_PersistentBroker)
-    assert app.closed is True  # no self-heal: the ancestor stays closed
+    with pytest.warns(ContainerClosedWarning):
+        assert isinstance(child.resolve(_PersistentBroker), _PersistentBroker)
 
 
 async def test_async_context_manager_reopens() -> None:
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
     async with container:
         pass
-    with pytest.raises(ContainerClosedError):
+    with pytest.warns(ContainerClosedWarning):
         container.resolve(Container)
     async with container:
         assert container.resolve(Container) is container
 
 
 def test_open_reopens_closed_container() -> None:
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
     container.close_sync()
-    with pytest.raises(ContainerClosedError):
+    with pytest.warns(ContainerClosedWarning):
         container.resolve(Container)
     container.open()
     assert container.resolve(Container) is container
     assert container.build_child_container(scope=Scope.REQUEST).scope is Scope.REQUEST
 
 
+def test_reuse_after_close_warns_and_reopens() -> None:
+    container = Container(scope=Scope.APP)
+    container.open()
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning) as record:
+        assert container.resolve(Container) is container
+    assert container.closed is False
+    assert record[0].message.container_scope is Scope.APP  # ty: ignore[unresolved-attribute]
+
+
+def test_reuse_warning_points_at_caller_not_library() -> None:
+    container = Container(scope=Scope.APP)
+    container.open()
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning) as record:
+        container.resolve(Container)
+    assert record[0].filename == __file__
+
+
+def test_explicit_open_after_close_does_not_warn() -> None:
+    container = Container(scope=Scope.APP)
+    container.open()
+    container.close_sync()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # a deliberate reopen is silent
+        container.open()
+        assert container.resolve(Container) is container
+
+
+def test_child_built_off_closed_parent_warns_only_when_the_parent_resolves() -> None:
+    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
+    app.open()
+    app.close_sync()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # parenting alone touches no closed state
+        child = app.build_child_container(scope=Scope.REQUEST)
+    with pytest.warns(ContainerClosedWarning):
+        child.resolve(_PersistentBroker)  # navigates to the closed APP owner
+
+
+def test_caller_stacklevel_does_not_skip_sibling_packages() -> None:
+    # `modern_di_fastapi/` is a *sibling* of `modern_di/`, not part of it: a warning raised through
+    # an integration must stop at the integration, not walk past it into framework code. Driven with
+    # a synthesized frame so the test needs no sibling package installed.
+    package_dir = container_module._PACKAGE_DIR  # noqa: SLF001
+    sibling = f"{package_dir.rstrip(os.sep)}_fastapi{os.sep}routing.py"
+    namespace: dict[str, typing.Any] = {}
+    exec(compile("def integration(fn):\n    return fn()\n", sibling, "exec"), namespace)  # noqa: S102
+    assert namespace["integration"](container_module._caller_stacklevel) == 1  # noqa: SLF001
+
+
+def test_container_closed_warning_message() -> None:
+    warning = ContainerClosedWarning(container_scope=Scope.REQUEST)
+    assert warning.container_scope is Scope.REQUEST
+    assert "reused after close" in str(warning)
+    assert "open()" in str(warning)
+
+
 def test_container_closed_error_message_and_attr() -> None:
+    """Back-compat pin: nothing raises this class anymore, so this test is what keeps it covered."""
     err = ContainerClosedError(container_scope=Scope.APP)
     assert err.container_scope is Scope.APP
     assert "not open" in str(err)
@@ -495,62 +561,45 @@ def test_open_on_open_container_is_noop() -> None:
         assert container.resolve(Container) is container
 
 
-# --- 3.0 mandatory-open lifecycle -----------------------------------------------------------------
+# --- a container is open from construction ------------------------------------------------------
 
 
-def test_fresh_container_starts_unopened() -> None:
-    # 3.0: a just-constructed container is not open; it must be entered before use.
-    container = Container(scope=Scope.APP, validate=False)
-    assert container.closed is True
-
-
-def test_unopened_container_resolve_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)  # never opened
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
-
-
-def test_unopened_container_build_child_raises() -> None:
-    container = Container(scope=Scope.APP, validate=False)  # never opened
-    with pytest.raises(ContainerClosedError):
-        container.build_child_container(scope=Scope.REQUEST)
-
-
-def test_open_enables_use_and_validates_root_once(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = {"n": 0}
-    real = Container.validate
-
-    def counting(self: Container) -> None:
-        calls["n"] += 1
-        real(self)
-
-    monkeypatch.setattr(Container, "validate", counting)
-    container = Container(scope=Scope.APP, groups=[_DeferValidGroup])  # default validate=True
-    container.open()
+def test_fresh_container_is_open() -> None:
+    container = Container(scope=Scope.APP)
     assert container.closed is False
-    assert calls["n"] == 1  # open() validated the root exactly once
-    assert isinstance(container.resolve(_DeferValidService), _DeferValidService)
-    assert calls["n"] == 1  # resolve no longer validates
 
 
-def test_child_from_build_requires_open_and_does_not_validate(monkeypatch: pytest.MonkeyPatch) -> None:
-    with Container(scope=Scope.APP, validate=False) as app:
-        child = app.build_child_container(scope=Scope.REQUEST)
-        assert child.closed is True  # child starts unopened too
-        with pytest.raises(ContainerClosedError):
-            child.resolve(Container)
+def test_construct_then_close_then_reuse_warns_once() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # reopened: the second resolve is silent
+        assert container.resolve(Container) is container
 
-        calls = {"n": 0}
-        real = Container.validate
 
-        def counting(self: Container) -> None:  # pragma: no cover -- asserted not to run
-            calls["n"] += 1
-            real(self)
+def test_fresh_container_resolves_without_open() -> None:
+    container = Container(scope=Scope.APP)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # a never-closed container must not warn
+        assert container.resolve(Container) is container
+    assert container.closed is False
 
-        monkeypatch.setattr(Container, "validate", counting)
-        child.open()  # child never validates (root-only)
-        assert calls["n"] == 0
-        assert child.resolve(Container) is child
+
+def test_fresh_container_builds_child_and_child_resolves_without_open() -> None:
+    app = Container(scope=Scope.APP)
+    child = app.build_child_container(scope=Scope.REQUEST)
+    assert child.resolve(Container) is child
+    assert app.closed is False  # building a child does not close the parent
+
+
+def test_build_child_off_closed_parent_is_allowed() -> None:
+    app = Container(scope=Scope.APP)
+    app.open()
+    app.close_sync()
+    child = app.build_child_container(scope=Scope.REQUEST)  # no raise: builds nothing, resolves nothing
+    assert child.scope is Scope.REQUEST
 
 
 def test_private_lock_and_scope_map_back_the_machinery() -> None:
@@ -607,79 +656,8 @@ def test_resolve_emits_no_deprecation_warning() -> None:
         container.build_child_container(scope=Scope.REQUEST)
 
 
-def test_default_and_true_both_enable_deferred_validation() -> None:
-    # 3.0 both-deferred: the default (None) and validate=True are identical — validation is enabled but
-    # runs at entry, so neither raises at construction; both raise at open().
-    default_container = Container(scope=Scope.APP, groups=[CycleGroup])  # no raise at __init__
-    with pytest.raises(ValidationFailedError):
-        default_container.open()
-    true_container = Container(scope=Scope.APP, groups=[CycleGroup], validate=True)  # no raise at __init__
-    with pytest.raises(ValidationFailedError):
-        true_container.open()
-
-
-def test_root_without_validate_arg_does_not_warn() -> None:
-    # 3.0 removed UnvalidatedContainerWarning: constructing a root with unset validate is silent.
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        Container(scope=Scope.APP)
-
-
-def test_explicit_validate_false_never_warns() -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        Container(scope=Scope.APP, validate=False)
-
-
-def test_valid_graph_validates_clean_at_entry_without_warning() -> None:
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Dep:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class ValidService:
-        dep: Dep
-
-    class ValidGroup(Group):
-        dep = providers.Factory(creator=Dep)
-        svc = providers.Factory(creator=ValidService)
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        with Container(scope=Scope.APP, groups=[ValidGroup], validate=True):  # validates clean at entry
-            pass
-
-
-def test_resolve_on_unopened_container_raises_before_validating() -> None:
-    # 3.0: resolve on a never-opened container raises ContainerClosedError; it does NOT validate
-    # (validation moved to open()), so the broken graph is never even walked here.
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Missing:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Service:
-        missing: Missing
-
-    class G(Group):
-        svc = providers.Factory(creator=Service)
-
-    container = Container(scope=Scope.APP, groups=[G])  # constructs fine; broken graph not yet checked
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Service)  # unopened -> closed error, not ValidationFailedError
-
-
-def test_child_container_never_validates() -> None:
-    # Root-only: only a root gets _validate_enabled; a child never validates regardless of the root's setting.
-    root = Container(scope=Scope.APP, validate=True)
-    assert root._validate_enabled is True  # noqa: SLF001
-    root.open()
-    child = root.build_child_container(scope=Scope.REQUEST)
-    assert child._validate_enabled is False  # noqa: SLF001
-
-
 def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
     container.open()
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
 
@@ -692,7 +670,7 @@ def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:
 def test_add_providers_raises_on_duplicate_against_registered() -> None:
     str_factory = providers.Factory(creator=lambda: "one", bound_type=str)
     other_str_factory = providers.Factory(creator=lambda: "two", bound_type=str)
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
     container.add_providers(str_factory)
 
     with pytest.raises(DuplicateProviderTypeError) as exc:
@@ -703,7 +681,7 @@ def test_add_providers_raises_on_duplicate_against_registered() -> None:
 def test_add_providers_raises_on_duplicate_intra_batch() -> None:
     str_factory = providers.Factory(creator=lambda: "one", bound_type=str)
     other_str_factory = providers.Factory(creator=lambda: "two", bound_type=str)
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
 
     with pytest.raises(DuplicateProviderTypeError) as exc:
         container.add_providers(str_factory, other_str_factory)
@@ -711,7 +689,7 @@ def test_add_providers_raises_on_duplicate_intra_batch() -> None:
 
 
 def test_add_providers_on_child_container_raises() -> None:
-    root = Container(scope=Scope.APP, validate=False)
+    root = Container(scope=Scope.APP)
     root.open()
     child = root.build_child_container(scope=Scope.REQUEST)
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
@@ -720,115 +698,6 @@ def test_add_providers_on_child_container_raises() -> None:
         child.add_providers(str_factory)
     assert isinstance(exc.value, exceptions.RegistrationError)
     assert exc.value.scope is Scope.REQUEST
-
-
-def test_add_providers_on_validated_root_reraises_validation_failure() -> None:
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Missing:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Broken:
-        missing: Missing
-
-    container = Container(scope=Scope.APP)
-    container.validate()  # deferred: validate explicitly so this root is validated before add_providers
-    broken_factory = providers.Factory(creator=Broken)
-
-    with pytest.raises(ValidationFailedError) as exc:
-        container.add_providers(broken_factory)
-    [issue] = exc.value.errors
-    assert isinstance(issue, ArgumentResolutionError)
-
-
-def test_add_providers_on_validate_false_root_does_not_validate() -> None:
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Missing:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Broken:
-        missing: Missing
-
-    container = Container(scope=Scope.APP, validate=False)
-    broken_factory = providers.Factory(creator=Broken)
-
-    container.add_providers(broken_factory)  # should not raise
-
-
-def test_add_providers_on_unset_validate_root_does_not_validate() -> None:
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Missing:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Broken:
-        missing: Missing
-
-    # Unset validate defers validation, so _validated is still False at construction: add_providers skips
-    # re-validation and a later open() validates the completed graph. This is the integration seam.
-    container = Container(scope=Scope.APP)
-    broken_factory = providers.Factory(creator=Broken)
-
-    container.add_providers(broken_factory)  # should not raise: not yet validated
-
-
-def test_add_providers_rolls_back_whole_batch_when_revalidation_fails() -> None:
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Original:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Inner:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Outer:
-        inner: Inner
-
-    class G(Group):
-        original = providers.Factory(creator=Original)
-
-    container = Container(scope=Scope.APP, groups=[G])
-    container.open()
-    container.validate()  # deferred: validate explicitly so add_providers re-validates the batch
-
-    valid_factory = providers.Factory(creator=lambda: "ok", bound_type=str)
-    inner_factory = providers.Factory(scope=Scope.REQUEST, creator=Inner)
-    outer_factory = providers.Factory(scope=Scope.APP, creator=Outer)  # scope-invalid: APP depends on REQUEST
-
-    with pytest.raises(ValidationFailedError):
-        container.add_providers(valid_factory, inner_factory, outer_factory)
-
-    # the whole batch rolled back, including the valid providers
-    with pytest.raises(ProviderNotRegisteredError):
-        container.resolve(str)
-    with pytest.raises(ProviderNotRegisteredError):
-        container.resolve(Inner)
-    with pytest.raises(ProviderNotRegisteredError):
-        container.resolve(Outer)
-    # the container is unchanged: original providers still resolve and the graph is still valid
-    assert isinstance(container.resolve(Original), Original)
-    container.validate()
-
-
-def test_add_providers_after_manual_validate_reraises_validation_failure() -> None:
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Missing:
-        pass
-
-    @dataclasses.dataclass(kw_only=True, slots=True)
-    class Broken:
-        missing: Missing
-
-    container = Container(scope=Scope.APP, validate=False)
-    container.validate()  # manual call also sets the flag
-    broken_factory = providers.Factory(creator=Broken)
-
-    with pytest.raises(ValidationFailedError) as exc:
-        container.add_providers(broken_factory)
-    [issue] = exc.value.errors
-    assert isinstance(issue, ArgumentResolutionError)
 
 
 def test_resolve_dependency_with_provider_returns_same_instance_as_resolve_provider() -> None:
@@ -853,7 +722,7 @@ def test_add_providers_rebuilds_stale_wiring_plan_for_optional_dependency() -> N
     class Outer:
         inner: Inner | None = None
 
-    container = Container(scope=Scope.APP, validate=True)
+    container = Container(scope=Scope.APP)
     container.open()
     outer_factory = providers.Factory(creator=Outer)  # not cached: second resolve rebuilds
 
@@ -877,7 +746,7 @@ def test_add_providers_rebuilds_stale_wiring_plan_for_required_dependency() -> N
     class Outer:
         inner: Inner
 
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
     container.open()
     outer_factory = providers.Factory(creator=Outer)
 
@@ -890,47 +759,16 @@ def test_add_providers_rebuilds_stale_wiring_plan_for_required_dependency() -> N
     assert isinstance(result.inner, Inner)
 
 
-def test_add_providers_rolls_back_on_any_exception_from_revalidation() -> None:
-    """Rollback must not be tied to ValidationFailedError specifically — any exception rolls back."""
-    container = Container(scope=Scope.APP)
-    container.validate()  # deferred: validate first so add_providers takes the re-validation branch
-    str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
-
-    def _boom(_self: Container) -> None:
-        msg = "boom"
-        raise RuntimeError(msg)
-
-    with pytest.MonkeyPatch().context() as mp:
-        mp.setattr(Container, "validate", _boom)
-        with pytest.raises(RuntimeError, match="boom"):
-            container.add_providers(str_factory)
-
-    with pytest.raises(ProviderNotRegisteredError):
-        container.resolve(str)
-
-
-def test_add_providers_on_validated_root_with_valid_batch_succeeds() -> None:
-    """Positive branch: a validated root re-validates successfully and the batch resolves afterwards."""
-    container = Container(scope=Scope.APP)
-    container.open()
-    container.validate()  # deferred: validate first so add_providers exercises the success re-validation branch
-    str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
-
-    container.add_providers(str_factory)
-
-    assert container.resolve(str) == "added"
-
-
 def test_add_providers_on_closed_root_registers_fine() -> None:
     """Ruled: no closed-state check on add_providers — registering on a closed root just works."""
-    container = Container(scope=Scope.APP, validate=False)
+    container = Container(scope=Scope.APP)
     container.close_sync()
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
 
     container.add_providers(str_factory)  # no ContainerClosedError: registration doesn't touch closed state
 
-    with pytest.raises(ContainerClosedError):
-        container.resolve(str)
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(str) == "added"
 
 
 def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None:
@@ -1003,7 +841,7 @@ class _OverrideGroup(Group):
 
 
 def test_override_context_manager_applies_and_resets() -> None:
-    container = Container(groups=[_OverrideGroup], validate=False)
+    container = Container(groups=[_OverrideGroup])
     container.open()
     mock = _OverrideSvc()
     with container.override(_OverrideGroup.svc, mock) as bound:
@@ -1013,7 +851,7 @@ def test_override_context_manager_applies_and_resets() -> None:
 
 
 def test_override_context_manager_restores_prior_imperative_override() -> None:
-    container = Container(groups=[_OverrideGroup], validate=False)
+    container = Container(groups=[_OverrideGroup])
     container.open()
     first = _OverrideSvc()
     second = _OverrideSvc()
@@ -1024,7 +862,7 @@ def test_override_context_manager_restores_prior_imperative_override() -> None:
 
 
 def test_override_context_manager_nested_unwinds_in_order() -> None:
-    container = Container(groups=[_OverrideGroup], validate=False)
+    container = Container(groups=[_OverrideGroup])
     container.open()
     outer = _OverrideSvc()
     inner = _OverrideSvc()
@@ -1038,7 +876,7 @@ def test_override_context_manager_nested_unwinds_in_order() -> None:
 
 
 def test_override_context_manager_restores_on_exception() -> None:
-    container = Container(groups=[_OverrideGroup], validate=False)
+    container = Container(groups=[_OverrideGroup])
     container.open()
     mock = _OverrideSvc()
     msg = "boom"
@@ -1048,7 +886,7 @@ def test_override_context_manager_restores_on_exception() -> None:
 
 
 def test_override_context_manager_exit_restores_snapshot_after_inner_reset() -> None:
-    container = Container(groups=[_OverrideGroup], validate=False)
+    container = Container(groups=[_OverrideGroup])
     container.open()
     first = _OverrideSvc()
     second = _OverrideSvc()
@@ -1067,13 +905,14 @@ def test_resolve_provider_raises_for_unhandled_provider_type() -> None:
         __slots__ = ()
 
     provider = _UnknownProvider(scope=Scope.APP, bound_type=None)
-    container = Container(validate=False)
+    container = Container()
     container.open()
     with pytest.raises(TypeError, match="no compiled resolver for provider type _UnknownProvider"):
         container.resolve_provider(provider)
 
 
-# --- Deferred validate-by-default (3.0 both-deferred) ---------------------------------------------
+# --- validate() is the only trigger: construction, open(), resolve() and add_providers() never ----
+# --- walk the graph on their own. -------------------------------------------------------------
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -1090,15 +929,6 @@ class _DeferBrokenGroup(Group):
     svc = providers.Factory(creator=_DeferBrokenService)
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
-class _DeferValidService:
-    pass
-
-
-class _DeferValidGroup(Group):
-    svc = providers.Factory(creator=_DeferValidService)
-
-
 class _DeferRequest: ...
 
 
@@ -1112,55 +942,82 @@ class _DeferFactoryNeedingRequestGroup(Group):
     dependent = providers.Factory(creator=_DeferReqDependent)
 
 
-def test_invalid_graph_does_not_raise_at_construction() -> None:
-    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])  # no raise: validation is deferred
+def test_construction_never_validates() -> None:
+    container = Container(scope=Scope.APP, groups=[CycleGroup])  # a cycle: no raise here any more
     with pytest.raises(ValidationFailedError):
-        container.open()  # validation runs at container entry
+        container.validate()
 
 
-def test_validation_runs_at_open_not_resolve() -> None:
-    # Validation lives only in open(): resolving an unopened container raises ContainerClosedError, while
-    # open() walks the (broken) graph and surfaces ValidationFailedError.
-    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
-    with pytest.raises(ContainerClosedError):
-        container.resolve(_DeferBrokenService)
+def test_add_providers_never_validates_and_does_not_roll_back() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing: ...
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Broken:
+        missing: Missing
+
+    container = Container(scope=Scope.APP)
+    container.validate()  # clean, marks the registry validated
+    broken = providers.Factory(creator=Broken)
+
+    container.add_providers(broken)  # registers quietly: no raise, no rollback
+
+    assert container.providers_registry.find_provider(Broken) is broken
     with pytest.raises(ValidationFailedError):
-        container.open()
+        container.validate()
 
 
-def test_deferred_validation_raises_via_context_manager_entry() -> None:
-    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
-    with pytest.raises(ValidationFailedError), container:
-        pass  # pragma: no cover -- __enter__ raises before the body runs
-
-
-def test_reopen_does_not_revalidate(monkeypatch: pytest.MonkeyPatch) -> None:
-    container = Container(scope=Scope.APP, groups=[_DeferValidGroup])
-    calls = {"n": 0}
-    real = Container.validate
-
-    def counting(self: Container) -> None:
-        calls["n"] += 1
-        real(self)
-
-    monkeypatch.setattr(Container, "validate", counting)
-    with container:
-        container.resolve(_DeferValidService)
-    with container:  # reopen must not re-walk the graph
-        container.resolve(_DeferValidService)
-    assert calls["n"] == 1
-
-
-def test_validate_false_never_validates() -> None:
-    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup], validate=False)
-    with container:  # validation is off -> the broken graph is never checked
+def test_open_never_validates() -> None:
+    container = Container(scope=Scope.APP, groups=[CycleGroup])
+    container.open()  # no raise
+    with container:  # nor via the context manager
         pass
+
+
+def test_resolve_never_validates() -> None:
+    # A broken graph surfaces at the resolve that hits it, not as an aggregate.
+    container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
+    with pytest.raises(ArgumentResolutionError):
+        container.resolve(_DeferBrokenService)
+
+
+def test_validate_argument_is_a_deprecated_no_op() -> None:
+    with pytest.warns(ValidateArgumentWarning) as record:
+        container = Container(scope=Scope.APP, groups=[CycleGroup], validate=True)
+    assert "validate()" in str(record[0].message)
+    with pytest.raises(ValidationFailedError):
+        container.validate()  # the argument changed nothing
+
+
+def test_validate_false_also_warns_and_changes_nothing() -> None:
+    with pytest.warns(ValidateArgumentWarning):
+        Container(scope=Scope.APP, validate=False)
+
+
+def test_no_warning_when_validate_is_not_passed() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        Container(scope=Scope.APP)
 
 
 def test_integration_pattern_context_registered_after_construction() -> None:
-    # The root-cause scenario: an integration registers its ContextProvider AFTER the user constructs the
-    # container. With deferred validation the graph is complete before validation runs, so no false failure.
+    # An integration may register a ContextProvider after construction; validate(), called once the
+    # graph is complete, finds it clean.
     container = Container(scope=Scope.APP, groups=[_DeferFactoryNeedingRequestGroup])  # no raise
     container.add_providers(providers.ContextProvider(_DeferRequest))  # integration wires it in
-    with container:  # graph now complete -> validates clean
+    container.validate()  # graph now complete -> validates clean
+    with container:
         pass
+
+
+def test_add_providers_completed_graph_resolves_without_an_explicit_open() -> None:
+    # add_providers never validates, but resolve still prepares the container implicitly.
+    container = Container(
+        scope=Scope.APP,
+        groups=[_DeferFactoryNeedingRequestGroup],
+        context={_DeferRequest: _DeferRequest()},
+    )
+    container.add_providers(providers.ContextProvider(_DeferRequest))  # integration wires it in
+    request = container.build_child_container(scope=Scope.REQUEST)
+    assert isinstance(request.resolve(_DeferReqDependent), _DeferReqDependent)  # no explicit open()
+    assert container.closed is False

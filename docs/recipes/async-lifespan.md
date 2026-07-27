@@ -28,7 +28,7 @@ class Dependencies(Group):
     )
 
 
-container = Container(groups=[Dependencies], validate=True)
+container = Container(groups=[Dependencies])
 
 
 @contextlib.asynccontextmanager

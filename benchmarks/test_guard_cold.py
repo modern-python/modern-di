@@ -57,7 +57,7 @@ class ChainGroup(Group):
 
 def _cold_build_and_resolve() -> C0:
     # Fresh registry -> full compile every call: construction + open + first-resolve compile + resolve.
-    container = Container(scope=Scope.APP, groups=[ChainGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[ChainGroup])
     container.open()
     return container.resolve_provider(ChainGroup.c0)
 

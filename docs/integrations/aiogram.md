@@ -59,7 +59,9 @@ class AppGroup(Group):
 
 
 dispatcher = Dispatcher()
-setup_di(dispatcher, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+setup_di(dispatcher, container)
+container.validate()  # after setup_di — its connection providers are now registered
 
 
 @dispatcher.message()
@@ -113,7 +115,9 @@ async def greet(
 
 dispatcher = Dispatcher()
 dispatcher.include_router(router)
-setup_di(dispatcher, Container(groups=[AppGroup], validate=True), auto_inject=True)
+container = Container(groups=[AppGroup])
+setup_di(dispatcher, container, auto_inject=True)
+container.validate()  # after setup_di — its connection providers are now registered
 ```
 
 !!! warning "Register handlers before startup"

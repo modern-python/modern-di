@@ -70,19 +70,22 @@ class GreeterService(greeter_pb2_grpc.GreeterServicer):
         return greeter_pb2.HelloReply(message=report.line())
 
 
-container = Container(groups=[AppGroup], validate=True)
+container = Container(groups=[AppGroup])
 server = grpc.server(
     futures.ThreadPoolExecutor(max_workers=10),
     interceptors=[DIInterceptor(container)],
 )
 greeter_pb2_grpc.add_GreeterServicer_to_server(GreeterService(), server)
+container.validate()  # after DIInterceptor(container) — it registers ServicerContext's provider
 server.add_insecure_port("[::]:50051")
 server.start()
 server.wait_for_termination()
 ```
 
 Constructing `DIInterceptor(container)` registers the `ServicerContext` context
-provider on the container automatically — no separate setup call.
+provider on the container automatically — no separate setup call. Call
+`container.validate()` after that construction, not before, for the same reason
+described in [Writing an integration](writing-integrations.md#lifecycle-rules).
 
 ### 3. Async server (`grpc.aio`)
 

@@ -33,8 +33,7 @@ class IncompleteGroup(Group):
 
 
 def test_chain_appears_when_arg_unresolvable() -> None:
-    # validate=False: this exercises the resolve-time dependency-chain breadcrumb, not deferred validation.
-    container = Container(groups=[IncompleteGroup], validate=False)
+    container = Container(groups=[IncompleteGroup])
     container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(MyService)
@@ -74,7 +73,7 @@ def test_chain_includes_scope_name() -> None:
         repo = providers.Factory(scope=Scope.REQUEST, creator=Repository)
         outer = providers.Factory(scope=Scope.REQUEST, creator=Outer)
 
-    container = Container(groups=[CrossScope], validate=False)
+    container = Container(groups=[CrossScope])
     container.open()
     request = container.build_child_container(scope=Scope.REQUEST)
     request.open()
@@ -123,7 +122,7 @@ def test_captive_dependency_names_both_ends() -> None:
         resource = providers.Factory(scope=Scope.REQUEST, creator=ScopedResource)
         consumer = providers.Factory(scope=Scope.APP, creator=CaptiveConsumer)
 
-    app_container = Container(groups=[CaptiveGroup], validate=False)
+    app_container = Container(groups=[CaptiveGroup])
     app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     request_container.open()
@@ -176,7 +175,7 @@ def test_breadcrumb_line_carries_definition_site() -> None:
     class _G(Group):
         anchored = providers.Factory(_Anchored, scope=Scope.REQUEST)
 
-    container = Container(groups=[_G], validate=False)
+    container = Container(groups=[_G])
     container.open()
     with pytest.raises(ScopeNotInitializedError) as exc_info:
         container.resolve(_Anchored)

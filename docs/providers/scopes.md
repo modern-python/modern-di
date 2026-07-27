@@ -28,8 +28,7 @@ The root `Container` is at `APP` scope. Child containers are built from a parent
 from modern_di import Container, Scope
 
 
-app_container = Container(groups=[Dependencies], validate=True)     # APP scope
-app_container.open()                                               # open the root before use
+app_container = Container(groups=[Dependencies])     # APP scope
 
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     ...
@@ -43,7 +42,7 @@ Children share their parent's `providers_registry` (provider definitions) and `o
 
 **A provider can only depend on providers at the same scope or a broader (lower int) scope.** A REQUEST-scoped session can consume the APP-scoped engine. The engine cannot consume the session.
 
-Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state — this is called a **captive dependency**: a wide-scoped (long-lived) provider "captive" to a narrower-scoped (shorter-lived) one it cannot actually hold onto. `Container(groups=[...], validate=True)` enforces this at startup — turn it on. See [Good and bad practices](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one) for a worked example of the mistake and the fix.
+Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state — this is called a **captive dependency**: a wide-scoped (long-lived) provider "captive" to a narrower-scoped (shorter-lived) one it cannot actually hold onto. `container.validate()` enforces this — call it at startup. See [Good and bad practices](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one) for a worked example of the mistake and the fix.
 
 ### How to choose a scope
 
@@ -53,7 +52,7 @@ A provider's scope should be the **maximum** scope value among all its dependenc
 - A provider has no dependencies → APP (the default).
 - A provider depends only on APP-scoped providers → APP.
 
-If you pick a broader scope than the rule allows, `validate=True` catches it at startup.
+If you pick a broader scope than the rule allows, `container.validate()` catches it at startup.
 
 ## Building child containers
 
@@ -109,8 +108,7 @@ class MyGroup(Group):
     tenant_provider = providers.Factory(TenantContext, scope=MyScope.TENANT)
 
 
-container = Container(groups=[MyGroup], validate=True)
-container.open()
+container = Container(groups=[MyGroup])
 with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
     tenant = tenant_container.resolve(TenantContext)
 ```
@@ -138,8 +136,7 @@ class RequestGroup(Group, scope=Scope.REQUEST):
     audit = providers.Factory(AuditLog, scope=Scope.APP)  # explicit scope wins
 
 
-app_container = Container(groups=[RequestGroup], validate=True)
-app_container.open()
+app_container = Container(groups=[RequestGroup])
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     repo = request_container.resolve(UserRepository)
 ```

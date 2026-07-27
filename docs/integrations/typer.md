@@ -52,8 +52,9 @@ class AppGroup(Group):
 
 
 app = typer.Typer()
-container = Container(groups=[AppGroup], validate=True)
+container = Container(groups=[AppGroup])
 modern_di_typer.setup_di(app, container)
+container.validate()  # fails fast on a broken graph before the CLI runs
 
 
 @app.command()

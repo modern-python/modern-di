@@ -119,7 +119,7 @@ def test_c5_cold_first_resolve(benchmark):
         p = Provider(scope=Scope.APP)
         for cls in (C0, C1, C2, C3, C4, C5):
             p.provide(cls, cache=False)
-        container = make_container(p, skip_validation=True)  # align with modern-di validate=False
+        container = make_container(p, skip_validation=True)  # align with modern-di: never validates implicitly
         return container.get(C0)
 
     result = benchmark(_cold)

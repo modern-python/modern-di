@@ -64,7 +64,9 @@ class WorkerSettings:
     redis_settings = RedisSettings(host="localhost")
 
 
-setup_di(WorkerSettings, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+setup_di(WorkerSettings, container)
+container.validate()  # fails fast on a broken graph before the worker runs
 ```
 
 Run the worker as usual — `arq mymodule.WorkerSettings` — and enqueue jobs from
@@ -124,12 +126,14 @@ example in your own `on_job_start`), `fetch_di_container(ctx)` returns it.
 
 ## Restart safety
 
-`setup_di` wires `container.open()` onto `on_startup`, and `open()` is a no-op on
-an already-open container. A worker that starts, stops (closing the container),
-and starts again — a restart, or a test that runs the worker twice — reopens the
-same container cleanly instead of raising. Calling `setup_di` twice on the same
-`worker_settings` is rejected with a `TypeError`, since stacking the hook
-wrappers would leak a per-job child container.
+`setup_di` wires `container.open()` onto `on_startup`, and calling `open()` again
+on an already-open container is a no-op — it unconditionally clears `closed` and
+runs no validation, so it costs nothing regardless of graph state. A worker that
+starts, stops (closing the container), and starts again
+— a restart, or a test that runs the worker twice — reopens the same container
+cleanly. Calling `setup_di` twice on the same `worker_settings` is rejected with
+a `TypeError`, since stacking the hook wrappers would leak a per-job child
+container.
 
 ## Tasks with `*args`/`**kwargs`
 

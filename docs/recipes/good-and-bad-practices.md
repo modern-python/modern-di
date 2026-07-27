@@ -19,34 +19,35 @@ class Dependencies(Group):
     user_cache = providers.Factory(UserCache, scope=Scope.REQUEST)
 ```
 
-**Caught by:** opening `Container(groups=[...], validate=True)` (the default) raises
-`InvalidScopeDependencyError` for this exact graph before anything is ever resolved — see
-[Scope chain violation](../troubleshooting/scope-chain.md). If the graph is never validated, the
-runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError` that (since the scope-error
-breadcrumb work) now names both the provider that captured the dependency and the one that
-actually failed — but it fires on the first request that hits it, not at startup. Prefer catching it
-statically.
+**Caught by:** an explicit `container.validate()` call, which raises `ValidationFailedError`
+carrying an `InvalidScopeDependencyError` for this exact graph before anything is ever resolved
+— see [Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
+the graph is never validated, the runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError`
+that (since the scope-error breadcrumb work) now names both the provider that captured the
+dependency and the one that actually failed — but it fires on the first request that hits it, not at
+startup. Prefer catching it statically with an explicit `validate()` call.
 
 ## 2. Shipping a never-validated graph
 
 `validate()` is the only thing that checks the *whole* graph — cycles, inverted scopes, and missing
-dependencies — before the first request. Skipping it doesn't remove the bugs, it just delays
-finding them to whichever resolve happens to hit one first.
+dependencies. Nothing calls it for you: not construction, not `open()`, not `add_providers`, not
+`resolve()`. Skipping it doesn't remove the bugs, it just delays finding them to whichever resolve
+happens to hit one first.
 
 ```python
-# ❌ validation off: wiring bugs surface one at a time, in production, on whatever request trips them
-container = Container(groups=[Dependencies], validate=False)
-container.open()
-
-# ✅ validation on (the default): every wiring bug is reported at once, at container entry
+# ❌ never validated: wiring bugs surface one at a time, in production, on whatever request trips them
 container = Container(groups=[Dependencies])
-container.open()  # validates here — raises immediately if the graph is broken
+
+# ✅ validated explicitly: every wiring bug is reported at once, at startup
+container = Container(groups=[Dependencies])
+container.validate()  # raises ValidationFailedError here if the graph is broken
 ```
 
-**Caught by:** the default validation (equivalently `validate=True`), which runs deferred — once, when
-the container is entered (`open()`/`with`) — and finds every issue in the graph up front instead of one
-at a time; call `container.validate()` explicitly for a construction-time check. Only `validate=False`
-opts out. An unvalidated cyclic graph still isn't a silent hang — see
+**Caught by:** an explicit `container.validate()` call — it is the only thing that finds every issue
+in the graph up front; without it, each wiring bug surfaces individually, at whichever resolve first
+reaches it. `Container(validate=...)` is deprecated and does nothing (see [Migration: To
+3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default)). An unvalidated cyclic
+graph still isn't a silent hang — see
 [the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 
 ## 3. A cached factory resolved before `set_context`

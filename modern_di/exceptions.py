@@ -227,11 +227,12 @@ class InvalidScopeTypeError(ContainerError):
 
 
 class ContainerClosedError(ContainerError):
-    """Operation attempted on a container that is not open. Attr: ``container_scope``.
+    """No longer raised; kept importable for back-compat. Attr: ``container_scope``.
 
-    Covers both a never-opened container and one closed after use — a container
-    must be entered (``with``/``async with``/:meth:`~modern_di.Container.open`)
-    before it can resolve or build child containers.
+    Through 3.0 a not-open container raised this. As of 3.1 a container is open from
+    construction, and reusing one after an explicit close reopens it instead — implicitly
+    with :class:`ContainerClosedWarning`, or silently via :meth:`Container.open`. Nothing
+    raises this class anymore. Removed in 4.0.
     """
 
     docs_slug = "container-closed-error"
@@ -246,26 +247,41 @@ class ContainerClosedError(ContainerError):
         )
 
 
-class ContainerClosedWarning(DeprecationWarning):
-    """Retained for back-compat of existing ``filterwarnings`` configs; no longer emitted.
+class ContainerClosedWarning(RuntimeWarning):
+    """A closed container was reused implicitly and has been reopened. Attr: ``container_scope``.
 
-    In modern-di 2.x this warned on reuse of a closed container, which then self-reopened. As of
-    3.0 that reuse raises :class:`ContainerClosedError` instead, so this warning is never raised —
-    the class stays importable so an existing::
-
-        warnings.filterwarnings("error", category=exceptions.ContainerClosedWarning)
-
-    does not break at import time.
+    ``RuntimeWarning``, not ``DeprecationWarning``: CPython hides deprecation warnings outside
+    ``__main__``, which would hide this from exactly the applications that need it.
     """
+
+    __slots__ = ("container_scope",)
+
+    def __init__(self, *, container_scope: enum.IntEnum) -> None:
+        self.container_scope = container_scope
+        super().__init__(
+            f"Container (scope {container_scope.name}) was reused after close and has been reopened. "
+            "Call `open()`, or re-enter it with `with`/`async with`, to reuse it deliberately; "
+            "if you did not intend to reuse it, a reference is being held past its lifetime."
+        )
+
+
+class ValidateArgumentWarning(DeprecationWarning):
+    """`Container(validate=...)` is ignored; call `Container.validate()` instead."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "`Container(validate=...)` is ignored as of 3.1 and is removed in 4.0: "
+            "graph validation runs only when you call `container.validate()`."
+        )
 
 
 class UnvalidatedContainerWarning(FutureWarning):
-    """Retained for back-compat of existing ``filterwarnings`` configs; no longer emitted.
+    """No longer emitted; kept importable for back-compat.
 
     In modern-di 2.x this warned when a root container was built without an explicit ``validate``
-    argument. As of 3.0, ``validate`` defaults to ``True`` and runs at container entry
-    (:meth:`Container.open`/``with``), so there is nothing left to warn about — the class stays
-    importable so an existing::
+    argument. Nothing raises or warns this class today: graph validation runs only when
+    :meth:`Container.validate` is called explicitly, and never implicitly at any point in the
+    lifecycle. The class stays importable so an existing::
 
         warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
 

@@ -56,10 +56,12 @@ async def get_report(report: Report) -> dict[str, str]:
     return report.as_dict()
 
 
+container = Container(groups=[AppGroup])
 app = litestar.Litestar(
     route_handlers=[get_report],
-    plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=[AppGroup], validate=True))],
+    plugins=[modern_di_litestar.ModernDIPlugin(container)],
 )
+container.validate()  # after the plugin is installed — its connection providers are now registered
 ```
 
 ### Auto-wiring with `autowired_groups`
@@ -84,9 +86,11 @@ class AppGroup(Group):
 
 ALL_GROUPS = [AppGroup]
 
+container = Container(groups=ALL_GROUPS)
 app = litestar.Litestar(
-    plugins=[ModernDIPlugin(Container(groups=ALL_GROUPS, validate=True), autowired_groups=ALL_GROUPS)],
+    plugins=[ModernDIPlugin(container, autowired_groups=ALL_GROUPS)],
 )
+container.validate()  # after the plugin is installed — its connection providers are now registered
 
 
 @litestar.get("/users")
@@ -121,7 +125,7 @@ class Dependencies(Group):
 
 ALL_GROUPS = [Dependencies]
 
-app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS, validate=True))])
+app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=ALL_GROUPS))])
 
 
 @litestar.websocket_listener("/ws")

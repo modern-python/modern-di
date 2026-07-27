@@ -23,49 +23,57 @@ Constructor parameters:
 | `groups` | `None` | One or more `Group` subclasses whose providers are registered into `providers_registry`. |
 | `context` | `None` | Mapping of `type → object` pre-populated into `context_registry`. |
 | `use_lock` | `True` | Wraps resolution in a `threading.RLock`; set `False` for single-threaded use. |
-| `validate` | `True` | Enable the provider-graph check, run once at `open()`. `False` disables it. See below. |
+| `validate` | `None` | Deprecated and ignored — see below. |
 
 A root container (no `parent_container`) creates fresh `ProvidersRegistry` and `OverridesRegistry`
 instances. It also auto-registers `container_provider` (see [below](#container_provider)) under the
 `Container` type.
 
-A freshly-constructed container starts **unopened** (`closed = True`) and must be entered before use —
-see [Mandatory-open lifecycle](#mandatory-open-lifecycle).
+A freshly-constructed container starts **open** (`closed = False`) — see
+[Optional-open lifecycle](#optional-open-lifecycle).
 
-### `validate` (a plain bool)
+### `validate` (deprecated constructor argument)
 
-See [validation.md](validation.md) for what the check does and why. `validate` is a plain
-`bool = True`: the default and `True` enable the provider-graph check, which runs **once at `open()`**
-(never in `__init__`, never on resolve); `validate=False` disables it. `__init__` records this once as
-`self._validate_enabled = validate and parent_container is None`. The `parent_container is None`
-conjunct is the container-specific wrinkle: only a **root** validates. A child built via
-`build_child_container` never passes `validate`, and even if it did the `parent_container is None` guard
-is false for every child, so `_validate_enabled` is always `False` on a child — children never validate,
-regardless of `validate`'s value. That is safe because the providers registry is shared tree-wide, so
-the root's single validation walk covers every child (see [Integration seam](#integration-seam)).
+`validate: bool | None = None` no longer gates anything. Passing `True` or `False` emits
+`exceptions.ValidateArgumentWarning` (a `DeprecationWarning`) and changes nothing about the container
+built; omitting the argument (its default, `None`) is silent. The check it used to gate is entirely
+explicit now: call [`container.validate()`](#validate) whenever you want the graph checked — see
+[validation.md](validation.md) for what that check does. `validate` is removed in 4.0.
 
-## Mandatory-open lifecycle
+## Optional-open lifecycle
 
-A container must be **opened** before it can resolve or build children. Construction leaves it
-unopened (`closed = True`); calling `resolve` / `resolve_provider` / `resolve_dependency` /
-`build_child_container` on an unopened (or closed) container raises `ContainerClosedError`. Enter it
-via `with` / `async with`, or call `open()` directly:
+A container is **open** the moment it is constructed (`closed = False`) — there is no required
+`open()` step and no first-use preparation. `close_sync()` / `close_async()` run finalizers and set
+`closed = True`; that is the only way a container becomes closed. `open()` and `with` / `async with`
+stay available — call them to get finalizers on the way out, and to reopen a closed container
+deliberately:
 
 ```python
-with Container(scope=Scope.APP, groups=[MyGroup]) as container:
-    container.resolve(...)  # opened -> usable; validated once on entry (root only)
-# exit closes it; re-entering reopens
-
-# callback-style lifecycle (no with-block available):
 container = Container(scope=Scope.APP, groups=[MyGroup])
-container.open()  # opens + validates (root, once)
+container.resolve(...)  # closed=False from construction -> resolves directly
+
+# finalizers on the way out:
+with Container(scope=Scope.APP, groups=[MyGroup]) as container:
+    container.resolve(...)
+# exit closes it; re-entering (or an implicit resolve) reopens it
 ```
 
-The full lifecycle is: **construct → (unopened: use raises) → `open()`/`with` (root validates once) →
-use → close → reopen**. `open()` is the single validation trigger — resolution never validates. Only a
-root validates; a child from `build_child_container` also starts unopened and must be entered, but its
-`open()` merely clears `closed` (children never validate). See
-[Lifecycle: close and reopen](#lifecycle-close-and-reopen) for close/reopen mechanics.
+Two states, tracked by the public `closed: bool`:
+
+| State | `closed` | Implicit use | `open()` / `with` |
+|---|---|---|---|
+| Open | `False` | proceeds | no-op |
+| Closed | `True` | reopens, warns | reopens, silent |
+
+Reusing a closed container **implicitly** — a `resolve` / `resolve_provider` / `resolve_dependency`
+that reaches it without going through `open()` / `with` first, directly or by building a child and
+resolving through it — reopens it and emits `ContainerClosedWarning` (a `RuntimeWarning`, so it is
+visible outside `__main__`, unlike `DeprecationWarning`); calling `open()` explicitly reopens silently,
+since a deliberate reopen is not a diagnostic-worthy event. The warning is per container, not per
+resolve: a closed REQUEST child resolving an APP-scoped provider through a closed APP parent reopens
+and warns twice, once for each closed container the resolve passes through. See [Lifecycle: close and
+reopen](#lifecycle-close-and-reopen) for what close and reopen do to the cache, and [Open and
+reopen](#open-and-reopen-context-manager-protocol) for `_prepare()` / `open()` mechanics.
 
 ## Child containers
 
@@ -83,20 +91,16 @@ Rules:
   the parent, **not** `value + 1`, so non-contiguous custom enums (`TENANT=6, JOB=10`) work; if the parent is
   already at the deepest member, `MaxScopeReachedError` is raised. See
   [scopes.md](scopes.md#the-scope-algebra).
-- Building a child requires the parent be **open**: `build_child_container` on an unopened or closed
-  parent raises `ContainerClosedError` (see [Lifecycle: close and reopen](#lifecycle-close-and-reopen)
-  below). The returned child itself starts unopened and must be entered before use.
+- Building a child does not require the parent be open. `build_child_container` reads the parent's
+  `_scope_map` and its two shared registries (`providers_registry`, `overrides_registry`); it resolves
+  nothing and touches no cache, so a closed parent is irrelevant to it — there is no closed-check on
+  the parent. The returned child itself starts open, same as any freshly-constructed container; see
+  [Optional-open lifecycle](#optional-open-lifecycle).
 
-  This guard is **not** redundant with the resolve-time closed-check, and that is why it is kept.
-  A compiled resolver navigates to the scope-owning container and checks *its* `closed` flag
-  ([resolution.md](resolution.md) / `resolver_compiler.py`), so a resolve that reaches an unopened
-  ancestor does raise on its own. But a provider resolvable **at the open child's own scope**
-  (`target == container`) skips every ancestor closed-check, and children never validate
-  ([validate](#validate-a-plain-bool) — validation runs only at *root* `open()`). Without this
-  guard you could build a child off a never-opened root, open the child, and resolve child-scoped
-  providers against a graph whose cycles/scope errors were **never checked**. The build guard is
-  the single enforcement point that forces `root.open()` (hence validation) to happen before any
-  child can exist and resolve.
+  This is safe because validation state lives on the shared `ProvidersRegistry`, not on any one
+  container, and nothing validates automatically in the first place — `validate()` is the only trigger
+  (see [validation.md](validation.md)). Building a child off a closed parent therefore skips nothing
+  that would otherwise have run.
 
 The child gets its own, independent `_scope_map` dict that includes all ancestors plus itself,
 enabling `find_container(scope)` to walk up to any ancestor scope in O(1).
@@ -123,19 +127,19 @@ dispatch) are the blessed integration seam — see
 [writing-integrations.md](../docs/integrations/writing-integrations.md).
 `add_providers` is **root-only**: called on a child, it raises
 `ChildContainerRegistrationError` (`modern_di/exceptions.py`), since the
-registry it mutates is shared tree-wide. `Container` tracks a private
-`_validated` flag, set once `validate()` succeeds on **this** container
-(construction or a manual call); it is the per-container gate for
-`add_providers`, which on an already-validated container re-runs `validate()`
-after registering and, if that fails, removes the just-added batch again —
-the container ends up either fully registered and valid, or unchanged.
-Whether the graph is *currently* validation-clean is tracked separately and
-registry-level, by `ProvidersRegistry`'s `_validated` flag (see
-[validation.md](validation.md#what-validate-checks)). Because that registry is
-shared tree-wide, validating any container in the tree marks the whole graph
-clean, so a child's `resolve` benefits from the root's validation — its runtime
-cycle guard short-circuits — without the child ever calling `validate()` itself.
-`resolve_dependency` carries no such restriction; it is a resolve verb,
+registry it mutates is shared tree-wide. All validation state lives on the
+shared `ProvidersRegistry`, not on `Container` — there is no per-container
+validated flag (see [validation.md](validation.md#what-validate-checks)).
+`add_providers` registers and nothing more: it does not validate, and there
+is no rollback on a bad batch — a cycle or inverted scope introduced by the
+new providers is only reported the next time something calls
+[`validate()`](#validate). The one effect on validation state is indirect:
+mutating the registry clears `ProvidersRegistry._validated`, so a later
+`validate()` re-walks the now-larger graph rather than trusting a stale clean
+result. Because the registry is shared tree-wide, a batch registered through
+the root is immediately visible to every container in the tree, so a child's
+`resolve` sees a root's `add_providers` call without the child doing anything.
+`resolve_dependency` carries no restriction of its own; it is a resolve verb,
 callable on any container regardless of validation state.
 
 ## `container_provider`
@@ -170,10 +174,11 @@ The rest of this section documents what that close performs and how reopen works
    `AsyncFinalizerInSyncCloseError`; those items are left in `_creation_order` so a subsequent
    `close_async()` can clean them up.
 
-2. **`closed = True`** — always set in a `finally` block, even if finalizers raised. A subsequent
-   `resolve_provider` / `build_child_container` (or a nested provider resolving at a closed ancestor
-   scope) raises `ContainerClosedError` — there is no self-heal. Re-enter the container via
-   `with`/`async with`, or call `container.open()`, before reusing it.
+2. **`closed = True`** — set in a `finally` block, even if finalizers raised. A subsequent
+   `resolve_provider` (or a nested provider resolving at a closed ancestor scope) self-heals: it
+   reopens the container via `_prepare()` and emits `ContainerClosedWarning`, rather than raising.
+   Re-enter the container via `with`/`async with`, or call `container.open()`, for a silent reopen
+   instead — see [Optional-open lifecycle](#optional-open-lifecycle).
 
 Additionally, when `close_sync()` or `close_async()` is called on a **root** container (one with
 no `parent_container`), all overrides are cleared from the shared `OverridesRegistry` before the
@@ -190,30 +195,34 @@ close, ready to be returned again without re-running the creator.
 
 ### Open and reopen (context-manager protocol)
 
-`Container` implements both sync (`__enter__` / `__exit__`) and async (`__aenter__` / `__aexit__`)
-context managers; `open()` (documented on the method itself) is the primitive they call — both to open
-a freshly-constructed container the first time and to reopen it on re-entry.
+`_prepare()` — not `open()` — is the primitive the resolve path calls: `resolve_provider` (and the
+compiled-resolver dispatch it wraps) calls it whenever `self.closed` is `True`, before doing anything
+else. Under the container's `_lock` it re-checks `closed` (another thread may have reopened the
+container already); if still closed, it warns with `ContainerClosedWarning` and clears `closed`. `open()`
+is a separate, public entry point that clears `closed` unconditionally, with no closed-check and no
+warning — a deliberate reopen is not a diagnostic-worthy event. Neither method runs validation; `open()`
+is a plain lifecycle op, symmetric with `close_sync()` / `close_async()`. `Container` implements both
+sync (`__enter__` / `__exit__`) and async (`__aenter__` / `__aexit__`) context managers; both call
+`open()` on entry and `close_sync()` / `close_async()` on exit.
 
 Concretely: using the same container object as a context manager a second time reopens it (clears
 `closed`), resolves providers fresh if `clear_cache=True` was set on their `CacheSettings` (since
 close removed those cached values), and then closes it again on exit. Providers whose
 `CacheSettings.clear_cache` is `False` retain their cached instances across reopen cycles.
 
-`open()` also runs validation, but **only once**: it calls `self.validate()` when
-`_validate_enabled and not self._validated` (root only). `close()` leaves `_validated` untouched (it
-only sets `closed = True`), so the flag survives a close, and a plain close→reopen does **not** re-walk
-the graph. See [validation.md](validation.md#enabling-validation--deferred-by-default).
-
-Prefer the `with` form. `open()` is exposed as a public method for callback-style lifecycles that
-cannot wrap the container in a `with` block — for example a framework startup hook that must open the
-long-lived root container before serving the first request (and reopen it after a shutdown). The
+`open()` is optional — see [Optional-open lifecycle](#optional-open-lifecycle) — but prefer the `with`
+form, or an explicit `open()` call, over relying on implicit reuse: both avoid `ContainerClosedWarning`
+and put the reopen at a well-defined point instead of the first request. `open()` is exposed as a
+public method for callback-style lifecycles that cannot wrap the container in a `with` block — for
+example a framework startup hook that reopens a long-lived root container after a shutdown. The
 FastStream integration uses exactly this: `app.on_startup(container.open)` paired with
 `app.after_shutdown(container.close_async)`.
 
 ## `validate()`
 
-See [validation.md](validation.md) for what `container.validate()` checks, how it reports
-aggregated errors, and how validation runs once at `open()` by default.
+See [validation.md](validation.md) for what `container.validate()` checks and how it reports
+aggregated errors. It is the only thing that validates — construction, `open()`, and `add_providers`
+never do.
 
 ## `set_context()`
 

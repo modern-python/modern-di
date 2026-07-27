@@ -66,7 +66,7 @@ import modern_di_fastapi
 from modern_di import Container
 
 
-container = Container(groups=[Dependencies], validate=True)
+container = Container(groups=[Dependencies])
 
 app = fastapi.FastAPI()
 modern_di_fastapi.setup_di(app, container)
@@ -79,7 +79,7 @@ The integration creates a REQUEST child container per request, so the session an
 - **`CacheSettings.finalizer` accepts sync or async functions** — it auto-detects. Don't wrap with `asyncio.run` or `asyncio.ensure_future`.
 - **`expire_on_commit=False`** on `AsyncSession` avoids expensive refreshes after commit. If you rely on `expire_on_commit=True`, leave it — but it's a common source of "session is closed" errors in async code.
 - **Don't share the engine across REQUEST containers manually.** The provider already does it: REQUEST containers walk up to the APP container to resolve the engine.
-- **Repositories must be REQUEST-scoped**, not APP-scoped — they hold a session which is REQUEST-scoped, and `validate=True` will reject the inverse.
+- **Repositories must be REQUEST-scoped**, not APP-scoped — they hold a session which is REQUEST-scoped, and `container.validate()` will reject the inverse.
 
 ## Variations
 

@@ -2,7 +2,7 @@
 
 **Symptom**
 
-Raised by `Container.validate()` (or `Container(..., validate=True)`), rendering a report grouped by
+Raised by `Container.validate()`, rendering a report grouped by
 error class name, with the count of each kind and every individual issue indented underneath.
 
 **Cause**
@@ -28,9 +28,9 @@ except exceptions.ValidationFailedError as exc:
         print(type(error).__name__, error)
 ```
 
-Running `validate()` (or passing `validate=True`) at startup, before the first real request, is the
+Calling `validate()` explicitly at startup, before the first real request, is the
 whole point — it turns graph bugs into a single startup-time failure instead of scattered runtime
-surprises.
+surprises. Nothing calls it for you: not construction, not `open()`, not `resolve()`.
 
 ## See also
 

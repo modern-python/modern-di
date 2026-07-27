@@ -136,7 +136,7 @@ provider type and concept, including the conceptual shifts: the
 schema/runtime split (`Group` vs `Container`), sync-only resolution, and
 explicit scopes.
 
-## Where is Singleton? — cross-framework vocabulary
+## Where is Singleton? Cross-framework vocabulary
 
 modern-di deliberately has no `Singleton` class — "create once and reuse" is spelled via a scope
 plus `cache=True` on an ordinary `Factory`. Every arriving user speaks a different framework's

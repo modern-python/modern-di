@@ -107,9 +107,12 @@ depends on how the framework runs handlers:
 
   `Container` implements both sync and async context-manager protocols
   (`__enter__`/`__exit__`, `__aenter__`/`__aexit__`) — `async with`/`with` on a
-  freshly built child opens it (a no-op, since a new child is already open) and
-  closes it on exit, equivalent to a `try`/`finally` around `close_async`/`close_sync`
-  but without hand-writing it.
+  freshly built child opens it (a no-op, since a freshly built child is already
+  open) and closes it on exit, equivalent to a `try`/`finally` around
+  `close_async`/`close_sync` but without hand-writing it. A freshly built child
+  is usable immediately either way — `open()` runs no validation of its own — so
+  the `with`/`async with` here buys guaranteed cleanup on the way out, not a
+  required open step or any fail-fast check.
 
   For a **single** connection kind with no dispatch to do, call
   `integrations.bind(my_provider, connection)` directly — it returns the same
@@ -172,41 +175,51 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
 ## Lifecycle rules
 
 - **Reopen the root container on startup.** A container that was closed on
-  shutdown raises `ContainerClosedError` if reused without reopening. Reopening
-  on each startup lets a second lifespan cycle (test client re-entry, broker
-  restart) work.
+  shutdown self-heals if reused without reopening — the next resolve emits
+  `ContainerClosedWarning` and reopens it — but reopening explicitly on each
+  startup avoids the warning and lets a second lifespan cycle (test client
+  re-entry, broker restart) work cleanly.
     - With a context-manager lifespan: `async with fetch_di_container(app): yield`
       — `__aenter__` reopens, `__aexit__` closes. Compose *around* any existing
       lifespan rather than replacing it.
     - With callback hooks: `app.on_startup(container.open)` and
-      `app.after_shutdown(container.close_async)`. Reopening an already-open
-      container is a no-op.
+      `app.after_shutdown(container.close_async)`. Calling `open()` on an
+      already-open container **is** a no-op — it unconditionally clears
+      `closed`, runs no validation, and costs nothing either way.
 - **Always close the child container in `finally`.** Never leak a unit-of-work
   container on the error path.
 - **Match async vs sync to the framework.** Async frameworks use
   `close_async`; a synchronous CLI uses `close_sync`.
-- **Open the root *after* its connection providers are registered.** `open()`
-  runs `validate()`, so every connection/context provider must already be on the
-  container — a service that requires the connection object *by type* fails
-  validation otherwise. When `setup_di` is what registers those providers and the
-  caller owns the root's lifecycle (a framework with no startup hook — Flask,
-  gRPC), the order is `setup_di(app, container)` **then** `open()` (or `with`);
-  opening first validates against a container that has no connection provider yet.
-  Document that ordering for the caller.
+- **For boot-time fail-fast validation, call `container.validate()` *after*
+  `setup_di`, never before.** `open()` no longer validates anything — a fresh
+  container is already usable, and `open()` is now just the symmetric
+  counterpart to `close_*`. The ordering constraint that used to attach to
+  `open()` attaches to `validate()` instead: `setup_di` registers the
+  integration's own connection providers (typically via `add_providers`), so
+  a `validate()` call made *before* `setup_di` sees an incomplete graph and
+  raises for any service that depends on the connection object *by type* —
+  that provider genuinely isn't registered yet. Calling `validate()` after
+  `setup_di` sees the complete graph. Validating at all is optional — nothing
+  requires a caller to do it — but document the ordering for whoever does.
 - **Open the root in *every* execution context the framework runs work in.** A
   worker may dispatch units of work from more than one place: Celery fires
   `worker_process_init` only for the prefork/solo pools, never for the
   gevent / eventlet / threads pools (which run in the main worker process).
   Wire open/close to a hook that fires for *all* of them — e.g. `worker_init` /
-  `worker_shutdown` *in addition to* the per-process signals — or those
-  deployments hit `ContainerClosedError` on the first unit of work while the
-  tested pool stays green. `open()` and `close_*` are idempotent, so overlapping
-  hooks are safe. If the framework offers no lifecycle hook at all, the root's
-  open/close is the caller's to own — document it. On ASGI, the lifespan scope
-  is optional: a mounted sub-application never receives it from its parent,
-  and some deployments disable it (e.g. Mangum `lifespan="off"`) — an app
-  wired there still serves requests with a closed root, so `setup_di` belongs
-  on the top-level served app, or the caller opens the root itself.
+  `worker_shutdown` *in addition to* the per-process signals. Where a hook
+  exists, close there so finalizers run at shutdown, and open there too — that
+  reopens silently instead of warning if a previous cycle in the same process
+  already closed the container (a restart). Where no hook fires for a given
+  pool, work still succeeds — the container is already open from construction
+  — but nothing ever closes it, so that pool's finalizers never run. `open()`
+  and `close_*` are idempotent, so overlapping hooks are safe. If the
+  framework offers no lifecycle hook at all, the root's open/close is the
+  caller's to own — document it. On ASGI, the lifespan scope is optional: a
+  mounted sub-application never receives it from its parent, and some
+  deployments disable it (e.g. Mangum `lifespan="off"`) — an app wired there
+  still serves requests (the container is already open), but nothing closes
+  it, so `setup_di` belongs on the top-level served app, or the caller closes
+  the root itself.
 
 ## Scope mapping
 
@@ -396,17 +409,22 @@ Each official integration is its own repository and PyPI package, mirroring the
   family group: Web / Tasks & events / Bots / RPC / CLI / Testing). Follow the
   canonical page shape the existing pages use: a single realistic-but-compact
   example — an APP-scoped `Settings` plus one work-scoped service (two providers,
-  no more) that depends on `Settings` by type — built with `validate=True`. Keep
-  the connection/message object **out** of that validated example: its
-  `ContextProvider` is registered by `setup_di` *after* the container is
-  constructed, so a service that requires it by type fails `validate=True` at
-  construction. Demonstrate context injection in a dedicated "Framework
-  Context Objects" section instead. To show it inside a `validate=True` container,
-  make the context parameter optional (`request: FrameworkType | None = None`) so
-  validation skips it while the integration still injects the real value at runtime —
-  the pattern the [gRPC page](grpc.md) uses and
-  [Framework Context Objects](../providers/context.md#framework-context-objects)
-  documents. Follow the example with any
+  no more) that depends on `Settings` by type — with the container built plain
+  (`Container(groups=[AppGroup])`, no `validate=` argument — it's deprecated and
+  does nothing) and `container.validate()` called explicitly *after* `setup_di`,
+  demonstrating the [ordering rule](#lifecycle-rules) above. Keep the
+  connection/message object **out** of that validated example: its
+  `ContextProvider` is registered by `setup_di`, so a service that requires it by
+  type would fail `validate()` if that call were placed *before* `setup_di`.
+  Demonstrate context injection in a dedicated "Framework Context Objects"
+  section instead. To validate a graph that references the connection object
+  *before* `setup_di` has registered its provider (a narrower, earlier check),
+  make the context parameter optional (`request: FrameworkType | None = None`)
+  so `validate()` skips it regardless of ordering, while the integration still
+  injects the real value at runtime — the pattern the [gRPC page](grpc.md) uses
+  and [Framework Context
+  Objects](../providers/context.md#framework-context-objects) documents. Follow
+  the example with any
   framework-specific sections, a tailored `## See also` block linking
   [Testing with overrides](../recipes/testing-overrides.md),
   [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and
@@ -431,8 +449,9 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `fetch_di_container` reads the root container back out of framework state.
 - [ ] A per-unit-of-work builder opens a child container at the right scope,
       injects the connection as context, and closes it in `finally`.
-- [ ] Root container **reopens on startup** so restarts don't raise
-      `ContainerClosedError`.
+- [ ] Root container **reopens on startup** so a restart doesn't rely on the
+      implicit-reuse warning (`ContainerClosedWarning`) and gets finalizers
+      wired to shutdown.
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves it via
       `resolve_dependency` — use `modern_di.integrations.from_di` (or a

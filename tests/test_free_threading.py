@@ -1,4 +1,4 @@
-"""Free-threaded (PEP 703) correctness: concurrent resolution shares singletons.
+"""Free-threaded (PEP 703) correctness: concurrent resolution shares singletons and reopens once.
 
 Hand-rolled thread stress (no plugin dependency) so it runs on every interpreter.
 Under the GIL it passes trivially but still exercises the double-checked cache lock
@@ -9,8 +9,10 @@ See architecture/concurrency.md.
 """
 
 import threading
+import warnings
 
 from modern_di import Container, Group, Scope, providers
+from modern_di.exceptions import ContainerClosedWarning
 
 
 class _Leaf: ...
@@ -39,7 +41,7 @@ class _StressGroup(Group):
 
 
 def test_concurrent_resolution_shares_app_singletons() -> None:
-    container = Container(groups=[_StressGroup], validate=True)
+    container = Container(groups=[_StressGroup])
     container.open()
     n = 32
     barrier = threading.Barrier(n)
@@ -67,3 +69,32 @@ def test_concurrent_resolution_shares_app_singletons() -> None:
     assert not errors
     assert len({id(result) for result in top_results}) == 1  # exactly one shared APP singleton
     assert all(request_ok)  # every child resolved that same singleton through its request object
+
+
+def test_concurrent_reuse_after_close_warns_exactly_once() -> None:
+    class G(Group):
+        leaf = providers.Factory(creator=_Leaf, scope=Scope.APP, cache=True)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    container.open()
+    container.close_sync()  # explicit close: the next resolve must warn — once, not per thread
+    n = 8
+    results: list[_Leaf] = []
+    barrier = threading.Barrier(n)
+
+    def worker() -> None:
+        barrier.wait()  # maximize the odds every thread sees the closed container at once
+        results.append(container.resolve_provider(G.leaf))
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")  # no per-location dedup: a second warning must be visible
+        threads = [threading.Thread(target=worker) for _ in range(n)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    assert len(results) == n
+    assert all(result is results[0] for result in results)  # reopened once; one singleton
+    assert container.closed is False
+    assert len([w for w in recorded if issubclass(w.category, ContainerClosedWarning)]) == 1

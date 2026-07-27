@@ -84,26 +84,26 @@ class LifecycleGroup(Group):
 
 
 def test_c1_transient(benchmark):
-    c = Container(scope=Scope.APP, groups=[TransientGroup], validate=False)
+    c = Container(scope=Scope.APP, groups=[TransientGroup])
     result = benchmark(c.resolve_provider, TransientGroup.svc)
     assert isinstance(result, Service)
 
 
 def test_c2_singleton(benchmark):
-    c = Container(scope=Scope.APP, groups=[SingletonGroup], validate=False)
+    c = Container(scope=Scope.APP, groups=[SingletonGroup])
     c.resolve_provider(SingletonGroup.svc)
     result = benchmark(c.resolve_provider, SingletonGroup.svc)
     assert isinstance(result, Service)
 
 
 def test_c3_deep_chain(benchmark):
-    c = Container(scope=Scope.APP, groups=[ChainGroup], validate=False)
+    c = Container(scope=Scope.APP, groups=[ChainGroup])
     result = benchmark(c.resolve_provider, ChainGroup.c0)
     assert isinstance(result, C0)
 
 
 def test_c4_request_lifecycle(benchmark):
-    app = Container(scope=Scope.APP, groups=[LifecycleGroup], validate=False)
+    app = Container(scope=Scope.APP, groups=[LifecycleGroup])
     loop = asyncio.new_event_loop()
 
     async def _run() -> Connection:
@@ -126,7 +126,7 @@ def test_c4_request_lifecycle(benchmark):
 # --- C5 cold: fresh container build + first-resolve compile of the chain -----
 def test_c5_cold_first_resolve(benchmark):
     def _cold():
-        c = Container(scope=Scope.APP, groups=[ChainGroup], validate=False)
+        c = Container(scope=Scope.APP, groups=[ChainGroup])
         return c.resolve_provider(ChainGroup.c0)
 
     result = benchmark(_cold)
@@ -156,7 +156,7 @@ class ContextGroup(Group):
 
 
 def test_c6_context(benchmark):
-    app = Container(scope=Scope.APP, groups=[ContextGroup], validate=False)
+    app = Container(scope=Scope.APP, groups=[ContextGroup])
 
     def _one_request():
         req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})

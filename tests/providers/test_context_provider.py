@@ -5,7 +5,7 @@ import warnings
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError, ContainerClosedError, ContextValueNotSetError
+from modern_di.exceptions import ArgumentResolutionError, ContainerClosedWarning, ContextValueNotSetError
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -165,16 +165,30 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
     assert second.ctx is value
 
 
-def test_context_provider_through_closed_owning_container_raises() -> None:
+def test_context_provider_through_closed_owning_container_warns() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     app = Container(groups=[MyGroup], context={datetime.datetime: now})
     app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
     child.open()
     app.close_sync()
-    with pytest.raises(ContainerClosedError):
-        child.resolve_provider(MyGroup.context_provider)
-    assert app.closed is True  # no self-heal: the owning ancestor stays closed
+    with pytest.warns(ContainerClosedWarning):
+        assert child.resolve_provider(MyGroup.context_provider) == now
+    assert app.closed is False  # the owning ancestor reopened itself
+
+
+def test_context_provider_does_not_prepare_an_already_open_container(monkeypatch: pytest.MonkeyPatch) -> None:
+    # `_prepare()` takes the container's RLock before re-checking `closed`, so calling it
+    # unconditionally would serialize every context resolve on the owning container's lock.
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    app = Container(groups=[MyGroup], context={datetime.datetime: now})
+    app.open()
+
+    def _forbidden(*_: object) -> None:  # pragma: no cover - the assertion is that it never runs
+        pytest.fail("_prepare() must not run on an already-open container")
+
+    monkeypatch.setattr(Container, "_prepare", _forbidden)
+    assert app.resolve_provider(MyGroup.context_provider) == now
 
 
 # Q-12 — ContextProvider reads the registry at its OWN scope
@@ -322,7 +336,7 @@ def test_cached_factory_injects_present_context_at_cold_build() -> None:
 
 
 def test_direct_resolve_unset_context_raises() -> None:
-    app_container = Container(groups=[MyGroup], validate=False)
+    app_container = Container(groups=[MyGroup])
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
@@ -331,7 +345,7 @@ def test_direct_resolve_unset_context_raises() -> None:
 
 def test_set_context_provider_direct_resolve_does_not_warn() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    app_container = Container(groups=[MyGroup], context={datetime.datetime: now}, validate=False)
+    app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
     app_container.open()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -356,7 +370,7 @@ def test_context_provider_override_direct_short_circuits() -> None:
     # resolver's own override front-guard: the override wins with no ContextValueNotSetError raised,
     # even though no value is set in the context registry.
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
-    app_container = Container(groups=[MyGroup], validate=False)
+    app_container = Container(groups=[MyGroup])
     app_container.open()
     app_container.override(MyGroup.context_provider, override_value)
     with warnings.catch_warnings():
@@ -384,7 +398,7 @@ class _KwargsCtxExplicitGroup(Group):
 def test_kwargs_context_provider_honors_creator_default_when_unset() -> None:
     # A ContextProvider passed explicitly via kwargs={...} must wire as a context kwarg, not a plain
     # provider: an unset value falls back to the creator's default rather than injecting None.
-    app_container = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    app_container = Container(groups=[_KwargsCtxExplicitGroup])
     app_container.open()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -394,23 +408,23 @@ def test_kwargs_context_provider_honors_creator_default_when_unset() -> None:
 def test_kwargs_context_provider_matches_by_type_wiring() -> None:
     # The same creator wired both ways agrees: how the ContextProvider reaches the parameter is a
     # declaration detail, not a behavior switch.
-    by_type = Container(groups=[_KwargsCtxByTypeGroup], validate=False)
+    by_type = Container(groups=[_KwargsCtxByTypeGroup])
     by_type.open()
-    explicit = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    explicit = Container(groups=[_KwargsCtxExplicitGroup])
     explicit.open()
     assert by_type.resolve_provider(_KwargsCtxByTypeGroup.out) == explicit.resolve_provider(_KwargsCtxExplicitGroup.out)
 
 
 def test_kwargs_context_provider_injects_present_value() -> None:
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    app_container = Container(groups=[_KwargsCtxExplicitGroup], context={datetime.datetime: now}, validate=False)
+    app_container = Container(groups=[_KwargsCtxExplicitGroup], context={datetime.datetime: now})
     app_container.open()
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {now!r}"
 
 
 def test_kwargs_context_provider_override_wins() -> None:
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
-    app_container = Container(groups=[_KwargsCtxExplicitGroup], validate=False)
+    app_container = Container(groups=[_KwargsCtxExplicitGroup])
     app_container.open()
     app_container.override(_KwargsCtxExplicitGroup.ctx, override_value)
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {override_value!r}"
@@ -430,7 +444,7 @@ def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve()
     # nothing to fix: it keeps resolving through the provider bucket, the same path a direct resolve
     # takes. Routing it as required would raise where 2.x returns None; as nullable would drop the
     # 3.0 signal — so it stays on the direct-resolve path, which now raises when unset.
-    app_container = Container(groups=[_KwargsCtxNoSignatureGroup], validate=False)
+    app_container = Container(groups=[_KwargsCtxNoSignatureGroup])
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out)
@@ -441,6 +455,6 @@ def test_kwargs_context_provider_without_parsed_signature_injects_present_value(
     # Same no-parsed-signature routing as above, but with a value present: the direct-resolve path
     # returns it normally and the creator runs.
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now}, validate=False)
+    app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now})
     app_container.open()
     assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"

@@ -50,8 +50,8 @@ class ProvidersRegistry:
         """Return `provider`'s memoized wiring plan, building it on a miss.
 
         A plan is a pure function of the provider and this registry's contents, memoized per
-        `provider_id` and cleared whenever the registry mutates (`register` / `add_providers` /
-        removal). Shared tree-wide: a container and every child share one registry, so a
+        `provider_id` and cleared whenever the registry mutates (`register` / `add_providers`).
+        Shared tree-wide: a container and every child share one registry, so a
         deeper-scope provider builds its plan once, not once per child. Build inputs are passed
         by value (not a closure) so the hot cache-hit path allocates nothing.
         """
@@ -119,13 +119,6 @@ class ProvidersRegistry:
                 if provider_type in self._providers:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
-            self._invalidate()
-
-    def _remove_providers(self, *provider_types: type) -> None:
-        """Rollback helper for `Container.add_providers`; not part of the public API."""
-        with self._lock:
-            for provider_type in provider_types:
-                self._providers.pop(provider_type, None)
             self._invalidate()
 
     def _invalidate(self) -> None:

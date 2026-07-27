@@ -45,5 +45,6 @@ class ContextProvider(AbstractProvider[types.T_co]):
 
     def fetch_context_value(self, container: "Container") -> types.T_co | object:
         container = container.find_container(self.scope)
-        container._raise_if_closed()  # noqa: SLF001
+        if container.closed:  # guarded: `_prepare()` takes the lock before re-checking `closed`
+            container._prepare()  # noqa: SLF001
         return container.context_registry.find_context(self.context_type)

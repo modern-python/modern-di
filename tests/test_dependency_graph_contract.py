@@ -25,7 +25,7 @@ def test_cycle_path_and_locations_shape() -> None:
         a = Factory(scope=Scope.APP, creator=_A)
         b = Factory(scope=Scope.APP, creator=_B)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container = Container(scope=Scope.APP, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as ei:
         container.validate()
     cyc = next(e for e in ei.value.errors if isinstance(e, exceptions.CircularDependencyError))
@@ -52,7 +52,7 @@ def test_validate_collects_all_error_kinds_once() -> None:
         deep = Factory(scope=Scope.REQUEST, creator=Deep)
         shallow = Factory(scope=Scope.APP, creator=Shallow)  # deeper dep -> InvalidScopeDependencyError
 
-    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container = Container(scope=Scope.APP, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as ei:
         container.validate()
     assert any(isinstance(e, exceptions.ArgumentResolutionError) for e in ei.value.errors)
@@ -65,15 +65,15 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
     class G(Group):
         x = Factory(scope=Scope.APP, creator=X)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=True)
-    container.validate()  # deferred: run validation once so the flag is set before we forbid re-walking
+    container = Container(scope=Scope.APP, groups=[G])
+    container.validate()  # this call does the walk (clean graph) and sets the registry's validated flag
 
     def _explode(*_: object, **__: object) -> object:  # pragma: no cover
         msg = "re-walked"
         raise AssertionError(msg)
 
     monkeypatch.setattr(dependency_graph.DependencyGraph, "walk", _explode)
-    container.validate()  # short-circuited on the _validated flag -> no walk
+    container.validate()  # short-circuited on the registry's validated flag -> no walk
 
 
 def test_runtime_guard_converts_unvalidated_cycle() -> None:
@@ -81,7 +81,7 @@ def test_runtime_guard_converts_unvalidated_cycle() -> None:
         a = Factory(scope=Scope.APP, creator=_A)
         b = Factory(scope=Scope.APP, creator=_B)
 
-    container = Container(scope=Scope.APP, groups=[G], validate=False)
+    container = Container(scope=Scope.APP, groups=[G])
     container.open()
     with pytest.raises(exceptions.CircularDependencyError):
         container.resolve(_A)

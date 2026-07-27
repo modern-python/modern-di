@@ -31,6 +31,21 @@ resolve from it):
    reopening a container while other threads still resolve from it is not
    supported.**
 
+Reuse-after-close is a race the concurrent resolve phase does handle, distinct
+from the unsupported race above: once a container has settled into the closed
+state at a single-threaded edge, nothing prevents several threads from then
+independently calling `resolve` on that (now-closed) container at once — each
+unaware the others are doing the same. A container is open from construction
+(see [containers.md](containers.md#optional-open-lifecycle)), so this is the
+only path back to `closed = True` in the first place. `resolve_provider` calls
+`_prepare()` whenever `self.closed` is `True`, under the container's own
+`_lock` when `use_lock=True`. It re-checks `closed` after acquiring the lock,
+so a thread that loses the race to reopen simply finds the container already
+open and returns without warning again. `closed = False` is the last thing
+`_prepare()` does, after the warning is already emitted, so N threads racing a
+closed container produce exactly one `ContainerClosedWarning` and one reopen —
+never a double-warn.
+
 ## The model
 
 - **Singleton creation is the only locked path.** A cached `Factory` builds its

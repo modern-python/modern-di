@@ -341,8 +341,7 @@ class _UnannotatedGroup(Group):
 def test_unannotated_param_error_explains_missing_annotation() -> None:
     sentinel = object()
     assert _unannotated_creator(sentinel) is sentinel  # exercise body for coverage
-    # validate=False: this exercises the resolve-time argument error, not deferred validation.
-    container = Container(scope=Scope.APP, groups=[_UnannotatedGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[_UnannotatedGroup])
     container.open()
     with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         container.resolve(object)
@@ -365,7 +364,7 @@ class _UnionGroup(Group):
 def test_union_param_error_names_the_union_members() -> None:
     dep = _UnionDep1()
     assert _union_creator(dep) == str(dep)  # exercise body for coverage
-    container = Container(scope=Scope.APP, groups=[_UnionGroup], validate=False)
+    container = Container(scope=Scope.APP, groups=[_UnionGroup])
     container.open()
     with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2"):
         container.resolve(str)
@@ -465,7 +464,7 @@ def test_wiring_plan_is_memoized_across_child_containers() -> None:
 
     real_build = wiring_mod.WiringPlan.build
     with unittest.mock.patch.object(wiring_mod.WiringPlan, "build", autospec=True, side_effect=real_build) as build_spy:
-        app_container = Container(scope=Scope.APP, groups=[_MemoGroup], validate=True)
+        app_container = Container(scope=Scope.APP, groups=[_MemoGroup])
         app_container.open()
         for _ in range(50):
             with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
@@ -494,8 +493,8 @@ def test_shared_factory_wires_independently_per_registry() -> None:
     class WithoutLeaf(Group):
         svc = svc_factory
 
-    with_leaf = Container(scope=Scope.APP, groups=[WithLeaf], validate=True)
-    without_leaf = Container(scope=Scope.APP, groups=[WithoutLeaf], validate=True)
+    with_leaf = Container(scope=Scope.APP, groups=[WithLeaf])
+    without_leaf = Container(scope=Scope.APP, groups=[WithoutLeaf])
     with_leaf.open()
     without_leaf.open()
 
@@ -662,7 +661,7 @@ def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
     …" on the third resolve).
     """
     factory: providers.Factory[_NeedsUnregistered] = providers.Factory(creator=_NeedsUnregistered, scope=Scope.APP)
-    container = Container(scope=Scope.APP, validate=False)  # exercise resolve-time breadcrumb, not validation
+    container = Container(scope=Scope.APP)  # exercise resolve-time breadcrumb, not validation
     container.open()
     container.providers_registry.register(_NeedsUnregistered, factory)
 
@@ -700,7 +699,7 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
 
     leaf2: providers.Factory[_Leaf2] = providers.Factory(creator=_Leaf2, scope=Scope.APP)
     parent2: providers.Factory[_Parent2] = providers.Factory(creator=_Parent2, scope=Scope.APP)
-    c2 = Container(scope=Scope.APP, validate=False)  # exercise resolve-time breadcrumb, not validation
+    c2 = Container(scope=Scope.APP)  # exercise resolve-time breadcrumb, not validation
     c2.open()
     c2.providers_registry.register(_Leaf2, leaf2)
     c2.providers_registry.register(_Parent2, parent2)
@@ -793,7 +792,7 @@ def test_factory_accepts_positional_creator() -> None:
     class G(Group):
         factory = providers.Factory(SimpleCreator, kwargs={"dep1": "positional"})
 
-    container = Container(groups=[G], validate=True)
+    container = Container(groups=[G])
     container.open()
     instance = container.resolve(SimpleCreator)
     assert instance.dep1 == "positional"
@@ -975,14 +974,14 @@ def test_positional_only_with_default_stays_on_kwargs_path() -> None:
         dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
         thing = providers.Factory(creator=_cov_pos_only_creator, scope=Scope.APP)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     assert container.resolve_provider(G.thing) == _CovPosOnlyResult(prefix="P", dep=_CovLeaf())
 
 
 def _build_closed_app_and_request(*group: type[Group]) -> tuple[Container, Container]:
     """Return (closed APP container, open REQUEST child) sharing `group`'s providers."""
-    app = Container(scope=Scope.APP, groups=list(group), validate=False)
+    app = Container(scope=Scope.APP, groups=list(group))
     app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
     request.open()
@@ -990,27 +989,27 @@ def _build_closed_app_and_request(*group: type[Group]) -> tuple[Container, Conta
     return app, request
 
 
-def test_transient_positional_raises_for_closed_cross_scope_target() -> None:
+def test_transient_positional_warns_for_closed_cross_scope_target() -> None:
     # A positional-eligible APP transient resolved from a REQUEST child whose APP target is closed:
-    # the positional resolver's own target.closed guard must raise for the distinct target.
+    # the positional resolver's own target._prepare() call now reopens the target instead of raising.
     class G(Group):
         leaf = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
 
     _app, request = _build_closed_app_and_request(G)
-    with pytest.raises(exceptions.ContainerClosedError):
-        request.resolve_provider(G.leaf)
+    with pytest.warns(exceptions.ContainerClosedWarning):
+        assert isinstance(request.resolve_provider(G.leaf), _CovLeaf)
 
 
-def test_transient_kwargs_raises_for_closed_cross_scope_target() -> None:
+def test_transient_kwargs_warns_for_closed_cross_scope_target() -> None:
     # The kwargs-path (keyword-only dep -> ineligible) mirror: the kwargs resolver's own
-    # target.closed guard raises for a cross-scope APP target that was independently closed.
+    # target._prepare() call reopens a cross-scope APP target that was independently closed.
     class G(Group):
         dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
         thing = providers.Factory(creator=_CovKwOnlyDep, scope=Scope.APP)
 
     _app, request = _build_closed_app_and_request(G)
-    with pytest.raises(exceptions.ContainerClosedError):
-        request.resolve_provider(G.thing)
+    with pytest.warns(exceptions.ContainerClosedWarning):
+        assert isinstance(request.resolve_provider(G.thing), _CovKwOnlyDep)
 
 
 class _CovKwOnlyBodyTypeError:
@@ -1025,7 +1024,7 @@ def test_transient_kwargs_body_typeerror_propagates_unchanged() -> None:
         dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
         thing = providers.Factory(creator=_CovKwOnlyBodyTypeError, scope=Scope.APP)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(TypeError) as exc:
         container.resolve_provider(G.thing)
@@ -1044,7 +1043,7 @@ def test_cached_positional_dependency_step_error() -> None:
         req = providers.Factory(creator=_CovReqOnly, scope=Scope.REQUEST)
         thing = providers.Factory(creator=_CovPosNeedsReq, scope=Scope.APP, cache=True)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(ScopeNotInitializedError):
         container.resolve_provider(G.thing)
@@ -1073,7 +1072,7 @@ def test_cached_positional_binding_typeerror_wraps() -> None:
             cache=True,
         )
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(exceptions.CreatorCallError):
         container.resolve_provider(G.thing)
@@ -1096,7 +1095,7 @@ def test_cached_positional_body_typeerror_propagates_unchanged() -> None:
             cache=True,
         )
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(TypeError) as exc:
         container.resolve_provider(G.thing)
@@ -1115,7 +1114,7 @@ def test_cached_kwargs_dependency_step_error() -> None:
         req = providers.Factory(creator=_CovReqOnly, scope=Scope.REQUEST)
         thing = providers.Factory(creator=_CovCachedNeedsReq, scope=Scope.APP, cache=True)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(ScopeNotInitializedError):
         container.resolve_provider(G.thing)
@@ -1127,22 +1126,22 @@ def test_unwireable_factory_override_short_circuits() -> None:
     class G(Group):
         thing = providers.Factory(creator=SimpleCreator, bound_type=None)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     mock = SimpleCreator(dep1="mock")
     container.override(G.thing, mock)
     assert container.resolve_provider(G.thing) is mock
 
 
-def test_unwireable_factory_raises_for_closed_cross_scope_target() -> None:
+def test_unwireable_factory_warns_for_closed_cross_scope_target() -> None:
     # An unwireable APP factory resolved from a REQUEST child whose APP target is closed: the
-    # unwireable resolver navigates to the closed target and raises ContainerClosedError before it
-    # ever gets to build the ArgumentResolutionError.
+    # unwireable resolver navigates to the closed target, which reopens it via the warning, and
+    # then still builds the ArgumentResolutionError for the missing required kwarg.
     class G(Group):
         thing = providers.Factory(creator=SimpleCreator, bound_type=None, scope=Scope.APP)
 
     _app, request = _build_closed_app_and_request(G)
-    with pytest.raises(exceptions.ContainerClosedError):
+    with pytest.warns(exceptions.ContainerClosedWarning), pytest.raises(exceptions.ArgumentResolutionError):
         request.resolve_provider(G.thing)
 
 
@@ -1153,7 +1152,7 @@ def test_cached_kwargs_body_typeerror_propagates_unchanged() -> None:
         dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
         thing = providers.Factory(creator=_CovKwOnlyBodyTypeError, scope=Scope.APP, cache=True)
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(TypeError) as exc:
         container.resolve_provider(G.thing)
@@ -1172,7 +1171,7 @@ def test_transient_positional_binding_typeerror_wraps() -> None:
             bound_type=_CovOneArgResult,
         )
 
-    container = Container(groups=[G], validate=False)
+    container = Container(groups=[G])
     container.open()
     with pytest.raises(exceptions.CreatorCallError):
         container.resolve_provider(G.thing)
