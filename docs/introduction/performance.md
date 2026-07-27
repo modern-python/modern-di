@@ -9,7 +9,7 @@ Cython-compiled core (dependency-injector), and one pure-Python framework
 
 > Absolute timings depend on the machine and CPython build and will differ on
 > yours. The ratios between frameworks are more portable across machines, so the
-> table below is expressed as ratios.
+> tables below are expressed as ratios.
 
 ## What is measured
 
@@ -30,12 +30,15 @@ rules: [`benchmarks/README.md`](https://github.com/modern-python/modern-di/blob/
 
 C1-C3 are published twice for modern-di: once resolved by provider reference
 (`resolve_provider`) and once by type (`resolve`). dishka and wireup expose only by-type
-lookup; that-depends and dependency-injector only by-reference. Each table compares one
+lookup; that-depends and dependency-injector only by-reference. Each C1-C3 table compares one
 modern-di variant against the rivals whose API matches it, because a single column would
 flatter modern-di against half the set. By-type resolution adds a fixed dict-lookup cost of
 roughly 40 ns on top of `resolve_provider` — small in absolute terms, but the percentage it
-represents depends on the baseline it's added to: 12.6% on C1, ~24% on C2 (small baseline),
-~5% on C3 (large baseline).
+represents depends on the baseline it's added to: 12.3% on C1, ~24% on C2 (small baseline),
+~5% on C3 (large baseline). C4 does not split this way: modern-di's C4 body resolves by
+reference throughout, so the C4 table compares it against all four rivals — including dishka
+and wireup — regardless of which lookup API they natively expose. The C1-C3 leveling above does
+not apply to C4.
 
 ## Results
 
@@ -72,22 +75,29 @@ above 1.0 means slower.
 ## What the numbers show
 
 - Against `dependency-injector`, modern-di is faster by reference on C1 (**0.80**) and
-  C3 (**0.54**), and far faster on the batched C4 request lifecycle (**0.02**) —
-  dependency-injector's C4 cost is dominated by its per-request
-  `init_resources`/`shutdown_resources` calls, not resolution. dependency-injector is
-  faster on C2 warm-singleton (3.99): its cache hit is a C-level slot read on a
-  Cython-compiled core, where modern-di's is a Python dict lookup behind an override
-  guard.
+  C3 (**0.54**), and far faster on the batched C4 request lifecycle (**0.02**).
+  dependency-injector's C4 body calls `init_resources()`/`shutdown_resources()` every cycle
+  in addition to resolving; the suite doesn't decompose how much of its per-request cost is
+  that lifecycle work versus the resolve itself, so C4 should be read as a whole-lifecycle
+  comparison, not an isolated resolve (see the caveat below). dependency-injector is faster
+  on C2 warm-singleton (3.99): its cache hit is a C-level slot read on a Cython-compiled
+  core, where modern-di's is a Python dict lookup behind an override guard.
 - Against `that-depends`, modern-di is roughly tied by reference on C1 (1.00), faster on
-  C3 (**0.74**), and far faster on C4 (**0.21**). that-depends is faster on C2
-  (2.90) for the same cache-hit-vs-dict-lookup reason as dependency-injector.
+  C3 (**0.74**), and far faster on C4 (**0.21**). that-depends is also faster on C2
+  warm-singleton (2.90, an implied ~64 ns cache hit against modern-di's 185 ns); the suite
+  doesn't decompose that-depends' `resolve_sync` cache-hit path, so no mechanism is
+  asserted here.
 - Against `dishka` and `wireup` on the by-type table, modern-di is slower on all three
-  synchronous scenarios (1.29–1.75x dishka, 1.74–3.10x wireup). Both inline dependency
+  synchronous scenarios (1.29–1.75x dishka, 1.35–3.10x wireup). Both inline dependency
   calls into `exec`-generated source, which removes the per-node function-call frame
   that modern-di keeps; modern-di does not generate code (a
   [documented non-goal](design-decisions.md#non-goals)), so the C1/C3 gap is expected.
-  The gap is proportionally largest on C2, where the fixed by-type lookup cost described
-  above lands on the smallest baseline.
+  The two rivals diverge on C2: dishka's largest gap is actually C3 (1.75), not C2. Backing
+  the ~40 ns by-type cost out of its C2 cell gives an implied by-reference ratio of ~1.09
+  (185 ns / ~170 ns) — most of the observed 1.34 is that fixed by-type cost. wireup's largest
+  gap is C2 (3.10), and backing the same cost out still leaves an implied ratio of ~2.52
+  (185 ns / ~74 ns) — most of wireup's C2 gap already exists at the by-reference baseline, and
+  the suite doesn't decompose the rest further.
 - On C4 (request lifecycle), the corrected batching removes the ~27 µs asyncio floor
   that previously compressed every framework's number toward 1.0. Under that floor the
   page used to read modern-di as "level with dishka (1.00)"; with the floor removed,
@@ -127,7 +137,7 @@ through compiled resolvers where the check was already inline, did not move.
 ```bash
 git clone https://github.com/modern-python/modern-di
 cd modern-di
-just bench-compare   # isolated env; first run resolves the pinned rival deps
+just bench-report   # isolated env; first run resolves the pinned rival deps; runs 5x by default
 ```
 
 The comparative environment is isolated and its result files are not committed,

@@ -5,8 +5,10 @@ its isolated environment and `build_table()` reduces the runs to markdown. Split
 is unit-testable without running a benchmark (see tests/test_bench_report.py).
 
 Three tables, because no single rival set fits every scenario: dishka and wireup expose only
-by-type lookup, that-depends and dependency-injector only by-reference. Each table compares one
-modern-di variant against the rivals whose API matches it, so no published cell is ever n/a.
+by-type lookup, that-depends and dependency-injector only by-reference. Each C1-C3 table compares
+one modern-di variant against the rivals whose API matches it, so no published cell is ever n/a.
+C4 does not split this way: modern-di resolves by reference throughout its C4 body, so that table
+compares it against all four rivals regardless of which lookup API they natively expose.
 """
 
 import argparse
