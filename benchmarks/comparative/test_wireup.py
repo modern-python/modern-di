@@ -14,7 +14,7 @@ import wireup
 
 _BATCH = 100
 
-# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+# Pinned timing shape for C1-C4 and C6; must match every other comparative file (see test_modern_di.py).
 _ROUNDS = 200
 _ITERATIONS = 1000
 _C4_ROUNDS = 100
@@ -183,6 +183,6 @@ def test_c6_context_wireup(benchmark):
         with container.enter_scope({RequestObj: RequestObj()}) as scope:
             return scope.get(CtxHandler)
 
-    result = benchmark(_one_request)
+    result = benchmark.pedantic(_one_request, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, CtxHandler)
     assert isinstance(result.req, RequestObj)

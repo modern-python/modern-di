@@ -14,7 +14,7 @@ from that_depends.providers.context_resources import fetch_context_item_by_type
 
 _BATCH = 100
 
-# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+# Pinned timing shape for C1-C4 and C6; must match every other comparative file (see test_modern_di.py).
 _ROUNDS = 200
 _ITERATIONS = 1000
 _C4_ROUNDS = 100
@@ -185,6 +185,6 @@ def test_c6_context_that_depends(benchmark):
         with container_context(global_context={"request": ro}):
             return ContextContainer.handler.resolve_sync()
 
-    result = benchmark(_one_request)
+    result = benchmark.pedantic(_one_request, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Handler)
     assert isinstance(result.request_obj, RequestObj)

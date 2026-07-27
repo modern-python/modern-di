@@ -10,7 +10,12 @@ from benchmarks.report import build_table, parse_run
 
 _COMPARATIVE = pathlib.Path(__file__).resolve().parent.parent / "benchmarks" / "comparative"
 _BATCH_LITERAL = re.compile(r"^_BATCH\s*=\s*(\d+)$", re.MULTILINE)
-_PUBLISHED = re.compile(r"^test_c[1-4]_")
+# Derived from the generator, never hand-listed: a scenario is "published" exactly when a table
+# publishes it, so adding a table cannot leave this contract silently scoped to the old set.
+_PUBLISHED_SCENARIOS = frozenset(
+    key.split("_")[0] for table in report.TABLES for row in table.rows for key in (row.modern_di_key, row.rival_key)
+)
+_PUBLISHED = re.compile(rf"^test_(?:{'|'.join(sorted(_PUBLISHED_SCENARIOS))})_")
 
 
 def _comparative_sources() -> list[pathlib.Path]:
@@ -194,7 +199,7 @@ def test_comparative_batch_literals_match_the_report_divisor() -> None:
 def test_every_published_scenario_pins_the_same_rounds_and_iterations() -> None:
     # pytest-benchmark auto-calibrates `iterations` per benchmark, so one cell can land at 1 (full
     # per-round timer overhead, snapped to the platform timer's grid) while the cell it is divided
-    # by lands at 25. A published ratio must not mix the two, so C1-C4 pin the shape explicitly and
+    # by lands at 25. A published ratio must not mix the two, so C1-C4 and C6 pin the shape explicitly and
     # every framework pins the same numbers. Parsed with `ast` — the comparative venv is separate.
     trees = {path.name: ast.parse(path.read_text(encoding="utf-8")) for path in _comparative_sources()}
 
@@ -278,3 +283,25 @@ def test_build_table_single_run_has_no_iqr_annotation_or_footnote() -> None:
     # IQR is undefined for a single run: no ± on the cell, and no footnote -- never crash, never fake 0.0%.
     assert _section(table, "By-reference resolution") == [["C1 transient", "310 ns", "**0.50**", "n/a"]]
     assert _footnote(table, "By-reference resolution") is None
+
+
+def test_published_scenarios_are_exactly_the_ones_the_tables_publish() -> None:
+    # Pins the derivation itself: if a table is added or dropped, this is the line that says so.
+    assert {"c1", "c2", "c3", "c4", "c6"} == _PUBLISHED_SCENARIOS
+    assert _PUBLISHED.match("test_c6_context_modern_di")
+    assert not _PUBLISHED.match("test_c5_cold_first_resolve_modern_di")
+
+
+def test_build_table_publishes_c6_per_request_undivided() -> None:
+    # C6 is not batched: unlike C4 its row carries no divisor, so the published cell is the
+    # measured median itself. A stray divisor would publish a number wrong by 100x, silently.
+    run = _run(
+        test_c6_context_modern_di=1.45e-6,
+        test_c6_context_dependency_injector=2.9e-6,
+        test_c6_context_that_depends=2.9e-6,
+        test_c6_context_dishka=1e-6,
+        test_c6_context_wireup=1e-6,
+    )
+    assert _section(build_table([run]), "Per-request context") == [
+        ["C6 context", "1.45 µs", "**0.50**", "**0.50**", "1.45", "1.45"]
+    ]

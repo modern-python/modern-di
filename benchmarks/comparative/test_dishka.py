@@ -13,7 +13,7 @@ from dishka import Provider, Scope, from_context, make_async_container, make_con
 
 _BATCH = 100
 
-# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+# Pinned timing shape for C1-C4 and C6; must match every other comparative file (see test_modern_di.py).
 _ROUNDS = 200
 _ITERATIONS = 1000
 _C4_ROUNDS = 100
@@ -170,7 +170,7 @@ def test_c6_context_dishka(benchmark):
             return req.get(Handler)
 
     try:
-        result = benchmark(_one_request)
+        result = benchmark.pedantic(_one_request, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     finally:
         container.close()
     assert isinstance(result, Handler)
