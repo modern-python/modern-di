@@ -102,6 +102,14 @@ timed as a batch of K=100 cycles per loop entry.
 | dependency-injector 4.49.1 | `Factory` | `Singleton` | async-gen `Resource`, `init/shutdown_resources` | await |
 | wireup 2.12.0 | `injectable(transient)` + scope | `injectable` (singleton default) | async-gen `injectable(scoped)`, async container | await |
 
+**Thread-safety configuration differs, at each framework's default.** dishka's `make_container`
+defaults to `lock_factory=<class '_thread.lock'>`, so every `get()` in C1-C3 acquires a lock;
+`make_async_container` defaults to `asyncio.Lock`. modern-di's cached-read path is lock-free by
+design (see `architecture/concurrency.md`), and its creation lock is double-checked. Every
+framework here runs at its default, which is the comparison a user gets out of the box -- but a
+dishka user targeting single-threaded work can pass `lock_factory=None`, and that would move
+dishka's C1-C3 cells. The axis is disclosed rather than normalized away.
+
 **Caveat — C4 is not sync-vs-sync.** modern-di is the only framework that resolves
 the connection **synchronously** while finalizing asynchronously; the other four
 force an **awaited** resolve once the finalizer is async. C4 therefore measures the
@@ -127,7 +135,10 @@ builds the graph; wireup `exec`-codegens a factory per provider);
 dependency-injector's number is ~98% provider-graph **deepcopy** on
 instantiation, not resolution; that-depends wires at **import** and has no
 per-call build, so its cell is a `Factory`-reconstruction analog (6× `Factory.__init__`
-+ resolve), not a container build. The honest reading is modern-di vs the
++ resolve), not a container build. dishka's cell additionally includes per-call provider registration -- `Provider(scope=...)` plus
+six `provide()` calls, measured at 121.3us of its 908.1us (13%) -- which modern-di hoists to
+import time in the `ChainGroup` class body. The two build cells are therefore close but not
+strictly like-for-like. The honest reading is modern-di vs the
 build-time codegen frameworks (dishka/wireup), where staying `exec`-free wins by
 a wide margin. C5 aligns validation off (modern-di never validates unless
 `validate()` is called explicitly, dishka `skip_validation=True`) so it
