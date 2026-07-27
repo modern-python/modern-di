@@ -12,6 +12,7 @@ from modern_di.exceptions import (
     ChildContainerRegistrationError,
     CircularDependencyError,
     ContainerClosedError,
+    ContainerClosedWarning,
     DuplicateProviderTypeError,
     InvalidChildScopeError,
     InvalidScopeDependencyError,
@@ -439,12 +440,12 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
         Container(scope=Scope.APP, parent_container=request)
 
 
-def test_resolve_on_closed_container_raises() -> None:
+def test_resolve_on_closed_container_warns() -> None:
     container = Container(scope=Scope.APP, validate=False)
     container.close_sync()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
-    assert container.closed is True  # no self-heal: still closed after the raise
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
+    assert container.closed is False  # self-healed: reopened by the warning path
 
 
 def test_reenter_reopens_closed_container() -> None:
@@ -454,11 +455,11 @@ def test_reenter_reopens_closed_container() -> None:
         assert container.resolve(Container) is container
 
 
-async def test_closed_container_async_path_raises() -> None:
+async def test_closed_container_async_path_warns() -> None:
     container = Container(scope=Scope.APP, validate=False)
     await container.close_async()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
 
 
 class _PersistentBroker: ...
@@ -470,22 +471,21 @@ class _AppBrokerGroup(Group):
     )
 
 
-def test_resolving_through_closed_parent_via_open_child_raises() -> None:
+def test_resolving_through_closed_parent_via_open_child_warns() -> None:
     app = Container(scope=Scope.APP, groups=[_AppBrokerGroup], validate=False)
     app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
     child.open()
     app.close_sync()
-    with pytest.raises(ContainerClosedError):
-        child.resolve(_PersistentBroker)
-    assert app.closed is True  # no self-heal: the ancestor stays closed
+    with pytest.warns(ContainerClosedWarning):
+        assert isinstance(child.resolve(_PersistentBroker), _PersistentBroker)
 
 
 async def test_async_context_manager_reopens() -> None:
     container = Container(scope=Scope.APP, validate=False)
     async with container:
         pass
-    with pytest.raises(ContainerClosedError):
+    with pytest.warns(ContainerClosedWarning):
         container.resolve(Container)
     async with container:
         assert container.resolve(Container) is container
@@ -494,14 +494,53 @@ async def test_async_context_manager_reopens() -> None:
 def test_open_reopens_closed_container() -> None:
     container = Container(scope=Scope.APP, validate=False)
     container.close_sync()
-    with pytest.raises(ContainerClosedError):
+    with pytest.warns(ContainerClosedWarning):
         container.resolve(Container)
     container.open()
     assert container.resolve(Container) is container
     assert container.build_child_container(scope=Scope.REQUEST).scope is Scope.REQUEST
 
 
+def test_reuse_after_close_warns_and_reopens() -> None:
+    container = Container(scope=Scope.APP, validate=False)
+    container.open()
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning) as record:
+        assert container.resolve(Container) is container
+    assert container.closed is False
+    assert record[0].message.container_scope is Scope.APP  # ty: ignore[unresolved-attribute]
+
+
+def test_explicit_open_after_close_does_not_warn() -> None:
+    container = Container(scope=Scope.APP, validate=False)
+    container.open()
+    container.close_sync()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # a deliberate reopen is silent
+        container.open()
+        assert container.resolve(Container) is container
+
+
+def test_child_built_off_closed_parent_warns_only_when_the_parent_resolves() -> None:
+    app = Container(scope=Scope.APP, groups=[_AppBrokerGroup], validate=False)
+    app.open()
+    app.close_sync()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # parenting alone touches no closed state
+        child = app.build_child_container(scope=Scope.REQUEST)
+    with pytest.warns(ContainerClosedWarning):
+        child.resolve(_PersistentBroker)  # navigates to the closed APP owner
+
+
+def test_container_closed_warning_message() -> None:
+    warning = ContainerClosedWarning(container_scope=Scope.REQUEST)
+    assert warning.container_scope is Scope.REQUEST
+    assert "reused after close" in str(warning)
+    assert "open()" in str(warning)
+
+
 def test_container_closed_error_message_and_attr() -> None:
+    """Back-compat pin: nothing raises this class anymore, so this test is what keeps it covered."""
     err = ContainerClosedError(container_scope=Scope.APP)
     assert err.container_scope is Scope.APP
     assert "not open" in str(err)
@@ -979,8 +1018,8 @@ def test_add_providers_on_closed_root_registers_fine() -> None:
 
     container.add_providers(str_factory)  # no ContainerClosedError: registration doesn't touch closed state
 
-    with pytest.raises(ContainerClosedError):
-        container.resolve(str)
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(str) == "added"
 
 
 def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None:

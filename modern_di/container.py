@@ -360,7 +360,9 @@ class Container:
         any deferred validation) and to reopen a closed container deliberately. Opening an
         already-open container is a no-op.
         """
-        self._ensure_ready()
+        with self._lock or contextlib.nullcontext():
+            if self.closed:
+                self._ensure_ready()
 
     def _ensure_ready(self) -> None:
         """Finish any deferred validation, then mark this container open."""
@@ -374,7 +376,7 @@ class Container:
         with self._lock or contextlib.nullcontext():
             if self.closed:  # re-checked under the lock: another thread may have prepared already
                 if self._ever_closed:
-                    raise exceptions.ContainerClosedError(container_scope=self.scope)
+                    warnings.warn(exceptions.ContainerClosedWarning(container_scope=self.scope), stacklevel=3)
                 self._ensure_ready()
 
     def __enter__(self) -> "typing_extensions.Self":
