@@ -117,9 +117,12 @@ calibration used to provide; every other setup stays outside the timed call exac
 the pinned shape or the numbers drift apart. C5/C6 are not published on the page and stay on
 auto-calibration.
 
-Levelling this axis moved published cells **in both directions**. Cells that had been at
-`iterations=1` each shed ~30-50 ns of per-round overhead, and dishka shed proportionally more
-than modern-di did, so modern-di's C1 and C3 ratios against dishka got *worse*, not better.
+Levelling this axis moved published cells **in both directions**, and the shift is not uniform:
+cells that had been at `iterations=1` shed anywhere from ~10 ns (dependency-injector C1) to
+~50 ns (dishka C1, C3), and one -- modern-di's by-reference C3 -- rose by ~12 ns. Because dishka
+shed proportionally more than modern-di did, modern-di's C1 and C3 ratios against dishka got
+*worse*, not better. Netted over the sixteen published ratio cells, eight moved against
+modern-di, seven for it and one was unchanged.
 C4's estimator also shifted: a round is now the mean of `iterations` batches, so a right-skewed
 distribution reports nearer its mean -- modern-di's C4 mean was 24% above its median at
 `iterations=1`, and its published per-request figure rose accordingly. The mean itself did not
