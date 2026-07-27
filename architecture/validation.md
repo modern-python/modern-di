@@ -25,8 +25,8 @@ construction validate.
 (`is_validated()` / `mark_validated()`) that records only whether the *last* walk of the current
 registry contents found no errors — it plays no role in deciding whether to validate, since nothing does
 that automatically. `validate()` checks it first and returns immediately if still `True`, so a repeat
-`validate()` after a clean walk is free. Every registry mutation (`register` / `add_providers` /
-removal) clears it back to `False`, so the next `validate()` re-walks. The same flag arms the runtime
+`validate()` after a clean walk is free. `ProvidersRegistry` has only two mutators — `register` and
+`add_providers` — and both clear it back to `False`, so the next `validate()` re-walks. The same flag arms the runtime
 `RecursionError`-to-`CircularDependencyError` guard (see the blockquote below): once a walk has
 confirmed the graph acyclic, an escaped `RecursionError` is known to be genuine self-recursion and
 re-raises untouched, with no re-walk. Before any `validate()` call, `_validated` is `False` from
@@ -62,8 +62,8 @@ routed through it is caught here rather than surfacing at resolve time as a bare
 
 **Validated-flag short-circuit.** `ProvidersRegistry` carries a `_validated: bool`, set by `mark_validated()`
 on a successful walk; a later `validate()` while `_validated` is still `True` returns immediately without
-re-walking, so a repeat `validate()` is free. Every registry mutation (`register` / `add_providers` /
-`_remove_providers`) clears `_validated` back to `False`, so any change to the graph re-arms both
+re-walking, so a repeat `validate()` is free. Its only two mutators, `register` and `add_providers`, both
+clear `_validated` back to `False`, so any change to the graph re-arms both
 `validate()` and the runtime guard. The flag lives on the registry, which is shared tree-wide, so validating
 any one container marks the graph clean for every container in the tree.
 
