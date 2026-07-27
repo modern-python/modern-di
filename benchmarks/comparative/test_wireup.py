@@ -12,6 +12,8 @@ from collections.abc import AsyncIterator
 
 import wireup
 
+_BATCH = 100
+
 
 @wireup.injectable(lifetime="transient")
 class Dep:
@@ -110,18 +112,22 @@ def test_c4_request_lifecycle(benchmark):
     container = wireup.create_async_container(injectables=[connection_factory])
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
+    async def _one() -> Connection:
         async with container.enter_scope() as scope:
             return await scope.get(Connection)
 
-    def _one() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one)
+        result = benchmark(_run_batch)
     finally:
         loop.close()
-    assert result.closed is True
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)
 
 
 # --- C5 cold: create_sync_container (codegen/exec) + first resolve, per call --

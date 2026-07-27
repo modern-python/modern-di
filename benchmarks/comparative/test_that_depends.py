@@ -12,6 +12,8 @@ import typing
 from that_depends import BaseContainer, ContextScopes, container_context, providers
 from that_depends.providers.context_resources import fetch_context_item_by_type
 
+_BATCH = 100
+
 
 class Dep:
     pass
@@ -110,18 +112,22 @@ def test_c3_deep_chain(benchmark):
 def test_c4_request_lifecycle(benchmark):
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
+    async def _one() -> Connection:
         async with container_context(LifecycleContainer, scope=ContextScopes.REQUEST):
             return await LifecycleContainer.connection.resolve()
 
-    def _one() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one)
+        result = benchmark(_run_batch)
     finally:
         loop.close()
-    assert result.closed is True
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)
 
 
 # --- C5 cold: rebuild the 6 Factory objects + first resolve, per call ---------

@@ -10,6 +10,8 @@ import asyncio
 
 from dependency_injector import containers, providers
 
+_BATCH = 100
+
 
 class Dep:
     pass
@@ -106,23 +108,30 @@ def test_c3_deep_chain(benchmark):
 
 
 def test_c4_request_lifecycle(benchmark):
+    # The container is built ONCE in setup, like every other framework here. Building it inside the
+    # timed call (as this benchmark used to) deep-copies the provider graph per request -- ~29% of
+    # the old number -- a cost a real dependency-injector app pays once at startup.
+    container = LifecycleContainer()
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
-        container = LifecycleContainer()
+    async def _one() -> Connection:
         await container.init_resources()
         conn = await container.connection()
         await container.shutdown_resources()
         return conn
 
-    def _one() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one)
+        result = benchmark(_run_batch)
     finally:
         loop.close()
-    assert result.closed is True
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)
 
 
 # --- C5 cold: instantiate a fresh container + first resolve, per call ---------

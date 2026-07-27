@@ -11,6 +11,8 @@ from collections.abc import AsyncIterable
 
 from dishka import Provider, Scope, from_context, make_async_container, make_container, provide
 
+_BATCH = 100
+
 
 class Dep:
     pass
@@ -98,19 +100,23 @@ def test_c4_request_lifecycle(benchmark):
     container = make_async_container(ConnProvider())
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
+    async def _one() -> Connection:
         async with container() as req:
             return await req.get(Connection)
 
-    def _one() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one)
+        result = benchmark(_run_batch)
     finally:
         loop.run_until_complete(container.close())
         loop.close()
-    assert result.closed is True
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)
 
 
 # --- C5 cold: build Provider + make_container + first resolve, per call -------
