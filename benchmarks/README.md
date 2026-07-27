@@ -26,6 +26,8 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 | G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
 | G15 | Concurrent first-resolve, N threads (double-checked creation lock) | free-threaded creation-lock contention |
+| G16 | Warm by-type `resolve(SomeType)`, small graph | `find_provider` lookup on the integration/`@inject` path |
+| G17 | Warm by-type `resolve(SomeType)`, 200-provider registry | lookup cost at realistic registry scale |
 
 **Rules.** Containers are built/warmed in setup, never inside the timed call —
 **except G8**, which builds the root container *inside* the timed call on
