@@ -14,6 +14,9 @@ import dataclasses
 from modern_di import Container, Group, Scope, providers
 
 
+_BATCH = 100
+
+
 @dataclasses.dataclass(slots=True)
 class AppService:
     pass
@@ -57,27 +60,56 @@ class LifecycleGroup(Group):
     )
 
 
-def test_g7_request_lifecycle(benchmark):
+def test_g7_request_lifecycle_batch(benchmark):
+    # K request cycles inside ONE run_until_complete: a single loop entry costs ~27us regardless of
+    # the body, which swamped the ~2us of real work when each iteration entered the loop separately.
+    # The number is a BATCH of _BATCH requests; divide by _BATCH for per-request. Pair it with
+    # test_g7c_event_loop_floor_control, which measures the residual entry cost on the same shape.
     app = Container(scope=Scope.APP, groups=[LifecycleGroup])
     app.open()
     loop = asyncio.new_event_loop()
 
-    async def _run() -> Connection:
+    async def _one_request() -> Connection:
         req = app.build_child_container(scope=Scope.REQUEST)
-        req.open()  # fresh child per request; part of the measured request cycle, like the close below
+        req.open()
         conn = req.resolve_provider(LifecycleGroup.conn)
         await req.close_async()
         return conn
 
-    def _one_request() -> Connection:
-        return loop.run_until_complete(_run())
+    async def _batch() -> list[Connection]:
+        return [await _one_request() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Connection]:
+        return loop.run_until_complete(_batch())
 
     try:
-        result = benchmark(_one_request)
+        result = benchmark(_run_batch)
     finally:
         loop.close()
-    assert isinstance(result, Connection)
-    assert result.closed is True  # async finalizer ran
+    assert len(result) == _BATCH
+    assert all(conn.closed for conn in result)  # every async finalizer ran
+
+
+def test_g7c_event_loop_floor_control(benchmark):
+    # Control, not a subject: the same batch shape with an empty body, so the residual event-loop
+    # cost inside every G7 batch number is visible in the same run rather than asserted in prose.
+    # Read it as a share of test_g7_request_lifecycle_batch (~15% at _BATCH = 100).
+    loop = asyncio.new_event_loop()
+
+    async def _nothing() -> None:
+        return None
+
+    async def _batch() -> None:
+        for _ in range(_BATCH):
+            await _nothing()
+
+    def _run_batch() -> None:
+        loop.run_until_complete(_batch())
+
+    try:
+        benchmark(_run_batch)
+    finally:
+        loop.close()
 
 
 # --- G13: teardown at scale -- 10 cached REQUEST resources, sync finalizers ---

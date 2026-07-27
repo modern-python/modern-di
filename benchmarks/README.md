@@ -16,7 +16,8 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G4 | Wide, one object with 10 sibling deps | fan-out |
 | G5 | Cross-scope resolve, REQUEST -> APP dep | `find_container` traversal |
 | G6 | `build_child_container(REQUEST)` | per-request setup |
-| G7 | Full lifecycle: build REQUEST -> sync-init cached resolve -> `await close_async()` | real per-request cost incl. async teardown |
+| G7 | Full lifecycle batch: K=100 x (build REQUEST -> sync-init cached resolve -> `await close_async()`) | real per-request cost incl. async teardown |
+| G7c | Control: K=100 empty awaits in one loop entry | residual event-loop floor inside G7 |
 | G8 | Cold first-resolve: build root container + compile + resolve, depth 6 | construction + first-compile cost |
 | G9 | Context resolve: request value by type + APP dep, warm child | non-pure context-folding path |
 | G10 | `validate()` on a depth-6 chain (isolated via `pedantic`) | graph-validation traversal, deep |
@@ -35,9 +36,12 @@ timed call does the full wiring. G10/G11 use `benchmark.pedantic` with a
 per-round setup that builds a fresh unvalidated container (untimed), so they
 isolate `validate()` from construction — a fresh registry each round means every
 round runs the full graph walk. Every benchmark asserts the resolved graph is
-correct. G7 is wall-clock only — instruction-count tooling cannot measure the
-awaited teardown, and a single reused event loop keeps loop overhead out of the
-signal as far as practical.
+correct. G7 is wall-clock only — instruction-count tooling cannot measure the awaited teardown.
+It times a **batch of K=100 request cycles inside a single `run_until_complete`**: one loop
+entry costs ~27us on any body, which previously swamped the ~2us of real work when each
+iteration entered the loop separately. Divide the G7 number by 100 for per-request cost, and
+read G7c — the same batch shape with an empty body — as the residual floor still inside it
+(~15% at K=100).
 
 ### Concurrency (G14/G15)
 
