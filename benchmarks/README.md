@@ -25,11 +25,15 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 | G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
 | G15 | Concurrent first-resolve, N threads (double-checked creation lock) | free-threaded creation-lock contention |
+| G16 | `Container(...)` alone, default `validate=True`, never opened, depth 6 | construction-time monotone walk |
 
 **Rules.** Containers are built/warmed in setup, never inside the timed call —
-**except G8**, the cold scenario, which builds the root container *inside* the
-timed call on purpose (its own file, `test_guard_cold.py`) so it measures the
-one-time construction + graph compile the other scenarios amortize away.
+**except G8 and G16**, which build the root container *inside* the timed call on
+purpose. G8 (its own file, `test_guard_cold.py`) measures the one-time
+construction + graph compile the other scenarios amortize away; G16 isolates
+construction alone, with the default `validate=True` and no `open()`, which is
+the one shape that pays for the construction-time monotone graph walk without
+ever amortizing it against a resolve.
 Cold-resolve scenarios (G1, G3, G4) use transient (uncached) providers so each
 timed call does the full wiring. G10/G11 use `benchmark.pedantic` with a
 per-round setup that builds a fresh unvalidated container (untimed), so they

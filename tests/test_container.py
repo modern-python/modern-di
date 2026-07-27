@@ -1323,8 +1323,22 @@ def test_add_providers_completes_a_pending_graph() -> None:
     container = Container(scope=Scope.APP, groups=[_DeferFactoryNeedingRequestGroup])
     assert container.providers_registry.has_pending_errors() is True
     container.add_providers(providers.ContextProvider(_DeferRequest))  # integration wires it in
-    container.open()  # completeness re-walked against the now-complete graph: clean
+    # `add_providers` re-walks itself, so the graph is already clean here — no `open()` needed.
     assert container.providers_registry.is_validated() is True
+    assert container.providers_registry.has_pending_errors() is False
+
+
+def test_add_providers_completed_graph_resolves_without_an_explicit_open() -> None:
+    # Same seam, reached the way an unopened container reaches it: the first resolve prepares.
+    container = Container(
+        scope=Scope.APP,
+        groups=[_DeferFactoryNeedingRequestGroup],
+        context={_DeferRequest: _DeferRequest()},
+    )
+    container.add_providers(providers.ContextProvider(_DeferRequest))  # integration wires it in
+    request = container.build_child_container(scope=Scope.REQUEST)
+    assert isinstance(request.resolve(_DeferReqDependent), _DeferReqDependent)  # no explicit open()
+    assert container.closed is False
 
 
 def test_open_revalidates_when_pending_cleared_by_direct_registry_mutation() -> None:
