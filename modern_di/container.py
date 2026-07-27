@@ -364,7 +364,7 @@ class Container:
         """
         self.closed = False
         reg = self.providers_registry
-        if reg.is_validation_enabled() and not reg.is_validated():
+        if not reg.is_validated() and (reg.is_validation_enabled() or reg.has_pending_errors()):
             self._complete_validation()
 
     def _raise_if_closed(self) -> None:

@@ -544,7 +544,7 @@ def test_unopened_container_build_child_raises() -> None:
         container.build_child_container(scope=Scope.REQUEST)
 
 
-def test_open_enables_use_and_validates_root_once(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_construction_validates_root_once_and_open_or_resolve_do_not(monkeypatch: pytest.MonkeyPatch) -> None:
     # A clean graph validates eagerly at construction, not at open(): count `_eager_validate` calls.
     calls = {"n": 0}
     real = Container._eager_validate  # noqa: SLF001
@@ -860,9 +860,10 @@ def test_add_providers_defers_completeness_to_first_use_after_manual_validate() 
     container.add_providers(broken_factory)  # monotone half is clean; completeness is deferred to first use
     assert container.providers_registry.has_pending_errors() is True
 
-    # validate=False: open() never auto-checks, so the deferral surfaces via an explicit validate() call.
+    # Ruled: held errors surface at first use regardless of the enabled bit -- the manual validate()
+    # call above is what arms the deferred check, so open() must still catch it on a validate=False root.
     with pytest.raises(ValidationFailedError) as exc:
-        container.validate()
+        container.open()
     [issue] = exc.value.errors
     assert isinstance(issue, ArgumentResolutionError)
 
