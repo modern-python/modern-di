@@ -19,9 +19,9 @@ class Dependencies(Group):
     user_cache = providers.Factory(UserCache, scope=Scope.REQUEST)
 ```
 
-**Caught by:** an explicit `container.validate()` call, which raises `InvalidScopeDependencyError`
-for this exact graph before anything is ever resolved — see
-[Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
+**Caught by:** an explicit `container.validate()` call, which raises `ValidationFailedError`
+carrying an `InvalidScopeDependencyError` for this exact graph before anything is ever resolved
+— see [Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
 the graph is never validated, the runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError`
 that (since the scope-error breadcrumb work) now names both the provider that captured the
 dependency and the one that actually failed — but it fires on the first request that hits it, not at

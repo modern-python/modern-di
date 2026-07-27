@@ -198,7 +198,7 @@ integration that registers its own providers after construction (via `add_provid
 integration](../integrations/writing-integrations.md#lifecycle-rules).
 
 A repeat `validate()` after a clean walk is free — it memoizes against the registry's contents and
-only re-walks once something has changed it (`register`/`add_providers`/removal). Validation has no
+only re-walks once something has changed it (`register`/`add_providers`). Validation has no
 runtime cost after that. Turn it on in a startup path or a single test — it catches the bugs you
 don't want to discover under load.
 

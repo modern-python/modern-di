@@ -175,6 +175,10 @@ container.validate()  # raises ValidationFailedError here if the graph is broken
 Child containers (built via `build_child_container`) never validate, in either version — this
 switch only affects root containers.
 
+**Changed again in 3.1** — validation is explicit-only; `open()` no longer runs it either. See
+the [3.1 note under switch 6](#6-a-container-must-be-opened-before-use) below for the full
+correction.
+
 ### 5. Direct resolve of an unset `ContextProvider` raises
 
 In 2.x, resolving a type backed by a `ContextProvider` with no value set emits

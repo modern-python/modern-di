@@ -107,11 +107,12 @@ depends on how the framework runs handlers:
 
   `Container` implements both sync and async context-manager protocols
   (`__enter__`/`__exit__`, `__aenter__`/`__aexit__`) — `async with`/`with` on a
-  freshly built child opens it and closes it on exit, equivalent to a
-  `try`/`finally` around `close_async`/`close_sync` but without hand-writing it.
-  A freshly built child is usable immediately either way — the first resolve
-  through it would prepare it on its own — so the `with`/`async with` here buys
-  fail-fast validation and guaranteed cleanup, not a required open step.
+  freshly built child opens it (a no-op, since a freshly built child is already
+  open) and closes it on exit, equivalent to a `try`/`finally` around
+  `close_async`/`close_sync` but without hand-writing it. A freshly built child
+  is usable immediately either way — `open()` runs no validation of its own — so
+  the `with`/`async with` here buys guaranteed cleanup on the way out, not a
+  required open step or any fail-fast check.
 
   For a **single** connection kind with no dispatch to do, call
   `integrations.bind(my_provider, connection)` directly — it returns the same

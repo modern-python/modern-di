@@ -40,7 +40,7 @@ in one pass (not just the one a particular resolve happens to hit) — prefer it
 from modern_di import Container
 
 container = Container(groups=[MyGroup])
-container.validate()  # walks the graph now; raises CircularDependencyError if a cycle exists
+container.validate()  # raises ValidationFailedError (wraps CircularDependencyError) if a cycle exists
 ```
 
 ## How to Resolve

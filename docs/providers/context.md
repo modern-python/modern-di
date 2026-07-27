@@ -148,9 +148,10 @@ container.validate()
 Nothing validates automatically, so the ordering above is what matters: `fastapi.Request`'s
 `ContextProvider` only exists once `setup_di()` has registered it, so calling
 `container.validate()` **before** that line would raise
-[`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) for a required
-`request` parameter — the provider isn't there yet. Call `validate()` after `setup_di()`, as
-above, and a required parameter validates cleanly. See [Writing an
+[`ValidationFailedError`](../troubleshooting/validation-failed-error.md) — its `.errors` would
+carry an [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) for the
+required `request` parameter, since the provider isn't there yet. Call `validate()` after
+`setup_di()`, as above, and a required parameter validates cleanly. See [Writing an
 integration](../integrations/writing-integrations.md#lifecycle-rules) for the same rule from the
 integration author's side.
 
@@ -158,7 +159,10 @@ If you need to validate the rest of the graph before `setup_di()` runs — e.g. 
 narrower, construction-time check — make the parameter optional instead
 (`request: fastapi.Request | None = None`), so `validate()` skips it regardless of whether the
 connection provider is registered yet; at runtime the integration still injects the real
-`Request`, since it always sets the per-request context before resolving.
+`Request`, since it always sets the per-request context before resolving. A defaulted `Factory`
+parameter keeps its own disposition here too: `ContextValueNotSetError` (see [When no value is
+set](#when-no-value-is-set) above) affects only a *direct* resolve of an unset context type, not
+a defaulted parameter, which still falls back to its default when no context is set.
 
 **Explicit usage (provider-based resolution).** Every integration also exports the underlying
 `ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,

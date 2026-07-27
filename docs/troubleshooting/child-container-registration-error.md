@@ -17,7 +17,6 @@ Call `add_providers()` on the root container instead:
 
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
-app_container.open()
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 
 # Wrong

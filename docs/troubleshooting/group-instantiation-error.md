@@ -25,7 +25,6 @@ deps = Dependencies()             # raises GroupInstantiationError
 
 # Right
 container = Container(groups=[Dependencies])
-container.open()
 service = container.resolve_provider(Dependencies.service)
 ```
 
