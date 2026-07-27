@@ -52,7 +52,7 @@ container in the tree is prepared first — root or child (see [Integration seam
 A constructed container is usable immediately — there is no required `open()` step. The first
 `resolve` / `resolve_provider` / `resolve_dependency` that reaches a closed container (directly, or by
 building a child and resolving through it) calls the private `_prepare()`, which finishes any deferred
-validation (see [validation.md](validation.md#enabling-validation)) and then clears `closed`. `open()`
+validation (see [validation.md](validation.md#enabling-validation-monotone-at-construction-complete-at-first-use)) and then clears `closed`. `open()`
 and `with` / `async with` stay available — call them to fail fast at startup, before the first unit of
 work, and to get finalizers on the way out:
 
@@ -72,7 +72,7 @@ the `finally` block of both `close_sync()` and `close_async()`, never reset):
 | State | `closed` | `_ever_closed` | Implicit use | `open()` / `with` |
 |---|---|---|---|---|
 | New | `True` | `False` | prepares silently | prepares, silent |
-| Open | `False` | either | proceeds | no-op |
+| Open | `False` | either | proceeds | re-runs any held validation; otherwise a no-op |
 | Closed | `True` | `True` | prepares, warns | prepares, silent |
 
 The discriminator is *has this container been closed*, not *has it been opened*: a container
@@ -234,7 +234,7 @@ since `open()` is the fail-fast verb: calling it on an already-open container mu
 validation the registry is holding, such as completeness errors a later
 [`add_providers`](#integration-seam) call left pending. In practice this costs nothing once the graph
 is clean, since `ProvidersRegistry.is_validated()` short-circuits the walk (see
-[validation.md](validation.md#enabling-validation)); `_prepare()`, by contrast, does have a (lock-held,
+[validation.md](validation.md#enabling-validation-monotone-at-construction-complete-at-first-use)); `_prepare()`, by contrast, does have a (lock-held,
 re-checked) `if self.closed:` guard, since its job is only to catch a container's first use, not to
 re-verify an already-open one on every call.
 
