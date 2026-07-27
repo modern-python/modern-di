@@ -66,7 +66,7 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
         x = Factory(scope=Scope.APP, creator=X)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.validate()  # already validated at construction (clean graph) -- confirms the flag is set
+    container.validate()  # this call does the walk (clean graph) and sets the registry's validated flag
 
     def _explode(*_: object, **__: object) -> object:  # pragma: no cover
         msg = "re-walked"

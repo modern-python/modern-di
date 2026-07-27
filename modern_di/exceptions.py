@@ -275,12 +275,12 @@ class ValidateArgumentWarning(DeprecationWarning):
 
 
 class UnvalidatedContainerWarning(FutureWarning):
-    """Retained for back-compat of existing ``filterwarnings`` configs; no longer emitted.
+    """No longer emitted; kept importable for back-compat.
 
     In modern-di 2.x this warned when a root container was built without an explicit ``validate``
-    argument. As of 3.0, ``validate`` defaults to ``True`` and runs at container entry
-    (:meth:`Container.open`/``with``), so there is nothing left to warn about — the class stays
-    importable so an existing::
+    argument. Nothing raises or warns this class today: graph validation runs only when
+    :meth:`Container.validate` is called explicitly, and never implicitly at any point in the
+    lifecycle. The class stays importable so an existing::
 
         warnings.filterwarnings("error", category=exceptions.UnvalidatedContainerWarning)
 

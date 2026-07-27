@@ -348,8 +348,10 @@ def test_walk_errors_returns_flat_list_in_walk_order() -> None:
     container = Container(scope=Scope.APP, groups=[G])
     errors = container._walk_errors()  # noqa: SLF001
 
-    error_types = {type(error).__name__ for error in errors}
-    assert error_types == {"CircularDependencyError", "ArgumentResolutionError"}
+    # Root order is registration order (a, b, svc): the cycle closes while walking from root
+    # `a`, so it is appended before `svc`'s missing dependency is reached.
+    error_types = [type(error).__name__ for error in errors]
+    assert error_types == ["CircularDependencyError", "ArgumentResolutionError"]
 
 
 def test_validate_detects_cycle_across_scopes() -> None:
@@ -559,28 +561,37 @@ def test_open_on_open_container_is_noop() -> None:
         assert container.resolve(Container) is container
 
 
-# --- open() is optional: first use prepares the container --------------------------------------
+# --- a container is open from construction ------------------------------------------------------
 
 
-def test_fresh_container_starts_unopened() -> None:
-    # A just-constructed container is not open, but it is usable: the first resolve prepares it.
+def test_fresh_container_is_open() -> None:
     container = Container(scope=Scope.APP)
-    assert container.closed is True
+    assert container.closed is False
+
+
+def test_construct_then_close_then_reuse_warns_once() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning):
+        assert container.resolve(Container) is container
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # reopened: the second resolve is silent
+        assert container.resolve(Container) is container
 
 
 def test_fresh_container_resolves_without_open() -> None:
     container = Container(scope=Scope.APP)
     with warnings.catch_warnings():
-        warnings.simplefilter("error")  # a never-opened container must not warn
+        warnings.simplefilter("error")  # a never-closed container must not warn
         assert container.resolve(Container) is container
-    assert container.closed is False  # first touch prepared it
+    assert container.closed is False
 
 
 def test_fresh_container_builds_child_and_child_resolves_without_open() -> None:
     app = Container(scope=Scope.APP)
     child = app.build_child_container(scope=Scope.REQUEST)
     assert child.resolve(Container) is child
-    assert app.closed is True  # parenting a child does not open the parent
+    assert app.closed is False  # building a child does not close the parent
 
 
 def test_build_child_off_closed_parent_is_allowed() -> None:

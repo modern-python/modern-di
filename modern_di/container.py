@@ -73,7 +73,6 @@ class Container:
     """
 
     __slots__ = (
-        "_ever_closed",
         "_lock",
         "_scope_map",
         "cache_registry",
@@ -96,9 +95,10 @@ class Container:
     ) -> None:
         """Build a container at ``scope``.
 
-        A container is usable as soon as it is constructed: the first :meth:`resolve`
-        prepares it (marks it open). :meth:`open` and ``with`` / ``async with`` stay
-        available for deliberate startup and for running finalizers on the way out.
+        A container is open from construction — no separate startup step is required
+        before the first :meth:`resolve`. :meth:`open` and ``with`` / ``async with``
+        stay available for reopening a closed container deliberately and for running
+        finalizers on the way out.
 
         ``validate`` is ignored and deprecated: passing it (either value) emits
         :class:`~modern_di.exceptions.ValidateArgumentWarning` and changes nothing.
@@ -115,8 +115,7 @@ class Container:
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         self._lock = threading.RLock() if use_lock else None
-        self.closed = True  # not open yet; the first resolve prepares it
-        self._ever_closed = False
+        self.closed = False
         self.scope = scope
         self.parent_container = parent_container
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
@@ -248,6 +247,13 @@ class Container:
         return errors
 
     def validate(self) -> None:
+        """Walk the static provider graph and raise on any wiring error.
+
+        Checks cycles, transitive scope ordering, and missing/unresolvable dependencies;
+        every error found is aggregated into a single :class:`~modern_di.exceptions.ValidationFailedError`
+        rather than raising on the first one. This is the only thing that validates —
+        construction, :meth:`open`, ``add_providers``, and ``resolve`` never do.
+        """
         reg = self.providers_registry
         if reg.is_validated():
             return  # already validated at this registry state — no re-walk
@@ -279,7 +285,6 @@ class Container:
             await self.cache_registry.close_async()
         finally:
             self.closed = True
-            self._ever_closed = True
 
     def close_sync(self) -> None:
         if not self.parent_container:
@@ -288,7 +293,6 @@ class Container:
             self.cache_registry.close_sync()
         finally:
             self.closed = True
-            self._ever_closed = True
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
         """Apply an override immediately.
@@ -325,30 +329,24 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def open(self) -> None:
-        """Prepare the container now, instead of on first use.
+        """Open the container, silently.
 
-        Optional: a constructed container prepares itself on the first :meth:`resolve` or
-        on the first resolve through a child. Call this to reopen a closed container
-        deliberately. It does not validate the graph — call :meth:`validate` explicitly for
-        that. A no-op on an already-open container.
+        Optional: a constructed container is already open. Use it to reopen a closed
+        container deliberately — an implicit reuse reopens too, but warns. Opening an
+        open container is a no-op. Validation is not run here; call :meth:`validate`.
         """
         with self._lock or contextlib.nullcontext():
-            self._ensure_ready()
-
-    def _ensure_ready(self) -> None:
-        """Mark this container open."""
-        self.closed = False
+            self.closed = False
 
     def _prepare(self) -> None:
-        """Implicit open from the resolve path: a not-open container prepares itself on first use."""
+        """Reopen a closed container on implicit reuse, warning once."""
         with self._lock or contextlib.nullcontext():
-            if self.closed:  # re-checked under the lock: another thread may have prepared already
-                if self._ever_closed:
-                    warnings.warn(
-                        exceptions.ContainerClosedWarning(container_scope=self.scope),
-                        stacklevel=_caller_stacklevel(),
-                    )
-                self._ensure_ready()
+            if self.closed:  # re-checked under the lock: another thread may have reopened already
+                warnings.warn(
+                    exceptions.ContainerClosedWarning(container_scope=self.scope),
+                    stacklevel=_caller_stacklevel(),
+                )
+                self.closed = False
 
     def __enter__(self) -> "typing_extensions.Self":
         self.open()
