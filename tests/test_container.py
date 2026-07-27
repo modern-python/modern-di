@@ -554,6 +554,29 @@ def test_open_on_open_container_is_noop() -> None:
         assert container.resolve(Container) is container
 
 
+def test_open_resurfaces_errors_held_by_add_providers() -> None:
+    # Regression pin: open() must not short-circuit on an already-open container. It is documented
+    # as the fail-fast verb, so registering a broken provider after open() and calling open() again
+    # to re-check must still surface the held completeness error, not silently return.
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Missing:
+        pass
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Broken:
+        missing: Missing
+
+    container = Container(scope=Scope.APP)
+    container.open()
+    container.add_providers(providers.Factory(creator=Broken))  # monotone half clean; completeness deferred
+    assert container.providers_registry.has_pending_errors() is True
+
+    with pytest.raises(ValidationFailedError) as exc:
+        container.open()
+    [issue] = exc.value.errors
+    assert isinstance(issue, ArgumentResolutionError)
+
+
 # --- open() is optional: first use prepares the container --------------------------------------
 
 

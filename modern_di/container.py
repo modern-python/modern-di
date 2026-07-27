@@ -361,8 +361,7 @@ class Container:
         already-open container is a no-op.
         """
         with self._lock or contextlib.nullcontext():
-            if self.closed:
-                self._ensure_ready()
+            self._ensure_ready()
 
     def _ensure_ready(self) -> None:
         """Finish any deferred validation, then mark this container open."""
