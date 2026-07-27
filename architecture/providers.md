@@ -167,11 +167,13 @@ accepts an optional `bound_type` override. See [docs/providers/alias.md](../docs
 user-facing rationale and caching implications.
 
 `Alias` overrides the `redirect_target(container)` node hook to return its source provider (`None` when the
-source type is unregistered), marking the alias as a transparent redirect. `DependencyGraph.terminal_scope`
-follows that hook down an alias chain to the terminal non-alias provider and returns that provider's scope —
-which is what `Container.validate()` and scope-error reporting compare against (see
+source type is unregistered), marking the alias as a transparent redirect. `DependencyGraph.terminal_provider`
+follows that hook down an alias chain to the terminal non-alias provider, whose scope is
+what `Container.validate()` and scope-error reporting compare against (see
 [validation.md](validation.md#terminal-scope-and-alias-transparency)). An alias's own scope is always `Scope.APP`
-internally; its effective scope at resolution time is derived from its source provider's scope.
+internally; its effective scope at resolution time is derived from its source provider's scope. Because that
+`Scope.APP` also stands in when the source is *unregistered*, `Alias` overrides a second hook,
+`has_dangling_redirect(container)`, so validation can tell a real terminal scope from that placeholder.
 
 ---
 

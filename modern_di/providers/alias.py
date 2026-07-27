@@ -45,3 +45,6 @@ class Alias(AbstractProvider[types.T_co]):
             return self._find_source(container)
         except exceptions.AliasSourceNotRegisteredError:
             return None
+
+    def has_dangling_redirect(self, container: "Container") -> bool:
+        return container.providers_registry.find_provider(self._source_type) is None

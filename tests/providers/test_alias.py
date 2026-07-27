@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 
 import pytest
 
@@ -419,3 +420,63 @@ def test_alias_redirect_target_none_when_dangling() -> None:
 
     container = Container(groups=[G])
     assert G.abstract.redirect_target(container) is None
+
+
+# A dangling redirect makes the scope verdict speculative, so its inversion is not monotone
+
+
+class _BelowApp(enum.IntEnum):
+    ROOT = 0  # shallower than Scope.APP (1), which is what a dangling Alias falls back to
+    REQ = 5
+
+
+class _LateIface: ...
+
+
+class _LateConcrete: ...
+
+
+@dataclasses.dataclass
+class _LateCaller:
+    dep: _LateIface
+
+
+class _LateSourceGroup(Group):
+    late = providers.Alias(_LateConcrete, bound_type=_LateIface)  # source registered after construction
+    caller = providers.Factory(scope=_BelowApp.ROOT, creator=_LateCaller)
+
+
+def test_inversion_through_a_dangling_alias_is_deferred_not_raised() -> None:
+    container = Container(scope=_BelowApp.ROOT, groups=[_LateSourceGroup])  # must not raise
+    assert container.providers_registry.has_pending_errors() is True
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        container.open()
+    assert any(isinstance(e, AliasSourceNotRegisteredError) for e in exc_info.value.errors)
+
+
+def test_inversion_through_a_registered_alias_still_raises_at_construction() -> None:
+    class G(Group):
+        late = providers.Alias(_LateConcrete, bound_type=_LateIface)
+        concrete = providers.Factory(scope=_BelowApp.REQ, creator=_LateConcrete)
+        caller = providers.Factory(scope=_BelowApp.ROOT, creator=_LateCaller)
+
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        Container(scope=_BelowApp.ROOT, groups=[G])
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
+
+
+def test_registering_the_alias_source_later_surfaces_the_real_inversion() -> None:
+    container = Container(scope=_BelowApp.ROOT, groups=[_LateSourceGroup])
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        container.add_providers(providers.Factory(scope=_BelowApp.REQ, creator=_LateConcrete))
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
+
+
+def test_dangling_alias_at_a_shallower_scope_validates_clean_once_registered() -> None:
+    class G(Group):
+        late = providers.Alias(_LateConcrete, bound_type=_LateIface)
+        concrete = providers.Factory(scope=_BelowApp.ROOT, creator=_LateConcrete)
+        caller = providers.Factory(scope=_BelowApp.ROOT, creator=_LateCaller)
+
+    container = Container(scope=_BelowApp.ROOT, groups=[G])
+    assert container.providers_registry.is_validated() is True

@@ -242,11 +242,15 @@ class Container:
                 case DependenciesError(_, error):
                     walked.append((False, error))
                 case Edge(parent, name, dep):
-                    dep_scope = graph.terminal_scope(dep, self)
+                    dep_terminal = graph.terminal_provider(dep, self)
+                    dep_scope = dep_terminal.scope
                     if dep_scope > graph.terminal_scope(parent, self):
+                        # A chain that bottoms out on an unregistered target reports a placeholder
+                        # scope, so the inversion it implies is speculative — registering the target
+                        # can remove it. Defer it; the dangling redirect is reported on its own.
                         walked.append(
                             (
-                                True,
+                                not dep_terminal.has_dangling_redirect(self),
                                 exceptions.InvalidScopeDependencyError(
                                     provider=parent,
                                     parameter_name=name,
