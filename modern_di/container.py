@@ -54,7 +54,7 @@ class Container:
     """
 
     __slots__ = (
-        "_ever_opened",
+        "_ever_closed",
         "_lock",
         "_scope_map",
         "_validate_enabled",
@@ -100,7 +100,7 @@ class Container:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         self._lock = threading.RLock() if use_lock else None
         self.closed = True  # not open yet; the first resolve prepares it
-        self._ever_opened = False
+        self._ever_closed = False
         self.scope = scope
         self.parent_container = parent_container
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
@@ -307,6 +307,7 @@ class Container:
             await self.cache_registry.close_async()
         finally:
             self.closed = True
+            self._ever_closed = True
 
     def close_sync(self) -> None:
         if not self.parent_container:
@@ -315,6 +316,7 @@ class Container:
             self.cache_registry.close_sync()
         finally:
             self.closed = True
+            self._ever_closed = True
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
         """Apply an override immediately.
@@ -366,18 +368,12 @@ class Container:
         if not reg.is_validated() and (reg.is_validation_enabled() or reg.has_pending_errors()):
             self._complete_validation()
         self.closed = False
-        self._ever_opened = True
 
     def _prepare(self) -> None:
-        """Implicit open from the resolve path: a not-open container prepares itself on first use.
-
-        A container that has never been open self-heals silently. One that was genuinely opened
-        before and has since been closed explicitly still raises here — :meth:`open` bypasses
-        this check to reopen it deliberately.
-        """
+        """Implicit open from the resolve path: a not-open container prepares itself on first use."""
         with self._lock or contextlib.nullcontext():
             if self.closed:  # re-checked under the lock: another thread may have prepared already
-                if self._ever_opened:
+                if self._ever_closed:
                     raise exceptions.ContainerClosedError(container_scope=self.scope)
                 self._ensure_ready()
 

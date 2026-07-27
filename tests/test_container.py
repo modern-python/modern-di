@@ -439,13 +439,12 @@ def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
         Container(scope=Scope.APP, parent_container=request)
 
 
-def test_resolve_after_close_sync_on_never_opened_container_self_heals() -> None:
-    # close_sync() on a container that was never truly open leaves it indistinguishable from a
-    # fresh one: the next resolve prepares it, same as if close_sync() had never been called.
+def test_resolve_on_closed_container_raises() -> None:
     container = Container(scope=Scope.APP, validate=False)
     container.close_sync()
-    assert container.resolve(Container) is container
-    assert container.closed is False
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
+    assert container.closed is True  # no self-heal: still closed after the raise
 
 
 def test_reenter_reopens_closed_container() -> None:
@@ -455,10 +454,11 @@ def test_reenter_reopens_closed_container() -> None:
         assert container.resolve(Container) is container
 
 
-async def test_resolve_after_close_async_on_never_opened_container_self_heals() -> None:
+async def test_closed_container_async_path_raises() -> None:
     container = Container(scope=Scope.APP, validate=False)
     await container.close_async()
-    assert container.resolve(Container) is container
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Container)
 
 
 class _PersistentBroker: ...
@@ -491,11 +491,8 @@ async def test_async_context_manager_reopens() -> None:
         assert container.resolve(Container) is container
 
 
-def test_open_reopens_container_closed_after_real_open() -> None:
-    # A container that was genuinely opened, then closed, still raises on the implicit (resolve)
-    # path -- open() is the deliberate bypass that reopens it.
+def test_open_reopens_closed_container() -> None:
     container = Container(scope=Scope.APP, validate=False)
-    container.open()
     container.close_sync()
     with pytest.raises(ContainerClosedError):
         container.resolve(Container)
@@ -982,8 +979,8 @@ def test_add_providers_on_closed_root_registers_fine() -> None:
 
     container.add_providers(str_factory)  # no ContainerClosedError: registration doesn't touch closed state
 
-    # never truly opened, so the next resolve self-heals rather than raising
-    assert container.resolve(str) == "added"
+    with pytest.raises(ContainerClosedError):
+        container.resolve(str)
 
 
 def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None:
