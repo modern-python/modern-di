@@ -1,6 +1,14 @@
 """The published comparative tables are generated, not hand-assembled — this guards the generator."""
 
+import pathlib
+import re
+
+from benchmarks import report
 from benchmarks.report import build_table, parse_run
+
+
+_COMPARATIVE = pathlib.Path(__file__).resolve().parent.parent / "benchmarks" / "comparative"
+_BATCH_LITERAL = re.compile(r"^_BATCH\s*=\s*(\d+)$", re.MULTILINE)
 
 
 def _run(**medians: float) -> dict:
@@ -125,6 +133,22 @@ def test_build_table_ratio_pairs_only_runs_reporting_both_sides() -> None:
     ]
     row = _section(build_table(runs), "By-reference resolution")[0]
     assert row[2] == "1.00 ±50.0%"
+
+
+def test_comparative_batch_literals_match_the_report_divisor() -> None:
+    # report.BATCH divides the C4 batch median into the published per-request figure. If a
+    # comparative file's _BATCH drifts from it, the page publishes a number wrong by that factor
+    # with nothing failing. The comparative venv is separate, so these are read as text.
+    sources = sorted(_COMPARATIVE.glob("test_*.py"))
+    assert [path.name for path in sources] == [
+        "test_dependency_injector.py",
+        "test_dishka.py",
+        "test_modern_di.py",
+        "test_that_depends.py",
+        "test_wireup.py",
+    ]
+    found = {path.name: _BATCH_LITERAL.findall(path.read_text(encoding="utf-8")) for path in sources}
+    assert found == {name: [str(report.BATCH)] for name in found}
 
 
 def test_build_table_shows_across_run_iqr_percent_on_modern_di_cell() -> None:
