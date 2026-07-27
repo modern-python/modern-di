@@ -1,11 +1,13 @@
 # ruff: noqa: ANN001, ANN201
 """Guard tier — per-request lifecycle scenarios.
 
-G6 measures child-container construction. G7 measures the full realistic
-request cycle: build REQUEST child -> sync-init cached resolve -> async finalize
-via close_async(). G7 is wall-clock only (instruction-count tools cannot measure
-the awaited teardown); a single reused event loop keeps loop overhead out of the
-per-iteration signal as much as possible. See benchmarks/README.md.
+G6 measures child-container construction. G7 times a batch of K=100 request
+cycles inside one run_until_complete: the full realistic cycle (build REQUEST
+child -> sync-init cached resolve -> async finalize via close_async()) repeated
+K times per loop entry to isolate DI work from the ~27us event-loop entry cost.
+Divide G7's number by 100 for per-request cost. G7c is the control (K=100 empty
+awaits on the same shape) so the residual loop overhead is visible (~15% at K=100).
+See benchmarks/README.md.
 """
 
 import asyncio
