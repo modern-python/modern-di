@@ -30,20 +30,24 @@ rules: [`benchmarks/README.md`](https://github.com/modern-python/modern-di/blob/
 
 ## Results
 
-Measured 2026-07-17 on an Apple M2 (macOS), CPython 3.14.4, median-of-medians
-over 5 runs (run-to-run variation small). Rival versions: dishka 1.10.1,
-dependency-injector 4.49.1, that-depends 4.0.2, wireup 2.12.0. Reproduce with
-`just bench-compare`.
+Measured 2026-07-27 with modern-di 3.1.0 on an Apple M4 (macOS), CPython 3.14.6,
+median-of-medians over 5 runs (run-to-run variation small). Rival versions:
+dishka 1.10.1, dependency-injector 4.49.1, that-depends 4.0.2, wireup 2.12.0.
+Reproduce with `just bench-compare`.
+
+The previous publication of this table ran on an Apple M2 under CPython 3.14.4,
+so its absolute times are lower here for the machine, not only for the library —
+compare the ratio columns across revisions of this page, not the nanoseconds.
 
 Each cell is modern-di ÷ rival: below 1.0 (bold) means modern-di is faster,
 above 1.0 means slower.
 
 | Scenario | modern-di | vs dishka | vs dependency-injector | vs that-depends | vs wireup |
 |----------|-----------|-----------|------------------------|-----------------|-----------|
-| C1 transient | 541 ns | 1.30 | **0.81** | 1.08 | 1.77 |
-| C2 warm singleton | 282 ns | 1.17 | 4.58 | 3.37 | 2.95 |
-| C3 deep chain (6) | 1250 ns | 1.87 | **0.57** | **0.81** | 1.32 |
-| C4 request lifecycle | 31.0 µs | 1.02 | **0.18** | **0.75** | **0.69** |
+| C1 transient | 375 ns | 1.28 | **0.90** | 1.12 | 1.73 |
+| C2 warm singleton | 185 ns | 1.08 | 3.93 | 2.90 | 2.49 |
+| C3 deep chain (6) | 875 ns | 1.75 | **0.57** | **0.78** | 1.34 |
+| C4 request lifecycle | 29.2 µs | 1.00 | **0.20** | **0.78** | **0.69** |
 
 ## What the numbers show
 
@@ -51,14 +55,14 @@ above 1.0 means slower.
   slower on C2. dependency-injector's warm-singleton hit (C2) is a C-level slot
   read; modern-di's is a Python dict lookup behind an override guard.
 - Against `dishka` and `wireup` on the construction-heavy scenarios (C1
-  transient, C3 deep chain), modern-di is roughly 1.3–1.9x slower. Both inline
+  transient, C3 deep chain), modern-di is roughly 1.3–1.8x slower. Both inline
   dependency calls into `exec`-generated source, which removes the per-node
   function-call frame that modern-di keeps. modern-di does not generate code (a
   [documented non-goal](design-decisions.md#non-goals)), so this difference is
   expected rather than a regression.
-- On C4 (request lifecycle) modern-di is within run-to-run noise of `dishka`
-  (1.02) and faster than the other three. See the caveat below before reading
-  the C4 column as a resolve-speed comparison.
+- On C4 (request lifecycle) modern-di is level with `dishka` (1.00) and faster
+  than the other three. See the caveat below before reading the C4 column as a
+  resolve-speed comparison.
 
 **C4 is not a like-for-like resolve.** modern-di resolves the connection
 synchronously while finalizing it asynchronously; the other four force an awaited
@@ -75,6 +79,13 @@ override check, and cache lookup out of the per-call path and calls its
 dependencies' resolvers directly. The remaining gap to the codegen frameworks on
 C1 and C3 is the per-node call frame that `exec`-inlined source removes and
 modern-di keeps.
+
+3.1.0 removed one more frame from the top of every resolve: `resolve_provider`
+now opens with an inline `closed` check instead of an unconditional method call,
+and `build_child_container` carries no such check at all. Measured on the guard
+suite against 3.0.0 on one machine, that is worth roughly 5–11% on C1- and
+C2-shaped resolves and on child construction; the deeper scenarios, which run
+through compiled resolvers where the check was already inline, did not move.
 
 ## Reproduce it yourself
 
