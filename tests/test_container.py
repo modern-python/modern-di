@@ -511,6 +511,15 @@ def test_reuse_after_close_warns_and_reopens() -> None:
     assert record[0].message.container_scope is Scope.APP  # ty: ignore[unresolved-attribute]
 
 
+def test_reuse_warning_points_at_caller_not_library() -> None:
+    container = Container(scope=Scope.APP, validate=False)
+    container.open()
+    container.close_sync()
+    with pytest.warns(ContainerClosedWarning) as record:
+        container.resolve(Container)
+    assert record[0].filename == __file__
+
+
 def test_explicit_open_after_close_does_not_warn() -> None:
     container = Container(scope=Scope.APP, validate=False)
     container.open()

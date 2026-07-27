@@ -1,8 +1,11 @@
 import contextlib
 import enum
+import pathlib
+import sys
 import threading
 import typing
 import warnings
+from types import FrameType
 
 from modern_di import exceptions, suggester, types
 from modern_di.dependency_graph import (
@@ -42,6 +45,19 @@ def _handle_recursion_error(
     if cycle is None:
         raise exc
     raise build_cycle_error(cycle) from exc
+
+
+_PACKAGE_DIR = str(pathlib.Path(__file__).parent)
+
+
+def _caller_stacklevel() -> int:
+    """Frames to skip so a warning points at the caller, not at modern_di internals."""
+    level = 1
+    frame: FrameType | None = sys._getframe(1)  # noqa: SLF001
+    while frame is not None and frame.f_code.co_filename.startswith(_PACKAGE_DIR):
+        level += 1
+        frame = frame.f_back
+    return level
 
 
 class Container:
@@ -375,7 +391,10 @@ class Container:
         with self._lock or contextlib.nullcontext():
             if self.closed:  # re-checked under the lock: another thread may have prepared already
                 if self._ever_closed:
-                    warnings.warn(exceptions.ContainerClosedWarning(container_scope=self.scope), stacklevel=3)
+                    warnings.warn(
+                        exceptions.ContainerClosedWarning(container_scope=self.scope),
+                        stacklevel=_caller_stacklevel(),
+                    )
                 self._ensure_ready()
 
     def __enter__(self) -> "typing_extensions.Self":
