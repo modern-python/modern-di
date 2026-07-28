@@ -1,6 +1,127 @@
 # Clean-and-Fast Resolve Report — 2026-07-28
 
-> Draft. Spec: planning/changes/2026-07-28.03-clean-fast-resolve-research.md
+Spec: [`changes/2026-07-28.03-clean-fast-resolve-research.md`](../changes/2026-07-28.03-clean-fast-resolve-research.md)
+
+## Summary
+
+**The framing that commissioned this research is falsified by its own
+measurements.** The spec proposed that the two axes are not opposed but share a
+cause: work on the resolve path is duplicated *because* it is per-node, so a
+concern moved to compile time should delete "nanoseconds and copies together."
+Four candidates were prototyped and measured against that claim, and **not one
+of them delivered both axes cleanly.**
+
+- **The largest speed win made the code measurably less clean, by this
+  project's own countable proxies.** P2 (compile-time override) takes the
+  per-node override tax to exactly zero — `g12_override_active` **-26.5% to
+  -27.5%**, the biggest effect in this effort — and deletes all 7 front-guard
+  copies. But it lands at **net -15 lines** (`+37 -52`), the `noqa: SLF001`
+  count **rises** 22 → 23, it falsifies four `architecture/` files (one of them
+  an entire numbered design item), and it adds **8 new rules**. The guards are
+  not removed so much as exchanged for a cross-registry invalidation protocol —
+  a relocation of complexity, not a deletion of it. It also carries a real
+  defect: an override can be lost permanently to a compile/invalidate race, in
+  a split-view shape where the direct resolve returns the mock and every
+  consumer returns the real object.
+- **The pure cleanliness win cost multiples of its budget.** P3 (body-fork
+  merge) buys no speed by construction, and costs **+9-13%** on three of its
+  four named scenarios — **3-4x** the spec's own 3% clean-only budget. A
+  controlled experiment attributes **55-58%** of that cost to code-object frame
+  growth (11 free vars vs 5), not to the branch the merge added — so a
+  branch-free reformulation recovers at most ~45% of it. The rest is inherent
+  to sharing one code object across two frame shapes.
+- **The one candidate shaped like the thesis in miniature rests on a false
+  invariant.** P1 (closed-check hoist) does delete 4 copies and does win
+  ~2.4-3.9% on deep chains and ~4% on warm singletons with no new rule named.
+  But the invariant licensing it — "no compiled resolver ever meets a closed
+  same-scope target" — is **false**, shown by construction rather than argued:
+  a creator that closes its own resolving container mid-flight leaves a sibling
+  resolving against a closed target. `main` warns and reopens it; P1 stays
+  silent and leaves it closed. The suite is 452-green either way, so P1's own
+  planned gate could not have caught the delta.
+- **P4** (by-type entry memo) *adds* copies rather than deleting any, and
+  clears only **~1.35x** against the `~2x-or-nothing` bar this repo holds
+  copy-adding resolve-path changes to. Skip.
+
+So the two axes did **not** collapse into one question. Where the removal was
+genuinely one-sided (P1), the invariant licensing it did not hold. Where the
+move to compile time was sound (P2), paying for it took more mechanism than it
+deleted. Where cleanliness was pursued for its own sake (P3), the interpreter
+charged for it in a term the spec's per-node model does not contain at all:
+**closure frame size is a first-class hot-path cost on this hardware,
+independent of opcodes executed** — 6-7.5% for +6 free vars / +5 locals, at
+zero added executed opcodes. That term is the most portable thing this effort
+learned, and "count the copies" has no room for it.
+
+Two results survive the falsification and are worth carrying independently of
+it. The **P1+P2 comparative reading** (`## What would move`): C1/C3 ratio cells
+improve by 4.6x-156x their own no-code drift, and by-type warm singleton
+reaches effective parity with `dishka` — a hypothetical, since both candidates
+remain maintainer-gated. And the **guard-suite gap**: the committed benchmark
+suite has no scenario exercising a cached-provider cold miss at all.
+
+### Buckets
+
+| bucket | count | rows |
+|---|---|---|
+| do-first | **0** | — |
+| needs-decision | 3 | P1 closed-check hoist; P2 compile-time override; P3 body-fork merge |
+| cleanup | **0** | — |
+| skip | 1 | P4 by-type entry memo |
+| screened out | 4 | scope navigate; cache-item fetch; cache sentinel; error-prepend `try` |
+| already-settled | 1 | creator call + `CreatorCallError` routing |
+
+Nine inventoried concerns, nine buckets. Two further stances are recorded
+`already-settled` outside the inventory (the `exec` codegen ruling; the
+APP-scoped-resolver-over-`CacheItem` deferral), and one item carries no bucket
+at all because it is not a per-node concern (the guard-suite gap).
+
+**Zero `do-first` rows is itself a finding, not an absence of one.** The spec's
+routing rule made `yes / yes / nothing-new` the do-first case; exactly one
+candidate reached that shape, and it reached it on an invariant that does not
+hold.
+
+### Findings at a glance
+
+Every row's evidence — `file:line`, the three screen answers, the measured
+delta with method (or the screened-out reason), the countable cleanliness
+proxies, and the collision it cites — is in the per-candidate section below;
+this table is the index, not the evidence.
+
+| # | Concern & site | Movable? / deletes copies? / new rule? | Measured (A/B/A `timeit`, median of `AB_REPEATS`) | Cleanliness proxies | Collision | Bucket |
+|---|---|---|---|---|---|---|
+| 1 | Override front-guard — `resolver_compiler.py:95,121,216,264,290,309,329` | yes / yes, **-7** copies / **8 new rules** | `g12_override_active` **-26.5/-27.5%**; `g3_chain` -5.2/-5.5%; `g1_transient` -3.7/-4.0%; `g2_cached` -4.0/-4.8% @25. Regressions `churn1` +556%, `churn10` +49%; crossover at ~30 resolves per override cycle | net **-15** lines (`+37 -52`); `SLF001` **22→23**; 4 `architecture/` files falsified | `2026-07-18.02` licenses invalidate-on-mutation; `architecture/concurrency.md:19-20` turns load-bearing | **needs-decision** |
+| 2 | Closed-check + `_prepare()` — `resolver_compiler.py:100-101,127-128,221-222,269-270` | yes / yes, **-4** copies / none *claimed* — but a demonstrated behavior delta | `g3_chain` -2.4/-3.9% (floor 1.15%); `g2_cached` -3.7/-4.3% @25; `g1_transient` -0.7/-2.7%; `g4_wide` directional only; `g5_cross_scope` flat | `+9 -10`, one file; `SLF001` **-3** net (4 deleted, 1 added in `_navigate`); `dis` 8 → 7 `CALL`, frame count still 1 | none — the invariant was assumed by the spec, never ruled on | **needs-decision** |
+| 3 | Args build, positional/kwargs fork — `resolver_compiler.py:102-106,129-139,175-180,197-209` | **no** (clean-only) / yes, 4 bodies → 2 / none | `g1_transient` +10.4/+11.0%, `g3_chain` +10.0/+10.2%, `g4_wide` +11.0/+13.1%, `g9_context` +4.0/+5.3% @25, vs 0.85-1.59% floors — **3-4x the 3% budget**. Cached half below the ~1% floor | net **-39** lines (348→309); `PLR0915` -2; `C901` sites **2→3**; total `noqa` 33→31; orphans `Factory._call_creator`, `test-ci` 100% → 99.87% | the spec's own 3% clean-only trade budget, breached 3-4x | **needs-decision** |
+| 4 | Entry dispatch — `container.py:215-230` | yes / **no — adds** +1 method, +1 duplicated `RecursionError` wrap, +1 memo / none | `g16_by_type` -26.14/-25.15/-26.27% (~166 → ~123 ns) = **~1.35x**, floor 2.75% @25. Controls `g1_transient`/`g2_cached` flat | net **+19** lines; `SLF001` 3→5 (**+2**); one new test required to hold the coverage gate | the `~2x-or-nothing` bar — coined at `audits/2026-07-19-perf-readability-audit-report.md:21-22` | **skip** |
+| 5 | Scope navigate — `resolver_compiler.py:99,126,220,268` | **no** — the target container is a runtime value (`find_container`'s return), not a compile-time fact / n/a / n/a | screened out — nothing to hoist; the same-scope int compare is already the fast path | unchanged | — | **screened out** |
+| 6 | Cache-item fetch — `resolver_compiler.py:227` | **no** — depends on this container's `cache_registry._items` at call time / n/a / n/a | screened out — per-container runtime state | unchanged | the step past it (APP-scoped resolver closing over its `CacheItem`) is deferred: `ROADMAP.md:64-68`, trigger at `deferred.md:57` untripped | **screened out** |
+| 7 | Cache sentinel check — `resolver_compiler.py:231` | **no** — the cached value is a runtime fact of one container / n/a / n/a | screened out — same reasoning as row 6 | unchanged | as row 6 | **screened out** |
+| 8 | Error-prepend `try` — `resolver_compiler.py:102-103,129-130,176-177,198-199,294-295` | **no** — zero-cost on 3.11+; sharing needs a call frame / n/a / n/a | screened out — clean-only on every interpreter measured (3.14/3.14t); a small real `SETUP_FINALLY` cost remains on the 3.10 floor (`pyproject.toml:5`), unmeasured here | unchanged | — | **screened out** |
+| 9 | Creator call + `CreatorCallError` routing — `resolver_compiler.py:107-108,140-141,183-184`; `providers/factory.py:211-212` | **partially** — the except *body* is already centralized / no / none | not measured — already actioned: the four remaining `try: return creator(...)` wrappers cannot be shared without adding a hot-path frame, the exact cost the prior decision preserved | unchanged | `decisions/2026-07-20-except-body-creator-error-helper.md`; its revisit trigger is not tripped by anything here | **already-settled** |
+
+### Prototype branches — kept, not deleted
+
+The spec said prototypes "live on a throwaway spike branch and are discarded."
+They were **not** discarded: reviewers re-ran measurements against them
+repeatedly, and deleting them would make every number in this report
+irreproducible. They are local-only and cost nothing.
+
+| branch | tip | candidate |
+|---|---|---|
+| `spike/p1-closed-check` | `344ff50` | P1 — closed-check hoist |
+| `spike/p2-override-compile` | `c84912a` | P2 — compile-time override |
+| `spike/p3-body-merge` | `ca75df8` | P3 — body-fork merge (`f7b5556` transient half, `ca75df8` cached half) |
+| `spike/p4-by-type-memo` | `8728744` | P4 — by-type entry memo (`41807dc` candidate, `8728744` its coverage test) |
+| `spike/finalists` | `54a4bd8` | P1+P2 combined, for the comparative tier |
+
+The one branch that *was* deleted is `spike/control` (`92a486f`), the
+positive-control no-op probe, which had served its purpose by the end of the
+calibration pass.
+
+**No code ships from this effort.** On `research/clean-fast-resolve`, `git diff
+main -- modern_di/` and `git diff main -- docs/` are both empty, and
+`git status` is clean — verified at the close of this report.
 
 ## Method and calibration
 
@@ -587,7 +708,12 @@ Applied on throwaway branch `spike/p1-closed-check` (off `main`, commit
 target.closed: target._prepare()` are deleted from `resolve_positional`, the
 transient factory's kwargs-fork `resolve`, the cached factory's `resolve`,
 and the unwireable factory's `resolve`. Diff: `+9 -10`, one file. **-4
-copies, -4 `SLF001` suppressions (net), 0 new rules.**
+copies, -3 `SLF001` suppressions (net), 0 new rules.** (Correction, Task 9: an
+earlier draft of this row said "-4 `SLF001` (net)". The real figure is **-3** —
+four `# noqa: SLF001` comments are deleted with their guards, and **one is
+added back** on the `target._prepare()` call hoisted into `_navigate`. Verified
+on the candidate itself: `git grep -c 'noqa: SLF001' 344ff50 --
+modern_di/resolver_compiler.py` returns **19**, against **22** on `main`.)
 `git diff main -- modern_di/` on `research/clean-fast-resolve` is empty —
 nothing here ships. Full raw tables live in
 `.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-3-report.md`.
@@ -985,7 +1111,26 @@ the ledger live in
 **Unlike P1-P3, this candidate *adds* copies rather than deleting any** —
 the brief itself flags it as the plan's only "yes/no" screen answer, held to
 the `~2x-or-nothing` bar this repo already set for pure-performance changes to
-the resolve path (`planning/decisions/2026-07-19-child-lazy-alloc-declined.md`).
+the resolve path.
+
+**Where that bar actually comes from (correction, Task 9).** The spec
+(`### Screen`) and Task 6's own brief both attribute the `~2x-or-nothing` bar to
+[`decisions/2026-07-19-child-lazy-alloc-declined.md`](../decisions/2026-07-19-child-lazy-alloc-declined.md).
+**That file states no numeric 2x anywhere** — verified by reading it in full.
+What it reports is a measured saving of `≈ 0 (0.4%)` for a caching request
+cycle and `≈ 67 ns (3.5%)` for a narrow no-cache child, and it declines on
+cost/risk grounds ("a resolve hot-path branch plus re-introducing the
+singleton-creation race"), not against a stated multiple. The `~2x` figure was
+**coined** one file over, in
+[`audits/2026-07-19-perf-readability-audit-report.md:21-22`](2026-07-19-perf-readability-audit-report.md)
+— "the maintainer has already set a measured ~2x-or-nothing bar for
+resolve-path branching" — reading that bar *out of* the lazy-alloc decline and
+into a citable rule; the spec then carried it forward from there. So the bar is
+a downstream restatement of a decision that never numbered itself, and the
+correct citation is the audit line, not the decision file. **P4's verdict is
+unchanged either way**: 1.35x is short of ~2x, and it is equally short of the
+"~0-to-3.5% is not enough to buy a hot-path branch" reasoning the decision
+itself actually gives.
 
 **Perf — real, reproducible, and well short of the bar.** `AB_REPEATS` was
 raised from the harness default of 15 to 25 (`g16_by_type`'s own floor at 15
@@ -1043,7 +1188,8 @@ dead — a file the brief's "Test: `just test`" line did not name.
 materialized exactly (+1 method, +1 duplicated `RecursionError` wrap, +1 memo
 to invalidate, +2 `SLF001`, plus one cost the brief didn't name — a required
 test file), and the speedup is real, reproducible, and fully explained by
-frame elimination — but it clears only ~1.35x against the ~2x bar this
+frame elimination — but it clears only ~1.35x against the ~2x bar (see the
+attribution correction above) this
 candidate is explicitly held to for adding rather than deleting copies. Both
 required controls confirmed flat. Per the brief's own instruction, this is
 recorded plainly as a skip rather than let an attractive double-digit
@@ -1138,14 +1284,33 @@ found. Decision stands.
 
 **Error-prepend `try`** — `resolver_compiler.py:102-103,129-130,176-177,198-199,294-295`
 (the `try:` line and its first body line at each of the 5 sites; the
-`except _STEP_ERRORS as exc:` lines Task 2's copy-count table anchors on,
-104/137/178/206/296, are one line past each of these) — has no comparable
+`except _STEP_ERRORS as exc:` lines Task 2's copy-count table anchors on are
+104/137/178/206/296) — has no comparable
 decision to collide with: it was already screened `not movable` in Task 2's
 table on the same zero-cost-exception reasoning, and nothing in Tasks 3-6
 bears on it. Restated here only because the brief asked for every remaining
 row to get an explicit verdict rather than being left to imply one from
 Task 2's table: screened out, clean-only on 3.11+ (see the 3.10 caveat
 above), unchanged.
+
+**Correction (Task 9) to the anchor-offset aside.** An earlier draft of the
+parenthetical above said the `except` anchors are "one line past each of" the
+`try:`/first-body pairs. That is true for **3 of the 5 sites**, not all five —
+verified against live source with `grep -n "try:\|except _STEP_ERRORS"
+modern_di/resolver_compiler.py`:
+
+| `try:` / first body | `except _STEP_ERRORS` | offset |
+|---|---|---|
+| 102-103 | 104 | 1 line past |
+| **129-130** | **137** | **7** — multi-statement try body |
+| 176-177 | 178 | 1 line past |
+| **198-199** | **206** | **7** — multi-statement try body |
+| 294-295 | 296 | 1 line past |
+
+The two 7-line offsets are the kwargs-fork builders, whose `try` bodies build a
+whole kwargs dict rather than a single expression. Both sets of line numbers
+were already correct; only the "one line past" generalization about how they
+relate was wrong.
 
 ### `exec` codegen stance — not prototyped; one indirect, suggestive lead from Task 5
 
@@ -1318,6 +1483,58 @@ against that figure rather than a single blanket band. The published cells
 themselves still use the first `main` run as baseline (matching Task 8's
 Step 2 exactly) — the third run exists only to validate the comparison.
 
+**One estimator throughout, to avoid mixing them (mirrored into this report,
+Task 9).** Every ratio figure below and in the drift table is computed the same
+way: for each of the 5 runs in a branch's invocation, the ratio is `modern-di
+median / rival median` *for that run*, and the 5 per-run ratios are then
+averaged. That single method is applied identically to `main #1`,
+`spike/finalists`, and `main #2`. The first draft of this section mixed
+estimators — comparing a rounded, published *median-of-medians* figure against
+a *mean-of-medians* drift figure — which is exactly the kind of arithmetic that
+manufactures a move out of nothing. A move is called "real" here only when its
+magnitude both exceeds roughly 3% and exceeds that cell's own no-code drift by
+a wide margin; the move-to-drift ratio itself is the deciding evidence, not a
+fixed cutoff, because the drift varies per cell from near-zero to over 3%.
+
+**Reconciling the published `±` figures with the drift band, since they look
+contradictory otherwise (mirrored into this report, Task 9).** The comparative
+tables carry per-cell `±` figures (e.g. `C2 warm singleton 138 ns ±5.0%`) that
+are *larger* than most of the drift figures used here to judge a move — which
+reads like a contradiction, and is not one. They are two different quantities:
+the `±` is the run-to-run **spread within one branch's own 5 repetitions** —
+raw noise, unaveraged. The drift figures are the **shift in the average**
+between two independent 5-run invocations of unchanged code, and averaging
+suppresses most of that per-run noise, which is why they come out mostly under
+3%. Nothing here contradicts the published `±` values; a large `±` alongside a
+small drift is the expected shape, not a warning sign.
+
+**Ratio-level no-code drift (`main #2` vs `main #1`), all twenty published
+cells.** This is the evidence every "clears its own drift by Nx" claim below
+rests on, reproduced here rather than left in a working file:
+
+| Cell | main #1 | finalists | main #2 | move (fin vs m1) | drift (m2 vs m1) | \|move\|/\|drift\| |
+|---|---|---|---|---|---|---|
+| C1 by-ref vs dependency-injector | 0.770 | 0.711 | 0.762 | -7.62% | -0.94% | 8.1x |
+| C1 by-ref vs that-depends | 0.900 | 0.835 | 0.900 | -7.22% | -0.05% | 156x |
+| C2 by-ref vs dependency-injector | 2.917 | 2.716 | 2.956 | -6.89% | +1.32% | 5.2x |
+| C2 by-ref vs that-depends | 2.131 | 1.997 | 2.133 | -6.30% | +0.09% | 69x |
+| C3 by-ref vs dependency-injector | 0.529 | 0.504 | 0.528 | -4.74% | -0.17% | 27.7x |
+| C3 by-ref vs that-depends | 0.720 | 0.668 | 0.718 | -7.27% | -0.39% | 18.8x |
+| C1 by-type vs dishka | 1.353 | 1.265 | 1.334 | -6.55% | -1.44% | 4.6x |
+| C1 by-type vs wireup | 1.513 | 1.409 | 1.504 | -6.87% | -0.56% | 12.2x |
+| C2 by-type vs dishka | 1.078 | 1.003 | 1.046 | -6.96% | -3.00% | **2.3x** |
+| C2 by-type vs wireup | 2.414 | 2.241 | 2.360 | -7.15% | -2.23% | 3.2x |
+| C3 by-type vs dishka | 1.812 | 1.689 | 1.813 | -6.77% | +0.08% | 88.4x |
+| C3 by-type vs wireup | 1.250 | 1.176 | 1.258 | -5.96% | +0.58% | 10.3x |
+| C4 vs dependency-injector | 0.0190 | 0.0190 | 0.0190 | -0.16% | +0.26% | 0.6x |
+| C4 vs that-depends | 0.1988 | 0.1994 | 0.2026 | +0.34% | +1.93% | 0.2x |
+| C4 vs dishka | 1.253 | 1.242 | 1.251 | -0.86% | -0.18% | 4.8x |
+| C4 vs wireup | 0.1220 | 0.1222 | 0.1226 | +0.16% | +0.45% | 0.4x |
+| C6 vs dependency-injector | 0.590 | 0.567 | 0.580 | -3.83% | -1.64% | **2.3x** |
+| C6 vs that-depends | 0.640 | 0.627 | 0.644 | -2.09% | +0.62% | **3.4x** |
+| C6 vs dishka | 1.635 | 1.604 | 1.645 | -1.87% | +0.66% | **2.8x** |
+| C6 vs wireup | 1.426 | 1.377 | 1.390 | -3.43% | -2.48% | **1.4x** |
+
 **By-reference resolution**
 
 | Scenario | modern-di (main → finalists) | vs dependency-injector | vs that-depends |
@@ -1363,9 +1580,15 @@ resolve-closure cost P1/P2 touch.
 
 **C6 is not separable from ambient drift — not a move.** All four C6 ratio
 cells clear their own drift by only 1.4x-3.4x, well below the 4.6x floor
-every C1/C3 cell clears; two of the four drift figures share the move's
-sign, and the vs-dishka drift flips sign between the two `main` runs
-entirely. This cannot be resolved as real or noise from one candidate
+every C1/C3 cell clears. All four moves are negative; the drift figures are
+`vs dependency-injector` **-1.64%**, `vs that-depends` **+0.62%**, `vs dishka`
+**+0.66%**, `vs wireup` **-2.48%** — so two share the move's sign (a large
+fraction of the apparent move reproducing on unchanged code), and **two flip
+sign relative to it** (`vs that-depends` and `vs dishka`), not the one an
+earlier draft of this paragraph claimed. (Correction, Task 9, from
+recomputation of the ratio-drift table above. The error was conservative — it
+understated how unstable these cells are between two runs of identical code —
+but it was still wrong.) This cannot be resolved as real or noise from one candidate
 observation. The mechanism named for it (`ContextGroup`'s handler node mixes
 a live, uninlined `fetch_override` call that P2's compile-time check does not
 reach, per the P2 section's finding 3) is retained only as a plausible reason
