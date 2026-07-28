@@ -14,6 +14,9 @@ containing an em dash yields ``a--b`` on GitHub (the dash is dropped, both space
 become hyphens) and ``a-b`` under python-markdown (the whitespace run collapses).
 
 External links are not fetched; this checks the repository's internal consistency.
+A relative link that resolves outside the repository is reported rather than followed:
+it is a 404 on GitHub, and whether it resolves on disk depends on what the author
+happens to have cloned next to the repo — a verdict a lint gate must never depend on.
 """
 
 import argparse
@@ -91,6 +94,7 @@ def anchors(text: str) -> set[str]:
 
 def check(root: pathlib.Path) -> list[str]:
     """Return one message per broken link; empty means every internal link resolves."""
+    root = root.resolve()
     files = sorted(p for p in root.rglob("*.md") if not SKIP_DIRS & set(p.relative_to(root).parts))
     cache: dict[pathlib.Path, set[str]] = {}
     violations: list[str] = []
@@ -105,6 +109,12 @@ def check(root: pathlib.Path) -> list[str]:
                 # and a same-page link rots exactly like a cross-page one.
                 dest = (path.parent / rel).resolve() if rel else path
                 where = f"{path.relative_to(root)}:{line_no}"
+                if dest != root and root not in dest.parents:
+                    # Judged before existence: a sibling repo cloned alongside this one makes
+                    # ../../../other-repo/… resolve on one machine and nowhere else, and it is
+                    # a 404 on GitHub either way. The verdict must not depend on the checkout layout.
+                    violations.append(f"{where}: leaves the repository -> {rel}")
+                    continue
                 if not dest.exists():
                     violations.append(f"{where}: no such file -> {rel}")
                     continue
