@@ -35,15 +35,19 @@ the base one-liner with no breadcrumb prepended.
 
 ## How the container locates the right-scope container
 
-Each `Container` maintains a `scope_map: dict[IntEnum, Container]`. When a root container is created, the map is
-`{scope: self}`. Each child container extends the map: `{**parent.scope_map, child_scope: child}`.
+Each `Container` maintains a `scope_map: dict[IntEnum, Container]` of its **ancestors**. A root container's
+map is empty; each child extends its parent's: `{**parent.scope_map, parent_scope: parent}`. A container is
+never in its own map — that self-reference would make every container a reference cycle, leaving each one to
+be reclaimed by the garbage collector rather than by reference counting.
 
 `Container.find_container(scope)` performs the lookup:
 
-1. If `scope` is in `scope_map`, return the corresponding container immediately — no tree walk needed.
-2. If `scope` is not in `scope_map` and `scope > self.scope`, raise `ScopeNotInitializedError` (the required
+1. If `scope` is this container's own scope, return `self` — checked first, before the map, which is why the
+   map does not need a self-entry.
+2. If `scope` is in `scope_map`, return the corresponding container immediately — no tree walk needed.
+3. If `scope` is not in `scope_map` and `scope > self.scope`, raise `ScopeNotInitializedError` (the required
    child container has not been built yet).
-3. If `scope` is not in `scope_map` and `scope <= self.scope`, raise `ScopeSkippedError` (the scope was
+4. If `scope` is not in `scope_map` and `scope <= self.scope`, raise `ScopeSkippedError` (the scope was
    never present in this chain).
 
 The `scope_map` is built incrementally at construction time, so lookups are O(1). There is no runtime

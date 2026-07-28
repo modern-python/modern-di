@@ -94,8 +94,13 @@ class Container:
         self.closed = False
         self.scope = scope
         self.parent_container = parent_container
+        # Ancestors only, never self: a `scope: self` entry would make every container a reference
+        # cycle, so none could be freed by refcounting. `find_container` short-circuits on its own
+        # scope before consulting this map, so the self-entry was never read anyway.
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
-            {**parent_container._scope_map, scope: self} if parent_container else {scope: self}  # noqa: SLF001
+            {**parent_container._scope_map, parent_container.scope: parent_container}  # noqa: SLF001
+            if parent_container
+            else {}
         )
         self.cache_registry = CacheRegistry()
         self.context_registry = ContextRegistry(context=context or {})
