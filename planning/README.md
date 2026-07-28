@@ -34,9 +34,11 @@ realized result, and run `just check-planning` before pushing.
 
 > This is the portable convention, sourced from the canonical repo
 > [`lesnik512/planning-convention`](https://github.com/lesnik512/planning-convention)
-> (applied version in [`.convention-version`](.convention-version)). To update
+> (applied version in `.convention-version`, beside this file). To update
 > it, run that repo's `APPLY.md` flow. The generated change index (`just index`)
-> and the `## Other` pointers below are repo-local.
+> and the `## Other` pointers below are repo-local. `just check-links` validates every
+> relative Markdown link and heading anchor in the repo, including the trees a site
+> builder never sees.
 
 ### Two axes, never mixed
 

@@ -1,21 +1,19 @@
 # ruff: noqa: INP001  # planning/ is not a Python package (this file is vendored into consumers' planning/)
 """Check every relative Markdown link and heading anchor in the repository.
 
-Run via ``just check-links``. Exists because ``mkdocs build --strict`` only sees
-``docs/``: ``architecture/`` and ``planning/`` live outside ``docs_dir``, so a link
-that rots there is invisible to CI and is read on GitHub instead. Anchors in
-``architecture/`` broke three times in one week before this existed.
+Run via ``just check-links``. Exists because a site builder only validates the
+directory it publishes: a repo's ``architecture/`` and ``planning/`` trees usually
+sit outside it, are read on GitHub, and rot silently. In the repo this convention
+came from, anchors in ``architecture/`` broke three times in one week, each caught
+only by a human re-deriving slugs by hand.
 
-Slugs follow **GitHub's** algorithm, because every file here is read on GitHub —
-including the ones mkdocs also publishes. That is stricter than the site build in
-one place that matters: python-markdown drops an em dash and collapses the
-surrounding whitespace to a single hyphen, while GitHub drops the dash and keeps
-both spaces as two hyphens. A heading containing " — " therefore has two different
-anchors depending on the renderer, and the fix is to avoid the dash in headings you
-link to rather than to teach this checker both dialects.
+Slugs follow **GitHub's** algorithm, because that is where these files are read —
+including the ones a site builder also publishes. Where the two disagree, the fix
+is to change the heading rather than to teach this checker both dialects: a heading
+containing an em dash yields ``a--b`` on GitHub (the dash is dropped, both spaces
+become hyphens) and ``a-b`` under python-markdown (the whitespace run collapses).
 
-External links (``http``, ``https``, ``mailto``) are not fetched; this checks the
-repository's internal consistency only.
+External links are not fetched; this checks the repository's internal consistency.
 """
 
 import argparse
@@ -25,17 +23,28 @@ import re
 import sys
 
 
-SKIP_DIRS = frozenset({".git", ".venv", ".superpowers", "site", "node_modules", "__pycache__", ".ruff_cache"})
+SKIP_DIRS = frozenset({".git", ".venv", ".tox", "site", "node_modules", "__pycache__", ".ruff_cache", ".superpowers"})
 FENCE = re.compile(r"^\s*(```|~~~)")
 INLINE_CODE = re.compile(r"(`+).+?\1")  # any run of backticks delimits a span: `x`, ``a`b``
 HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
-# [text](target) — target stops at whitespace (a title) or the closing paren.
 LINK = re.compile(r"\[[^\]]*\]\(\s*([^)\s]+)(?:\s+\"[^\"]*\")?\s*\)")
 EXTERNAL = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|//)", re.IGNORECASE)
 
 
+def repo_root(start: pathlib.Path) -> pathlib.Path:
+    """Nearest ancestor holding ``.git``, else ``start``.
+
+    Found rather than computed because this file has two homes: the canonical repo's
+    root, and a consumer's ``planning/`` — a fixed relative depth is wrong in one of them.
+    """
+    for candidate in [start, *start.parents]:
+        if (candidate / ".git").exists():
+            return candidate
+    return start
+
+
 def strip_fences(text: str) -> str:
-    """Blank out fenced blocks, keeping line count, so code is never read as a heading or link."""
+    """Blank out fenced blocks, keeping line count, so code is never read as a heading."""
     out, fenced = [], False
     for line in text.splitlines():
         if FENCE.match(line):
@@ -49,27 +58,25 @@ def strip_fences(text: str) -> str:
 def link_lines(text: str) -> list[str]:
     """Lines with fenced blocks and inline spans removed — what to scan for real links.
 
-    Inline spans matter as much as fences here: a page documenting the markup an author
-    should copy (``Usage example: [examples/](./examples)``) is not linking anywhere. Heading
-    extraction deliberately does NOT strip them, because a heading's backticked content is
-    part of its slug.
+    Only link scanning strips inline spans. A page documenting the markup an author should
+    copy is not linking anywhere, while a heading's backticked content is part of its slug.
     """
     return [INLINE_CODE.sub("", line) for line in strip_fences(text).splitlines()]
 
 
 def slugify(heading: str) -> str:
-    """GitHub's heading slug: strip formatting and punctuation, lowercase, spaces to hyphens."""
-    text = re.sub(r"`([^`]*)`", r"\1", heading)  # inline code keeps its content
-    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)  # links keep their text
-    # `*` and `~` are only ever emphasis here; `_` is left alone because GitHub keeps it in the
-    # slug and this repo's headings are full of identifiers (`bound_type`, `container_provider`).
+    """GitHub's heading slug: drop formatting and punctuation, lowercase, spaces to hyphens."""
+    text = re.sub(r"`([^`]*)`", r"\1", heading)
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # `*` and `~` are emphasis; `_` is kept because GitHub keeps it and headings name
+    # identifiers (`bound_type`) far more often than they use underscore-italics.
     text = re.sub(r"[*~]", "", text)
     text = "".join(ch for ch in text.lower() if ch.isalnum() or ch in " -_")
     return text.strip().replace(" ", "-")
 
 
 def anchors(text: str) -> set[str]:
-    """Every anchor a reader can target in this file, including GitHub's -1/-2 duplicate suffixes."""
+    """Every anchor a reader can target, including GitHub's ``-1``/``-2`` duplicate suffixes."""
     seen: collections.Counter[str] = collections.Counter()
     found: set[str] = set()
     for line in strip_fences(text).splitlines():
@@ -86,7 +93,7 @@ def check(root: pathlib.Path) -> list[str]:
     """Return one message per broken link; empty means every internal link resolves."""
     files = sorted(p for p in root.rglob("*.md") if not SKIP_DIRS & set(p.relative_to(root).parts))
     cache: dict[pathlib.Path, set[str]] = {}
-    errors: list[str] = []
+    violations: list[str] = []
     for path in files:
         text = path.read_text(encoding="utf-8")
         for line_no, line in enumerate(link_lines(text), 1):
@@ -94,34 +101,38 @@ def check(root: pathlib.Path) -> list[str]:
                 if EXTERNAL.match(target):
                     continue
                 rel, _, fragment = target.partition("#")
-                dest = path if not rel else (path.parent / rel).resolve()
+                # A bare `#frag` targets this same file — the anchor is still checkable,
+                # and a same-page link rots exactly like a cross-page one.
+                dest = (path.parent / rel).resolve() if rel else path
                 where = f"{path.relative_to(root)}:{line_no}"
                 if not dest.exists():
-                    errors.append(f"{where}: no such file -> {rel}")
+                    violations.append(f"{where}: no such file -> {rel}")
                     continue
                 if not fragment or dest.suffix != ".md":
                     continue
                 if dest not in cache:
                     cache[dest] = anchors(dest.read_text(encoding="utf-8"))
                 if fragment.lower() not in cache[dest]:
-                    errors.append(f"{where}: no such anchor -> {target}")
-    return errors
+                    violations.append(f"{where}: no such anchor -> {target}")
+    return violations
 
 
-def main() -> None:
-    """Print every broken link and exit non-zero, or report the count checked."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path(__file__).resolve().parent.parent)
-    args = parser.parse_args()
+def main(argv: list[str] | None = None, root: pathlib.Path | None = None) -> int:
+    """Report every broken link; return 1 if any, else 0."""
+    parser = argparse.ArgumentParser(description="Check Markdown links and heading anchors.")
+    parser.add_argument("--root", type=pathlib.Path, default=None)
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
 
-    errors = check(args.root)
-    for error in errors:
-        print(error)  # noqa: T201
-    if errors:
-        print(f"\nlinks: {len(errors)} broken")  # noqa: T201
-        sys.exit(1)
-    print("links: OK")  # noqa: T201
+    target = args.root or root or repo_root(pathlib.Path(__file__).resolve().parent)
+    violations = check(target)
+    if violations:
+        sys.stderr.write(f"links: {len(violations)} broken\n")
+        for violation in violations:
+            sys.stderr.write(f"  - {violation}\n")
+        return 1
+    sys.stdout.write("links: OK\n")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
