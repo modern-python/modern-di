@@ -45,6 +45,55 @@ iteration entered the loop separately. Divide the G7 number by 100 for per-reque
 read G7c — the same batch shape with an empty body — as the residual floor still inside it
 (~15% at K=100).
 
+### Guard-tier medians sit on the platform timer's grid
+
+Unlike the comparative tier, guard scenarios are **not** pinned to a fixed
+`rounds × iterations`; pytest-benchmark calibrates each one, and the short ones land
+on `iterations=1`. Their medians are therefore quantized to one tick of
+`time.perf_counter` — **41 ns** on an Apple M4, and a comparable figure on any platform
+(`time.get_clock_info("perf_counter").resolution`). As a share of the value that is large
+for the sub-microsecond scenarios:
+
+| Scenario | median | one tick |
+|---|---|---|
+| G2 cached resolve | ~180 ns | **23%** |
+| G16/G17 by-type resolve | ~220-250 ns | 16-18% |
+| G1 transient resolve | ~330 ns | 12% |
+| G5 cross-scope | ~420 ns | 10% |
+| G6/G6b child build | ~560-630 ns | 7% |
+| G3 deep chain | ~830 ns | 5% |
+| G4 and everything slower | ≥1.4 µs | ≤3% |
+
+**A one-tick move is resolution, not signal.** Two runs of an unchanged G6 will happily
+report 541 ns and 584 ns — exactly one tick apart, which reads as an 8% regression and is
+nothing at all. This has already caused one false reading of a real change.
+
+That is fine for what CI does with these numbers: the benchmarks workflow is non-gating
+(`fail-on-alert: false`) and alerts at `150%`, i.e. a 50% regression, which no amount of
+tick noise reaches. It is **not** fine for judging a small change locally. For that, measure
+the specific call directly with enough iterations to escape the grid, rather than reading a
+guard median:
+
+```python
+import statistics, timeit
+
+n = 200_000
+print(
+    statistics.median(
+        timeit.timeit(lambda: container.build_child_container(scope=Scope.REQUEST), number=n) / n * 1e9
+        for _ in range(9)
+    ),
+    "ns",
+)
+```
+
+Pinning the guard tier the way the comparative tier is pinned would remove the grid, but it
+is deliberately not done: it would break the stored CI baseline every scenario is compared
+against, it changes the reported statistic to a median-of-means, and each scenario would
+need its own hand-tuned pair (G14 at ~1.4 ms per call cannot take the settings G2 wants).
+Revisit it only if the alert threshold is ever lowered near the percentages above — then
+pinning has to come first.
+
 ### Concurrency (G14/G15)
 
 G14/G15 use a custom N-thread harness (`test_guard_concurrency.py`) — pytest-benchmark
