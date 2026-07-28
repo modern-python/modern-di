@@ -220,7 +220,13 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
             target._prepare()  # noqa: SLF001
-        cache_item = target.cache_registry.fetch_cache_item(f)
+        # Inlined memo hit: `fetch_cache_item` opens with exactly this lookup and returns, and the
+        # method frame costs ~23ns of a ~170ns warm hit. Call it only on a miss, where its
+        # `setdefault` is what makes concurrent first-resolvers share one CacheItem.
+        cache_registry = target.cache_registry
+        cache_item = cache_registry._items.get(pid)  # noqa: SLF001
+        if cache_item is None:
+            cache_item = cache_registry.fetch_cache_item(f)
         cached = cache_item.cache
         if cached is not types.UNSET:
             return cached  # warm hit: skip the get_or_create frame (same sentinel check it makes)

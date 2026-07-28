@@ -217,7 +217,15 @@ class Container:
         if self.closed:
             self._prepare()
         try:
-            return self.providers_registry.resolver_for(provider)(self)
+            # Inlined memo hit: `resolver_for` opens with exactly this lookup and returns, and the
+            # method frame costs ~34ns of a ~170ns warm hit. Call it only on a miss, where it owns
+            # the cycle guard and the memo write. Stays inside the try so a RecursionError while
+            # compiling still becomes CircularDependencyError.
+            registry = self.providers_registry
+            resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
+            if resolver is None:
+                resolver = registry.resolver_for(provider)
+            return resolver(self)
         except RecursionError as exc:
             _handle_recursion_error(provider, self, exc)
 
