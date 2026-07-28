@@ -277,7 +277,7 @@ The dominant theme is the onboarding journey: the README has no install command 
 - Lens: findability
 - Issue: Explains overrides inline but never links `recipes/testing-overrides.md` (transactional-session pattern, reset-all), even though the recipe links back to pytest.md and every neighboring page reaches the recipe.
 - Reader harm: A reader needing the real-DB override pattern stops at the two simple snippets and never finds the recipe.
-- Suggested fix: Add a one-line pointer at the end of the section: "For deeper patterns (transactional DB sessions, resetting all overrides) see the [testing-with-overrides recipe](../recipes/testing-overrides.md)."
+- Suggested fix: Add a one-line pointer at the end of the section: "For deeper patterns (transactional DB sessions, resetting all overrides) see the [testing-with-overrides recipe](../../docs/recipes/testing-overrides.md)."
 
 #### D-19 — `pytest.md` install block breaks numbered-list rendering (medium)
 - Location: `docs/integrations/pytest.md` install block (lines 12-28)
