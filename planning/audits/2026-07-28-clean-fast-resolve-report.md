@@ -308,7 +308,7 @@ changes the verdict, so they are screened here rather than left `pending`.
 | Cache-item fetch (`_items.get`) | **No** — depends on this specific container's `cache_registry._items` dict at call time, i.e. per-container runtime state | No | None | screened out |
 | Cache sentinel check | **No** — same reasoning: the cached value is a runtime fact of one container instance | No | None | screened out |
 | Creator call + `CreatorCallError` routing | **Partially** — the *except body* was already factored into `CreatorCallError.from_type_error` by `planning/decisions/2026-07-20-except-body-creator-error-helper.md`, for exactly this reason. The remaining four `try: return creator(...)` wrappers cannot be centralized further without adding a call frame on the hot path, which the module docstring's "hold the per-node frame at 1" invariant forbids. | No | None | collides with, and is already satisfied by, the 2026-07-20 decision |
-| Error-prepend `try` | **No** — CPython 3.11+ makes an untaken `try` zero-cost at runtime, so these five are a readability/clean-only concern already, never a perf one; sharing them needs a helper call, which is the frame cost these were written to avoid | No | None | screened out |
+| Error-prepend `try` | **No** — CPython 3.11+ makes an untaken `try` zero-cost at runtime, so these five are a readability/clean-only concern on every interpreter this research measured (3.14/3.14t); sharing them needs a helper call, which is the frame cost these were written to avoid. Caveat: this library's `requires-python` floor is 3.10 (`pyproject.toml:5`, tested in CI per `.github/workflows/_checks.yml:24-30`), where an untaken `try` still costs a real `SETUP_FINALLY` push/pop — small, not measured here, but not zero, so "never a perf one" is a 3.11+-only claim, not a version-general one | No | None | screened out |
 
 ### Four rows left `pending` for prototyping (Tasks 3-6)
 
@@ -1100,14 +1100,20 @@ the APP-scoped-resolver-over-`CacheItem` idea should expect to need the same
 weakref-and-proof shape P2 avoided needing at all, and should read P2's
 choice as a precedent before re-deriving it.
 
-### Creator-call and error-prepend `try` blocks — clean-only, never perf, by CPython semantics
+### Creator-call and error-prepend `try` blocks — clean-only on 3.11+; a real, small cost remains on the 3.10 floor
 
 CPython 3.11+ zero-cost exceptions mean an untaken `try` costs nothing at
-runtime (no setup opcode, no frame-table entry executed on the success
-path), so both remaining rows are clean-code concerns only and can never
-become perf rows — no measurement would ever separate a "hoisted" version
-from today's on a resolve-latency benchmark, because there is nothing to
-hoist at runtime.
+runtime on that interpreter range (no setup opcode, no frame-table entry
+executed on the success path). But `pyproject.toml:5` sets `requires-python
+= ">=3.10,<4"`, and `.github/workflows/_checks.yml:24-30` runs the test
+matrix down to 3.10 — a version this library still ships and tests. On 3.10,
+`try` still lowers to a `SETUP_FINALLY` block-stack push/pop, a small but
+real executed cost. So the accurate claim is narrower than "never perf": on
+every interpreter version this research measured on (3.14/3.14t) both rows
+are clean-code concerns only, with nothing to hoist at runtime — but on the
+3.10 floor this library still supports, an untaken `try` is not free, so
+"never" overstates it. No measurement in this research exercised 3.10, so
+this is a version-support fact noted for accuracy, not a re-opened perf row.
 
 **Creator-call + `CreatorCallError` routing** collides with
 `planning/decisions/2026-07-20-except-body-creator-error-helper.md`, which
@@ -1117,23 +1123,29 @@ already centralized the *except body* — the `tb_next` discriminate, the
 TypeError:` block, for exactly this reason. Quoting its rationale verbatim:
 "The success (hot) path stays `return creator(*args)` byte-for-byte — no
 frame is restored." What remains uncentralized are the four `try: return
-creator(...)` wrappers themselves
-(`resolver_compiler.py:110,143,186`; `providers/factory.py:214`) — those
-cannot be shared without adding a call frame around the creator call on
-every resolve, which is the exact cost the 2026-07-17.02 drift-lock bundle
-rejected a whole-call helper to avoid, and which the 2026-07-20 decision's
-own scope (except-body only) declined to reopen. Its revisit trigger — "the
-resolve hot path regresses after this lands... or a future change needs the
-creator-call rule to differ per site again" — is not tripped by anything in
-this research: P1-P4 left this code path untouched, and no per-site
-divergence in the rule was found. Decision stands.
+creator(...)` wrappers themselves — `resolver_compiler.py:107-108,140-141,183-184`
+and `providers/factory.py:211-212` (the `try:`/`return creator(...)` or
+`return self._creator(...)` line pairs, not the `except` bodies quoted
+above, which are the centralized code) — those cannot be shared without
+adding a call frame around the creator call on every resolve, which is the
+exact cost the 2026-07-17.02 drift-lock bundle rejected a whole-call helper
+to avoid, and which the 2026-07-20 decision's own scope (except-body only)
+declined to reopen. Its revisit trigger — "the resolve hot path regresses
+after this lands... or a future change needs the creator-call rule to
+differ per site again" — is not tripped by anything in this research: P1-P4
+left this code path untouched, and no per-site divergence in the rule was
+found. Decision stands.
 
-**Error-prepend `try`** (`resolver_compiler.py:104,137,178,206,296`, 5
-sites) has no comparable decision to collide with — it was already screened
-`not movable` in Task 2's table on the same zero-cost-exception reasoning,
-and nothing in Tasks 3-6 bears on it. Restated here only because the brief
-asked for every remaining row to get an explicit verdict rather than being
-left to imply one from Task 2's table: screened out, clean-only, unchanged.
+**Error-prepend `try`** — `resolver_compiler.py:102-103,129-130,176-177,198-199,294-295`
+(the `try:` line and its first body line at each of the 5 sites; the
+`except _STEP_ERRORS as exc:` lines Task 2's copy-count table anchors on,
+104/137/178/206/296, are one line past each of these) — has no comparable
+decision to collide with: it was already screened `not movable` in Task 2's
+table on the same zero-cost-exception reasoning, and nothing in Tasks 3-6
+bears on it. Restated here only because the brief asked for every remaining
+row to get an explicit verdict rather than being left to imply one from
+Task 2's table: screened out, clean-only on 3.11+ (see the 3.10 caveat
+above), unchanged.
 
 ### `exec` codegen stance — not prototyped; one indirect, suggestive lead from Task 5
 
