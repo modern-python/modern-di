@@ -61,8 +61,11 @@ Rules:
   `ContainerClosedWarning` and self-reopens the container instead of raising `ContainerClosedError`
   (see [Lifecycle: close and reopen](#lifecycle-close-and-reopen) below).
 
-The child gets its own, independent `_scope_map` dict that includes all ancestors plus itself,
-enabling `find_container(scope)` to walk up to any ancestor scope in O(1).
+The child gets its own, independent `_scope_map` dict holding all of its ancestors, enabling
+`find_container(scope)` to reach any ancestor scope in O(1). The map never contains the container
+itself: a `scope: self` entry would make every container a reference cycle, so no container could
+be freed by reference counting and each would wait for a generational GC pass. `find_container`
+short-circuits on its own scope before consulting the map, so the self-entry was never read.
 
 ## Registry sharing
 

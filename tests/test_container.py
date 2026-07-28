@@ -1,10 +1,12 @@
 import copy
 import dataclasses
+import gc
 import inspect
 import pathlib
 import re
 import typing
 import warnings
+import weakref
 
 import pytest
 
@@ -533,9 +535,51 @@ def test_private_lock_and_scope_map_back_the_machinery() -> None:
     assert root._lock.acquire()  # reentrant  # noqa: SLF001
     root._lock.release()  # noqa: SLF001
     root._lock.release()  # noqa: SLF001
-    # child inherits the parent's scope map plus its own scope
-    assert set(child._scope_map) == {Scope.APP, Scope.REQUEST}  # noqa: SLF001
+    # The map holds ancestors only — never the container itself, which would be a reference cycle.
+    # `find_container` short-circuits on its own scope, so a self-entry would be dead weight.
+    assert set(child._scope_map) == {Scope.APP}  # noqa: SLF001
     assert child._scope_map[Scope.APP] is root  # noqa: SLF001
+    assert root._scope_map == {}  # noqa: SLF001
+    assert child.find_container(Scope.REQUEST) is child  # own scope still resolves
+    assert child.find_container(Scope.APP) is root
+
+
+def test_closed_children_are_freed_without_the_cycle_collector() -> None:
+    # A container must not reference itself: a self-reference makes every container cyclic garbage,
+    # so a request-scoped app produces work for the collector at its request rate. Asserts the
+    # property that matters (reclaimable by refcount alone), not the shape of the map behind it.
+    class Sentinel:  # rides in each child's context so liveness is observable
+        pass
+
+    freed = 0
+
+    def _count(_: object) -> None:
+        nonlocal freed
+        freed += 1
+
+    n_children = 100
+    root = Container(scope=Scope.APP)
+    root.open()
+    gc.collect()
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        children = []
+        for _ in range(n_children):
+            sentinel = Sentinel()
+            child = root.build_child_container(scope=Scope.REQUEST, context={Sentinel: sentinel})
+            weakref.finalize(sentinel, _count, None)
+            child.open()
+            child.close_sync()
+            children.append(child)
+        del children, child, sentinel
+        # Both halves matter: the children really did become garbage (freed == n_children), AND
+        # refcounting alone reclaimed them, leaving the cycle collector nothing to do.
+        assert freed == n_children
+        assert gc.collect() == 0
+    finally:
+        if was_enabled:
+            gc.enable()
 
 
 def test_use_lock_false_yields_no_private_lock() -> None:
