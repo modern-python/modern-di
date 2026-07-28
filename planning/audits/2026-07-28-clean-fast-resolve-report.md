@@ -314,7 +314,7 @@ changes the verdict, so they are screened here rather than left `pending`.
 
 | Concern | Site(s) | Verified copies | Perf |
 |---|---|---|---|
-| Override front-guard | `resolver_compiler.py` (7 sites, see above) | 7 | pending (P2, Task 4) |
+| Override front-guard | `resolver_compiler.py` (7 sites, see above) | 7 | measured (P2, Task 4) — **needs-decision**, see below |
 | Closed-check + `_prepare()` | `resolver_compiler.py:100-101,127-128,221-222,269-270` | 4 | pending (P1, Task 3) — proceeds with a named behavior delta, see below |
 | Args build (positional / kwargs fork) | `resolver_compiler.py:102-106,129-139,175-180,197-209` | 4 bodies | pending (P3, Task 5) |
 | Entry dispatch | `container.py:215-230` (P4 targets the sibling by-type `resolve()` entry) | 1 | pending (P4, Task 6) |
@@ -631,3 +631,112 @@ unresolved behavior-delta decision — not a free lunch, and not to be shipped
 until the maintainer rules on whether the silent-no-warning /
 stays-closed outcome for a creator that closes its own resolving container
 mid-flight is acceptable.
+
+## P2 — compile-time override, measured both directions (Task 4)
+
+Applied on throwaway branch `spike/p2-override-compile` (off `main`, commit
+`c84912a`): `compile_resolver` reads the override set once at compile time and
+returns a constant-returning resolver for an overridden provider;
+`OverridesRegistry` notifies `ProvidersRegistry` to drop compiled resolvers on
+every `override`/`reset_override`; and **all seven** per-closure
+`if overrides.has_overrides:` front-guards are deleted. `git diff main --
+modern_di/` on `research/clean-fast-resolve` is empty — nothing here ships. Full
+raw tables (including the previously-missing `cold`/`churn` null calibration)
+live in `.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-4-report.md`.
+
+**Seven copies, not six** — the inventory correction above is confirmed by the
+prototype: `_compile_transient_factory` compiles two hot-path closures and each
+carried its own guard. **But the ledger is not a one-sided deletion.** Diff is
+`+37 -52` across four files — **net only -15 lines**, because -50 lines in
+`resolver_compiler.py` are bought with +19 lines of cross-registry invalidation
+plumbing. `noqa: SLF001` goes **up** (22 -> 23 in the compiler, 3 -> 4 in
+`container.py`): P2 adds two private reach-throughs and deletes none. On the
+clean-code axis this is a relocation of complexity, not a removal of it.
+
+**Perf — the largest effect in this research effort, and a real regression beside
+it.** `cold`/`churn10`/`churn100` had never been calibrated; a dedicated A/B/A
+null control (4 runs) puts their delta floor under 0.9%, so these are quiet
+scenarios, not noisy ones (Task 1's ~18% figure was within-run sample spread, not
+A-to-A disagreement). Against that floor:
+
+- Wins: `g1_transient` -3.7% to -4.0%, `g2_cached` -4.0% to -4.8% (REPEATS=25;
+  unquotable at 15), `g3_chain` -5.2% to -5.5%, and **`g12_override_active`
+  -26.5% to -27.5%**. G12 overrides an *unrelated* provider, so this measures
+  removal of the override tax `main` charges every node of every resolve whenever
+  any override exists anywhere — the state a mocked test suite is in for its whole
+  run.
+- Regressions: **`churn1` +556%**, **`churn10` +49%**, **`churn20` +13%**, and
+  `cold` +0.1% to +2.6% (not separable from noise in every run).
+- **The churn family has a crossover, so "churn regresses" is false as stated.**
+  Fitting the absolutes gives a fixed **~8 us recompile per override-mutation
+  cycle** against **~265 ns saved per resolve**: break-even is **~30 resolves per
+  override cycle**. Below it P2 loses (`churn10` +49%), above it P2 wins
+  (`churn50` -10%, `churn100` -19%). The model predicts the three points it was
+  not fitted on to within 8%.
+- **The churn scenarios are a hand-written *model* of a `modern-di-pytest`
+  workload, not that workload** — that package lives in a sibling repository not
+  in this tree. Whether a real suite sits above or below ~30 resolves per override
+  is the single fact that decides whether P2 helps or hurts its target workload,
+  and it is **not measured here and cannot be from this repo**.
+
+**Free-threaded (Step 9): pass.** G14/G15 thread-count trends unchanged on the
+same `3.14t` build in one session (G14 1.00/1.88/1.93 -> 1.00/1.88/1.99; G15
+1.00/1.41/2.18 -> 1.00/1.41/2.08) — still flat/non-scaling, no regression in the
+trend. G14 absolutes improve 7-9%.
+
+**Suite: green, including the gate.** `just test-ci` passes 452/452 at 100% line
+coverage, and `just lint-ci` passes. No failures to enumerate. That green run is a
+weak signal, so eleven interaction probes were run against `main` and P2 side by
+side; nine behaviours are identical (override-after-resolve, cached-node override
+and reset, dep-override vs a warm cache, `Alias`, child containers, `OverrideHandle`,
+`close_sync`, `container_provider`, and refcount-only reclamation of the root).
+
+**Two findings the suite cannot see.**
+
+1. **An override racing a concurrent first-compile is lost permanently.**
+   `resolver_for` compiles then stores; `invalidate_resolvers` clears without the
+   registry lock. An `override()` landing in that window is overwritten by the
+   compiling thread's pre-override resolver and never takes effect again.
+   Reproduced deterministically (widened window; `main` passes, P2 fails).
+   `architecture/concurrency.md:19-20` already calls this race unsafe, so the
+   unsafety is not new — the **failure mode** is: `main` is unordered but
+   self-healing (the guard re-reads the live dict every resolve), P2 is unordered
+   and **absorbing** (one bad interleaving silently pins the wrong value for the
+   process lifetime — a mock silently reverting to the real dependency). A
+   cold-path generation-counter guard would close it without moving any number
+   above, but that is a design addition, not a bug fix, and is left to the
+   maintainer.
+2. **Every root `close_sync`/`close_async` discards the whole compiled graph**,
+   because it calls `reset_override()` unconditionally (`container.py:291`, `:299`).
+   Verified against a `main` control: a container that never had an override keeps
+   all 6 compiled resolvers across `close_sync` on `main`, and drops to 0 under P2. Correct, but a recompile cost `main` does not pay; narrowly fixable by
+   notifying only when a mutation actually changed something.
+
+The reference-cycle asymmetry the design requires (`ProvidersRegistry` holds the raw
+overrides *dict*; `OverridesRegistry` holds the back-reference) was kept and
+**verified, not assumed**: 50 populated root containers were all reclaimed with the
+cycle collector disabled and `gc.collect()` found 0 — the 3.1.1 property, now shown
+for the root. No finding.
+
+**Rules P2 adds — six, not the three the brief anticipated:**
+
+1. Compiled resolvers are invalidated by override mutation, not only registry mutation.
+2. `ProvidersRegistry` holds the raw overrides dict and `OverridesRegistry` holds a
+   back-reference to it — an asymmetry that is load-bearing, since symmetrizing it
+   recreates the reference cycle removed from `Container` in 3.1.1.
+3. An overridden provider's resolver is a distinct compiled variant; resolver identity
+   is now a function of *(provider graph, override set)*.
+4. The override dict may be mutated **only** through `OverridesRegistry.override` /
+   `reset_override`. Direct writes, or swapping in another `OverridesRegistry`
+   post-construction, become invisible to resolution — a rule that binds sibling
+   packages this repository cannot test.
+5. `override`/`reset_override` racing a live resolve can lose an override
+   *permanently*, not merely unpredictably — turning
+   `architecture/concurrency.md:19-20` from advisory into load-bearing.
+6. Every root close discards the compiled graph.
+
+**Bucket: `needs-decision`** — filed so regardless of the numbers, per the spec.
+Two independent calls are needed before P2 could ship: whether the absorbing
+override race is acceptable or must be closed with the generation-counter guard,
+and whether the target workload's resolves-per-override ratio clears ~30 (which
+requires measuring the sibling `modern-di-pytest` repo, not this one).
