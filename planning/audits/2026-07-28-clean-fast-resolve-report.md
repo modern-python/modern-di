@@ -824,3 +824,79 @@ must be brought into the compile-time scheme too; and whether the target
 workload's resolves-per-override ratio clears ~30 (which requires measuring the
 sibling `modern-di-pytest` repo, not this one). The four `architecture/` rewrites
 above are part of the shipping cost either way.
+
+## P3 — body-fork merge, measured against the 3% budget (Task 5)
+
+Applied on throwaway branch `spike/p3-body-merge` (off `main`, commits
+`f7b5556` transient-body merge, `ca75df8` cached-builder merge):
+`_compile_transient_factory`'s two closures (`resolve_positional`, and the
+kwargs-fork `resolve`) merge into one `resolve` carrying the shape as a
+captured `positional` flag; `_compile_cached_factory`'s
+`build_args`/`create_positional` vs `build_kwargs`/`Factory._call_creator`
+selection merges the same way into one `build_cold`/`create_cold` pair.
+`git diff main -- modern_di/` on `research/clean-fast-resolve` is empty —
+nothing here ships. Full raw A/B/A tables, the `dis` mechanism, and the
+`REPEATS`/floor methodology live in
+`.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-5-report.md`.
+
+**Unlike P1/P2, this candidate buys no speed — and the numbers show it costs
+far more than the 3% it was budgeted.** Measured with a null-control floor
+re-established in this session (not assumed from Task 1's): at `REPEATS=25`
+the transient-body merge alone costs **+10.0% to +13.1%** on `g1_transient`,
+`g3_chain`, `g4_wide` and **+4.0% to +5.3%** on `g9_context`, against
+per-scenario floors of 0.85-1.59% — 3x to 15x the noise, and 3x to 4x the 3%
+budget on three of the four required scenarios. `g9_context`'s smaller
+relative cost is explained by dilution (its graph mixes an unaffected
+`ContextProvider` node with `Factory` nodes), not by the merge being
+cheaper there. The cached-builder merge, measured separately per the
+brief's staging (Steps 6-7, plus a supplementary `g2_cold` probe added to
+isolate the actual cold-miss path from the uncalibrated `cold` scenario,
+which turned out to use an all-transient group and not exercise this path
+at all), costs **below the ~1% measurement floor** — genuinely free, but it
+is the smaller half of one candidate, not a separate ship decision.
+
+**Mechanism, not a fluke.** `dis` shows the merge adds ~7-8 executed opcodes
+to the positional hot path per call — the captured `positional` flag is
+checked *twice* (once to select the args-build branch, once again in the
+`creator(*args) if positional else creator(**kwargs)` return ternary), plus
+a `JUMP_FORWARD` over the dead branch. Fitting the absolute deltas against
+each scenario's node count gives a consistent **~13-17ns fixed cost added
+per `Factory`-provider node resolved**, regardless of scenario shape. The
+brief's own prediction ("a `LOAD_DEREF` plus branch per node, twice ...
+small") had the mechanism right and the magnitude wrong: on resolvers this
+small (`g1_transient`'s whole hot path was ~40-50 opcodes), a fixed 7-8 opcode
+tax is not a small fraction.
+
+**Ledger: the brief's "-2 droppable `C901`/`PLR0915` suppressions" is half
+right, half backwards — verified by running `just lint-ci`, not assumed.**
+`PLR0915` (statement count) does drop out on both merged functions — a
+genuine -2. But `C901` (cyclomatic complexity) gets **worse**: both outer
+functions still trip it after merging, and the merge creates a **brand-new**
+violation on the inner `resolve` closure inside `_compile_transient_factory`
+(11>10), never flagged before because each half was individually under
+threshold. Net complexity-suppression sites: 2 (`main`) → 3 (candidate) — the
+same shape of surprise Task 4 found on `noqa: SLF001`: merging relocates
+complexity into one function's count rather than removing it. Total `noqa`
+occurrences do fall (33→31, `SLF001` -2 alongside the `PLR0915` -2), and the
+file shrinks (348→309 lines, **net -39**, diff `+50 -89`) — the cleanliness
+win is real, just smaller and differently shaped than predicted.
+
+**A cost outside the brief's stated file scope: `Factory._call_creator`
+becomes dead code.** The cached factory's kwargs cold-miss path used to
+reuse the shared `Factory._call_creator` bound method; the merge replaces it
+with a new local closure that reimplements the identical logic inline, so
+nothing in `modern_di/` calls `_call_creator` any more. `just test` still
+passes 452/452 (behavior preserved), but `just test-ci` — 100% on
+`main` — **fails on the candidate** at 99.87%, entirely from
+`factory.py:211-219` (`_call_creator`'s body) going uncovered. A shippable
+version of this merge would need a second file touched (deleting the now-dead
+method) or a permanent coverage-gate exception.
+
+**Bucket: `needs-decision`.** The transient-body half breaches the 3% budget
+by 3-4x on three of its four named scenarios, comfortably clear of every
+measured noise floor — this alone rules out `do-first` on the numbers. The
+ledger adds a second, independent reason: the predicted complexity win is
+partly reversed (net +1 `C901` site) and the merge silently orphans a method,
+breaking the coverage gate, in a file the brief's scope did not name. The
+cached-builder half is genuinely free and would be `do-first` in isolation,
+but P3 is reviewed as one candidate covering both.
