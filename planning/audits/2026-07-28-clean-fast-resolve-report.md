@@ -1048,3 +1048,178 @@ candidate is explicitly held to for adding rather than deleting copies. Both
 required controls confirmed flat. Per the brief's own instruction, this is
 recorded plainly as a skip rather than let an attractive double-digit
 percentage carry the call.
+
+## Screen — remaining inventory rows closed by desk analysis (Task 7)
+
+The four rows P1-P4 did not prototype are closed here by reading — no code
+changed, no A/B measurement run. `git diff main -- modern_di/` stays empty.
+
+### Scope navigation — screened out: not movable
+
+Unchanged from Task 2's screen (`## Inventory` above): `target = container if
+container.scope == scope else _navigate(...)` decides on a runtime value —
+*which* container instance `find_container` returns — not a compile-time
+fact. Nothing to hoist; the same-scope int compare is already the fast path.
+No new evidence from Tasks 3-6 touches this row.
+
+### Cache-item fetch and sentinel — already-settled, with a recurring hazard
+
+Both the `_items.get` fetch and the sentinel check were inlined in 3.1.2 and
+are screened `not movable` in Task 2's table (per-container runtime state).
+One step past that stays open, and it is `already-settled` rather than
+`pending`: an APP-scoped resolver could close over its own `CacheItem`
+directly. Quoting the collision verbatim, `ROADMAP.md:64-68`:
+
+> A third step remains open and is **deliberately deferred**: an APP-scoped
+> resolver could close over its `CacheItem` and reach ~16 ns, but the target
+> is only invariant because one registry belongs to one root, so the
+> registry would have to reference its root — the container reference cycle
+> removed in 3.1.1. That needs a weakref and a proof, for ~30 ns.
+
+The governing revisit trigger lives in `planning/deferred.md`, in the same
+C2 warm-singleton item this ROADMAP passage continues (line 57): "**Revisit
+trigger:** a user-reported warm-singleton bottleneck." This effort produced
+no such report, so the deferral stands unmoved.
+
+**Recurrence, not just a citation.** Task 4 (P2) met the identical hazard
+from the opposite direction while designing `OverridesRegistry`'s link to
+`ProvidersRegistry`, and routed around it the same way this deferred item
+would need to: it gave `ProvidersRegistry` the raw overrides *dict* rather
+than a reference to the `OverridesRegistry` object, precisely so the two
+registries would not reference each other (this report, P2 section: "the raw
+overrides dict... asymmetry that is load-bearing, since symmetrizing it
+recreates the reference cycle removed from `Container` in 3.1.1" —
+rule 2 of "Rules P2 adds"). Two unrelated candidates, designed by different
+tasks against different registries, independently hit the same wall and
+made the same choice (a one-way reference, never a two-way one) to avoid
+resurrecting the 3.1.1 cycle. That recurrence is itself the finding: it is
+evidence that "no registry may hold a reference back to a structure that
+can reach its own root" is a real, recurring constraint on this design
+space, not an incidental detail of one deferred idea. Any future attempt at
+the APP-scoped-resolver-over-`CacheItem` idea should expect to need the same
+weakref-and-proof shape P2 avoided needing at all, and should read P2's
+choice as a precedent before re-deriving it.
+
+### Creator-call and error-prepend `try` blocks — clean-only, never perf, by CPython semantics
+
+CPython 3.11+ zero-cost exceptions mean an untaken `try` costs nothing at
+runtime (no setup opcode, no frame-table entry executed on the success
+path), so both remaining rows are clean-code concerns only and can never
+become perf rows — no measurement would ever separate a "hoisted" version
+from today's on a resolve-latency benchmark, because there is nothing to
+hoist at runtime.
+
+**Creator-call + `CreatorCallError` routing** collides with
+`planning/decisions/2026-07-20-except-body-creator-error-helper.md`, which
+already centralized the *except body* — the `tb_next` discriminate, the
+`CreatorCallError` construction, `prepend_step` — into
+`CreatorCallError.from_type_error`, called from inside each site's `except
+TypeError:` block, for exactly this reason. Quoting its rationale verbatim:
+"The success (hot) path stays `return creator(*args)` byte-for-byte — no
+frame is restored." What remains uncentralized are the four `try: return
+creator(...)` wrappers themselves
+(`resolver_compiler.py:110,143,186`; `providers/factory.py:214`) — those
+cannot be shared without adding a call frame around the creator call on
+every resolve, which is the exact cost the 2026-07-17.02 drift-lock bundle
+rejected a whole-call helper to avoid, and which the 2026-07-20 decision's
+own scope (except-body only) declined to reopen. Its revisit trigger — "the
+resolve hot path regresses after this lands... or a future change needs the
+creator-call rule to differ per site again" — is not tripped by anything in
+this research: P1-P4 left this code path untouched, and no per-site
+divergence in the rule was found. Decision stands.
+
+**Error-prepend `try`** (`resolver_compiler.py:104,137,178,206,296`, 5
+sites) has no comparable decision to collide with — it was already screened
+`not movable` in Task 2's table on the same zero-cost-exception reasoning,
+and nothing in Tasks 3-6 bears on it. Restated here only because the brief
+asked for every remaining row to get an explicit verdict rather than being
+left to imply one from Task 2's table: screened out, clean-only, unchanged.
+
+### `exec` codegen stance — not prototyped; one indirect, suggestive lead from Task 5
+
+Reopened by maintainer ruling (`planning/decisions/2026-07-19-exec-hot-path-declined.md`),
+so it gets a row rather than silence, even though this effort built no `exec`
+prototype. The decision's bound stands as written: 0-4% faster than a
+hand-unrolled closure at fixed arity (inside the noise band), with its only
+exclusive win — ~1.3-1.9x — confined to high-arity nodes and deep
+singleton/scoped chains. Its revisit trigger, quoted verbatim: "A
+user-reported, real-world resolve bottleneck on a high-arity node or a deep
+singleton/scoped chain — the two forms where `exec` could pay — that the
+closure resolver provably cannot close. A synthetic micro-benchmark or a
+hypothetical does not qualify." This effort produced no user-reported
+bottleneck — only synthetic guard-tier benchmarks — so by the decision's own
+stated terms this is not a qualifying trigger. **The ruling stands unmoved.**
+P1 through P4 together are the cheaper half of that same 0-4%/1.3-1.9x
+ceiling: closure-level cleanups reachable without a second code-generation
+mechanism.
+
+That said, Task 5 (P3) measured something that bears on the *size* of the
+codegen prize, worth recording as a lead even though it does not move the
+ruling. Task 5 merged two compiled closures into one and measured a
+regression larger than predicted; a controlled follow-up experiment isolated
+the cause rather than assuming it. It built a variant of `main` that kept
+the original two-closure fork (zero extra opcodes executed on the hot path)
+but padded the never-taken `except` handler in `resolve_positional` so its
+code object's frame shape matched the merged closure's — same free-variable
+count, same locals count, verified via `co_freevars`/`co_varnames`. That
+pad-only variant, with no branching added, reproduced **55-58% of the full
+merge's regression** on its own:
+
+| | `g1_transient` | `g4_wide` |
+|---|---|---|
+| `main` | 283 ns | 1348 ns |
+| pad only, no branch | 301 ns (+6.4%) | 1449 ns (+7.5%) |
+| P3 (full merge) | 315 ns (+11.4%) | 1525 ns (+13.1%) |
+
+So: **closure frame growth alone costs 6-7.5% on this hardware, in the
+direction of fewer captured free variables being faster** (the merged
+closure's 11 free vars / 13 locals against the original positional-fork
+closure's 5 free vars / 8 locals is what the pad recreated — more
+`COPY_FREE_VARS` increfs, more `localsplus` NULL-init, more decrefs at
+teardown, all per call).
+
+The connection to `exec` codegen: modern-di's resolvers are closures over
+captured cells, while `exec`-based codegen (the kind `dishka`/`wireup` use,
+per the competitor-perf research this decision cites) generates flat
+function source that can inline constants directly and reference module
+globals instead of closing over cells — it need not pay the free-variable
+frame-shape cost the pad-only experiment isolated. So Task 5's controlled
+experiment, built for an unrelated question (diagnosing P3's own
+regression), accidentally measured the **sign and rough scale of one term**
+that `exec` codegen would act on: going from a closure's captured-cell frame
+shape to a flat generated function's global/constant-reference shape is
+*plausibly* worth something in the same 6-7.5% neighborhood this hardware
+showed for *shrinking* free-variable count within a closure.
+
+**What this is not.** It is not a measurement of `exec` — no `exec`-generated
+code was written or run anywhere in this research. It says nothing about
+`exec`'s other costs (source generation and `compile()` at startup, the
+`linecache` hygiene the decision's debuggability analysis requires, the
+free-threading exposure of module-global reads replacing captured-cell
+reads) or about whether the effect composes linearly across a whole resolve
+chain rather than one node. It bounds nothing — the existing decision's 0-4%
+figure was derived from an actual `exec` vs. closure comparison in the
+competitor-perf research and is not superseded by this indirect reading.
+Confirming or refuting the connection needs an actual `exec` prototype
+compiled and measured against the same guard scenarios, which this effort
+did not build and which the decision's revisit trigger does not currently
+license. **Recorded as a lead with its evidence attached, for whoever next
+reopens this stance — not as a refutation of the current ruling.**
+
+### Guard-suite gap (not a per-node concern, filed here so it is not lost)
+
+Task 5, while isolating the cached-builder half of P3's merge, found that
+the committed guard suite has **no benchmark exercising a cached-provider
+cold miss at all**: `benchmarks/test_guard_cold.py`'s `cold` scenario
+transcribes G8 faithfully, but its subject graph (`ChainGroup`,
+`benchmarks/test_guard_resolve.py:82-88`) is all-transient — none of its
+providers set `cache=True` — so `cold` never reaches
+`_compile_cached_factory`'s `build_cold`/`create_cold` builders. A future
+change to those builders could ship with `cold` green and nothing in the
+committed suite would notice. This is not a per-graph-node cost like the
+rest of this inventory, so it does not get a movability/perf verdict of its
+own — it is recorded here because it was surfaced by this research and
+belongs in the same document as the rest of the inventory closure, so the
+next sweep does not have to rediscover it. Full detail (including why no
+earlier number in this research is invalidated by it) is in the P3 section
+above, "Guard-suite gap".
