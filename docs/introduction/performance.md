@@ -56,7 +56,7 @@ for why that matters and which cells it moved.
 
 ## Results
 
-Measured 2026-07-27 with modern-di 3.1.1 on an Apple M4 (macOS 26.5), CPython 3.14.6,
+Measured 2026-07-28 with modern-di 3.1.2 on an Apple M4 (macOS 26.5), CPython 3.14.6,
 median over 5 runs (ratios paired within each run); the footnote under each table bounds the
 across-run dispersion of each side's own median.
 Rival versions: dishka 1.10.1, dependency-injector 4.49.1, that-depends 4.0.2, wireup 2.12.0.
@@ -73,75 +73,79 @@ as a verdict.
 
 | Scenario | modern-di | vs dependency-injector | vs that-depends |
 |---|---|---|---|
-| C1 transient | 301 ns ±1.5% | **0.83** ±0.8% | **0.97** ±1.7% |
-| C2 warm singleton | 186 ns ±1.1% | 3.88 ±0.6% | 2.80 ±1.9% |
-| C3 deep chain (6) | 804 ns ±3.0% | **0.59** ±2.4% | **0.76** ±4.5% |
+| C1 transient | 279 ns ±0.6% | **0.76** ±1.2% | **0.89** ±1.6% |
+| C2 warm singleton | 142 ns ±1.2% | 2.94 ±1.7% | 2.13 ±1.9% |
+| C3 deep chain (6) | 768 ns ±0.9% | **0.54** ±3.0% | **0.72** ±1.1% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤3.0%, rivals ≤1.8%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤1.2%, rivals ≤2.0%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ### By-type resolution
 
 | Scenario | modern-di | vs dishka | vs wireup |
 |---|---|---|---|
-| C1 transient | 347 ns ±0.8% | 1.45 ±1.3% | 1.62 ±1.2% |
-| C2 warm singleton | 229 ns ±1.1% | 1.32 ±2.0% | 3.02 ±1.6% |
-| C3 deep chain (6) | 852 ns ±2.7% | 1.92 ±1.9% | 1.32 ±3.4% |
+| C1 transient | 323 ns ±1.4% | 1.34 ±1.7% | 1.50 ±1.0% |
+| C2 warm singleton | 182 ns ±0.2% | 1.06 ±0.9% | 2.40 ±2.0% |
+| C3 deep chain (6) | 814 ns ±0.9% | 1.82 ±1.8% | 1.26 ±0.2% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤2.7%, rivals ≤2.5%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤1.4%, rivals ≤1.0%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ### Request lifecycle (batched, published per request)
 
 | Scenario | modern-di | vs dependency-injector | vs that-depends | vs dishka | vs wireup |
 |---|---|---|---|---|---|
-| C4 request lifecycle | 1.93 µs ±3.0% | **0.02** ±3.8% | **0.20** ±1.3% | 1.26 ±2.2% | **0.13** ±2.1% |
+| C4 request lifecycle | 1.92 µs ±2.9% | **0.02** ±2.3% | **0.20** ±1.2% | 1.28 ±3.4% | **0.13** ±2.0% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤3.0%, rivals ≤0.8%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤2.9%, rivals ≤2.5%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ### Per-request context
 
 | Scenario | modern-di | vs dependency-injector | vs that-depends | vs dishka | vs wireup |
 |---|---|---|---|---|---|
-| C6 context | 1.45 µs ±2.4% | **0.59** ±2.5% | **0.65** ±2.0% | 1.69 ±3.8% | 1.42 ±3.6% |
+| C6 context | 1.41 µs ±0.9% | **0.58** ±1.6% | **0.63** ±3.9% | 1.65 ±1.1% | 1.38 ±1.4% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤2.4%, rivals ≤3.2%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤0.9%, rivals ≤4.6%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ## What the numbers show
 
-- Against `dependency-injector`, modern-di is faster by reference on C1 (**0.83**) and
-  C3 (**0.59**), and far faster on the batched C4 request lifecycle (**0.02**).
+- Against `dependency-injector`, modern-di is faster by reference on C1 (**0.76**) and
+  C3 (**0.54**), and far faster on the batched C4 request lifecycle (**0.02**).
   dependency-injector's C4 body calls `init_resources()`/`shutdown_resources()` every cycle
   in addition to resolving; the suite doesn't decompose how much of its per-request cost is
   that lifecycle work versus the resolve itself, so C4 should be read as a whole-lifecycle
-  comparison, not an isolated resolve (see the caveat below). dependency-injector is faster
-  on C2 warm-singleton (3.88, an implied ~48 ns cache hit against modern-di's 186 ns): its
-  hit is a C-level slot read on a Cython-compiled core, where modern-di's is a Python dict
-  lookup behind an override guard.
-- Against `that-depends`, modern-di leads by reference on C1 by about 3% (**0.97**, interquartile
-  width 1.7%). Read that as near-parity rather than a decisive win: the margin is smaller than the
-  46 ns by-type lookup this page charges elsewhere, and this cell has sat on both sides of 1.00
-  across publications (1.08, 1.12, 0.98, 0.98, now 0.97) rather than settling. modern-di is faster on C3 (**0.76**) and far faster on C4 (**0.20**).
-  that-depends is faster on C2 warm-singleton (2.80, an implied ~66 ns cache hit); the suite
-  doesn't decompose that-depends' `resolve_sync` cache-hit path, so no mechanism is asserted
-  here.
+  comparison, not an isolated resolve (see the caveat below). dependency-injector is still
+  faster on C2 warm-singleton (2.94, an implied ~48 ns cache hit against modern-di's 142 ns):
+  its hit is a C-level slot read on a Cython-compiled core, where modern-di's is a Python
+  dict lookup behind an override guard. Pure Python does not reach ~48 ns, so this cell is
+  expected to stay above 1.0 however much of modern-di's own overhead is removed.
+- Against `that-depends`, modern-di now leads by reference on C1 by 11% (**0.89**,
+  interquartile width 1.6%) — the first publication where that cell's spread does not cover
+  1.00. Treat it as a real but modest lead: it has sat on both sides of parity across
+  publications (1.08, 1.12, 0.98, 0.98, 0.97, now 0.89), and this move is explained by
+  modern-di getting ~28 ns faster rather than by that-depends changing — its implied C2
+  absolute is unchanged at ~67 ns. modern-di is also faster on C3 (**0.72**) and far faster
+  on C4 (**0.20**). that-depends remains faster on C2 warm-singleton (2.13); the suite does
+  not decompose its `resolve_sync` cache-hit path, so no mechanism is asserted here.
 - Against `dishka` and `wireup` on the by-type table, modern-di is slower on all three
-  synchronous scenarios (1.32–1.92x dishka, 1.32–3.02x wireup). Both inline dependency calls
+  synchronous scenarios (1.06–1.82x dishka, 1.26–2.40x wireup). Both inline dependency calls
   into `exec`-generated source, which removes a per-node function-call frame that modern-di
   keeps; modern-di does not generate code (a
   [documented non-goal](design-decisions.md#non-goals)). That mechanism is asserted **for
-  dishka only**, where the ratio grows with node count as a per-node cost should: 1.45 on C1
-  (2 nodes) against 1.92 on C3 (6 nodes). wireup's ratio moves the other way (1.62 on C1 down
-  to 1.32 on C3), which a per-node cost does not explain, and the suite does not decompose
+  dishka only**, where the ratio grows with node count as a per-node cost should: 1.34 on C1
+  (2 nodes) against 1.82 on C3 (6 nodes). wireup's ratio moves the other way (1.50 on C1 down
+  to 1.26 on C3), which a per-node cost does not explain, and the suite does not decompose
   wireup's resolve further — so no mechanism is claimed for it.
-- The two rivals also diverge on C2. dishka's largest gap is C3 (1.92), not C2 (1.32), and much
-  of that 1.32 is the fixed by-type lookup: dividing modern-di's **by-reference** C2 (186 ns)
-  by dishka's implied C2 absolute (229 ÷ 1.32 = 173.5 ns) gives 1.07. wireup's largest gap is C2
-  (3.02), and the same division still gives 2.45 (186 ÷ 75.8 ns) — most of wireup's C2 gap
-  already exists at the by-reference baseline, and the suite does not decompose the rest. Both
-  are **cross-basis figures**, comparing modern-di by reference against a rival that can only
-  be measured by type, which is exactly the mixed basis the split tables above avoid; they are
-  offered as decomposition, not as published ratios.
-- On C6 (per-request context) modern-di is faster than `dependency-injector` (**0.59**) and
-  `that-depends` (**0.65**), and slower than `dishka` (1.69) and `wireup` (1.42). The direction
+- The two rivals also diverge on C2, and modern-di is now **level with dishka** there (1.06,
+  interquartile width 0.9%). Most of what remains is the fixed by-type lookup: dividing
+  modern-di's **by-reference** C2 (142 ns) by dishka's implied C2 absolute (182 ÷ 1.06 =
+  171.7 ns) gives **0.83** — on the same by-reference basis modern-di's warm hit is now the
+  faster of the two. wireup's largest gap is C2 (2.40), and the same division still gives 1.87
+  (142 ÷ 75.8 ns), so most of wireup's C2 gap exists at the by-reference baseline and the
+  suite does not decompose the rest. Both are **cross-basis figures**, comparing modern-di by
+  reference against a rival that can only be measured by type, which is exactly the mixed
+  basis the split tables above avoid; they are offered as decomposition, not as published
+  ratios.
+- On C6 (per-request context) modern-di is faster than `dependency-injector` (**0.58**) and
+  `that-depends` (**0.63**), and slower than `dishka` (1.65) and `wireup` (1.38). The direction
   matches the by-type table — the two codegen frameworks lead, the two others trail — but the
   cells are **not** on one basis: each framework supplies the request value through its own
   idiom, and two of those are structural analogs rather than equivalents (see the caveat below).
@@ -154,19 +158,32 @@ _Across-run IQR of each side's own median (5 runs): modern-di ≤2.4%, rivals �
   identically by all five frameworks. Before batching, that floor was ~93% of every cell and
   compressed the real differences toward 1.0; the page used to read modern-di as "level with
   dishka (1.00)" on that basis. With the floor amortized, dishka is measurably **faster** than
-  modern-di here (1.26 — modern-di is the slower side of that cell), not tied. modern-di
+  modern-di here (1.28 — modern-di is the slower side of that cell), not tied. modern-di
   remains far faster than that-depends, dependency-injector, and wireup on this scenario.
 
-**What moved in this publication.** Two benchmark-body corrections, no library change. C4 no
-longer calls `open()` on the request child it just built — a container is open from construction
-as of 3.1, so that timed a redundant lock acquire. At 81 ns per request that accounts for more
-than the whole of C4's 40 ns move from 1.97 µs to **1.93 µs**, with run-to-run drift pushing back
-against it; the dishka ratio moves from 1.30 to **1.26**. C6, newly published here, now closes the
-child inside the timed body, because all four rivals exit a scope inside theirs; that made
-modern-di's C6 cells worse, not better. Every other cell moved within run-to-run noise, and
-several by more than their own published `±` — that annotation bounds dispersion within one
-publication's five runs, not drift between publications, so do not read a cell's `±` as a bound
-on how much it may move next time.
+**What moved in this publication.** A library change, not a benchmark one: the warm-hit path
+lost two Python method frames. `ProvidersRegistry.resolver_for` and
+`CacheRegistry.fetch_cache_item` both open with a dict lookup that hits and returns; both are
+now inlined at their call sites, with the method called only on a miss, where it still owns the
+cycle guard, the memo write and the `setdefault` that makes concurrent first-resolvers share one
+`CacheItem`. Measured in isolation, that removes ~42 ns from a warm hit.
+
+Because the first of the two sits in `resolve_provider`, every top-level resolve benefits, not
+just cached ones. C2 by reference falls from 186 ns to **142 ns** and C1 from 301 ns to
+**279 ns**; the C2 ratios move 3.88 → **2.94** against dependency-injector, 2.80 → **2.13**
+against that-depends, 1.32 → **1.06** against dishka, and 3.02 → **2.40** against wireup. Both
+rivals whose implied C2 absolutes this page prints are unchanged (~48 ns and ~67 ns), which is
+the check that the movement is modern-di's and not drift.
+
+The bound stated when this was planned still holds: it trims the cell, it does not close it.
+dependency-injector's ~48 ns hit is a C-level slot read on a Cython core. A third step —
+closing an APP-scoped resolver over its `CacheItem` to reach ~16 ns — is deliberately not taken,
+because it would require the providers registry to reference its root container, reintroducing
+the reference cycle removed in 3.1.1.
+
+Every other cell moved within run-to-run noise, and several by more than their own published
+`±` — that annotation bounds dispersion within one publication's five runs, not drift between
+publications, so do not read a cell's `±` as a bound on how much it may move next time.
 
 **The C4 gain recorded at 3.1.1 was a library fix**, and it stands: every `Container` used to
 store itself in its own `_scope_map`, making it a reference cycle that reference counting could
@@ -228,6 +245,14 @@ garbage collector. Seeding the map from the parent removed it. Resolution is unt
 C1–C3 cells did not move — but the request lifecycle did: C4's median fell from 232.7 µs to
 194.8 µs per 100-request batch and its standard deviation from 123.0 µs to 7.9 µs, because the
 collector no longer has to reclaim containers that refcounting now frees.
+
+3.1.2 removed two more frames, this time from the warm-hit path. A cached resolve reached its
+compiled resolver through `ProvidersRegistry.resolver_for` and its `CacheItem` through
+`CacheRegistry.fetch_cache_item`; both methods open with a dict lookup that hits and returns.
+Both lookups are now inlined at the call site, with the method called only on a miss — where it
+still owns the cycle guard, the memo write, and the `setdefault` that makes concurrent
+first-resolvers share one `CacheItem`. Worth ~42 ns on a warm hit, and because the first sits in
+`resolve_provider` it applies to every top-level resolve rather than only cached ones.
 
 ## Reproduce it yourself
 
