@@ -1247,20 +1247,32 @@ candidates above shipped — a hypothetical, not a change in flight. Full raw
 tables, the rivals'-absolutes drift check, and the cherry-pick verification
 live in `.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-8-report.md`.
 
-**Which candidates, and why only these two.** The brief's own instruction
-("cherry-pick the `do-first` or `needs-decision` candidates") would literally
-include P2 and P3 alongside P1. The controller ruled narrower: **combine only
-P1 (`spike/p1-closed-check` `344ff50`) and P2 (`spike/p2-override-compile`
-`c84912a`)** — the two candidates that could plausibly ship as performance
-wins. **P3 is excluded on purpose, not merely left for later**: it is a
+**Which candidates, and why only these two — and why neither is cleared to
+ship.** The brief's own instruction ("cherry-pick the `do-first` or
+`needs-decision` candidates") would literally include P2 and P3 alongside P1.
+The controller ruled narrower: **combine only P1 (`spike/p1-closed-check`
+`344ff50`) and P2 (`spike/p2-override-compile` `c84912a`)** — the two
+candidates that measure as plausible performance wins. **Neither is
+unblocked.** P1's own bucket, quoted verbatim from this report's P1 section
+above (not paraphrased as `do-first`, a label never attached to P1 anywhere
+in this document): "real, small, node-count-scaling perf win, gated on an
+unresolved behavior-delta decision — not a free lunch, and **not to be
+shipped until the maintainer rules** on whether the silent-no-warning /
+stays-closed outcome for a creator that closes its own resolving container
+mid-flight is acceptable." P2's bucket is `needs-decision` on three open
+calls named in the P2 section above: the override-race remedy, the
+provider-backed-vs-context-backed override-semantics split, and whether the
+target workload's resolves-per-override ratio clears the measured ~30-resolve
+break-even. **P3 is excluded on purpose, not merely left for later**: it is a
 *cost* (+9-13% on construction-heavy scenarios, 3-4x its own budget), filed
 `needs-decision` only because the maintainer ruling on it is open, not
 because its numbers are ship-plausible; folding it in would drag every
 construction-heavy cell down and answer a question nobody asked. **P4 is
 excluded** as a straightforward `skip` (~1.35x against the ~2x bar this
-repo holds copy-adding changes to). Nothing below should be read as "all
-surviving candidates" — it is specifically the two-candidate combination a
-maintainer could plausibly choose to ship.
+repo holds copy-adding changes to). **Nothing below should be read as "P1+P2
+are cleared to ship"** — it is a hypothetical conditioned on two rulings that
+have not been made, not a verdict that they should be, and not "all
+surviving candidates."
 
 **Cherry-pick, verified rather than assumed clean.** `git checkout -b
 spike/finalists main`, then `git cherry-pick 344ff50 c84912a` in that order.
@@ -1286,15 +1298,25 @@ independently."
 pair. The four rivals' own absolutes did shift 1-3.5% between the first
 `main` run and `spike/finalists` — on its face the "machine drifted, re-run"
 case — but the third run (`main` again, identical code to the first) showed
-**the same 1-3.5% shift**, confirming the drift is session-level (ambient/thermal,
-monotonic with elapsed time) and not attributable to the branch. modern-di's
-own C1-C3 numbers, by contrast, were flat between the two `main` runs
-(+0.05% to +1.7%, the same small band the rivals show) but dropped **4-6%**
-on `spike/finalists` specifically — a move that tracks the branch, not the
-run order, and is well outside the drift band either side of `main` shows on
-its own. The published cells below use the first `main` run as baseline
-(matching Task 8's Step 2 exactly); the third run served only to validate
-the comparison.
+**the same 1-3.5% shift**, confirming the drift is session-level
+(ambient/thermal) and not attributable to the branch. The mechanism is a
+first-run cold-start effect saturating, not continued drift: the rivals step
+up once from run 1 to run 2, then plateau or fall back on run 3 (C2 wireup:
+73.5 ns → 76.0 ns → 75.1 ns) — `main`'s first run is the odd one out, not the
+stable reference point.
+
+modern-di's own no-code drift, checked the same way, is +0.05% to +1.73% —
+smaller than the rivals' +0.95% to +3.52%, not "the same band" as an earlier
+draft of this section said. That gap matters because the published cells
+are **ratios**, and whatever part of the rivals' drift modern-di does not
+share flows uncancelled into every ratio cell — so the comparison has to be
+validated at the ratio level, not just on the two sides' absolutes
+separately. Recomputing all twenty published ratio cells the same way
+(`main #1` vs `main #2`, no code change) gives the actual no-code drift per
+cell, ranging from near-zero to about 3%; every claimed move below is read
+against that figure rather than a single blanket band. The published cells
+themselves still use the first `main` run as baseline (matching Task 8's
+Step 2 exactly) — the third run exists only to validate the comparison.
 
 **By-reference resolution**
 
@@ -1319,28 +1341,45 @@ the comparison.
 | C4 request lifecycle | 1.88 µs → 1.87 µs | 0.02 → 0.02 | 0.20 → 0.20 | 1.25 → 1.24 | 0.12 → 0.12 |
 | C6 context | 1.38 µs → 1.35 µs | 0.59 → 0.57 | 0.65 → 0.64 | 1.63 → 1.60 | 1.42 → 1.38 |
 
-**One-line reading, per row.** C1/C2/C3 by-reference and by-type all move in
-modern-di's favor by 4-7% on its own absolute — every ratio narrows or
-widens further in modern-di's direction, none of them close to the ~1-2%
-ambient-drift band the sanity check established, so all are read as real.
-The single qualitative crossing: **by-type C2 vs dishka goes from 1.08 to
-1.00** — P1+P2 bring modern-di's warm-singleton by-type resolve to effective
-parity with dishka, where `main` trails it by ~8%. C4 is flat to the
-precision reported (-0.5%, inside the noise band both sides show on this
-scenario) — expected, since C4 is dominated by event-loop entry and async
-finalizer wall time, not the synchronous resolve-closure cost P1/P2 touch.
-C6 moves modestly (-2.2%, roughly 2x the drift band established for this
-metric, so read as a real but small move) across all four ratio cells —
-smaller than C1-C3 because `ContextGroup`'s handler node mixes a live,
-uninlined `fetch_override` call that P2's compile-time check does not reach
-(the P2 section above, finding 3, already names this split-by-parameter-type
-behavior).
+**One-line reading, per row — read against each cell's own no-code drift, not
+a blanket band.** By-reference and by-type C1 and C3 clear their own drift by
+4.6x-156x (a full order of magnitude or more in nine of the ten cells) — real
+without qualification, every ratio narrowing or widening further in
+modern-di's direction. By-type C2 clears its own drift by a narrower 2.3-3.2x
+— still real, but the weakest-margin cells in the "real" group. The single
+qualitative crossing: **by-type C2 vs dishka goes from 1.05-1.08 (depending
+which `main` run is used as baseline) to 1.00** — P1+P2 bring modern-di's
+warm-singleton by-type resolve to effective parity with dishka. (An earlier
+draft quoted this as "`main` trails by ~8%," which is `main #1` alone; the
+`main #2` recheck measures the same ratio at 1.046 — about a third of that
+gap was itself session drift, and the drift-corrected move is closer to
+-4-5%. The parity conclusion is unchanged; only the starting-point quote is
+corrected.)
+
+C4 is flat: all four ratio cells move under 1%, and three of the four move by
+*less* than their own no-code drift — expected, since C4 is dominated by
+event-loop entry and async finalizer wall time, not the synchronous
+resolve-closure cost P1/P2 touch.
+
+**C6 is not separable from ambient drift — not a move.** All four C6 ratio
+cells clear their own drift by only 1.4x-3.4x, well below the 4.6x floor
+every C1/C3 cell clears; two of the four drift figures share the move's
+sign, and the vs-dishka drift flips sign between the two `main` runs
+entirely. This cannot be resolved as real or noise from one candidate
+observation. The mechanism named for it (`ContextGroup`'s handler node mixes
+a live, uninlined `fetch_override` call that P2's compile-time check does not
+reach, per the P2 section's finding 3) is retained only as a plausible reason
+any true effect here would be small and hard to separate at this sample
+size — not as evidence the move is real.
 
 **One caveat outside the published table.** C5 (cold build + first resolve,
 not published — `benchmarks/README.md`: "C5 is not published on the page")
 moved **against** the candidate: +4.96% on `spike/finalists` vs the first
 `main` run, against only +1.92% of ambient drift on the same metric in the
-recheck — so part of the rise is real, plausibly P2's compile-time override
-check running once per provider at first-compile even when no override
-exists anywhere. This affects no published cell, but "P1+P2 have no
-downside anywhere" would overstate the finding.
+recheck — so part of the rise is real. The likely mechanism is P2's added
+construction-time work in `Container.__init__`/`ProvidersRegistry.__init__`
+(`container.py +3 -1`, `providers_registry.py +14 -1`), which C5's cold-build
+path runs on every timed call; P2's per-provider compile-time override check
+alone (6 calls per cold build, each tens of ns) explains at most 10-30% of
+the residual, not the bulk of it. This affects no published cell, but "P1+P2
+have no downside anywhere" would overstate the finding.
