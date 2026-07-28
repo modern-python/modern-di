@@ -264,6 +264,22 @@ part was wrong and has been corrected here: **validation is explicit-only as of 
 `open()` (and `with`/`async with`, which call it) no longer runs `validate()` — it only
 clears `closed`, unconditionally. Nothing validates automatically: not construction,
 not `open()`, not `add_providers`, not `resolve()`.
+
+!!! warning "A test suite that asserts on `closed` will fail"
+    3.1 is a relaxation for *callers*, but not for *tests that assert the lifecycle flag*.
+    Two 3.0-era assertions break, and both were found in the wild across the official
+    integrations:
+
+    - `assert container.closed is True` on a freshly built container — it is `False` in
+      3.1, because construction leaves it open.
+    - `with pytest.raises(ValidationFailedError): container.open()` — `open()` validates
+      nothing in 3.1, so it does not raise.
+
+    Both are mechanical to fix, but the second needs care: if a test's *subject* is the
+    lifecycle transition ("this signal opens the root"), flipping the assertion makes it
+    pass without proving anything. Close the container first, so the transition stays
+    observable. If the subject is the validation-ordering rule, point it at
+    `container.validate()` — the rule still holds, it just binds a different call.
 `container.validate()` is the only thing that walks the graph, and `Container(validate=...)`
 is deprecated — passing `True` or `False` is ignored and emits `ValidateArgumentWarning`
 (a `DeprecationWarning`), removed in 4.0. So in the "After (3.0)" example above, the comment
