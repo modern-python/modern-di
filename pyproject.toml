@@ -44,7 +44,10 @@ dev = [
     "pytest-benchmark",
 ]
 lint = [
-    "ruff",
+    # 2.x is a dormant backport branch, so its toolchain is frozen too. ruff 0.16 began
+    # formatting markdown code blocks and added rules this tree predates; `80bf88e` adopted
+    # both on main and is not in 2.31.0. Dev-only; not a runtime dependency.
+    "ruff<0.16",
     "ty",
     "eof-fixer",
     "typing-extensions",
