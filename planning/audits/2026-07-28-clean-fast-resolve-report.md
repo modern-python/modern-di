@@ -650,8 +650,29 @@ carried its own guard. **But the ledger is not a one-sided deletion.** Diff is
 `+37 -52` across four files — **net only -15 lines**, because -50 lines in
 `resolver_compiler.py` are bought with +19 lines of cross-registry invalidation
 plumbing. `noqa: SLF001` goes **up** (22 -> 23 in the compiler, 3 -> 4 in
-`container.py`): P2 adds two private reach-throughs and deletes none. On the
-clean-code axis this is a relocation of complexity, not a removal of it.
+`container.py`): P2 adds two private reach-throughs and deletes none.
+
+**And P2 falsifies four `architecture/` files, not one.** Under this repo's
+same-PR promotion convention those rewrites are part of P2's cost:
+
+| file | what P2 falsifies |
+|---|---|
+| `architecture/concurrency.md:19-20` | `override`/`reset_override` described as unlocked mutation of shared state; P2 makes that contract load-bearing |
+| `architecture/resolution.md:49-58` | **the whole of numbered item 1, "Override live-guard"** — the per-node front matter, the `has_overrides` gate, and the rationale that the check "lives in each resolver rather than centrally". P2 deletes that design |
+| `architecture/providers.md:85` | the compiled resolver being memoized and cleared on *registry* mutation — now false, override mutation clears it too |
+| `architecture/providers.md:164` | the compiled `Alias` resolver forwarding "after its own override guard" — that guard is gone |
+
+`resolution.md:52-54` deserves a specific note: its rationale is that *because*
+the check lives in each resolver, an overridden otherwise-unwireable factory
+still short-circuits to the mock. The **outcome** survives P2 (verified on both
+branches — `compile_resolver` returns before dispatching to
+`_compile_unwireable_factory`), but the **stated reason is falsified**. A
+preserved behaviour with a dead explanation is exactly the rot the promotion
+convention exists to prevent.
+
+On the clean-code axis, then: 7 deleted guard copies, net -15 lines, +2
+`noqa: SLF001`, and four architecture files needing rewrites — one of them a
+whole numbered design item. This is a relocation of complexity, not a removal.
 
 **Perf — the largest effect in this research effort, and a real regression beside
 it.** `cold`/`churn10`/`churn100` had never been calibrated; a dedicated A/B/A
@@ -679,10 +700,23 @@ A-to-A disagreement). Against that floor:
   is the single fact that decides whether P2 helps or hurts its target workload,
   and it is **not measured here and cannot be from this repo**.
 
-**Free-threaded (Step 9): pass.** G14/G15 thread-count trends unchanged on the
-same `3.14t` build in one session (G14 1.00/1.88/1.93 -> 1.00/1.88/1.99; G15
-1.00/1.41/2.18 -> 1.00/1.41/2.08) — still flat/non-scaling, no regression in the
-trend. G14 absolutes improve 7-9%.
+**Free-threaded (Step 9): pass, on a confounded metric.** G14/G15 thread-count
+trends are unchanged on the same `3.14t` build in one session (G14
+1.00/1.88/1.93 -> 1.00/1.88/1.99; G15 1.00/1.41/2.18 -> 1.00/1.41/2.08) — both
+branches flat/non-scaling, no trend regression, independently reproduced by
+review. Read it as "no regression visible", not as a precise trend match:
+normalising each branch to its own 1-thread median penalises a candidate that
+improves the 1-thread case, which P2 does (G14 absolutes 7-12% better). The
+absolute medians are the unconfounded numbers.
+
+**Harness hazard for later tasks.** `uv run --python 3.14t ...` **rebuilds
+`.venv` as free-threaded**; plain `uv run --no-sync` then silently runs on
+`3.14t`. Run `just install` to restore before further GIL measurement. All A/B
+numbers here predate the `3.14t` run and the two post-hoc probes were re-verified
+on the restored build — but note that absolutes do *not* discriminate between
+interpreters (review measured g12/churn10 on `3.14t` and landed inside the GIL
+band). **What protects a number is A/B/A symmetry within one process, not that it
+looks plausible.**
 
 **Suite: green, including the gate.** `just test-ci` passes 452/452 at 100% line
 coverage, and `just lint-ci` passes. No failures to enumerate. That green run is a
@@ -691,26 +725,63 @@ side; nine behaviours are identical (override-after-resolve, cached-node overrid
 and reset, dep-override vs a warm cache, `Alias`, child containers, `OverrideHandle`,
 `close_sync`, `container_provider`, and refcount-only reclamation of the root).
 
-**Two findings the suite cannot see.**
+**Three findings the suite cannot see.**
 
-1. **An override racing a concurrent first-compile is lost permanently.**
-   `resolver_for` compiles then stores; `invalidate_resolvers` clears without the
-   registry lock. An `override()` landing in that window is overwritten by the
-   compiling thread's pre-override resolver and never takes effect again.
-   Reproduced deterministically (widened window; `main` passes, P2 fails).
+1. **An override racing a concurrent compile is lost permanently, and lost
+   asymmetrically.** `resolver_for` compiles then stores, and nested
+   `resolver_for` calls capture dependency resolvers **by reference**, so the
+   exposed window is the *entire outermost compile* — **~8 us** for the
+   7-provider graph by this task's own fitted recompile cost, and **O(graph
+   size)** in general, not the two bytecodes around the memo write.
+   `invalidate_resolvers` clears without the registry lock, so an `override()`
+   landing anywhere in that window is overwritten by the compiling thread's
+   pre-override resolver.
+
+   The shape matters as much as the fact. With a parent mid-compile of a *later*
+   sibling, its already-captured reference to the overridden child goes stale
+   while the child's own memo entry is cleared and correctly recompiled —
+   producing a **split view**, reproduced deterministically:
+
+   ```
+   main:  direct resolve of leaf -> 99 ; through its parent -> 99   => consistent
+   P2:    direct resolve of leaf -> 99 ; through its parent ->  1   => SPLIT VIEW
+   ```
+
+   The override **works when asked for directly and fails through every
+   consumer**, permanently — so the natural debugging move (resolve the
+   overridden type, check it) exonerates the override. `main` self-heals because
+   its guard re-reads the live dict on every resolve; P2 is **absorbing**.
+
    `architecture/concurrency.md:19-20` already calls this race unsafe, so the
-   unsafety is not new — the **failure mode** is: `main` is unordered but
-   self-healing (the guard re-reads the live dict every resolve), P2 is unordered
-   and **absorbing** (one bad interleaving silently pins the wrong value for the
-   process lifetime — a mock silently reverting to the real dependency). A
-   cold-path generation-counter guard would close it without moving any number
-   above, but that is a design addition, not a bug fix, and is left to the
-   maintainer.
+   unsafety is not new — the failure *mode* is. **Reachability, independently
+   reproduced:** uninstrumented, 200 attempts, a 120-provider graph,
+   `sys.setswitchinterval(1e-6)`, GIL build — **0/200 losses on both branches**.
+   It needs a genuinely slow compile or a free-threaded build to be practically
+   reachable; the finding stands on shape and permanence, not frequency.
+
+   The remedy is bigger than first sketched: a generation counter stamped only
+   around the overridden node's memo write does **not** close it, because the
+   stale reference is held by a parent whose compile began earlier. The counter
+   must be stamped per `resolver_for` frame and re-checked before each frame's
+   memo write, discarding the in-flight subtree on mismatch.
 2. **Every root `close_sync`/`close_async` discards the whole compiled graph**,
    because it calls `reset_override()` unconditionally (`container.py:291`, `:299`).
    Verified against a `main` control: a container that never had an override keeps
    all 6 compiled resolvers across `close_sync` on `main`, and drops to 0 under P2. Correct, but a recompile cost `main` does not pay; narrowly fixable by
    notifying only when a mutation actually changed something.
+3. **P2 splits override semantics in two, by parameter type.**
+   `modern_di/providers/factory.py:183` (`_resolve_context_value`) still does a
+   **live, per-resolve** `fetch_override`, untouched by P2 and — unlike the seven
+   deleted front-guards — *not* gated on `has_overrides`, so it fires even with no
+   override anywhere (measured: 1 call per context kwarg per warm resolve,
+   identical on both branches). Two consequences. First, "after one recompile no
+   node pays anything" holds for **provider-backed kwargs only**; a factory with
+   `ContextProvider`-typed parameters keeps paying. Second, and worse, the same
+   race that leaves a provider-backed dependency split leaves a context-backed one
+   **self-healing** (`direct -> 99, through parent -> 99`). Two override semantics
+   coexist in one framework, distinguished by a parameter's type and invisible at
+   the call site. **`g9_context` — the one scenario exercising this path — was
+   never measured for P2.**
 
 The reference-cycle asymmetry the design requires (`ProvidersRegistry` holds the raw
 overrides *dict*; `OverridesRegistry` holds the back-reference) was kept and
@@ -718,7 +789,7 @@ overrides *dict*; `OverridesRegistry` holds the back-reference) was kept and
 cycle collector disabled and `gc.collect()` found 0 — the 3.1.1 property, now shown
 for the root. No finding.
 
-**Rules P2 adds — six, not the three the brief anticipated:**
+**Rules P2 adds — eight, not the three the brief anticipated:**
 
 1. Compiled resolvers are invalidated by override mutation, not only registry mutation.
 2. `ProvidersRegistry` holds the raw overrides dict and `OverridesRegistry` holds a
@@ -731,12 +802,25 @@ for the root. No finding.
    post-construction, become invisible to resolution — a rule that binds sibling
    packages this repository cannot test.
 5. `override`/`reset_override` racing a live resolve can lose an override
-   *permanently*, not merely unpredictably — turning
+   *permanently* and *asymmetrically* (a split view: correct when resolved
+   directly, stale through every consumer) — turning
    `architecture/concurrency.md:19-20` from advisory into load-bearing.
 6. Every root close discards the compiled graph.
+7. `has_overrides` becomes **dead public state**: three writes
+   (`overrides_registry.py:14,18,27`) and **zero reads** anywhere in `modern_di/`
+   on the spike, against 7 reads on `main`. It is public, documented at
+   `architecture/resolution.md:53`, and the benchmark rationale at
+   `benchmarks/test_guard_resolve.py:264` depends on what it does. P2 must either
+   delete it (a public-surface removal) or keep a field nothing consults.
+8. Override semantics split by parameter type — context-backed kwargs stay live
+   and self-healing, everything else is compile-time frozen (finding 3 above).
 
 **Bucket: `needs-decision`** — filed so regardless of the numbers, per the spec.
-Two independent calls are needed before P2 could ship: whether the absorbing
-override race is acceptable or must be closed with the generation-counter guard,
-and whether the target workload's resolves-per-override ratio clears ~30 (which
-requires measuring the sibling `modern-di-pytest` repo, not this one).
+Three independent calls are needed before P2 could ship: whether the absorbing,
+split-view override race is acceptable or must be closed with the per-frame
+generation guard (a larger change than first sketched); whether two override
+semantics distinguished by parameter type are acceptable, or the context path
+must be brought into the compile-time scheme too; and whether the target
+workload's resolves-per-override ratio clears ~30 (which requires measuring the
+sibling `modern-di-pytest` repo, not this one). The four `architecture/` rewrites
+above are part of the shipping cost either way.
