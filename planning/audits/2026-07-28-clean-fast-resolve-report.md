@@ -247,3 +247,139 @@ verification (`git worktree remove`, `git branch -D spike/crash-candidate`).
 `git diff main -- modern_di/` on `research/clean-fast-resolve` remained
 empty throughout — no code shipped from this fix.
 
+## Inventory
+
+The spec's inventory table (`planning/changes/2026-07-28.03-clean-fast-resolve-research.md`)
+was a claim made by reading. Every count below was re-derived from source —
+`grep -n` plus a manual read of each hit, not `grep -c` (a couple of the
+brief's literal `grep -c` invocations, e.g. the `modern_di/**/*.py` glob,
+either don't expand under a non-globstar shell or need `-h`/summation across
+files; counting from `grep -n` output sidesteps that instead of trusting a
+brittle command line).
+
+### Copy counts, verified
+
+| Concern | Site(s) | Spec's count | Verified count | Agrees? |
+|---|---|---|---|---|
+| Override front-guard | `resolver_compiler.py:95,121,216,264,290,309,329` | 6 | **7** | **No — see below** |
+| Scope navigate (int compare + `_navigate`) | `resolver_compiler.py:99,126,220,268` | 4 | 4 | Yes |
+| Closed-check + `_prepare()` | `resolver_compiler.py:100-101,127-128,221-222,269-270` | 4 | 4 | Yes |
+| Cache-item fetch (inlined `_items.get`) | `resolver_compiler.py:227` | 1 | 1 | Yes |
+| Cache sentinel check | `resolver_compiler.py:231` | 1 | 1 | Yes |
+| Args build (positional / kwargs fork) | `resolver_compiler.py:102-106,129-139,175-180,197-209` | 4 bodies | 4 | Yes |
+| Creator call + `CreatorCallError` routing | `resolver_compiler.py:110,143,186`; `providers/factory.py:214` | 4 | 4 | Yes |
+| Error-prepend `try` | `resolver_compiler.py:104,137,178,206,296` | 5 | 5 | Yes |
+| Entry dispatch (closed-check, inlined `_resolvers.get`, `RecursionError` wrap) | `container.py:215-230` | 1, per top-level resolve | 1 | Yes |
+
+**The spec was off on the override front-guard.** Its motivation section says
+the guard is "written six times", counting one guard per *provider type*
+(Factory-transient, Factory-cached, Factory-unwireable, Alias,
+container-provider, ContextProvider = 6). But `_compile_transient_factory`
+compiles to **two** distinct closures — `resolve_positional`
+(`resolver_compiler.py:91-117`) and the kwargs-fork `resolve`
+(`resolver_compiler.py:119-150`) — and each carries its own independent
+`if overrides.has_overrides:` guard (lines 95 and 121). `grep -n
+"overrides.has_overrides" modern_di/resolver_compiler.py` returns 7 hits:
+95, 121, 216, 264, 290, 309, 329. The source wins: **7 physical copies, not
+6.** Any P2 prototype (Task 4) deletes 7 guards, not 6, and any "-6 copies"
+claim in a later row should read "-7".
+
+Every other row's count matches the spec exactly; nothing else needed
+correction.
+
+(For completeness, `noqa: SLF001` appears 3 times in `container.py` — lines
+59, 125, 225 — and 22 times in `resolver_compiler.py`. Only a handful of
+those execute per resolve call rather than once at compile time: the four
+`target._prepare()` sites, the one inlined `cache_registry._items.get`, the
+one `target._lock` capture read on a cache miss, and `container.py:225`'s
+`registry._resolvers.get`. The rest — `f._parsed_kwargs`, `f._resolution_step`,
+`f._creator`, etc. — are read once while `compile_resolver` builds the
+closure, not on the hot path; the motivation section's "three private-attribute
+reach-throughs" framing refers to that narrower, hot-path set.)
+
+### Screen: rows that need no prototype
+
+Five of the nine concerns are answered by reading alone — no A/B measurement
+changes the verdict, so they are screened here rather than left `pending`.
+
+| Concern | Movable? | Deletes copies? | New rule? | Verdict |
+|---|---|---|---|---|
+| Scope navigate | **No** — the target container is a runtime value (which container instance, reached via `find_container`), not decidable at compile time. The same-scope int compare is already the fast path; there is nothing further to hoist. | No | None | screened out |
+| Cache-item fetch (`_items.get`) | **No** — depends on this specific container's `cache_registry._items` dict at call time, i.e. per-container runtime state | No | None | screened out |
+| Cache sentinel check | **No** — same reasoning: the cached value is a runtime fact of one container instance | No | None | screened out |
+| Creator call + `CreatorCallError` routing | **Partially** — the *except body* was already factored into `CreatorCallError.from_type_error` by `planning/decisions/2026-07-20-except-body-creator-error-helper.md`, for exactly this reason. The remaining four `try: return creator(...)` wrappers cannot be centralized further without adding a call frame on the hot path, which the module docstring's "hold the per-node frame at 1" invariant forbids. | No | None | collides with, and is already satisfied by, the 2026-07-20 decision |
+| Error-prepend `try` | **No** — CPython 3.11+ makes an untaken `try` zero-cost at runtime, so these five are a readability/clean-only concern already, never a perf one; sharing them needs a helper call, which is the frame cost these were written to avoid | No | None | screened out |
+
+### Four rows left `pending` for prototyping (Tasks 3-6)
+
+| Concern | Site(s) | Verified copies | Perf |
+|---|---|---|---|
+| Override front-guard | `resolver_compiler.py` (7 sites, see above) | 7 | pending (P2, Task 4) |
+| Closed-check + `_prepare()` | `resolver_compiler.py:100-101,127-128,221-222,269-270` | 4 | pending (P1, Task 3) |
+| Args build (positional / kwargs fork) | `resolver_compiler.py:102-106,129-139,175-180,197-209` | 4 bodies | pending (P3, Task 5) |
+| Entry dispatch | `container.py:215-230` (P4 targets the sibling by-type `resolve()` entry) | 1 | pending (P4, Task 6) |
+
+### Closed-check invariant — verified, Task 3 may proceed
+
+Task 3's plan hoists `if target.closed: target._prepare()` out of the four
+closures listed above and into `_navigate` alone. That is sound only if a
+compiled resolver's *same-scope* branch (`target is container`, no
+`_navigate` call) never meets a closed target — the entry container is
+already reopened by `resolve_provider` (`container.py:217-218`), and the
+only way a resolver reaches a *different* container is `_navigate`, so a
+same-scope target should never need reopening.
+
+**Baseline (Step 3):** `tests/test_spike_closed_invariant.py` — closes both
+an APP container and a REQUEST child, then resolves a REQUEST-scoped
+provider that depends on APP-scoped providers, and asserts both ended up
+reopened.
+
+```
+$ just test tests/test_spike_closed_invariant.py -v
+...
+tests/test_spike_closed_invariant.py::test_closed_containers_are_reopened_before_any_node_runs PASSED [100%]
+============================== 1 passed in 0.02s ===============================
+```
+
+PASSES on unmodified `main`, as expected — this is the characterization
+baseline, not a red test.
+
+**Probe (Steps 4-5):** the kwargs-fork `resolve` closure inside
+`_compile_transient_factory` (`resolver_compiler.py:127-128`, the exact
+site named in the brief) was temporarily changed from:
+
+```python
+        if target.closed:
+            target._prepare()  # noqa: SLF001
+```
+
+to:
+
+```python
+        if target.closed and target is not container:
+            target._prepare()  # noqa: SLF001
+        elif target.closed:
+            msg = "closed same-scope target reached a compiled resolver"
+            raise AssertionError(msg)
+```
+
+Then the whole suite was run with the probe in place:
+
+```
+$ just test
+...
+collected 453 items
+...
+======================= 453 passed, 2 warnings in 0.40s ========================
+```
+
+**453 passed, 0 failed** (452 pre-existing + the 1 new spike test). No test
+in the repository drives a compiled resolver's same-scope branch into a
+closed target — the `AssertionError` was never raised.
+
+**Verdict: the invariant holds. Task 3 may proceed.** The probe and the
+temporary test were reverted immediately after
+(`git checkout -- modern_di/resolver_compiler.py`; `rm
+tests/test_spike_closed_invariant.py`); `git diff main -- modern_di/` is
+empty.
+
