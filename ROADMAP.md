@@ -47,20 +47,25 @@ Strawberry, Quart, RQ, APScheduler, Jobify, Flet, ag2.
 - **Public, reproducible benchmark suite** with neutral methodology —
   shipped; see [Performance](https://modern-di.modern-python.org/introduction/performance/).
 - **Optional OpenTelemetry instrumentation** of resolution and finalization.
-- **Trim the warm-singleton path (C2)** — the one published scenario where
-  modern-di is clearly last: ~3.9x dependency-injector and ~2.8x that-depends.
-  A warm hit costs ~170 ns, of which two Python method calls are pure
-  indirection — `ProvidersRegistry.resolver_for` on every top-level resolve
-  (~56 ns) and `CacheRegistry.fetch_cache_item` inside the compiled resolver
-  (~44 ns). Inlining each one's dict-lookup hit path, and calling the method
-  only on a miss, keeps the cycle-safe compilation thunk and the shared-item
-  guarantee intact. Bounded win: it should roughly halve the cell, not close
-  it — dependency-injector's ~47 ns is a C-level slot read on a Cython core,
-  which pure Python does not reach. A third step exists and is **deliberately
-  deferred**: an APP-scoped resolver could close over its `CacheItem` and reach
-  ~16 ns, but the target is only invariant because one registry belongs to one
-  root, so the registry would have to reference its root — the container
-  reference cycle removed in 3.1.1. That needs a weakref and a proof, for ~30 ns.
+- **Trim the warm-singleton path (C2)** — the published scenario where modern-di
+  trails by the widest margin, now 2.94x dependency-injector and 2.13x
+  that-depends. Two Python method calls that were pure indirection on a warm hit
+  — `ProvidersRegistry.resolver_for` on every top-level resolve and
+  `CacheRegistry.fetch_cache_item` inside the compiled resolver — are inlined on
+  their dict-lookup hit paths, with the method called only on a miss, keeping the
+  cycle-safe compilation thunk and the shared-item guarantee intact;
+  **shipped in 3.1.2**. The guard tier measured a ~25% faster warm hit
+  (170 → 128 ns), and the published cell moved from 3.88x to 2.94x against
+  dependency-injector and 2.80x to 2.13x against that-depends, with both rivals'
+  absolutes unchanged — the check that the movement is modern-di's and not
+  measurement drift. The bound stated when this was planned held: it trimmed the
+  cell, it did not close it. dependency-injector's ~48 ns is a C-level slot read
+  on a Cython core, which pure Python does not reach.
+  A third step remains open and is **deliberately deferred**: an APP-scoped
+  resolver could close over its `CacheItem` and reach ~16 ns, but the target is
+  only invariant because one registry belongs to one root, so the registry would
+  have to reference its root — the container reference cycle removed in 3.1.1.
+  That needs a weakref and a proof, for ~30 ns.
 
 ### Docs & ecosystem
 - **Canonical on-ramp per integration** — every official integration ships a

@@ -25,7 +25,11 @@ lifecycle, and trails the two `exec`-codegen frameworks by 1.3-1.9x on transient
 - **C2 warm-singleton whole-aggregate memoization (highest leverage).** modern-di's warm hit (292 ns) is
   3-4.8x slower than the slot/memoized rivals (`dependency-injector` 61 ns C-level slot; `that-depends`
   85 ns lock-free slot; `wireup` 98 ns self-modifying closure) — it still pays the `resolver_for` dispatch
-  + override front-guard + `fetch_cache_item` on every warm hit. The wireup technique — after first build,
+  + override front-guard + `fetch_cache_item` on every warm hit. **Superseded in part by 3.1.2:** the
+  `resolver_for` and `fetch_cache_item` hit paths are now inlined at their call sites (the method runs only
+  on a miss), which cut the warm hit ~25% and moved the published C2 cell to 2.94x dependency-injector /
+  2.13x that-depends. The override front-guard and the resolve→`resolver_for` dispatch remain, so the
+  verdict below is unchanged. The wireup technique — after first build,
   swap the cached provider's stored resolver to a bare `return value` closure — would make the warm hit
   near-free. It was deferred from `2026-07-16.02` as a Non-goal because it is **non-trivial in modern-di**
   (unlike wireup): the resolver is shared tree-wide on the registry while the cached value is
