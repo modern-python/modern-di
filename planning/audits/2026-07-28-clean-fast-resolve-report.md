@@ -966,3 +966,85 @@ above threshold, and the merge opens one brand-new `C901` site) and the merge
 silently orphans a method, breaking the coverage gate, in a file the brief's
 scope did not name. The cached-builder half is genuinely free and would be
 `do-first` in isolation, but P3 is reviewed as one candidate covering both.
+
+## P4 — by-type resolve entry memo, judged against the 2x bar (Task 6)
+
+Applied on throwaway branch `spike/p4-by-type-memo` (off `main` `36e261f`),
+commits `41807dc` (the candidate) and `8728744` (a test needed to close a
+coverage gap the candidate opens — see below): `Container.resolve` memoizes a
+by-type resolver lookup (`ProvidersRegistry._by_type`, cleared in
+`_invalidate` alongside the other memos) and short-circuits straight to the
+compiled resolver on a hit, skipping both the `find_provider` lookup and the
+`resolve_provider` call frame; a memo miss falls back to
+`_resolve_by_type_uncached`, which populates the memo only after a successful
+resolve. `git diff main -- modern_di/` on `research/clean-fast-resolve` is
+empty — nothing here ships. Full raw A/B/A tables, the frame-shape check, and
+the ledger live in
+`.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-6-report.md`.
+
+**Unlike P1-P3, this candidate *adds* copies rather than deleting any** —
+the brief itself flags it as the plan's only "yes/no" screen answer, held to
+the `~2x-or-nothing` bar this repo already set for pure-performance changes to
+the resolve path (`planning/decisions/2026-07-19-child-lazy-alloc-declined.md`).
+
+**Perf — real, reproducible, and well short of the bar.** `AB_REPEATS` was
+raised from the harness default of 15 to 25 (`g16_by_type`'s own floor at 15
+is 3.70%, per Task 1's calibration), and the null control was re-established
+in this session rather than assumed from Task 1's: 4 null runs at
+`REPEATS=25` put `g16_by_type`'s own floor at **2.75%** this session (looser
+than Task 1's 0.91% at the same value — session noise, not a fixed constant,
+matching Task 5's finding). Against that floor, 3 candidate runs gave
+`g16_by_type` deltas of **-26.14%, -25.15%, -26.27%** (base ~166ns → candidate
+~123ns) — 9x to 12x the floor, unambiguously real. But real is not the same as
+sufficient: computed directly as a ratio, that is **~1.35x**, not ~2x — the
+candidate would need to land near ~83ns to clear the bar, and it lands at
+~123ns. The two required control scenarios stayed flat within their own null
+floors (`g1_transient`: +1.41/-0.35/+0.03 vs a 1.80% floor; `g2_cached`:
+-0.18/-1.74/+1.85 vs a 2.02% floor) — confirming the prototype does not touch
+the `resolve_provider` path it was never meant to change.
+
+**Mechanism, checked against the actual code objects, not assumed** (per Task
+5's lesson that an unchecked mechanism claim is a guess): neither
+`Container.resolve` nor `resolve_provider` is a closure on either branch, so
+`co_freevars` is empty both sides — this is not a Task-5-style frame-growth
+story. `main`'s warm path pushes two frames (`resolve`, nlocals=3, then
+`resolve_provider`, nlocals=5) and does two dict lookups
+(`find_provider`, then `registry._resolvers.get(provider.provider_id)`, the
+second gated behind an attribute read on `provider`). P4's warm path pushes
+one frame (`resolve`, nlocals=6 — `resolve_provider`'s locals folded in) and
+does one dict lookup (`registry._by_type.get(dependency_type)`, keyed
+directly, no attribute hop). The measured ~40ns absolute saving on a ~166ns
+call is one call frame eliminated plus two dict lookups collapsed into one —
+exactly what the brief's own framing predicted, and it does explain the
+number; it just isn't a big enough number.
+
+**Ledger — the brief's own prediction held exactly, source-verified, no
+surprises either direction** (unlike P2's `noqa` count or P3's `C901`/dead-code
+findings). `git diff main spike/p4-by-type-memo --stat -- modern_di/`: `2
+files changed, 22 insertions(+), 3 deletions(-)`; file totals `container.py`
+380→397 (**+17**), `providers_registry.py` 133→135 (**+2**), net **+19**
+lines. `noqa: SLF001` in `container.py`: 3→5 (**+2**, exactly the two sites
+the brief named). One necessary deviation from "verbatim": the brief's own
+snippet's `# noqa: S101` trips `RUF100` (unused directive — this repo's
+ruleset doesn't select `S`), so that one comment was dropped to keep
+`just lint-ci` green; it changes nothing else in the ledger. **A cost outside
+the brief's stated file scope:** the duplicated `RecursionError` wrap is
+genuinely reachable (verified by construction, not dead code) only via a
+*second* `container.resolve(...)` call through the warm memo whose creator
+then recurses — no existing test does this (every existing recursion-guard
+test fails on its *first* call, before the memo is ever populated), so
+`just test-ci`'s 100%-line gate drops to 98% on `container.py` without a new
+test. One was added
+(`tests/test_runtime_cycle_guard.py::test_by_type_memo_hit_recursion_error_is_still_converted`,
+commit `8728744`) to restore 100% coverage and confirm the wrap is live, not
+dead — a file the brief's "Test: `just test`" line did not name.
+
+**Bucket: `skip`.** Every part of the brief's own ledger prediction
+materialized exactly (+1 method, +1 duplicated `RecursionError` wrap, +1 memo
+to invalidate, +2 `SLF001`, plus one cost the brief didn't name — a required
+test file), and the speedup is real, reproducible, and fully explained by
+frame elimination — but it clears only ~1.35x against the ~2x bar this
+candidate is explicitly held to for adding rather than deleting copies. Both
+required controls confirmed flat. Per the brief's own instruction, this is
+recorded plainly as a skip rather than let an attractive double-digit
+percentage carry the call.
