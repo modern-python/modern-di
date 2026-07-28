@@ -104,25 +104,27 @@ timed as a batch of K=100 cycles per loop entry.
 | dependency-injector 4.49.1 | `Factory` | `Singleton` | async-gen `Resource`, `init/shutdown_resources` | await |
 | wireup 2.12.0 | `injectable(transient)` + scope | `injectable` (singleton default) | async-gen `injectable(scoped)`, async container | await |
 
-**Fixed timing shape for the published scenarios (C1-C4).** pytest-benchmark auto-calibrates
+**Fixed timing shape for the published scenarios (C1-C4, C6).** pytest-benchmark auto-calibrates
 `iterations` per benchmark per run, which in practice left some cells at `iterations=1` -- each
 median carrying a whole per-round timer pair and snapped to the platform timer's ~42 ns grid --
 while others ran at 20-100 and amortized both away. A published ratio must not divide a
-grid-snapped number by an unsnapped one, so C1-C4 use `benchmark.pedantic` at a shape pinned
-**identically in all five files**: C1-C3 at `rounds=200, iterations=1000`, C4 at
+grid-snapped number by an unsnapped one, so C1-C4 and C6 use `benchmark.pedantic` at a shape
+pinned **identically in all five files**: C1-C3 and C6 at `rounds=200, iterations=1000`, C4 at
 `rounds=100, iterations=3` (C4's callable is already a batch of `K = 100` cycles, so a few
 iterations put the timer pair below 0.01% of the cell). `warmup_rounds=1` replaces the warm-up
-calibration used to provide; every other setup stays outside the timed call exactly as before.
+calibration used to provide; every other setup stays outside the timed call exactly as before. (C6's
+later promotion did change what its timed call contains — see its caveat below.)
 `tests/test_bench_report.py` parses the five files and fails if a published scenario drops off
-the pinned shape or the numbers drift apart. C5/C6 are not published on the page and stay on
+the pinned shape or the numbers drift apart. C5 is not published on the page and stays on
 auto-calibration.
 
 Levelling this axis moved published cells **in both directions**, and the shift is not uniform:
 cells that had been at `iterations=1` shed anywhere from ~10 ns (dependency-injector C1) to
 ~50 ns (dishka C1, C3), and one -- modern-di's by-reference C3 -- rose by ~12 ns. Because dishka
 shed proportionally more than modern-di did, modern-di's C1 and C3 ratios against dishka got
-*worse*, not better. Netted over the sixteen published ratio cells, eight moved against
-modern-di, seven for it and one was unchanged.
+*worse*, not better. Netted over the sixteen ratio cells published at the time, eight moved against
+modern-di, seven for it and one was unchanged. (C6 was promoted later, so the table now
+carries twenty.)
 C4's estimator also shifted: a round is now the mean of `iterations` batches, so a right-skewed
 distribution reports nearer its mean -- modern-di's C4 mean was 24% above its median at
 `iterations=1`, and its published per-request figure rose accordingly. The mean itself did not
@@ -172,7 +174,19 @@ a wide margin. C5 aligns validation off (modern-di never validates unless
 isolates build+compile.
 
 **Caveat — C6 is sync for all five** (a clean sync-vs-sync comparison, unlike
-C4), timing the per-request "supply value + resolve" cycle. Two structural
+C4), timing the per-request "supply value + resolve" cycle. It is **published**, against all
+four rivals in one table, for C4's reason alone: modern-di resolves by reference throughout the
+body and has no by-type C6 variant, so a split would leave that half mixed-basis. The rivals do
+line up with the C1-C3 grouping here — that-depends resolves its C6 handler by reference, as it
+does on C1-C3; only the *supply* of the request value is type-keyed, which is not the axis the
+tables split on.
+
+modern-di's C6 body was corrected in two ways when it was published, and they pull against each
+other. It calls no `open()` — a freshly built child is already open as of 3.1, so timing one
+charged a redundant lock acquire (81 ns, ~6% of the cell) with no counterpart in any rival body.
+It now *does* close the child, because all four rivals exit a scope inside their timed bodies and
+this one did not: that teardown is ~110 ns, **larger** than the `open()` removed, so on net the
+correction moved modern-di's C6 cells against it, not for it. Two structural
 notes: dependency-injector injects **by reference** (`providers.Dependency` +
 `.override()`), not by type — a structural analog, not an equivalent; wireup
 requires the runtime type **registered** as a scoped injectable with a raising

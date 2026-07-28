@@ -4,11 +4,14 @@ The tables are generated, never hand-assembled: `main()` runs the comparative su
 its isolated environment and `build_table()` reduces the runs to markdown. Split so the reduction
 is unit-testable without running a benchmark (see tests/test_bench_report.py).
 
-Three tables, because no single rival set fits every scenario: dishka and wireup expose only
+Four tables, because no single rival set fits every scenario: dishka and wireup expose only
 by-type lookup, that-depends and dependency-injector only by-reference. Each C1-C3 table compares
 one modern-di variant against the rivals whose API matches it, so no published cell is ever n/a.
-C4 does not split this way: modern-di resolves by reference throughout its C4 body, so that table
-compares it against all four rivals regardless of which lookup API they natively expose.
+C4 and C6 do not split this way: modern-di resolves by reference throughout both bodies, so those
+tables compare it against all four rivals regardless of which lookup API they natively expose.
+C6 is one table for C4's reason alone: modern-di has no by-type C6 variant, so a split would leave
+that half mixed-basis. The rivals do line up with the C1-C3 grouping here — that-depends resolves
+its C6 handler by reference, as it does on C1-C3.
 
 Ratios are **paired per run**: one run measures both sides under the same machine state, so the
 published statistic is the median of the per-run ratios, not a ratio of two independently-reduced
@@ -84,6 +87,11 @@ TABLES = (
         "Request lifecycle (batched, published per request)",
         BY_REFERENCE + BY_TYPE,
         (Row("C4 request lifecycle", "c4_request_lifecycle", "c4_request_lifecycle", divisor=BATCH),),
+    ),
+    Table(
+        "Per-request context",
+        BY_REFERENCE + BY_TYPE,
+        (Row("C6 context", "c6_context", "c6_context"),),
     ),
 )
 

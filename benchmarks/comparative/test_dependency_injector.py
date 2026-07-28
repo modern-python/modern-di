@@ -12,7 +12,7 @@ from dependency_injector import containers, providers
 
 _BATCH = 100
 
-# Pinned timing shape for C1-C4; must match every other comparative file (see test_modern_di.py).
+# Pinned timing shape for C1-C4 and C6; must match every other comparative file (see test_modern_di.py).
 _ROUNDS = 200
 _ITERATIONS = 1000
 _C4_ROUNDS = 100
@@ -183,6 +183,6 @@ def test_c6_context_dependency_injector(benchmark):
         with container.request.override(RequestObj()):
             return container.handler()
 
-    result = benchmark(_one_request)
+    result = benchmark.pedantic(_one_request, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Handler)
     assert isinstance(result.request, RequestObj)

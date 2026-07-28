@@ -7,9 +7,12 @@ Three fairness rules this file must keep:
 - C1-C3 exist in BOTH by-reference (`resolve_provider`) and by-type (`resolve`) form. dishka and
   wireup have no by-reference API; that-depends and dependency-injector are by-reference. No single
   variant is fair to both halves of the rival set, so the table compares each against its match.
-- The 3.x lifecycle is explicit: `open()` on the root and per request, as the guard tier and the
-  docs both do.
-- Every published scenario (C1-C4) is timed with `benchmark.pedantic` at a pinned
+- A container is open from construction (3.1), so no *timed* body of a published scenario calls
+  `open()`: it would time a redundant lock acquire against rivals that need a real scope entry.
+  (Unpublished C5 times a cold build and keeps its `open()`, which is part of what it measures.) Per-request work is
+  build child -> resolve -> close, and every timed body closes what it opened, because all four
+  rivals exit a scope inside theirs.
+- Every published scenario (C1-C4, C6) is timed with `benchmark.pedantic` at a pinned
   `rounds x iterations`, identical in all five files. See the note on the constants below.
 """
 
@@ -20,7 +23,7 @@ from modern_di import Container, Group, Scope, providers
 
 _BATCH = 100
 
-# Pinned timing shape for the published scenarios (C1-C4). pytest-benchmark's auto-calibration
+# Pinned timing shape for the published scenarios (C1-C4, C6). pytest-benchmark's auto-calibration
 # picks `iterations` per benchmark, so one cell can land at iterations=1 while the cell it is
 # divided by lands at 25: the first carries the whole per-round timer pair and sits on the
 # platform timer's ~42 ns grid, the second amortizes both away. A published ratio must not divide
@@ -169,7 +172,6 @@ def test_c4_request_lifecycle_modern_di(benchmark):
 
     async def _one_request() -> Connection:
         req = app.build_child_container(scope=Scope.REQUEST)
-        req.open()
         conn = req.resolve_provider(LifecycleGroup.conn)
         await req.close_async()
         return conn
@@ -226,10 +228,11 @@ def test_c6_context_modern_di(benchmark):
 
     def _one_request():
         req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})
-        req.open()
-        return req.resolve_provider(ContextGroup.handler)
+        handler = req.resolve_provider(ContextGroup.handler)
+        req.close_sync()
+        return handler
 
-    result = benchmark(_one_request)
+    result = benchmark.pedantic(_one_request, rounds=_ROUNDS, iterations=_ITERATIONS, warmup_rounds=1)
     assert isinstance(result, Handler)
     assert isinstance(result.req, RequestObj)
     assert isinstance(result.dep, AppDep)
