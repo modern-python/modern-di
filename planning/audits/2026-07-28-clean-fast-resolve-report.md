@@ -54,10 +54,15 @@ zero added executed opcodes. That term is the most portable thing this effort
 learned, and "count the copies" has no room for it.
 
 Two results survive the falsification and are worth carrying independently of
-it. The **P1+P2 comparative reading** (`## What would move`): C1/C3 ratio cells
-improve by 4.6x-156x their own no-code drift, and by-type warm singleton
-reaches effective parity with `dishka` — a hypothetical, since both candidates
-remain maintainer-gated. And the **guard-suite gap**: the committed benchmark
+it. The **P1+P2 comparative reading** (`## What would move`): the C1/C2/C3
+ratio cells improve by 3.96-8.21 percentage points net of their own no-code
+drift, and by-type warm singleton reaches effective parity with `dishka` —
+**with a stated caveat**: that parity cell carries the largest no-code drift in
+the whole table (-3.00%), it and its `wireup` sibling are the two
+narrowest-margin cells called real (2.3x and 3.2x their drift, against 4.6x-156x
+for the other ten), and "parity" therefore means *within a few percent of 1.00*,
+not measured at 1.00. All of it is a hypothetical, since both candidates remain
+maintainer-gated. And the **guard-suite gap**: the committed benchmark
 suite has no scenario exercising a cached-provider cold miss at all.
 
 ### Buckets
@@ -105,7 +110,8 @@ this table is the index, not the evidence.
 The spec said prototypes "live on a throwaway spike branch and are discarded."
 They were **not** discarded: reviewers re-ran measurements against them
 repeatedly, and deleting them would make every number in this report
-irreproducible. They are local-only and cost nothing.
+irreproducible. They cost nothing to keep, and the spec has been corrected to
+say so.
 
 | branch | tip | candidate |
 |---|---|---|
@@ -114,6 +120,16 @@ irreproducible. They are local-only and cost nothing.
 | `spike/p3-body-merge` | `ca75df8` | P3 — body-fork merge (`f7b5556` transient half, `ca75df8` cached half) |
 | `spike/p4-by-type-memo` | `8728744` | P4 — by-type entry memo (`41807dc` candidate, `8728744` its coverage test) |
 | `spike/finalists` | `54a4bd8` | P1+P2 combined, for the comparative tier |
+
+**All five are local-only and unpublished — read the table accordingly.** They
+exist at those SHAs in the maintainer's working clone; `git ls-remote origin`
+lists only `main` and `research/clean-fast-resolve`. **A reader on another
+machine cannot fetch them, and nothing in this table is a reproduction path off
+this one.** Publishing them is a separate maintainer call and is not made here.
+What *is* portable is the harness (inlined verbatim in `## Appendix — the
+measurement harness`) plus each candidate's diff shape, ledger, and mechanism as
+described in its section: enough to rebuild a prototype and re-derive its
+numbers, not enough to re-run these exact commits.
 
 The one branch that *was* deleted is `spike/control` (`92a486f`), the
 positive-control no-op probe, which had served its purpose by the end of the
@@ -127,6 +143,18 @@ main -- modern_di/` and `git diff main -- docs/` are both empty, and
 
 Machine: `arm64` (Apple M-series)
 Python: `Python 3.14.6 (main, Jun 23 2026, 15:46:31) [Clang 22.1.3 ]`
+
+**The instrument.** Every number below `## Method and calibration` comes from a
+three-file harness — `ab_bench.py` (the scenarios and the `timeit` loop),
+`ab_report.py` (the A/B/A verdict table), and `ab_run.sh` (the driver that swaps
+`modern_di/` between revisions). It lived under the git-ignored scratch
+directory and was never committed as files. **Its full and final source is
+inlined at `## Appendix — the measurement harness` at the end of this report**,
+so the methodology described here names a tool the reader actually has: the
+scenario definitions, the iteration counts, the `REPEATS` default, the
+median/spread computation and the `DISCARD` rule are all readable there rather
+than described secondhand. Where the text below quotes an `ab_run.sh ...`
+command line, that is the invocation as run against that appendix source.
 
 ### REPEATS calibration
 
@@ -143,8 +171,10 @@ g2_cached                  129.2     137.0     +6.04      1.11  OK
 
 `g1_transient`'s delta (+2.41%) barely exceeds its own drift (2.37%) — not a
 readable signal. Per the brief's Step 7 instruction, `REPEATS` was raised
-from 9 to 15 (edited in `.superpowers/spike/ab_bench.py`, which is
-git-ignored scratch, not committed). Three repeated positive-control runs at
+from 9 to 15 — first by editing `ab_bench.py` directly, later reworked into the
+`AB_REPEATS` environment variable visible in the appendix source, so that a
+single session could mix 15 and 25 on the record without an edit between runs.
+Three repeated positive-control runs at
 `REPEATS=15` then showed consistent, wide separation:
 
 ```
@@ -305,8 +335,9 @@ their own null control before being trusted for small deltas.
 
 ## Harness hardening (post-review fix, 2026-07-28)
 
-Review found two defects in `.superpowers/spike/ab_run.sh` (git-ignored, not
-committed — the source lives only in the report):
+Review found two defects in `ab_run.sh` (git-ignored working scratch, never
+committed as a file — the fixed source is inlined verbatim in
+`## Appendix — the measurement harness`, which is the only surviving copy):
 
 1. **No trap.** Under `set -euo pipefail`, the final restore-to-`$START`
    line was reached only if all three measurement runs succeeded. A
@@ -715,13 +746,27 @@ not silently.** Recommendation, in order of preference:
    edge case — is a maintainer call, not mine to make unilaterally; it is
    filed as a named risk on the `P1` row rather than assumed away.
 
+**Read the next paragraph only after this note, which governs it.** The
+maintainer ruling recorded in the P1 section below (`## P1 — closed-check hoist,
+measured (Task 3)`, under "Maintainer note governing this whole row") applies
+here too, and is reproduced in short so that a top-to-bottom reader meets it
+first: *"today's reopen-a-mid-resolve-closed-container behavior is itself an
+open design question; P1 must not silently settle it."* So **neither** behavior
+is the settled baseline. Nothing below is an argument that `main` is right and
+P1 deviates from it, nor the reverse; it is only an argument that the evidence
+does not support abandoning the measurement.
+
 Abandoning Task 3 outright is not supported by the evidence: the delta is
-narrow (requires a creator to close its own resolving container mid-flight,
-which is unusual and already unwarranted by any documented contract), and
-the failure mode is silent success with a stale `closed` flag, not a crash
-or wrong value. But it is a real, demonstrated behavior change, and the
-report must say so rather than assert a clean invariant the suite never
-actually tested.
+narrow (it requires a creator to close its own resolving container mid-flight —
+a shape no contract in this repository addresses in either direction, as stated
+above: it is ordinary public API, neither blessed nor documented as an
+anti-pattern, and untested either way), and the failure mode is silent success
+with a stale `closed` flag, not a crash or wrong value. "Narrow" here is a claim
+about the *shape* required to reach it, not a measured claim about how often
+real code does it — nothing in this research measured that. And narrowness is
+not a verdict: it is a real, demonstrated behavior change, the report must say
+so rather than assert a clean invariant the suite never actually tested, and
+which of the two behaviors is correct remains open per the note above.
 
 ## P1 — closed-check hoist, measured (Task 3)
 
@@ -738,8 +783,11 @@ added back** on the `target._prepare()` call hoisted into `_navigate`. Verified
 on the candidate itself: `git grep -c 'noqa: SLF001' 344ff50 --
 modern_di/resolver_compiler.py` returns **19**, against **22** on `main`.)
 `git diff main -- modern_di/` on `research/clean-fast-resolve` is empty —
-nothing here ships. Full raw tables live in
-`.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-3-report.md`.
+nothing here ships. The per-run A/B/A tables behind the bands quoted below were
+working artifacts under the git-ignored scratch directory and no longer exist;
+every figure this row rests on — the per-scenario delta bands, their calibrated
+floors, and the `dis` count — is stated in full in this section, and the harness
+that produced them is inlined at `## Appendix — the measurement harness`.
 
 **Behavior delta — open, not resolved here.** This hoist is exactly the one
 the counterexample above (`test_dependency_closing_container_mid_resolution`)
@@ -800,9 +848,13 @@ returns a constant-returning resolver for an overridden provider;
 `OverridesRegistry` notifies `ProvidersRegistry` to drop compiled resolvers on
 every `override`/`reset_override`; and **all seven** per-closure
 `if overrides.has_overrides:` front-guards are deleted. `git diff main --
-modern_di/` on `research/clean-fast-resolve` is empty — nothing here ships. Full
-raw tables (including the previously-missing `cold`/`churn` null calibration)
-live in `.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-4-report.md`.
+modern_di/` on `research/clean-fast-resolve` is empty — nothing here ships. The
+per-run A/B/A tables, including the `cold`/`churn` null calibration this task
+added, were working artifacts under the git-ignored scratch directory and no
+longer exist; their conclusions are carried in full below — the `cold`/`churn`
+delta floor (under 0.9%, from 4 null runs), every quoted delta band, the fitted
+~8 us recompile / ~265 ns per-resolve crossover model, and the ledger — and the
+harness is inlined at `## Appendix — the measurement harness`.
 
 **Seven copies, not six** — the inventory correction above is confirmed by the
 prototype: `_compile_transient_factory` compiles two hot-path closures and each
@@ -998,9 +1050,14 @@ captured `positional` flag; `_compile_cached_factory`'s
 `build_args`/`create_positional` vs `build_kwargs`/`Factory._call_creator`
 selection merges the same way into one `build_cold`/`create_cold` pair.
 `git diff main -- modern_di/` on `research/clean-fast-resolve` is empty —
-nothing here ships. Full raw A/B/A tables, the `dis` mechanism, and the
-`REPEATS`/floor methodology live in
-`.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-5-report.md`.
+nothing here ships. The per-run A/B/A tables were working artifacts under the
+git-ignored scratch directory and no longer exist; the three things a reader
+needs from them are reproduced in this section — the per-scenario delta bands
+against their re-established 0.85-1.59% floors, the pad-only control experiment
+that attributes 55-58% of the cost to frame growth (table below), and the
+`co_freevars`/`co_varnames`/`co_stacksize` shapes that explain it — and the
+harness, including the supplementary `g2_cold` probe this task added, is inlined
+at `## Appendix — the measurement harness`.
 
 **Unlike P1/P2, this candidate buys no speed — and the numbers show it costs
 far more than the 3% it was budgeted.** Measured with a null-control floor
@@ -1141,9 +1198,12 @@ compiled resolver on a hit, skipping both the `find_provider` lookup and the
 `resolve_provider` call frame; a memo miss falls back to
 `_resolve_by_type_uncached`, which populates the memo only after a successful
 resolve. `git diff main -- modern_di/` on `research/clean-fast-resolve` is
-empty — nothing here ships. Full raw A/B/A tables, the frame-shape check, and
-the ledger live in
-`.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-6-report.md`.
+empty — nothing here ships. The per-run A/B/A tables were working artifacts
+under the git-ignored scratch directory and no longer exist; all three figures
+this row turns on are stated below in full — the three candidate deltas against
+this session's re-established 2.75% floor, the frame-shape check
+(`nlocals`/frame count on both branches), and the complete `--stat` ledger — and
+the harness is inlined at `## Appendix — the measurement harness`.
 
 **Unlike P1-P3, this candidate *adds* copies rather than deleting any** —
 the brief itself flags it as the plan's only "yes/no" screen answer, held to
@@ -1446,9 +1506,13 @@ main -- docs/` are both empty on `research/clean-fast-resolve`, and
 `docs/introduction/performance.md` was not touched. This section records
 what the published comparative table (`docs/introduction/performance.md`,
 generated by `just bench-report`) *would* show *if* a subset of the
-candidates above shipped — a hypothetical, not a change in flight. Full raw
-tables, the rivals'-absolutes drift check, and the cherry-pick verification
-live in `.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-8-report.md`.
+candidates above shipped — a hypothetical, not a change in flight. The raw
+`just bench-report` output for the three runs was a working artifact under the
+git-ignored scratch directory and no longer exists; the load-bearing content was
+folded into this section rather than left there — the full twenty-cell
+ratio-drift table (`main #1` / `finalists` / `main #2`, move, drift, and margin
+for every published cell), the rivals'-absolutes drift check, the estimator
+definition, and the cherry-pick verification all appear below.
 
 **Which candidates, and why only these two — and why neither is cleared to
 ship.** The brief's own instruction ("cherry-pick the `do-first` or
@@ -1529,10 +1593,15 @@ averaged. That single method is applied identically to `main #1`,
 `spike/finalists`, and `main #2`. The first draft of this section mixed
 estimators — comparing a rounded, published *median-of-medians* figure against
 a *mean-of-medians* drift figure — which is exactly the kind of arithmetic that
-manufactures a move out of nothing. A move is called "real" here only when its
-magnitude both exceeds roughly 3% and exceeds that cell's own no-code drift by
-a wide margin; the move-to-drift ratio itself is the deciding evidence, not a
-fixed cutoff, because the drift varies per cell from near-zero to over 3%.
+manufactures a move out of nothing. **The criterion for calling a move "real" is
+two-part, and both limbs must hold:** its magnitude exceeds roughly 3%, *and* it
+exceeds that cell's own no-code drift by a wide margin. Neither limb is a fixed
+cutoff applied mechanically — the drift varies per cell from near-zero to over
+3%, so the move-to-drift ratio has to be read *alongside* the magnitude, never
+instead of it. Where the two limbs point different ways, the magnitude limb
+decides; the ratio limb only guards against calling a move real when most of it
+reproduces on unchanged code. The C6 reading below works that case out cell by
+cell, against the by-type C2 cells whose ratios it overlaps.
 
 **Reconciling the published `±` figures with the drift band, since they look
 contradictory otherwise (mirrored into this report, Task 9).** The comparative
@@ -1596,38 +1665,93 @@ rests on, reproduced here rather than left in a working file:
 | C4 request lifecycle | 1.88 µs → 1.87 µs | 0.02 → 0.02 | 0.20 → 0.20 | 1.25 → 1.24 | 0.12 → 0.12 |
 | C6 context | 1.38 µs → 1.35 µs | 0.59 → 0.57 | 0.65 → 0.64 | 1.63 → 1.60 | 1.42 → 1.38 |
 
-**One-line reading, per row — read against each cell's own no-code drift, not
-a blanket band.** Ten cells read as real: by-reference C1, C2 and C3, plus
-by-type C1 and C3. They clear their own drift by **4.6x to 156x** — a full
-order of magnitude or more in **seven of the ten** (156x, 88.4x, 69x, 27.7x,
-18.8x, 12.2x, 10.3x); the three short of 10x (C1 by-ref vs dependency-injector
-8.1x, C2 by-ref vs dependency-injector 5.2x, C1 by-type vs dishka 4.6x) still
-clear comfortably. Real without qualification, every ratio narrowing or
-widening further in modern-di's direction. (Correction, Task 9: an earlier
-draft said "a full order of magnitude or more in nine of the ten cells" while
-naming only the eight C1/C3 cells as its subject — both the count and the
-denominator were wrong, and by-reference C2 was left out of the reading
-entirely. Recounted against the twenty-cell drift table above, which this task
-mirrored in precisely so claims like this are checkable at a glance.) The one
-exception inside C2: **by-type** C2 clears its own drift by a narrower
-2.3-3.2x — still real, but the weakest-margin cells in the "real" group. The single
-qualitative crossing: **by-type C2 vs dishka goes from 1.05-1.08 (depending
-which `main` run is used as baseline) to 1.00** — P1+P2 bring modern-di's
-warm-singleton by-type resolve to effective parity with dishka. (An earlier
-draft quoted this as "`main` trails by ~8%," which is `main #1` alone; the
-`main #2` recheck measures the same ratio at 1.046 — about a third of that
-gap was itself session drift, and the drift-corrected move is closer to
--4-5%. The parity conclusion is unchanged; only the starting-point quote is
-corrected.)
+**One-line reading, per row — the criterion, stated once and applied to every
+cell.** The rule is the two-part one named above: a move is real only if its
+**magnitude clears roughly 3%** *and* it **exceeds that cell's own no-code
+drift by a wide margin**. Both limbs are needed, and — this is the part an
+earlier draft got wrong — **it is the magnitude limb that does the separating
+here, not the ratio limb.** The move-to-drift ratio is a sanity check that the
+move is not mostly drift; it is not itself a threshold, because a tiny move over
+a tinier drift produces a large ratio out of nothing. The clearest way to apply
+the magnitude limb to a cell whose drift is non-trivial is to net the drift out:
+`|move| - |drift|` in percentage points, first-order.
+
+**Twelve cells read as real** (correction, this round): by-reference C1, C2 and
+C3, plus by-type C1, **C2** and C3. Net of drift they span **-3.96pp to
+-8.21pp**, every one clear of the ~3% magnitude floor, and every ratio narrows
+or widens further in modern-di's direction. (Two earlier drafts were
+wrong here in opposite directions. The first said "a full order of magnitude or
+more in nine of the ten cells" while naming only the eight C1/C3 cells as its
+subject — both count and denominator wrong, by-reference C2 omitted. The second
+enumerated "ten cells" — excluding **by-type C2** — and then twelve lines later
+called by-type C2 "still real", ruling the same pair both ways in one section.
+Twelve is the count; by-type C2 is real, on the reasoning below.)
+
+Ten of the twelve clear on both limbs with room to spare: drift margins of
+**4.6x to 156x**, a full order of magnitude or more in seven of them (156x,
+88.4x, 69x, 27.7x, 18.8x, 12.2x, 10.3x), and the three short of 10x (C1 by-ref
+vs dependency-injector 8.1x, C2 by-ref vs dependency-injector 5.2x, C1 by-type
+vs dishka 4.6x) still clear comfortably.
+
+**by-type C2 is the weakest surviving pair, and it survives on magnitude.** Its
+drift margins are the narrow ones — 2.3x vs dishka, 3.2x vs wireup — so the
+ratio limb alone would not carry it. The magnitude limb does: raw moves of
+**-6.96%** and **-7.15%** against the table's largest and third-largest drifts
+(-3.00%, -2.23%) still leave **-3.96pp and -4.92pp** net of drift, both above
+the ~3% floor. The other ten span -4.57pp to -8.21pp, so the `wireup` cell sits
+inside their band outright and the `dishka` cell lands just under its lower
+edge — close to them, not close to C6, whose worst case is -0.95pp. It is
+corroborated by the absolute it is a ratio of: modern-di's own by-type warm
+singleton moved 177 ns → 170 ns, **-4.0%**, matching the drift-corrected ratio
+move almost exactly. Real — but the thinnest pair called real in this table, and
+any conclusion resting on it should say so.
+
+The single qualitative crossing: **by-type C2 vs dishka goes from 1.05-1.08
+(depending which `main` run is used as baseline) to 1.00** — P1+P2 bring
+modern-di's warm-singleton by-type resolve to effective parity with dishka.
+**Read "effective parity" as "within a few percent of 1.00", not as a measured
+1.00**: this is the cell with the largest no-code drift in the table, so a
+finalists ratio printed at 1.003 has a drift-sized band around it, and the
+honest statement is that the remaining gap is small enough to be inside the
+measurement's own uncertainty rather than demonstrably zero. (An earlier draft
+quoted the starting point as "`main` trails by ~8%," which is `main #1` alone;
+the `main #2` recheck measures the same ratio at 1.046 — about a third of that
+gap was itself session drift, and the drift-corrected move is -4-5%. The parity
+conclusion is unchanged; only the starting-point quote and the confidence
+attached to it are corrected.)
 
 C4 is flat: all four ratio cells move under 1%, and three of the four move by
 *less* than their own no-code drift — expected, since C4 is dominated by
 event-loop entry and async finalizer wall time, not the synchronous
 resolve-closure cost P1/P2 touch.
 
-**C6 is not separable from ambient drift — not a move.** All four C6 ratio
-cells clear their own drift by only 1.4x-3.4x, well below the 4.6x floor
-every C1/C3 cell clears. All four moves are negative; the drift figures are
+**C6 is not separable from ambient drift — not a move, and it fails on the
+magnitude limb, not the ratio limb.** This is the comparison the by-type C2
+reading above has to survive, because C6's drift margins overlap by-type C2's:
+`vs dependency-injector` is **2.3x**, identical to by-type C2 vs dishka, and
+`vs that-depends` is **3.4x**, larger than by-type C2 vs wireup's 3.2x. If the
+ratio were the threshold, C6 would be real and the section would contradict
+itself. It is not the threshold — **magnitude is**, and that is where the two
+diverge and stay diverged:
+
+| | raw \|move\| | drift | net of drift | clears ~3%? |
+|---|---|---|---|---|
+| by-type C2 vs dishka | 6.96% | -3.00% | **-3.96pp** | yes |
+| by-type C2 vs wireup | 7.15% | -2.23% | **-4.92pp** | yes |
+| C6 vs dependency-injector | 3.83% | -1.64% | -2.19pp | **no** |
+| C6 vs that-depends | 2.09% | +0.62% | -2.71pp | **no** |
+| C6 vs dishka | 1.87% | +0.66% | -2.53pp | **no** |
+| C6 vs wireup | 3.43% | -2.48% | -0.95pp | **no** |
+
+Two of the four C6 cells are below the ~3% floor on the **raw** move before any
+drift correction, and all four are below it net of drift — a -0.95pp-to--2.71pp
+band that does not overlap by-type C2's -3.96pp and -4.92pp at all.
+The absolutes corroborate the split: modern-di's own C6 figure moved 1.38 µs →
+1.35 µs (**-2.2%**), under the floor, where by-type C2's moved -4.0%. So the
+verdicts are opposite because the cells are genuinely different in size, not
+because the same criterion was read two ways.
+
+All four C6 moves are negative; the drift figures are
 `vs dependency-injector` **-1.64%**, `vs that-depends` **+0.62%**, `vs dishka`
 **+0.66%**, `vs wireup` **-2.48%** — so two share the move's sign (a large
 fraction of the apparent move reproducing on unchanged code), and **two flip
@@ -1653,3 +1777,322 @@ path runs on every timed call; P2's per-provider compile-time override check
 alone (6 calls per cold build, each tens of ns) explains at most 10-30% of
 the residual, not the bulk of it. This affects no published cell, but "P1+P2
 have no downside anywhere" would overstate the finding.
+
+## Appendix — the measurement harness
+
+Every A/B/A number in this report was produced by the three files below. They
+lived under the repository's git-ignored scratch directory and were **never
+committed as files**, by the spec's own "one script living on the spike branch
+only" instruction — so this appendix is their only surviving copy, and it is
+verbatim final source, not a sketch. It is here because a methodology section
+that describes an instrument nobody has is not reproducible: with these three
+files restored to any path, plus this repository at `main`, every band quoted
+above can be re-derived on comparable hardware.
+
+Two notes on reading them. First, the harness measures the resolve call
+**directly** with `timeit` rather than going through the committed guard tier —
+`benchmarks/README.md` records that a guard median is quantized to one
+`perf_counter` tick (41 ns on an M4, 23% of G2's ~180 ns) and cannot read a
+10-30 ns move, which is the size of nearly every candidate here. Second, it
+imports its scenario graphs from the committed `benchmarks/test_guard_resolve.py`
+rather than defining its own, so the shapes it times are the repository's own
+guard shapes; `ab_run.sh` swaps only `modern_di/` between revisions, which is
+what keeps the graphs, the harness, and the process identical across the A, B
+and A legs.
+
+### `ab_bench.py`
+
+The scenarios, their per-call iteration counts, and the `timeit` loop. Prints one
+JSON object of `median_ns` / `min_ns` / `max_ns` / `spread_pct` per scenario.
+
+```python
+"""A/B/A micro-benchmark harness for the clean-and-fast resolve research (spike-only).
+
+Lives under .superpowers/ (git-ignored) so it survives `git checkout <rev> -- modern_di/`
+between the A and B measurements. Guard medians are quantized to one perf_counter tick
+(41 ns on an M4, 23% of G2's ~180 ns) and cannot read a 10-30 ns move; this measures the
+specific call directly, the method benchmarks/README.md prescribes for small changes.
+"""
+
+import argparse
+import json
+import os
+import statistics
+import sys
+import timeit
+import typing
+
+
+sys.path.insert(0, ".")
+
+from benchmarks.test_guard_resolve import (  # noqa: E402
+    ChainGroup,
+    ContextGroup,
+    CrossScopeGroup,
+    OverrideChainGroup,
+    RequestObj,
+    Sentinel,
+    Service,
+    SingletonGroup,
+    TransientGroup,
+    WideGroup,
+)
+from modern_di import Container, Scope  # noqa: E402
+
+
+def s_g1_transient() -> typing.Callable[[], typing.Any]:
+    container = Container(scope=Scope.APP, groups=[TransientGroup])
+    provider = TransientGroup.svc
+    return lambda: container.resolve_provider(provider)
+
+
+def s_g2_cached() -> typing.Callable[[], typing.Any]:
+    container = Container(scope=Scope.APP, groups=[SingletonGroup])
+    provider = SingletonGroup.svc
+    container.resolve_provider(provider)  # warm
+    return lambda: container.resolve_provider(provider)
+
+
+def s_g3_chain() -> typing.Callable[[], typing.Any]:
+    container = Container(scope=Scope.APP, groups=[ChainGroup])
+    provider = ChainGroup.c0
+    return lambda: container.resolve_provider(provider)
+
+
+def s_g4_wide() -> typing.Callable[[], typing.Any]:
+    container = Container(scope=Scope.APP, groups=[WideGroup])
+    provider = WideGroup.wide
+    return lambda: container.resolve_provider(provider)
+
+
+def s_g5_cross_scope() -> typing.Callable[[], typing.Any]:
+    app = Container(scope=Scope.APP, groups=[CrossScopeGroup])
+    req = app.build_child_container(scope=Scope.REQUEST)
+    provider = CrossScopeGroup.req_svc
+    return lambda: req.resolve_provider(provider)
+
+
+def s_g9_context() -> typing.Callable[[], typing.Any]:
+    app = Container(scope=Scope.APP, groups=[ContextGroup])
+    req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})
+    provider = ContextGroup.handler
+    return lambda: req.resolve_provider(provider)
+
+
+def s_g12_override_active() -> typing.Callable[[], typing.Any]:
+    container = Container(scope=Scope.APP, groups=[OverrideChainGroup])
+    container.override(OverrideChainGroup.sentinel, Sentinel())
+    provider = OverrideChainGroup.c0
+    container.resolve_provider(provider)  # warm (and, under P2, compile once post-override)
+    return lambda: container.resolve_provider(provider)
+
+
+def s_g16_by_type() -> typing.Callable[[], typing.Any]:
+    container = Container(scope=Scope.APP, groups=[SingletonGroup])
+    container.resolve(Service)  # warm
+    return lambda: container.resolve(Service)
+
+
+def s_cold() -> typing.Callable[[], typing.Any]:
+    # G8 shape: root construction + graph compile + first resolve, all inside the timed call.
+    # A fresh Container means a fresh ProvidersRegistry, so every resolver recompiles.
+    def run() -> None:
+        container = Container(scope=Scope.APP, groups=[ChainGroup])
+        container.resolve_provider(ChainGroup.c0)
+
+    return run
+
+
+def s_g2_cold() -> typing.Callable[[], typing.Any]:
+    # Supplementary (not in the original SCENARIOS set): isolates the cached-factory cold-miss
+    # path (build_cold/create_cold) specifically. `cold` uses ChainGroup, which has no cached
+    # providers at all, so it never calls _compile_cached_factory's builders -- this does.
+    def run() -> None:
+        container = Container(scope=Scope.APP, groups=[SingletonGroup])
+        container.resolve_provider(SingletonGroup.svc)
+
+    return run
+
+
+def _churn(resolves: int) -> typing.Callable[[], typing.Any]:
+    # Models a test suite: apply an override, run a batch of resolves, reset it. Under a
+    # candidate that invalidates compiled resolvers on override, each cycle pays a recompile.
+    container = Container(scope=Scope.APP, groups=[OverrideChainGroup])
+    provider = OverrideChainGroup.c0
+    sentinel = Sentinel()
+
+    def run() -> None:
+        container.override(OverrideChainGroup.sentinel, sentinel)
+        for _ in range(resolves):
+            container.resolve_provider(provider)
+        container.reset_override(OverrideChainGroup.sentinel)
+
+    return run
+
+
+def s_churn1() -> typing.Callable[[], typing.Any]:
+    return _churn(1)
+
+
+def s_churn10() -> typing.Callable[[], typing.Any]:
+    return _churn(10)
+
+
+def s_churn20() -> typing.Callable[[], typing.Any]:
+    return _churn(20)
+
+
+def s_churn50() -> typing.Callable[[], typing.Any]:
+    return _churn(50)
+
+
+def s_churn100() -> typing.Callable[[], typing.Any]:
+    return _churn(100)
+
+
+# scenario name -> (builder, iterations per timeit call)
+SCENARIOS: dict[str, tuple[typing.Callable[[], typing.Callable[[], typing.Any]], int]] = {
+    "g1_transient": (s_g1_transient, 200_000),
+    "g2_cached": (s_g2_cached, 200_000),
+    "g3_chain": (s_g3_chain, 100_000),
+    "g4_wide": (s_g4_wide, 50_000),
+    "g5_cross_scope": (s_g5_cross_scope, 200_000),
+    "g9_context": (s_g9_context, 100_000),
+    "g12_override_active": (s_g12_override_active, 100_000),
+    "g16_by_type": (s_g16_by_type, 200_000),
+    "cold": (s_cold, 5_000),
+    "g2_cold": (s_g2_cold, 20_000),
+    # churn1/20/50 bracket the crossover: a candidate that recompiles on override pays a fixed
+    # per-cycle cost that the per-resolve win only repays above some batch size.
+    "churn1": (s_churn1, 100_000),
+    "churn10": (s_churn10, 20_000),
+    "churn20": (s_churn20, 10_000),
+    "churn50": (s_churn50, 5_000),
+    "churn100": (s_churn100, 2_000),
+}
+
+# Default 15, per Task 1's calibration. `AB_REPEATS` raises it for the scenarios Task 1 found
+# cannot adjudicate a ~3% effect at 15 (g2_cached, g16_by_type) and for the uncalibrated
+# cold/churn scenarios. Env-var, not an edit, so a single session can mix both values on record.
+REPEATS = int(os.environ.get("AB_REPEATS", "15"))
+
+
+def measure(name: str) -> dict[str, float]:
+    build, number = SCENARIOS[name]
+    fn = build()
+    fn()  # warm the call itself
+    samples = [timeit.timeit(fn, number=number) / number * 1e9 for _ in range(REPEATS)]
+    median = statistics.median(samples)
+    return {
+        "median_ns": median,
+        "min_ns": min(samples),
+        "max_ns": max(samples),
+        "spread_pct": (max(samples) - min(samples)) / median * 100,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("scenarios", nargs="*", default=[])
+    args = parser.parse_args()
+    names = args.scenarios or list(SCENARIOS)
+    print(json.dumps({name: measure(name) for name in names}))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### `ab_report.py`
+
+Turns one A/B/A triple of `ab_bench.py` dumps into the verdict table quoted
+throughout this report. Note what `verdict` does and does not check: it compares
+`drift_pct` (how far the two A legs disagree) against the larger of the two A
+legs' own `spread_pct`, and says nothing about whether `delta_%` itself is
+small — the trap the null-control section above documents with two `OK` rows
+carrying deltas past 3% on identical code.
+
+```python
+"""Turn one A/B/A triple of ab_bench.py JSON dumps into a verdict table.
+
+Baseline is the median of the two A runs. `drift_pct` is how far the two A runs
+disagree; when drift exceeds the larger of the two runs' own spread, the run is
+DISCARD -- the machine moved under us and the delta means nothing.
+"""
+
+import json
+import pathlib
+import sys
+
+
+def main() -> None:
+    a1, b, a2 = (json.loads(pathlib.Path(p).read_text()) for p in sys.argv[1:4])
+    print(f"{'scenario':<22}{'base_ns':>10}{'cand_ns':>10}{'delta_%':>10}{'drift_%':>10}  verdict")
+    for name in b:
+        base = (a1[name]["median_ns"] + a2[name]["median_ns"]) / 2
+        cand = b[name]["median_ns"]
+        drift = abs(a1[name]["median_ns"] - a2[name]["median_ns"]) / base * 100
+        tolerance = max(a1[name]["spread_pct"], a2[name]["spread_pct"])
+        verdict = "OK" if drift <= tolerance else "DISCARD"
+        delta = (cand - base) / base * 100
+        print(f"{name:<22}{base:>10.1f}{cand:>10.1f}{delta:>+10.2f}{drift:>10.2f}  {verdict}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### `ab_run.sh`
+
+The driver: measure base, then candidate, then base again, swapping only
+`modern_di/`. This is the post-hardening version described in
+`## Harness hardening (post-review fix, 2026-07-28)` — the pre-flight dirty
+check at the top and the `trap cleanup EXIT INT TERM` are the two fixes that
+section reproduces and verifies.
+
+```bash
+#!/usr/bin/env bash
+# A/B/A driver: measure <base>, then <candidate>, then <base> again, swapping only modern_di/.
+# Usage: .superpowers/spike/ab_run.sh <base-rev> <candidate-rev> [scenario ...]
+set -euo pipefail
+
+BASE="${1:?base rev required}"
+CAND="${2:?candidate rev required}"
+shift 2
+OUT=.superpowers/spike/out
+mkdir -p "$OUT"
+
+# Refuse to start against a dirty modern_di/: START below only captures committed HEAD,
+# so restoring to it on exit would silently discard any uncommitted working-tree edits.
+git diff --quiet HEAD -- modern_di/ || { echo "FATAL: modern_di/ has uncommitted changes; commit or stash first" >&2; exit 1; }
+
+# Restore to whatever was checked out when we started, NOT to $CAND -- otherwise the run
+# leaves the candidate's modern_di/ sitting in the work branch's tree.
+START="$(git rev-parse HEAD)"
+
+swap() {
+  git checkout -q "$1" -- modern_di/
+  find modern_di -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
+}
+run() { uv run --no-sync python .superpowers/spike/ab_bench.py "$@" > "$OUT/$RUN.json"; }
+
+# Restore modern_di/ to $START on ANY exit -- success, a candidate run that crashes or
+# exits non-zero, or an interrupt -- so a candidate that dies mid-scenario never leaves
+# its modern_di/ sitting in the work tree. This is the only restore path; there is no
+# separate happy-path restore for it to fall out of sync with.
+cleanup() {
+  local status=$?
+  trap - EXIT INT TERM
+  swap "$START"
+  git restore --staged modern_di/ 2>/dev/null || true
+  git diff --quiet HEAD -- modern_di/ || { echo "FATAL: modern_di/ left dirty after restore" >&2; exit 1; }
+  exit "$status"
+}
+trap cleanup EXIT INT TERM
+
+swap "$BASE"; RUN=a1 run "$@"
+swap "$CAND"; RUN=b  run "$@"
+swap "$BASE"; RUN=a2 run "$@"
+
+uv run --no-sync python .superpowers/spike/ab_report.py "$OUT/a1.json" "$OUT/b.json" "$OUT/a2.json"
+```
