@@ -579,3 +579,55 @@ or wrong value. But it is a real, demonstrated behavior change, and the
 report must say so rather than assert a clean invariant the suite never
 actually tested.
 
+## P1 — closed-check hoist, measured (Task 3)
+
+Applied on throwaway branch `spike/p1-closed-check` (off `main`, commit
+`344ff50`): `_navigate` now reopens its own target
+(`modern_di/resolver_compiler.py`), and the four per-closure copies of `if
+target.closed: target._prepare()` are deleted from `resolve_positional`, the
+transient factory's kwargs-fork `resolve`, the cached factory's `resolve`,
+and the unwireable factory's `resolve`. Diff: `+9 -10`, one file. **-4
+copies, -4 `SLF001` suppressions (net), 0 new rules.**
+`git diff main -- modern_di/` on `research/clean-fast-resolve` is empty —
+nothing here ships. Full raw tables live in
+`.superpowers/sdd/2026-07-28-clean-fast-resolve-research/task-3-report.md`.
+
+**Behavior delta — open, not resolved here.** This hoist is exactly the one
+the counterexample above (`test_dependency_closing_container_mid_resolution`)
+was built against: with the hoist applied, that scenario resolves
+successfully but silently — no `ContainerClosedWarning`, and the container
+is left `closed=True` where `main` reopens it and warns. `just test` passes
+452/452 either way (the suite does not visit this branch), so the green run
+is a sanity gate, not evidence of preservation. Whether that delta is
+acceptable, and how it should be documented if so, is left as a maintainer
+decision — not assumed away here.
+
+**Perf — separates from noise on the same-scope scenarios.** Mechanism: for
+a same-scope dependency the closed-check used to run unconditionally in
+every closure; under the hoist it runs only inside `_navigate`, which
+same-scope resolution never calls, so the check is removed from the hot path
+entirely (not merely relocated). Four `REPEATS=15` runs across
+`g1_transient`, `g2_cached`, `g3_chain`, `g4_wide`, `g5_cross_scope` all
+verdict `OK` (no `DISCARD`). `g3_chain` (-2.4% to -3.9%) clearly clears its
+1.15% null-noise ceiling from the calibration table; `g2_cached`'s `REPEATS=15`
+deltas (-1.5% to -4.6%) aren't adjudicable there (its own noise floor reaches
+4.45%), but three re-runs at `REPEATS=25` (-3.7% to -4.3%, drift mostly
+<0.4%, vs. a <1% null band at that `REPEATS`) confirm a real effect.
+`g1_transient` (-0.7% to -2.7%) mostly clears its 1.36% ceiling. `g4_wide`
+(-0.3% to -2.8%) is directionally consistent but not confidently separated
+from its 2.38% ceiling without a further `REPEATS` bump this task did not
+run. `g5_cross_scope` (+0.4% to +0.8%) reads flat, as expected — that path
+still calls `_navigate`, so its check merely relocated rather than
+disappeared.
+
+**`dis` frame count** (`TransientGroup.svc`, `resolve_positional` path):
+`main` — 8 `CALL` opcodes; candidate — 7. The one fewer `CALL` is exactly
+`target._prepare()`'s own call, deleted along with its guard, not a new call
+introduced elsewhere; the closure stays a single flat code object either
+way, so the module's "one Python frame per node" invariant holds.
+
+**Bucket:** real, small, node-count-scaling perf win, gated on an
+unresolved behavior-delta decision — not a free lunch, and not to be shipped
+until the maintainer rules on whether the silent-no-warning /
+stays-closed outcome for a creator that closes its own resolving container
+mid-flight is acceptable.
