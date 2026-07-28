@@ -315,11 +315,11 @@ changes the verdict, so they are screened here rather than left `pending`.
 | Concern | Site(s) | Verified copies | Perf |
 |---|---|---|---|
 | Override front-guard | `resolver_compiler.py` (7 sites, see above) | 7 | pending (P2, Task 4) |
-| Closed-check + `_prepare()` | `resolver_compiler.py:100-101,127-128,221-222,269-270` | 4 | pending (P1, Task 3) |
+| Closed-check + `_prepare()` | `resolver_compiler.py:100-101,127-128,221-222,269-270` | 4 | pending (P1, Task 3) — proceeds with a named behavior delta, see below |
 | Args build (positional / kwargs fork) | `resolver_compiler.py:102-106,129-139,175-180,197-209` | 4 bodies | pending (P3, Task 5) |
 | Entry dispatch | `container.py:215-230` (P4 targets the sibling by-type `resolve()` entry) | 1 | pending (P4, Task 6) |
 
-### Closed-check invariant — verified, Task 3 may proceed
+### Closed-check invariant — false in general; holds under a named condition
 
 Task 3's plan hoists `if target.closed: target._prepare()` out of the four
 closures listed above and into `_navigate` alone. That is sound only if a
@@ -377,9 +377,205 @@ collected 453 items
 in the repository drives a compiled resolver's same-scope branch into a
 closed target — the `AssertionError` was never raised.
 
-**Verdict: the invariant holds. Task 3 may proceed.** The probe and the
-temporary test were reverted immediately after
-(`git checkout -- modern_di/resolver_compiler.py`; `rm
-tests/test_spike_closed_invariant.py`); `git diff main -- modern_di/` is
-empty.
+**This green suite is not, by itself, evidence for the invariant.** A
+suite passing on an unreached probe proves only that the existing tests
+don't happen to visit that branch — not that the branch is unreachable.
+(Independent review instrumented all four closed-check sites with hit
+counters and reran the suite: ~1,050 resolver calls produced 5 closed-target
+hits, and every one was a same-*named*-scope-but-different-*object*
+cross-scope case — `test_transient_positional_warns_for_closed_cross_scope_target`,
+`test_transient_kwargs_warns_for_closed_cross_scope_target`,
+`test_unwireable_factory_warns_for_closed_cross_scope_target` in
+`tests/providers/test_factory.py`, plus two closed-parent/open-child cases
+in `tests/test_container.py` — never a same-scope one. Zero hits fired from
+a same-scope branch, which is a corroborating negative, not proof of
+impossibility.)
+
+### Constructing the counterexample
+
+Rather than resting on the suite's silence, the same-scope route was
+attacked directly: a node with two dependencies, resolved in signature
+order, where the first dependency's creator receives the resolving
+`Container` (via the auto-registered container-provider — any creator
+parameter typed `Container` wires to it automatically, per
+`container.py:139-140`) and closes it as a side effect; the second
+dependency is then resolved with that same container object as its
+same-scope target.
+
+```python
+"""Temporary spike test: construct a same-scope closed-target counterexample."""
+
+import dataclasses
+
+import pytest
+
+from modern_di import Container, Group, Scope, providers
+
+
+@dataclasses.dataclass(slots=True)
+class Leaf:
+    pass
+
+
+@dataclasses.dataclass(slots=True)
+class Closer:
+    pass
+
+
+def make_closer(container: Container) -> Closer:
+    container.close_sync()
+    return Closer()
+
+
+@dataclasses.dataclass(slots=True)
+class Top:
+    closer: Closer
+    leaf: Leaf
+
+
+class AppGroup(Group):
+    closer = providers.Factory(creator=make_closer, scope=Scope.APP)
+    leaf = providers.Factory(creator=Leaf, scope=Scope.APP)
+    top = providers.Factory(creator=Top, scope=Scope.APP)
+
+
+def test_dependency_closing_container_mid_resolution() -> None:
+    app = Container(scope=Scope.APP, groups=[AppGroup])
+    with pytest.warns(Warning) as record:
+        result = app.resolve_provider(AppGroup.top)
+
+    assert isinstance(result, Top)
+```
+
+Run against unmodified `main`:
+
+```
+$ just test tests/test_spike_mid_resolution_close.py -v -s
+tests/test_spike_mid_resolution_close.py::test_dependency_closing_container_mid_resolution closed after resolve: False
+warnings: ['Container (scope APP) was reused after close and has been reopened. Call `open()`, or
+re-enter it with `with`/`async with`, to reuse it deliberately; if you did not intend to reuse it,
+a reference is being held past its lifetime.']
+PASSED
+============================== 1 passed in 0.01s ===============================
+```
+
+**The counterexample constructs.** `Top`'s dependencies resolve in
+signature order (`closer`, then `leaf`), both same-scope (APP), against the
+same container object. `closer`'s own front-guard/closed-check passes while
+the container is still open; its creator then closes it. When `leaf`'s
+compiled resolver is invoked next — same-scope, no `_navigate` call — it
+independently re-checks `target.closed` **on its own entry** (this is
+exactly the "per-node" duplication the spec's inventory counts as
+`resolver_compiler.py:100-101,127-128,221-222,269-270`), finds it closed,
+warns, and reopens it before proceeding. `app.closed` is `False` again by
+the time `resolve_provider` returns.
+
+**So the invariant, stated unconditionally ("no compiled resolver ever
+meets a closed same-scope target"), is false.** It survives today only
+because the closed-check is duplicated into every closure and each
+instance is independently defensive — the exact duplication Task 3 wants to
+delete.
+
+### What changes under Task 3's exact proposed hoist
+
+Task 3's plan (`_navigate` reopens; the four per-closure checks are
+deleted) was applied verbatim to a scratch copy of
+`resolver_compiler.py` and the identical counterexample test was rerun
+against it:
+
+```
+$ just test tests/test_spike_mid_resolution_close.py -v -s
+FAILED: DID NOT WARN. No warnings of type (<class 'Warning'>,) were emitted.
+```
+
+Removing the `pytest.warns` assertion to observe the raw outcome:
+
+```python
+result = app.resolve_provider(AppGroup.top)
+# result: Top(closer=Closer(), leaf=Leaf())
+# app.closed after resolve: True
+# warnings emitted: []
+```
+
+**The behavior delta, confirmed rather than assumed:** resolution still
+*succeeds* — no exception, `Top` is built correctly — but silently.
+`leaf`'s same-scope branch under the hoist never calls `_navigate`, so the
+hoisted reopen-check (which now lives only inside `_navigate`) never runs
+for it; `target.closed` is never inspected, no `ContainerClosedWarning`
+fires, and the container is left `closed=True` after the top-level resolve
+returns — where today it ends up `closed=False` (reopened, with a
+warning). The reviewer's predicted delta ("not reopened, no warning") is
+exactly what was observed.
+
+Also confirmed: this scenario is not covered by the existing suite at all.
+With the hoist applied and the spike test removed, `just test` still
+reports `452 passed` — Task 3's own planned gate ("run the suite, expect
+the same count as main") would not catch this delta; it would ship
+unnoticed.
+
+The hoisted `resolver_compiler.py` was reverted
+(`git checkout -- modern_di/resolver_compiler.py`) and both temporary test
+files were deleted; `git diff main -- modern_di/` is empty.
+
+### Structural argument, and its residual gap
+
+The structural case for the invariant: `resolve_provider`
+(`container.py:217-218`) reopens **only the entry container**, once,
+before any resolver runs. `find_container` (`container.py:165-173`)
+returns `self` without constructing anything when the requested scope
+equals the container's own scope, and consults `_scope_map` (ancestors
+only) otherwise — so a *different* container object is returned only when
+crossing a scope boundary, i.e. only via `_navigate`. Chaining these: at
+the moment a top-level resolve begins, the entry container is open; any
+other container object reached during that resolve is reached only
+through `_navigate`, whose hoisted check (under Task 3) reopens it on
+arrival. By induction over the call tree, every container object a
+same-scope branch could be handed was either the just-reopened entry
+container or a target just reopened by the `_navigate` call that produced
+it — so it should be open.
+
+**The gap in that induction is exactly the counterexample above:** the
+argument assumes a container's `closed` state, once established at entry
+or navigation time, doesn't change again before some *later* same-scope
+call in the same resolve tree reuses that object. That assumption fails
+whenever a creator holds a reference to its own resolving `Container` (via
+the auto-registered container-provider or a stored reference to it from
+context) and calls `close_sync`/`close_async` on it as a side effect
+before that resolve tree finishes. No scope boundary is crossed, no new
+object is created — the same object is simply mutated out from under a
+later sibling call.
+
+### Verdict
+
+The invariant is **not unconditionally true**; it is true only under an
+added condition the spec did not state: *no creator (or anything it calls)
+closes the Container instance that is its own or a shared same-scope
+target while that top-level resolve is still in flight.* Nothing in the
+framework prevents this — depending on `Container` and calling
+`close_sync`/`close_async` on it is ordinary public API, not a documented
+anti-pattern, and no existing test asserts against it either way.
+
+**Task 3 may proceed, but only with this behavior delta named explicitly,
+not silently.** Recommendation, in order of preference:
+1. Task 3's report row should state plainly that the hoist changes
+   observable behavior in this one scenario: a same-scope target closed by
+   a sibling dependency's side effect during resolution is no longer
+   reopened and no longer warns; the resolve still completes, but the
+   container is left closed afterward where it previously wasn't.
+2. Task 3 should add a regression test capturing the **new** behavior (no
+   warning, `closed` stays `True`) so a future change doesn't silently flip
+   it again unnoticed — the gap here was that no test existed for either
+   behavior.
+3. Whether that delta is acceptable — i.e., whether "no new rule" in the
+   spec's screen can still be claimed given this narrow, self-inflicted
+   edge case — is a maintainer call, not mine to make unilaterally; it is
+   filed as a named risk on the `P1` row rather than assumed away.
+
+Abandoning Task 3 outright is not supported by the evidence: the delta is
+narrow (requires a creator to close its own resolving container mid-flight,
+which is unusual and already unwarranted by any documented contract), and
+the failure mode is silent success with a stale `closed` flag, not a crash
+or wrong value. But it is a real, demonstrated behavior change, and the
+report must say so rather than assert a clean invariant the suite never
+actually tested.
 
