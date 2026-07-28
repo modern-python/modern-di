@@ -19,6 +19,12 @@ lint-ci:
     uv run ruff check --no-fix
     uv run ty check
     uv run python planning/index.py --check
+    uv run python planning/links.py
+
+# Check every relative Markdown link and heading anchor. `mkdocs --strict` only sees
+# docs/; architecture/ and planning/ live outside docs_dir and are read on GitHub.
+check-links:
+    uv run python planning/links.py
 
 # Run pytest with NO coverage (targeted runs won't trip the gate). Passes args through.
 test *args:
