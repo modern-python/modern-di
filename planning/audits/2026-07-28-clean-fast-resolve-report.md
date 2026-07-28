@@ -845,41 +845,82 @@ re-established in this session (not assumed from Task 1's): at `REPEATS=25`
 the transient-body merge alone costs **+10.0% to +13.1%** on `g1_transient`,
 `g3_chain`, `g4_wide` and **+4.0% to +5.3%** on `g9_context`, against
 per-scenario floors of 0.85-1.59% — 3x to 15x the noise, and 3x to 4x the 3%
-budget on three of the four required scenarios. `g9_context`'s smaller
-relative cost is explained by dilution (its graph mixes an unaffected
-`ContextProvider` node with `Factory` nodes), not by the merge being
-cheaper there. The cached-builder merge, measured separately per the
-brief's staging (Steps 6-7, plus a supplementary `g2_cold` probe added to
-isolate the actual cold-miss path from the uncalibrated `cold` scenario,
-which turned out to use an all-transient group and not exercise this path
-at all), costs **below the ~1% measurement floor** — genuinely free, but it
-is the smaller half of one candidate, not a separate ship decision.
+budget on three of the four required scenarios (independently reproduced by
+review: `g1_transient` +9-12%, `g3_chain` +6-9%, `g4_wide` +12-14%, `g9_context`
++3-5%). The cached-builder merge, measured separately per the brief's staging
+(Steps 6-7, plus a supplementary `g2_cold` probe added to the git-ignored
+`ab_bench.py`, isolating the cached-provider cold-miss path — see the
+**guard-suite gap** below for why the brief's own `cold` scenario cannot do
+this), costs **below the ~1% measurement floor** — genuinely free, but it is
+the smaller half of one candidate, not a separate ship decision.
 
-**Mechanism, not a fluke.** `dis` shows the merge adds ~7-8 executed opcodes
-to the positional hot path per call — the captured `positional` flag is
-checked *twice* (once to select the args-build branch, once again in the
-`creator(*args) if positional else creator(**kwargs)` return ternary), plus
-a `JUMP_FORWARD` over the dead branch. Fitting the absolute deltas against
-each scenario's node count gives a consistent **~13-17ns fixed cost added
-per `Factory`-provider node resolved**, regardless of scenario shape. The
-brief's own prediction ("a `LOAD_DEREF` plus branch per node, twice ...
-small") had the mechanism right and the magnitude wrong: on resolvers this
-small (`g1_transient`'s whole hot path was ~40-50 opcodes), a fixed 7-8 opcode
-tax is not a small fraction.
+**Mechanism (corrected per review) — mostly frame growth, not the branch
+itself.** The first pass here attributed the cost to "~7-8 extra executed
+opcodes" from checking the captured `positional` flag twice per call. Review
+falsified that as the primary cause with a controlled experiment: a variant of
+`main` that keeps the two-closure fork (zero executed opcodes added on the hot
+path) but pads `resolve_positional`'s never-taken `except` handler so its code
+object's frame shape matches the merged body's (verified identical shape,
+452 tests pass) reproduced **55-58% of the regression by frame growth alone**:
+
+| | `g1_transient` | `g4_wide` |
+|---|---|---|
+| `main` | 283 ns | 1348 ns |
+| pad only, no branch | 301 ns (+6.4%) | 1449 ns (+7.5%) |
+| P3 (full merge) | 315 ns (+11.4%) | 1525 ns (+13.1%) |
+
+Confirmed independently here via `co_freevars`/`co_varnames`/`co_stacksize`:
+`main`'s `resolve_positional` (the fork `g1_transient`/`g3_chain`/`g4_wide`'s
+nodes are all on) has **5 free vars, 8 locals, stacksize 7**; `main`'s kwargs
+`resolve` has 9/12/8; the merged `resolve` has **11 free vars, 13 locals,
+stacksize 8** — a jump of +6 free vars / +5 locals over the positional shape,
+but only +2/+1 over the kwargs shape. One shared code object now pays the
+larger of the two frame shapes on every call, regardless of which branch it
+takes: extra `COPY_FREE_VARS` increfs, extra `localsplus` NULL-init, and extra
+decrefs at teardown, on top of the (real, but now secondary) cost of
+evaluating the branch twice. **A branch-free reformulation would recover at
+most ~45% of the delta** — the frame-size term is inherent to sharing one
+code object across both shapes, not fixable by restructuring the branch.
+
+**This falsifies the "fixed ~13-17ns per node, independent of scenario" model
+originally reported.** `g9_context`'s smaller delta is not explained by
+dilution from an untouched `ContextProvider` node (the first-pass
+explanation) — it is explained by which fork the node was on in `main`.
+`ContextGroup.app_dep` was `resolve_positional` (5/8, same shape as every
+`g1`/`g3`/`g4` node) and pays the full frame-growth tax; `ContextGroup.handler`
+was **already** the kwargs `resolve` (9/12) in `main` because it mixes a
+context-provider kwarg (non-pure), so merging grows its frame by only +2/+1 and
+it is close to free. Both nodes execute on every `g9_context` timed call
+(`handler` calls `app_dep` as its own dependency), so the scenario's smaller
+relative delta reflects a *mix* of one full-cost node and one near-free node,
+not a discount from the graph shape. **The corrected model: a node's
+frame-growth cost depends on which fork it was compiled to in `main` —
+positional-fork nodes pay roughly the full tax, already-kwargs-fork nodes pay
+a small fraction of it.** A single scenario-independent per-node constant is
+false as originally stated.
 
 **Ledger: the brief's "-2 droppable `C901`/`PLR0915` suppressions" is half
 right, half backwards — verified by running `just lint-ci`, not assumed.**
 `PLR0915` (statement count) does drop out on both merged functions — a
-genuine -2. But `C901` (cyclomatic complexity) gets **worse**: both outer
-functions still trip it after merging, and the merge creates a **brand-new**
-violation on the inner `resolve` closure inside `_compile_transient_factory`
-(11>10), never flagged before because each half was individually under
-threshold. Net complexity-suppression sites: 2 (`main`) → 3 (candidate) — the
-same shape of surprise Task 4 found on `noqa: SLF001`: merging relocates
-complexity into one function's count rather than removing it. Total `noqa`
-occurrences do fall (33→31, `SLF001` -2 alongside the `PLR0915` -2), and the
-file shrinks (348→309 lines, **net -39**, diff `+50 -89`) — the cleanliness
-win is real, just smaller and differently shaped than predicted.
+genuine -2. `C901` (cyclomatic complexity) is more nuanced than "gets worse"
+as first stated: **both outer functions individually get substantially
+simpler** — `_compile_transient_factory`'s own score drops 20→13,
+`_compile_cached_factory`'s drops 20→18 (verified by stripping the `noqa` and
+re-running `ruff check` on each side) — but neither drops *below* the
+threshold-of-10 gate, so both still need a suppression, and the merge creates
+one **brand-new** violation: the inner `resolve` closure inside
+`_compile_transient_factory` (11>10), never flagged before because each
+pre-merge half was individually under threshold on its own. Net complexity-
+suppression *sites*: 2 (`main`) → 3 (candidate) — one more than before, but
+driven entirely by that one new inner-closure site, not by the outer
+functions getting harder to suppress (they got easier, just not easy enough).
+This is a milder version of the surprise Task 4 found on `noqa: SLF001`:
+merging reduces raw complexity but still relocates enough of it that nothing
+becomes droppable — plus, here, it opens one new site the brief did not
+anticipate. Total `noqa` occurrences do fall (33→31, `SLF001` -2 alongside the
+`PLR0915` -2), and the file shrinks (348→309 lines, **net -39**, diff `+50
+-89`, independently reproduced) — the cleanliness win is real, just smaller
+and differently shaped than predicted.
 
 **A cost outside the brief's stated file scope: `Factory._call_creator`
 becomes dead code.** The cached factory's kwargs cold-miss path used to
@@ -892,11 +933,36 @@ passes 452/452 (behavior preserved), but `just test-ci` — 100% on
 version of this merge would need a second file touched (deleting the now-dead
 method) or a permanent coverage-gate exception.
 
+**Guard-suite gap, found while isolating the cached-builder cost (corrected
+per review — this is a gap in the committed guard suite, not a design flaw in
+the throwaway `ab_bench.py` harness).** The brief's Step-7 scenario for this
+half is `cold`, which is a faithful transcription of the repo's own canonical
+G8 guard (`benchmarks/test_guard_cold.py:1-11`). But `cold`'s subject graph is
+`ChainGroup` (`benchmarks/test_guard_resolve.py:82-88`), and **none of
+`ChainGroup`'s providers set `cache=True`** — it is all-transient. `cold`
+therefore never calls `_compile_cached_factory`'s `build_cold`/`create_cold`
+at all; it measures container construction + one-time compile of six
+transient resolvers + one first resolve through them, diluted by ~16us of
+fixed overhead — it re-exercises the transient merge's cost, not the
+cached-builder merge this stage needed to isolate. **The repo's committed
+guard suite has no benchmark exercising a cached-provider cold miss at all** —
+that is the actual gap, and it exists independent of this task or of
+`ab_bench.py`; the supplementary `g2_cold` probe added to the git-ignored
+harness works around it for this measurement only, and does not close it in
+the repo. **No earlier number is invalidated by this.** Task 4 used `cold` to
+measure recompilation cost, which `ChainGroup`'s six transient providers
+exercise fully — its band and floors stand. Task 1's `cold` calibration is a
+noise-floor measurement, unaffected either way. What is invalidated is only
+the broader reading of `cold` as covering cold misses *generally* — a claim
+no earlier task made; it was this task's own supplementary need for a
+cached-cold-miss measurement that exposed the gap.
+
 **Bucket: `needs-decision`.** The transient-body half breaches the 3% budget
 by 3-4x on three of its four named scenarios, comfortably clear of every
 measured noise floor — this alone rules out `do-first` on the numbers. The
 ledger adds a second, independent reason: the predicted complexity win is
-partly reversed (net +1 `C901` site) and the merge silently orphans a method,
-breaking the coverage gate, in a file the brief's scope did not name. The
-cached-builder half is genuinely free and would be `do-first` in isolation,
-but P3 is reviewed as one candidate covering both.
+only partly realized (both outer functions get individually simpler but stay
+above threshold, and the merge opens one brand-new `C901` site) and the merge
+silently orphans a method, breaking the coverage gate, in a file the brief's
+scope did not name. The cached-builder half is genuinely free and would be
+`do-first` in isolation, but P3 is reviewed as one candidate covering both.
