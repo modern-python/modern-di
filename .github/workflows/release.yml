@@ -79,4 +79,7 @@ jobs:
           body_path: ${{ steps.meta.outputs.body_path }}
           generate_release_notes: ${{ steps.meta.outputs.generate_notes }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
+          # 2.x is a backport branch: 3.x is the current line, so a tag cut here must never
+          # take the "Latest release" badge. NEVER merge this line to main.
+          make_latest: false
           draft: false
