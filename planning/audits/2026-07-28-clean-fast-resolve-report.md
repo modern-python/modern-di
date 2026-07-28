@@ -90,15 +90,15 @@ this table is the index, not the evidence.
 
 | # | Concern & site | Movable? / deletes copies? / new rule? | Measured (A/B/A `timeit`, median of `AB_REPEATS`) | Cleanliness proxies | Collision | Bucket |
 |---|---|---|---|---|---|---|
-| 1 | Override front-guard — `resolver_compiler.py:95,121,216,264,290,309,329` | yes / yes, **-7** copies / **8 new rules** | `g12_override_active` **-26.5/-27.5%**; `g3_chain` -5.2/-5.5%; `g1_transient` -3.7/-4.0%; `g2_cached` -4.0/-4.8% @25. Regressions `churn1` +556%, `churn10` +49%; crossover at ~30 resolves per override cycle | net **-15** lines (`+37 -52`); `SLF001` **22→23**; 4 `architecture/` files falsified | `2026-07-18.02` licenses invalidate-on-mutation; `architecture/concurrency.md:19-20` turns load-bearing | **needs-decision** |
-| 2 | Closed-check + `_prepare()` — `resolver_compiler.py:100-101,127-128,221-222,269-270` | yes / yes, **-4** copies / none *claimed* — but a demonstrated behavior delta | `g3_chain` -2.4/-3.9% (floor 1.15%); `g2_cached` -3.7/-4.3% @25; `g1_transient` -0.7/-2.7%; `g4_wide` directional only; `g5_cross_scope` flat | `+9 -10`, one file; `SLF001` **-3** net (4 deleted, 1 added in `_navigate`); `dis` 8 → 7 `CALL`, frame count still 1 | none — the invariant was assumed by the spec, never ruled on | **needs-decision** |
+| 1 | Override front-guard — `resolver_compiler.py:95,121,216,264,290,309,329` | yes / yes, **-7** copies / **8 new rules** | `g12_override_active` **-26.5/-27.5%**; `g3_chain` -5.2/-5.5%; `g1_transient` -3.7/-4.0%; `g2_cached` -4.0/-4.8% @25. The churn family **crosses over** at ~30 resolves per override cycle — below it P2 loses (`churn1` +556%, `churn10` +49%, `churn20` +13%), above it P2 wins (`churn50` **-10%**, `churn100` **-19%**); `cold` not separable. **`g9_context` was never measured** — the one scenario exercising the split override semantics | net **-15** lines (`+37 -52`); `SLF001` **+2** overall (compiler 22→23, `container.py` 3→4); 4 `architecture/` files falsified | `2026-07-18.02` licenses invalidate-on-mutation; `architecture/concurrency.md:19-20` turns load-bearing | **needs-decision** |
+| 2 | Closed-check + `_prepare()` — `resolver_compiler.py:100-101,127-128,221-222,269-270` | yes / yes, **-4** copies / none *claimed* — but a demonstrated behavior delta | `g3_chain` -2.4/-3.9% (floor 1.15%); `g2_cached` -3.7/-4.3% @25; `g1_transient` -0.7/-2.7%; `g4_wide` directional only; `g5_cross_scope` flat | `+9 -10`, one file; `SLF001` **-3** net (4 deleted, 1 added in `_navigate`); `dis` 8 → 7 `CALL`, frame count still 1 | no `decisions/` file — but a **maintainer note governs the row**: "today's reopen-a-mid-resolve-closed-container behavior is itself an open design question; P1 must not silently settle it." So `main` is **not** the settled baseline this delta is judged against; both behaviors are open. Ruling on the semantics is deferred to whichever change bundle proposes shipping P1, and **no regression test may land before then** | **needs-decision** |
 | 3 | Args build, positional/kwargs fork — `resolver_compiler.py:102-106,129-139,175-180,197-209` | **no** (clean-only) / yes, 4 bodies → 2 / none | `g1_transient` +10.4/+11.0%, `g3_chain` +10.0/+10.2%, `g4_wide` +11.0/+13.1%, `g9_context` +4.0/+5.3% @25, vs 0.85-1.59% floors — **3-4x the 3% budget**. Cached half below the ~1% floor | net **-39** lines (348→309); `PLR0915` -2; `C901` sites **2→3**; total `noqa` 33→31; orphans `Factory._call_creator`, `test-ci` 100% → 99.87% | the spec's own 3% clean-only trade budget, breached 3-4x | **needs-decision** |
 | 4 | Entry dispatch — `container.py:215-230` | yes / **no — adds** +1 method, +1 duplicated `RecursionError` wrap, +1 memo / none | `g16_by_type` -26.14/-25.15/-26.27% (~166 → ~123 ns) = **~1.35x**, floor 2.75% @25. Controls `g1_transient`/`g2_cached` flat | net **+19** lines; `SLF001` 3→5 (**+2**); one new test required to hold the coverage gate | the `~2x-or-nothing` bar — coined at `audits/2026-07-19-perf-readability-audit-report.md:21-22` | **skip** |
 | 5 | Scope navigate — `resolver_compiler.py:99,126,220,268` | **no** — the target container is a runtime value (`find_container`'s return), not a compile-time fact / n/a / n/a | screened out — nothing to hoist; the same-scope int compare is already the fast path | unchanged | — | **screened out** |
 | 6 | Cache-item fetch — `resolver_compiler.py:227` | **no** — depends on this container's `cache_registry._items` at call time / n/a / n/a | screened out — per-container runtime state | unchanged | the step past it (APP-scoped resolver closing over its `CacheItem`) is deferred: `ROADMAP.md:64-68`, trigger at `deferred.md:57` untripped | **screened out** |
 | 7 | Cache sentinel check — `resolver_compiler.py:231` | **no** — the cached value is a runtime fact of one container / n/a / n/a | screened out — same reasoning as row 6 | unchanged | as row 6 | **screened out** |
-| 8 | Error-prepend `try` — `resolver_compiler.py:102-103,129-130,176-177,198-199,294-295` | **no** — zero-cost on 3.11+; sharing needs a call frame / n/a / n/a | screened out — clean-only on every interpreter measured (3.14/3.14t); a small real `SETUP_FINALLY` cost remains on the 3.10 floor (`pyproject.toml:5`), unmeasured here | unchanged | — | **screened out** |
-| 9 | Creator call + `CreatorCallError` routing — `resolver_compiler.py:107-108,140-141,183-184`; `providers/factory.py:211-212` | **partially** — the except *body* is already centralized / no / none | not measured — already actioned: the four remaining `try: return creator(...)` wrappers cannot be shared without adding a hot-path frame, the exact cost the prior decision preserved | unchanged | `decisions/2026-07-20-except-body-creator-error-helper.md`; its revisit trigger is not tripped by anything here | **already-settled** |
+| 8 | Error-prepend `try` — `resolver_compiler.py:102-103,129-130,176-177,198-199,294-295` (the `try:`/first-body pairs; the `## Inventory` table anchors the same concern on its `except` lines — see its anchor note) | **no** — zero-cost on 3.11+; sharing needs a call frame / n/a / n/a | screened out — clean-only on every interpreter measured (3.14/3.14t); a small real `SETUP_FINALLY` cost remains on the 3.10 floor (`pyproject.toml:5`), unmeasured here | unchanged | — | **screened out** |
+| 9 | Creator call + `CreatorCallError` routing — `resolver_compiler.py:107-108,140-141,183-184`; `providers/factory.py:211-212` (the uncentralized `try:`/`return creator(...)` pairs; the `## Inventory` table anchors the same concern on its already-centralized `except` bodies — see its anchor note) | **partially** — the except *body* is already centralized / no / none | not measured — already actioned: the four remaining `try: return creator(...)` wrappers cannot be shared without adding a hot-path frame, the exact cost the prior decision preserved | unchanged | `decisions/2026-07-20-except-body-creator-error-helper.md`; its revisit trigger is not tripped by anything here | **already-settled** |
 
 ### Prototype branches — kept, not deleted
 
@@ -388,9 +388,21 @@ brittle command line).
 | Cache-item fetch (inlined `_items.get`) | `resolver_compiler.py:227` | 1 | 1 | Yes |
 | Cache sentinel check | `resolver_compiler.py:231` | 1 | 1 | Yes |
 | Args build (positional / kwargs fork) | `resolver_compiler.py:102-106,129-139,175-180,197-209` | 4 bodies | 4 | Yes |
-| Creator call + `CreatorCallError` routing | `resolver_compiler.py:110,143,186`; `providers/factory.py:214` | 4 | 4 | Yes |
-| Error-prepend `try` | `resolver_compiler.py:104,137,178,206,296` | 5 | 5 | Yes |
+| Creator call + `CreatorCallError` routing | `resolver_compiler.py:110,143,186`; `providers/factory.py:214` (the `except`/routing bodies — see the anchor note below) | 4 | 4 | Yes |
+| Error-prepend `try` | `resolver_compiler.py:104,137,178,206,296` (the `except _STEP_ERRORS` lines — see the anchor note below) | 5 | 5 | Yes |
 | Entry dispatch (closed-check, inlined `_resolvers.get`, `RecursionError` wrap) | `container.py:215-230` | 1, per top-level resolve | 1 | Yes |
+
+**Anchor note — two rows are cited at different lines here than in the glance
+table, on purpose.** This table counts *copies of the concern*, so it anchors
+the last two rows on the `except`/routing bodies being counted. The glance
+table's rows 8-9, and Task 7's screen below, cite the `try:` / `return
+creator(...)` line pairs instead — `resolver_compiler.py:102-103,129-130,176-177,198-199,294-295`
+and `resolver_compiler.py:107-108,140-141,183-184`, `providers/factory.py:211-212` —
+because *those* are the part that remains uncentralized and would have to move
+to be hoisted; the `except` bodies were already factored out by
+`decisions/2026-07-20-except-body-creator-error-helper.md`. Both sets verify
+clean against source; they answer different questions. The offsets between them
+are not uniform — see the offset table in Task 7's "Error-prepend `try`" row.
 
 **The spec was off on the override front-guard.** Its motivation section says
 the guard is "written six times", counting one guard per *provider type*
@@ -683,10 +695,21 @@ not silently.** Recommendation, in order of preference:
    a sibling dependency's side effect during resolution is no longer
    reopened and no longer warns; the resolve still completes, but the
    container is left closed afterward where it previously wasn't.
-2. Task 3 should add a regression test capturing the **new** behavior (no
+2. ~~Task 3 should add a regression test capturing the **new** behavior (no
    warning, `closed` stays `True`) so a future change doesn't silently flip
    it again unnoticed — the gap here was that no test existed for either
-   behavior.
+   behavior.~~ **Superseded by maintainer ruling (recorded here, Task 9)** —
+   the ruling on this escalation was *"measure first, rule later. Task 3
+   proceeds. The behavior delta is recorded in the report as an OPEN
+   needs-decision item, never as a recommendation. No regression test lands in
+   the repo (that would pin behavior not yet accepted). Semantics ruling
+   deferred to whenever a change bundle proposes shipping P1."* The
+   observation that **no test exists for either behavior** stands and is worth
+   carrying; the recommended action does not. `git diff main -- tests/` on
+   this branch is empty, by ruling and not by oversight. **A follow-on change
+   bundle picking up P1 must not read this as an outstanding action item** —
+   a test may land only once the semantics are ruled on, and it must pin the
+   accepted behavior, whichever that turns out to be.
 3. Whether that delta is acceptable — i.e., whether "no new rule" in the
    spec's screen can still be claimed given this narrow, self-inflicted
    edge case — is a maintainer call, not mine to make unilaterally; it is
@@ -727,6 +750,17 @@ is left `closed=True` where `main` reopens it and warns. `just test` passes
 is a sanity gate, not evidence of preservation. Whether that delta is
 acceptable, and how it should be documented if so, is left as a maintainer
 decision — not assumed away here.
+
+**Maintainer note governing this whole row — `main`'s behavior is not the
+settled baseline.** Recorded during Task 2's escalation and reproduced here so
+it survives outside the working ledger: *"today's
+reopen-a-mid-resolve-closed-container behavior is itself an open design
+question; P1 must not silently settle it."* So the question this needs-decision
+row poses is **not** "is P1's silent, stays-closed outcome acceptable versus
+today's correct reopen-and-warn" — that framing treats `main` as settled, which
+the note forbids. Both behaviors are open: reopening a container that a creator
+closed mid-resolve may itself be the wrong contract, and P1 must not be allowed
+to decide that by side effect of a performance change.
 
 **Perf — separates from noise on the same-scope scenarios.** Mechanism: for
 a same-scope dependency the closed-check used to run unconditionally in
@@ -891,7 +925,10 @@ and reset, dep-override vs a warm cache, `Alias`, child containers, `OverrideHan
    must be stamped per `resolver_for` frame and re-checked before each frame's
    memo write, discarding the in-flight subtree on mismatch.
 2. **Every root `close_sync`/`close_async` discards the whole compiled graph**,
-   because it calls `reset_override()` unconditionally (`container.py:291`, `:299`).
+   because it calls `reset_override()` unconditionally
+   (`modern_di/container.py:292` in `close_async`, `:300` in `close_sync` —
+   corrected in Task 9 from `:291`/`:299`, which are the enclosing
+   `if not self.parent_container:` guard lines, not the calls).
    Verified against a `main` control: a container that never had an override keeps
    all 6 compiled resolvers across `close_sync` on `main`, and drops to 0 under P2. Correct, but a recompile cost `main` does not pay; narrowly fixable by
    notifying only when a mutation actually changed something.
@@ -933,7 +970,7 @@ for the root. No finding.
    `architecture/concurrency.md:19-20` from advisory into load-bearing.
 6. Every root close discards the compiled graph.
 7. `has_overrides` becomes **dead public state**: three writes
-   (`overrides_registry.py:14,18,27`) and **zero reads** anywhere in `modern_di/`
+   (`modern_di/registries/overrides_registry.py:14,18,27`) and **zero reads** anywhere in `modern_di/`
    on the spike, against 7 reads on `main`. It is public, documented at
    `architecture/resolution.md:53`, and the benchmark rationale at
    `benchmarks/test_guard_resolve.py:264` depends on what it does. P2 must either
@@ -1166,8 +1203,9 @@ number; it just isn't a big enough number.
 **Ledger — the brief's own prediction held exactly, source-verified, no
 surprises either direction** (unlike P2's `noqa` count or P3's `C901`/dead-code
 findings). `git diff main spike/p4-by-type-memo --stat -- modern_di/`: `2
-files changed, 22 insertions(+), 3 deletions(-)`; file totals `container.py`
-380→397 (**+17**), `providers_registry.py` 133→135 (**+2**), net **+19**
+files changed, 22 insertions(+), 3 deletions(-)`; file totals
+`modern_di/container.py` 380→397 (**+17**),
+`modern_di/registries/providers_registry.py` 133→135 (**+2**), net **+19**
 lines. `noqa: SLF001` in `container.py`: 3→5 (**+2**, exactly the two sites
 the brief named). One necessary deviation from "verbatim": the brief's own
 snippet's `# noqa: S101` trips `RUF100` (unused directive — this repo's
@@ -1559,11 +1597,20 @@ rests on, reproduced here rather than left in a working file:
 | C6 context | 1.38 µs → 1.35 µs | 0.59 → 0.57 | 0.65 → 0.64 | 1.63 → 1.60 | 1.42 → 1.38 |
 
 **One-line reading, per row — read against each cell's own no-code drift, not
-a blanket band.** By-reference and by-type C1 and C3 clear their own drift by
-4.6x-156x (a full order of magnitude or more in nine of the ten cells) — real
-without qualification, every ratio narrowing or widening further in
-modern-di's direction. By-type C2 clears its own drift by a narrower 2.3-3.2x
-— still real, but the weakest-margin cells in the "real" group. The single
+a blanket band.** Ten cells read as real: by-reference C1, C2 and C3, plus
+by-type C1 and C3. They clear their own drift by **4.6x to 156x** — a full
+order of magnitude or more in **seven of the ten** (156x, 88.4x, 69x, 27.7x,
+18.8x, 12.2x, 10.3x); the three short of 10x (C1 by-ref vs dependency-injector
+8.1x, C2 by-ref vs dependency-injector 5.2x, C1 by-type vs dishka 4.6x) still
+clear comfortably. Real without qualification, every ratio narrowing or
+widening further in modern-di's direction. (Correction, Task 9: an earlier
+draft said "a full order of magnitude or more in nine of the ten cells" while
+naming only the eight C1/C3 cells as its subject — both the count and the
+denominator were wrong, and by-reference C2 was left out of the reading
+entirely. Recounted against the twenty-cell drift table above, which this task
+mirrored in precisely so claims like this are checkable at a glance.) The one
+exception inside C2: **by-type** C2 clears its own drift by a narrower
+2.3-3.2x — still real, but the weakest-margin cells in the "real" group. The single
 qualitative crossing: **by-type C2 vs dishka goes from 1.05-1.08 (depending
 which `main` run is used as baseline) to 1.00** — P1+P2 bring modern-di's
 warm-singleton by-type resolve to effective parity with dishka. (An earlier
