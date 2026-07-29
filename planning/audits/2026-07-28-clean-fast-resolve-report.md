@@ -59,7 +59,7 @@ ratio cells improve by 3.96-8.21 percentage points net of their own no-code
 drift, and by-type warm singleton reaches effective parity with `dishka` —
 **with a stated caveat**: that parity cell carries the largest no-code drift in
 the whole table (-3.00%), it and its `wireup` sibling are the two
-narrowest-margin cells called real (2.3x and 3.2x their drift, against 4.6x-156x
+narrowest-margin cells called real (2.3x and 3.2x their drift, against 4.5x-156x
 for the other ten), and "parity" therefore means *within a few percent of 1.00*,
 not measured at 1.00. All of it is a hypothetical, since both candidates remain
 maintainer-gated. And the **guard-suite gap**: the committed benchmark
@@ -1573,8 +1573,11 @@ up once from run 1 to run 2, then plateau or fall back on run 3 (C2 wireup:
 stable reference point.
 
 modern-di's own no-code drift, checked the same way, is +0.05% to +1.73% —
-smaller than the rivals' +0.95% to +3.52%, not "the same band" as an earlier
-draft of this section said. That gap matters because the published cells
+smaller than the rivals' own no-code drift of -0.16% to +3.14%, not "the same
+band" as an earlier draft of this section said, and not the +0.95% to +3.52%
+this section quoted in a prior revision — that figure is the rivals' *move*
+(`finalists` vs `main #1`), not their no-code drift. That gap matters because
+the published cells
 are **ratios**, and whatever part of the rivals' drift modern-di does not
 share flows uncancelled into every ratio cell — so the comparison has to be
 validated at the ratio level, not just on the two sides' absolutes
@@ -1627,7 +1630,7 @@ rests on, reproduced here rather than left in a working file:
 | C2 by-ref vs that-depends | 2.131 | 1.997 | 2.133 | -6.30% | +0.09% | 69x |
 | C3 by-ref vs dependency-injector | 0.529 | 0.504 | 0.528 | -4.74% | -0.17% | 27.7x |
 | C3 by-ref vs that-depends | 0.720 | 0.668 | 0.718 | -7.27% | -0.39% | 18.8x |
-| C1 by-type vs dishka | 1.353 | 1.265 | 1.334 | -6.55% | -1.44% | 4.6x |
+| C1 by-type vs dishka | 1.353 | 1.265 | 1.334 | -6.55% | -1.44% | 4.5x |
 | C1 by-type vs wireup | 1.513 | 1.409 | 1.504 | -6.87% | -0.56% | 12.2x |
 | C2 by-type vs dishka | 1.078 | 1.003 | 1.046 | -6.96% | -3.00% | **2.3x** |
 | C2 by-type vs wireup | 2.414 | 2.241 | 2.360 | -7.15% | -2.23% | 3.2x |
@@ -1674,7 +1677,7 @@ here, not the ratio limb.** The move-to-drift ratio is a sanity check that the
 move is not mostly drift; it is not itself a threshold, because a tiny move over
 a tinier drift produces a large ratio out of nothing. The clearest way to apply
 the magnitude limb to a cell whose drift is non-trivial is to net the drift out:
-`|move| - |drift|` in percentage points, first-order.
+`move - drift` in percentage points, first-order.
 
 **Twelve cells read as real** (correction, this round): by-reference C1, C2 and
 C3, plus by-type C1, **C2** and C3. Net of drift they span **-3.96pp to
@@ -1688,10 +1691,10 @@ called by-type C2 "still real", ruling the same pair both ways in one section.
 Twelve is the count; by-type C2 is real, on the reasoning below.)
 
 Ten of the twelve clear on both limbs with room to spare: drift margins of
-**4.6x to 156x**, a full order of magnitude or more in seven of them (156x,
+**4.5x to 156x**, a full order of magnitude or more in seven of them (156x,
 88.4x, 69x, 27.7x, 18.8x, 12.2x, 10.3x), and the three short of 10x (C1 by-ref
 vs dependency-injector 8.1x, C2 by-ref vs dependency-injector 5.2x, C1 by-type
-vs dishka 4.6x) still clear comfortably.
+vs dishka 4.5x) still clear comfortably.
 
 **by-type C2 is the weakest surviving pair, and it survives on magnitude.** Its
 drift margins are the narrow ones — 2.3x vs dishka, 3.2x vs wireup — so the
@@ -1702,7 +1705,7 @@ the ~3% floor. The other ten span -4.57pp to -8.21pp, so the `wireup` cell sits
 inside their band outright and the `dishka` cell lands just under its lower
 edge — close to them, not close to C6, whose worst case is -0.95pp. It is
 corroborated by the absolute it is a ratio of: modern-di's own by-type warm
-singleton moved 177 ns → 170 ns, **-4.0%**, matching the drift-corrected ratio
+singleton moved 177 ns → 170 ns, **-3.8%**, matching the drift-corrected ratio
 move almost exactly. Real — but the thinnest pair called real in this table, and
 any conclusion resting on it should say so.
 
@@ -1747,7 +1750,7 @@ Two of the four C6 cells are below the ~3% floor on the **raw** move before any
 drift correction, and all four are below it net of drift — a -0.95pp-to--2.71pp
 band that does not overlap by-type C2's -3.96pp and -4.92pp at all.
 The absolutes corroborate the split: modern-di's own C6 figure moved 1.38 µs →
-1.35 µs (**-2.2%**), under the floor, where by-type C2's moved -4.0%. So the
+1.35 µs (**-2.2%**), under the floor, where by-type C2's moved -3.8%. So the
 verdicts are opposite because the cells are genuinely different in size, not
 because the same criterion was read two ways.
 
