@@ -11,7 +11,16 @@ These files carry **no frontmatter** — they are prose, dated by git.
 why that way*. [`docs/`](../docs/) answers *how do I use it*. A fact a user needs
 belongs in `docs/`; a fact only a maintainer needs belongs here. Where both must
 state the same rule, each states it at its own altitude — that restatement is the
-point, not duplication to be removed.
+point, not duplication to be removed. A runnable block a user would copy is usage,
+not mechanism: it belongs in `docs/`, and a page here keeps only the invariant it
+was demonstrating.
+
+**One owner per concept.** That altitude argument works between `architecture/`
+and `docs/` because they have different audiences. Two capability pages have the
+*same* audience, so restatement between them is just two places to update. Each
+concept is owned by exactly one page; every other page gets a one-line
+cross-link — see [containers.md](containers.md#validate) pointing at
+[validation.md](validation.md) for the shape.
 
 ## Capabilities
 

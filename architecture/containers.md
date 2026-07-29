@@ -5,16 +5,6 @@ providers — resolution, scoping, overriding — flows through a `Container`.
 
 ## Creating a root container
 
-```python
-from modern_di import Container, Scope, Group
-
-
-class MyGroup(Group): ...
-
-
-container = Container(scope=Scope.APP, groups=[MyGroup])
-```
-
 Constructor parameters:
 
 | Parameter | Default | Effect |
@@ -23,7 +13,7 @@ Constructor parameters:
 | `groups` | `None` | One or more `Group` subclasses whose providers are registered into `providers_registry`. |
 | `context` | `None` | Mapping of `type → object` pre-populated into `context_registry`. |
 | `use_lock` | `True` | Wraps resolution in a `threading.RLock`; set `False` for single-threaded use. |
-| `validate` | `None` | Deprecated and ignored — see below. |
+| `validate` | `None` | Deprecated and ignored; emits `ValidateArgumentWarning`, removed in 4.0. See [docs](../docs/providers/lifecycle.md#the-deprecated-validate-constructor-argument). |
 
 A root container (no `parent_container`) creates fresh `ProvidersRegistry` and `OverridesRegistry`
 instances. It also auto-registers `container_provider` (see [below](#container_provider)) under the
@@ -32,31 +22,13 @@ instances. It also auto-registers `container_provider` (see [below](#container_p
 A freshly-constructed container starts **open** (`closed = False`) — see
 [Optional-open lifecycle](#optional-open-lifecycle).
 
-### `validate` (deprecated constructor argument)
-
-`validate: bool | None = None` no longer gates anything. Passing `True` or `False` emits
-`exceptions.ValidateArgumentWarning` (a `DeprecationWarning`) and changes nothing about the container
-built; omitting the argument (its default, `None`) is silent. The check it used to gate is entirely
-explicit now: call [`container.validate()`](#validate) whenever you want the graph checked — see
-[validation.md](validation.md) for what that check does. `validate` is removed in 4.0.
-
 ## Optional-open lifecycle
 
 A container is **open** the moment it is constructed (`closed = False`) — there is no required
 `open()` step and no first-use preparation. `close_sync()` / `close_async()` run finalizers and set
 `closed = True`; that is the only way a container becomes closed. `open()` and `with` / `async with`
 stay available — call them to get finalizers on the way out, and to reopen a closed container
-deliberately:
-
-```python
-container = Container(scope=Scope.APP, groups=[MyGroup])
-container.resolve(...)  # closed=False from construction -> resolves directly
-
-# finalizers on the way out:
-with Container(scope=Scope.APP, groups=[MyGroup]) as container:
-    container.resolve(...)
-# exit closes it; re-entering (or an implicit resolve) reopens it
-```
+deliberately.
 
 Two states, tracked by the public `closed: bool`:
 
@@ -76,11 +48,6 @@ reopen](#lifecycle-close-and-reopen) for what close and reopen do to the cache, 
 reopen](#open-and-reopen-context-manager-protocol) for `_prepare()` / `open()` mechanics.
 
 ## Child containers
-
-```python
-with container.build_child_container(scope=Scope.REQUEST, context={MyRequest: request_obj}) as child:
-    child.resolve(...)
-```
 
 `build_child_container` creates a new `Container` whose `parent_container` is the current one.
 Rules:
@@ -156,16 +123,8 @@ explicitly under `Container` rather than inferred from a type annotation).
 
 ## Lifecycle: close and reopen
 
-The idiomatic happy path is the `with` statement: it builds the container, runs finalizers in
-LIFO order on the way out, and guarantees close even if the body raises. Most code never needs to
-call `close_sync()`/`close_async()` directly.
-
-```python
-with Container(scope=Scope.APP, groups=[MyGroup]) as container:
-    ...  # resolve providers here; finalizers run on exit
-```
-
-The rest of this section documents what that close performs and how reopen works.
+`close_sync()` / `close_async()` are the only transitions to `closed = True`; `_prepare()` and
+`open()` are the only ones back, and they differ in whether the reopen warns.
 
 ### Closing
 
@@ -213,13 +172,10 @@ Concretely: using the same container object as a context manager a second time r
 close removed those cached values), and then closes it again on exit. Providers whose
 `CacheSettings.clear_cache` is `False` retain their cached instances across reopen cycles.
 
-`open()` is optional — see [Optional-open lifecycle](#optional-open-lifecycle) — but prefer the `with`
-form, or an explicit `open()` call, over relying on implicit reuse: both avoid `ContainerClosedWarning`
-and put the reopen at a well-defined point instead of the first request. `open()` is exposed as a
-public method for callback-style lifecycles that cannot wrap the container in a `with` block — for
-example a framework startup hook that reopens a long-lived root container after a shutdown. The
-FastStream integration uses exactly this: `app.on_startup(container.open)` paired with
-`app.after_shutdown(container.close_async)`.
+`open()` is public — rather than `_prepare()` alone — for callback-style lifecycles that cannot wrap
+the container in a `with` block, such as a framework startup hook reopening a long-lived root
+container after a shutdown. The FastStream integration is the reference case:
+`app.on_startup(container.open)` paired with `app.after_shutdown(container.close_async)`.
 
 ## `validate()`
 
@@ -228,10 +184,6 @@ aggregated errors. It is the only thing that validates — construction, `open()
 never do.
 
 ## `set_context()`
-
-```python
-container.set_context(MyRequest, request_obj)
-```
 
 Registers a runtime value directly into the container's `ContextRegistry`. Context values are
 resolved **live** on every resolve (see [resolution](resolution.md)), so a value set here is
