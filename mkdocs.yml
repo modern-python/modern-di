@@ -78,7 +78,7 @@ nav:
       - To 3.x: migration/to-3.x.md
       - From that-depends: migration/from-that-depends.md
       - From dependency-injector: migration/from-dependency-injector.md
-  - Changelog: changelog/
+  - Changelog: changelog.md
   - Development:
       - Contributing: dev/contributing.md
 
@@ -148,9 +148,6 @@ markdown_extensions:
 extra_css:
   - css/code.css
   - css/brand.css
-
-hooks:
-  - mkdocs_hooks.py
 
 plugins:
   - llmstxt:

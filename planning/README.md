@@ -66,6 +66,10 @@ instead. This directory is the residue, and it should stay small.
   it up cold, and cites no report. Frontmatter: `summary`. A required
   `**Revisit trigger:**` section — an item with no trigger is abandoned, not
   deferred.
+- **[`releases/<version>.md`](releases/)** — one file per curated release, from
+  `_templates/release.md`. Used **verbatim** as the GitHub Release body by
+  [`release.yml`](../.github/workflows/release.yml), which fails a stable tag
+  that has no matching file. No frontmatter; the file name is the version.
 - **[`_templates/`](_templates/)** — `decision.md`, `deferred.md`, `release.md`.
 - **[`scripts/`](scripts/)** — reusable multi-agent audit harnesses. A sweep's
   durable output is a PR plus `deferred/` items; the report itself is transient
