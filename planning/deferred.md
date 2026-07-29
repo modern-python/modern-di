@@ -146,6 +146,36 @@ The other two evaluated axes were **declined** (not deferred): a *comparative* o
 (each framework's override/mock API differs too much to compare; G12 covers modern-di) and a larger
 async-teardown scenario beyond G13's 10 resources (G13's LIFO loop already captures the scaling).
 
+## No sensitive guard benchmark for a cached-provider cold miss — from the 2026-07-28 clean-and-fast resolve research
+
+`_compile_cached_factory`'s cold-miss builders (`build_cold` / `create_cold`) have no guard scenario
+that would show a regression in them. The dedicated cold scenario, **G8**
+(`benchmarks/test_guard_cold.py`), builds from a local **all-transient** `ChainGroup` (`:49-55`, no
+provider sets `cache=True`), so it never reaches those builders at all — it times construction plus a
+six-node transient compile. The only committed coverage is incidental, inside **G15**
+(`benchmarks/test_guard_concurrency.py:91-111`), whose `n_threads=1` case does build a fresh container
+per round over 50 `cache=True` providers and therefore does time them.
+
+So this is a **sensitivity** gap, not a coverage gap, and that is what makes it easy to miss: G15
+batches 50 cold misses into one timed call (diluting a single builder's cost ~50x), `benchmarks/README.md`
+explicitly instructs readers to take G15 as a thread-count *trend* rather than absolutes, and guard-bench
+is non-gating (`fail-on-alert: false`, `alert-threshold: "150%"` —
+[`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml)). A regression confined to the
+cold-miss builders would have to survive 50x dilution and exceed 150% in a job that cannot fail the build.
+
+Closing it is one small scenario: a `cache=True` sibling of G8 (build a fresh root, resolve one cached
+provider, time the whole thing), which also gives the cold path the same before/after instrument the warm
+path already has in G2. Found while isolating the cached-builder half of the P3 body-merge candidate; the
+research worked around it with a throwaway `g2_cold` probe in a git-ignored harness, which measured that
+half but closed nothing in the repo.
+
+**Revisit trigger:** the next change that touches `_compile_cached_factory`'s cold-miss builders — add the
+scenario first, so the change has a baseline to move. Otherwise whenever the guard suite is next extended.
+See the guard-suite-gap entries in
+[2026-07-28 clean-and-fast resolve report](audits/2026-07-28-clean-fast-resolve-report.md), P3 section and
+inventory closure (both carry a post-ship correction: an earlier revision overstated this as "no benchmark
+at all", which G15 disproves).
+
 ## Opt-in DEBUG resolution tracing (ERR-8) — from 2026-07-05 3.0 UX research
 
 A module-level `logging.getLogger("modern_di")` narrating resolution at DEBUG level: resolve start

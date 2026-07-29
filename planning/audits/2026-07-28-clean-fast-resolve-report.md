@@ -1165,11 +1165,28 @@ at all; it measures container construction + one-time compile of six
 transient resolvers + one first resolve through them, diluted by ~16us of
 fixed overhead — it re-exercises the transient merge's cost, not the
 cached-builder merge this stage needed to isolate. **The repo's committed
-guard suite has no benchmark exercising a cached-provider cold miss at all** —
+guard suite has no *dedicated* benchmark for a cached-provider cold miss** —
 that is the actual gap, and it exists independent of this task or of
 `ab_bench.py`; the supplementary `g2_cold` probe added to the git-ignored
 harness works around it for this measurement only, and does not close it in
-the repo. **No earlier number is invalidated by this.** Task 4 used `cold` to
+the repo.
+
+> **Corrected post-ship (2026-07-29).** An earlier revision of this paragraph
+> and of the inventory-closure entry below claimed the suite exercised a
+> cached cold miss "at all". That is false: **G15**
+> (`benchmarks/test_guard_concurrency.py:91-111`) builds a fresh container per
+> round over 50 `cache=True` providers and is parametrized over
+> `_THREAD_COUNTS = [1, 2, 4]`, so its `n_threads=1` case does time
+> `_compile_cached_factory`'s `build_cold`/`create_cold`. The gap is narrower
+> than stated and is one of *sensitivity*, not coverage: G15 batches 50 misses
+> per timed call (diluting a single builder's cost ~50x), is documented as
+> "read the thread-count trend, not absolutes"
+> (`benchmarks/README.md`), and runs in a non-gating CI job
+> (`fail-on-alert: false`, `alert-threshold: "150%"` —
+> `.github/workflows/benchmarks.yml:42-43`). A regression confined to those
+> builders would have to survive 50x dilution and exceed 150% in a job that
+> cannot fail the build. Filed accurately in
+> [`planning/deferred.md`](../deferred.md). **No earlier number is invalidated by this.** Task 4 used `cold` to
 measure recompilation cost, which `ChainGroup`'s six transient providers
 exercise fully — its band and floors stand. Task 1's `cold` calibration is a
 noise-floor measurement, unaffected either way. What is invalidated is only
@@ -1484,14 +1501,23 @@ reopens this stance — not as a refutation of the current ruling.**
 ### Guard-suite gap (not a per-node concern, filed here so it is not lost)
 
 Task 5, while isolating the cached-builder half of P3's merge, found that
-the committed guard suite has **no benchmark exercising a cached-provider
-cold miss at all**: `benchmarks/test_guard_cold.py`'s `cold` scenario
-transcribes G8 faithfully, but its subject graph (`ChainGroup`,
-`benchmarks/test_guard_resolve.py:82-88`) is all-transient — none of its
+the committed guard suite has **no dedicated benchmark for a cached-provider
+cold miss**: `benchmarks/test_guard_cold.py`'s `cold` scenario
+transcribes G8 faithfully, but its subject graph is a local all-transient
+`ChainGroup` (`benchmarks/test_guard_cold.py:49-55`) — none of its
 providers set `cache=True` — so `cold` never reaches
 `_compile_cached_factory`'s `build_cold`/`create_cold` builders. A future
 change to those builders could ship with `cold` green and nothing in the
-committed suite would notice. This is not a per-graph-node cost like the
+committed suite would notice.
+
+> **Corrected post-ship (2026-07-29).** This entry previously said the suite
+> exercised such a miss "at all", and cited `ChainGroup` at
+> `benchmarks/test_guard_resolve.py:82-88`. Both were wrong: `test_guard_cold.py`
+> defines its own `ChainGroup` at `:49-55`, and **G15**
+> (`benchmarks/test_guard_concurrency.py:91-111`) does time the cold-miss
+> builders at `n_threads=1`. See the correction note in the P3 section above
+> for the narrower, accurate statement of the gap, and
+> [`planning/deferred.md`](../deferred.md) for the filed item. This is not a per-graph-node cost like the
 rest of this inventory, so it does not get a movability/perf verdict of its
 own — it is recorded here because it was surfaced by this research and
 belongs in the same document as the rest of the inventory closure, so the
