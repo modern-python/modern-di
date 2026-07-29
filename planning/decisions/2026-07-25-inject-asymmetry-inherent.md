@@ -16,14 +16,13 @@ there is nothing to unify. Treatment is this documented rationale.
 
 ## Context
 
-The [blessed-ready on-ramp audit](../audits/2026-07-22-blessed-ready-onramp-report.md)'s
+The 2026-07-22 blessed-ready on-ramp audit's
 **D5** dimension scores whether a handler needs a DI decorator: **2** = none, **1**
 = `@inject` required but inherent (no framework seam), **0** = `@inject` required
 but a seam exists the adapter fails to use. The audit found the split is **4 vs 8**
 (not the adoption research's stale "7 of 12"), and — the substantive question this
 records — **every one of the eight is a 1, never a 0**: no framework exposes an
-unused seam. Full per-integration analysis: the audit's
-[§2 D5 rationale](../audits/2026-07-22-blessed-ready-onramp-report.md).
+unused seam.
 
 The seam test: `FromDI` can live as a bare parameter *default* (no decorator)
 only where the framework itself evaluates a parameter's default as a provider.

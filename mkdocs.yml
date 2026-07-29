@@ -78,6 +78,33 @@ nav:
       - To 3.x: migration/to-3.x.md
       - From that-depends: migration/from-that-depends.md
       - From dependency-injector: migration/from-dependency-injector.md
+  - Changelog:
+      - Overview: changelog/index.md
+      - 3.1.2: changelog/3.1.2.md
+      - 3.1.1: changelog/3.1.1.md
+      - 3.1.0: changelog/3.1.0.md
+      - 3.0.0: changelog/3.0.0.md
+      - 2.31.0: changelog/2.31.0.md
+      - 2.30.0: changelog/2.30.0.md
+      - 2.29.0: changelog/2.29.0.md
+      - 2.28.0: changelog/2.28.0.md
+      - 2.27.0: changelog/2.27.0.md
+      - 2.26.0: changelog/2.26.0.md
+      - 2.25.0: changelog/2.25.0.md
+      - 2.24.0: changelog/2.24.0.md
+      - 2.23.0: changelog/2.23.0.md
+      - 2.22.0: changelog/2.22.0.md
+      - 2.21.1: changelog/2.21.1.md
+      - 2.21.0: changelog/2.21.0.md
+      - 2.20.0: changelog/2.20.0.md
+      - 2.19.2: changelog/2.19.2.md
+      - 2.19.1: changelog/2.19.1.md
+      - 2.19.0: changelog/2.19.0.md
+      - 2.18.0: changelog/2.18.0.md
+      - 2.17.0: changelog/2.17.0.md
+      - 2.16.1: changelog/2.16.1.md
+      - 2.16.0: changelog/2.16.0.md
+      - 2.15.0: changelog/2.15.0.md
   - Development:
       - Contributing: dev/contributing.md
 

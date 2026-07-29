@@ -16,7 +16,7 @@ or read it for every recipe and its intent. The non-obvious essentials:
   gate. Passes args through: `just test tests/providers/test_factory.py -k test_name`.
 - `just test-ci` — the **gated** full run (100% line coverage); this is what CI runs.
 - `just lint` (autofix) / `just lint-ci` (no autofix; also validates planning bundles).
-- `just check-planning` validates planning bundles; `just index` prints the change listing.
+- `just check-planning` validates `planning/deferred/` + `planning/decisions/` frontmatter; `just index` prints that listing.
 
 ## Architecture
 
@@ -61,19 +61,26 @@ Where the detail lives — read the matching capability file before changing beh
 
 ## Workflow
 
-Planning uses a portable two-axis convention — `architecture/` (repo root) is
-the living **truth home** and promotion target; `planning/changes/` holds the
-per-change bundles. **Start at the
-[Quick path](planning/README.md#quick-path-start-here)** in
-`planning/README.md` to choose a lane, create a bundle, and ship — that file
-is the authoritative spec. Run `just check-planning` to validate bundles and
-`just index` to print the change listing. The `## Architecture` section above
-is quick orientation; `architecture/` holds the authoritative account.
+**The spec for a change is its PR body**, not a committed file.
+`.github/PULL_REQUEST_TEMPLATE.md` carries the shape (why, design, non-goals,
+verification); it is reviewed with the diff. There is no change file and no lane
+to choose. A trivial PR (typo, dep bump, formatter) deletes the template and
+ships a conventional-commit title.
+
+Two things outlive the PR and are committed under `planning/`: an alternative
+**rejected** with reasoning goes to `planning/decisions/`, and real work **not
+scheduled** goes to `planning/deferred/` (self-contained, with a revisit
+trigger). `architecture/` (repo root) stays the living **truth home** — a
+behaviour change hand-edits the matching capability page in the same PR.
+See [`planning/README.md`](planning/README.md) for the full convention; it is a
+documented local deviation from `planning-convention` 2.2.0. The `## Architecture`
+section above is quick orientation; `architecture/` holds the authoritative account.
 
 - **Cutting a release (maintainers)** is tag-driven via
   [`.github/workflows/release.yml`](.github/workflows/release.yml): write the
-  notes at `planning/releases/<version>.md` (used verbatim as the GitHub Release
-  body), then push a bare-semver-**named** tag off green `main` —
+  notes at `docs/changelog/<version>.md` (used verbatim as the GitHub Release
+  body, and published on the docs site), then push a bare-semver-**named** tag
+  off green `main` —
   `git tag -m "modern-di 2.19.2" 2.19.2 && git push origin 2.19.2`. Only the tag
   *name* must be bare semver (that is what the workflow matches); the tag object
   itself may be annotated or signed, and `-m` is required whenever

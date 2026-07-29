@@ -7,9 +7,8 @@ superseded_by: null
 
 # D1/D4 sub-2 scores are derived — no independent fix
 
-**Decision:** The D1 and D4 scores below 2 in the
-[blessed-ready on-ramp audit](../audits/2026-07-22-blessed-ready-onramp-report.md)
-are arithmetic consequences of two facts already ruled inherent — the `@inject`
+**Decision:** The D1 and D4 scores below 2 in the 2026-07-22 blessed-ready
+on-ramp audit are arithmetic consequences of two facts already ruled inherent — the `@inject`
 requirement ([D5](2026-07-25-inject-asymmetry-inherent.md)) and the caller-owned
 root lifecycle ([D3](2026-07-25-d3-root-lifecycle-inherent.md)) — not independent
 gaps. No quickstart or `setup_di` changes; the audit's §4 item-5 "trim one line"

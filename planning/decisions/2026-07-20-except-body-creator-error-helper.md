@@ -10,8 +10,7 @@ superseded_by: null
 **Decision:** Centralize the creator-call `TypeError` rule in one
 `CreatorCallError.from_type_error` classmethod, called from inside each site's
 `except TypeError` block. This supersedes the "no shared helper" non-goal
-recorded in
-[2026-07-17.02-creator-call-error-drift-lock](../changes/2026-07-17.02-creator-call-error-drift-lock.md).
+recorded by the earlier creator-call-error drift-lock work.
 
 ## Context
 
@@ -24,8 +23,7 @@ cross-path equivalence test instead.
 
 That rejection weighed one helper shape: a helper wrapping the whole
 `creator(...)` call, which adds a Python frame on **every** resolve — the success
-path the [single-path compiled resolver](../changes/2026-07-16.02-single-path-compiled-resolver.md)
-inlining exists to keep frame-free.
+path the single-path compiled resolver (PR #334) exists to keep frame-free.
 
 The option it did not weigh: extract only the `except`-body — the `tb_next`
 discriminate, the `CreatorCallError` construction, and the `prepend_step` — while

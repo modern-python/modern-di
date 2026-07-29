@@ -1,12 +1,17 @@
 # Architecture
 
 The living truth about what `modern-di` does **now** — one file per capability,
-updated by hand whenever a change ships. The *why* and *how it got here* live in
-[`../planning/changes/`](../planning/changes/) — and decisions deliberately taken,
-including options rejected, in [`../planning/decisions/`](../planning/decisions/);
-this directory is the present.
+updated by hand whenever a change ships. This directory is the present; the *why*
+of a specific change is its PR body, and decisions deliberately taken — including
+options rejected — live in [`../planning/decisions/`](../planning/decisions/).
 
 These files carry **no frontmatter** — they are prose, dated by git.
+
+**The boundary against `docs/`.** `architecture/` answers *how is it built, and
+why that way*. [`docs/`](../docs/) answers *how do I use it*. A fact a user needs
+belongs in `docs/`; a fact only a maintainer needs belongs here. Where both must
+state the same rule, each states it at its own altitude — that restatement is the
+point, not duplication to be removed.
 
 ## Capabilities
 
@@ -20,11 +25,15 @@ These files carry **no frontmatter** — they are prose, dated by git.
 - [validation.md](validation.md) — `validate()` cycle and scope checks.
 - [testing-and-overrides.md](testing-and-overrides.md) — overrides and the
   `modern-di-pytest` integration.
+- [concurrency.md](concurrency.md) — thread-safety and free-threaded (PEP 703)
+  support, at Beta.
+- [glossary.md](glossary.md) — the project's ubiquitous language.
 - [integration-kit.md](integration-kit.md) — framework-agnostic primitives for
   building a framework integration adapter.
 
 ## Promotion rule
 
 Shipping a change hand-edits the affected capability file(s) here to match the
-new reality, in the same PR as the code. The change bundle stays in place under
-[`../planning/changes/`](../planning/changes/) — no folder move.
+new reality, **in the same PR as the code** — reviewed with the diff, never
+applied as a separate post-merge step. That hand-edit is what keeps this
+directory true.

@@ -2,17 +2,15 @@
 
 modern-di is safe to resolve from multiple threads, and supported on free-threaded
 CPython (PEP 703, the `3.14t` build) at trove level **`2 - Beta`**: production-ready
-and tested under real multithreading, with the caveats below documented. The
-[2026-07-17 research report](../planning/audits/2026-07-17-nogil-support-research-report.md)
-is the full analysis; this page is the standing contract.
+and tested under real multithreading, with the caveats below documented. This
+page is the standing contract.
 
 ## The lifecycle
 
 A container has three phases, and thread-safety is defined per phase — the same
-build → resolve → dispose shape every comparable DI framework assumes (the
-[2026-07-18 concurrency-contract research](../planning/audits/2026-07-18-di-concurrency-contract-report.md)
-found no framework that supports tearing a container down while other threads
-resolve from it):
+build → resolve → dispose shape every comparable DI framework assumes (a survey
+of the field found no framework that supports tearing a container down while
+other threads resolve from it):
 
 1. **Configure — single-threaded (startup).** Registering providers
    (`add_providers`, group construction) mutates the registry under its own lock,
@@ -85,7 +83,7 @@ observing a stored reference sees the object's fully-initialized fields — beca
 CPython publishes no memory model. In the current implementation, publication
 through a container's internal critical section provides that ordering; that gap
 between "implementation behavior" and "spec guarantee" is why the claim is **Beta**,
-not **Stable**. See the report for the full argument.
+not **Stable**.
 
 ## Caveats
 
@@ -103,4 +101,4 @@ not **Stable**. See the report for the full argument.
   per-container lock and not anything modern-di can remove without immortalizing
   those objects (no public CPython API). It is a CPython-level limitation that its
   own expanding deferred reference counting (PEP 703) will lift for free as it
-  reaches ordinary instances. See the [free-threaded scaling diagnosis](../planning/deferred.md).
+  reaches ordinary instances. See the [free-threaded scaling diagnosis](../planning/deferred/2026-07-19-free-threaded-throughput.md).

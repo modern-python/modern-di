@@ -12,7 +12,7 @@ lint:
     uv run ruff check --fix
     uv run ty check
 
-# CI lint (no autofix) — same checks as `lint` plus the planning-bundle validator.
+# CI lint (no autofix) — same checks as `lint` plus the planning validator.
 lint-ci:
     uv run eof-fixer . --check
     uv run ruff format --check
@@ -65,10 +65,10 @@ publish:
 docs-build:
     uvx --with-requirements docs/requirements.txt mkdocs build --strict
 
-# Print the planning change index (grouped by status) to stdout.
+# Print the planning index (deferred, then decisions) to stdout.
 index:
     uv run python planning/index.py
 
-# Validate planning bundles + decisions (frontmatter, lanes, spec links); CI runs this.
+# Validate planning/deferred/ + planning/decisions/ frontmatter and naming; CI runs this.
 check-planning:
     uv run python planning/index.py --check

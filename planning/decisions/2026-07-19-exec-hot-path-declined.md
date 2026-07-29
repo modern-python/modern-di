@@ -12,13 +12,13 @@ path. Do not add `exec`-based source-generation codegen, additive or otherwise.
 
 ## Context
 
-`deferred.md`'s codegen-ceiling item filed the remaining 1.3-1.9x gap behind
+The codegen-ceiling item filed the remaining 1.3-1.9x gap behind
 `dishka`/`wireup` on transient and deep-chain graphs as "rejected for a
 zero-dependency library" — a stance, not a task. This reopened that stance to
 check its ground: `exec` is a stdlib builtin, not a dependency, so
 `dataclasses`/`attrs`/`cattrs`-style `exec` codegen would not touch the
-zero-*dependency* guarantee at all. Full analysis:
-[`planning/audits/2026-07-19-exec-hot-path-reconsideration-report.md`](../audits/2026-07-19-exec-hot-path-reconsideration-report.md).
+zero-*dependency* guarantee at all. That reframe was accepted; what defeated the
+proposal was the bounded size of the prize, below.
 
 ## Decision & rationale
 
@@ -54,5 +54,5 @@ singleton/scoped chain — the two forms where `exec` could pay — that the clo
 resolver provably cannot close. A synthetic micro-benchmark or a hypothetical
 does not qualify.
 
-*Filed at `planning/decisions/2026-07-19-exec-hot-path-declined.md`, linked
-from the codegen-ceiling item in [`planning/deferred.md`](../deferred.md).*
+*Linked from the codegen-ceiling half of
+[`warm-singleton-perf-headroom`](../deferred/2026-07-17-warm-singleton-perf-headroom.md).*

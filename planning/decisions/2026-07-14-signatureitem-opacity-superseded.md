@@ -9,9 +9,9 @@ superseded_by: null
 
 **Decision:** Do not pursue "make `SignatureItem` an opaque resolved
 parameter" (Candidate 3 from the 2026-07-13 architecture review). Its
-substance already shipped in the graph-traversal unification
-([2026-07-12.01-dependency-graph-module](../changes/2026-07-12.01-dependency-graph-module.md),
-PR #308), which placed the behaviour better than the candidate's sketch.
+substance already shipped in the graph-traversal unification (the
+`DependencyGraph` module, PR #308), which placed the behaviour better than the
+candidate's sketch.
 
 ## Context
 

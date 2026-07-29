@@ -8,8 +8,7 @@ superseded_by: null
 # D3 root-lifecycle gaps are inherent — no integration code changes
 
 **Decision:** The 8 integrations scoring D3<2 (lifespan handled for the user) in
-the [blessed-ready on-ramp audit](../audits/2026-07-22-blessed-ready-onramp-report.md)
-keep their current lifecycle handling. The gaps are inherent framework-lifecycle
+the 2026-07-22 blessed-ready on-ramp audit keep their current lifecycle handling. The gaps are inherent framework-lifecycle
 limits plus the deliberately-chosen caller-owns-root contract, so the treatment
 is this documented rationale, not integration code.
 
@@ -46,8 +45,7 @@ behavior: ASGI's lifespan scope is optional, test brokers deliberately skip
 startup hooks, `run_startup` defaults off, eager execution bypasses worker
 signals. No code closes a caveat the framework itself imposes. These are already
 captured in the [lifecycle rules](../../docs/integrations/writing-integrations.md#lifecycle-rules)
-and the per-integration deployment caveats added in
-[`2026-07-21.01`](../changes/2026-07-21.01-integration-open-lifecycle-lessons.md).
+and in the per-integration deployment caveats on each integration page.
 
 **Category B (flask, grpc) — root ownership is the caller's, by design.** Flask
 has no app-shutdown hook and gRPC's server lifecycle is caller-owned, so the root

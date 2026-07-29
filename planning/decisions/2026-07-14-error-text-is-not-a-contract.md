@@ -15,8 +15,7 @@ only with the usual care.
 
 ## Context
 
-Came up while designing
-[2026-07-14.08-one-error-renderer](../changes/2026-07-14.08-one-error-renderer.md).
+Came up while unifying the two error renderers into one.
 Unifying the two chain drawers means `CircularDependencyError` renders through the
 same code path as `DependencyPathMixin`, which prints an aligned scope column.
 Either the cycle message gains that column (a user-visible change), or the shared

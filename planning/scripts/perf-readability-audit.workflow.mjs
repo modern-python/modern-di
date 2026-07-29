@@ -2,6 +2,7 @@ export const meta = {
   name: 'perf-readability-audit',
   description: 'Two-lens (performance + readability) decision-grade audit of modern_di, gated against the settled decisions/deferred corpus, producing a leverage-vs-risk report.',
   whenToUse: 'Run for a fresh both-axes refactor survey that separates new perf hypotheses from already-settled ground and finds off-hot-path readability seams.',
+  // The report is transient scratch: a sweep's durable output is a PR plus planning/deferred/ items.
   phases: [
     { title: 'Discover',   detail: 'file map + settled corpus (decisions, deferred, guard scenarios)' },
     { title: 'Find',       detail: 'two parallel lens finders: performance, readability' },
@@ -46,7 +47,7 @@ const CONTEXT_BLOB_SCHEMA = {
     },
     deferred_items: {
       type: 'array',
-      description: 'Every deferred.md item: short title, one-line gist, revisit trigger.',
+      description: 'Every planning/deferred/ item: short title, one-line gist, revisit trigger.',
       items: {
         type: 'object',
         additionalProperties: false,
@@ -71,7 +72,7 @@ const CONTEXT_BLOB_SCHEMA = {
         },
       },
     },
-    competitive_note: { type: 'string', description: 'The current standing summary from deferred.md (where modern-di sits vs rivals and the accepted floor).' },
+    competitive_note: { type: 'string', description: 'The current standing summary from planning/deferred/ (where modern-di sits vs rivals and the accepted floor).' },
     recent_commits:   { type: 'array', items: { type: 'string' } },
   },
 }
@@ -94,7 +95,7 @@ const RAW_FINDING_SCHEMA = {
     guard_scenario:      { type: 'string', description: 'PERF: the G-id (G1-G15) that would confirm it, plus expected-leverage note. READABILITY: "n/a".' },
     hot_path:            { type: 'boolean', description: 'true if the code is on the resolve hot path' },
     invariant_at_risk:   { type: 'string', description: 'READABILITY: the invariant the change must not break (frame count / 100% cov / zero-dep / behavior), or "none". PERF: "n/a".' },
-    settled_ref:         { type: 'string', description: 'if you suspect this matches a decisions/ or deferred.md item, name it here; else "".' },
+    settled_ref:         { type: 'string', description: 'if you suspect this matches a decisions/ or deferred/ item, name it here; else "".' },
   },
 }
 
@@ -153,11 +154,11 @@ Do exactly this:
 
 3. decisions: read every file under planning/decisions/. For each, record its slug (the filename without date/extension is fine) and a one-line holding — WHAT WAS DECIDED, especially what was rejected (e.g. "declined folding ContextRegistry into Container", "no exec codegen"). These are the settled-ground guardrail.
 
-4. deferred_items: read planning/deferred.md. For each "## " item, record a short title, a one-line gist, and its revisit trigger. Capture the perf items faithfully (warm-singleton memo-swap dropped, codegen ceiling, free-threaded non-scaling) — these must not be re-proposed as open.
+4. deferred_items: read every file in planning/deferred/. For each item, record a short title, a one-line gist, and its revisit trigger. Capture the perf items faithfully (warm-singleton memo-swap dropped, codegen ceiling, free-threaded non-scaling) — these must not be re-proposed as open.
 
 5. guard_scenarios: read benchmarks/README.md and record the G1-G15 catalog: each id and what it isolates.
 
-6. competitive_note: one paragraph from deferred.md summarizing where modern-di currently sits vs rivals and what the accepted floor is (the no-exec stance, the C2 warm-singleton gap).
+6. competitive_note: one paragraph from planning/deferred/ summarizing where modern-di currently sits vs rivals and what the accepted floor is (the no-exec stance, the C2 warm-singleton gap).
 
 7. recent_commits: subject lines from \`git log --oneline -20\`.
 
@@ -171,7 +172,7 @@ ${JSON.stringify(ctx, null, 2)}
 RULES:
 - Read the ACTUAL source before any finding (open modern_di/resolver_compiler.py, container.py, registries/*.py, providers/*.py, wiring.py, dependency_graph.py). The blob is a map, not the code.
 - Every finding is a HYPOTHESIS, not a claim. Set guard_scenario to the G-id (G1-G15) that would confirm it plus a one-line expected-leverage note. No prototyping, no bench runs — you are proposing what to measure, not measuring.
-- SETTLED GROUND IS OFF LIMITS as an "open" proposal. If your idea matches a decisions/ ruling or a deferred.md item (warm-singleton memo-swap, child lazy-alloc, exec/codegen, free-threaded immortalization, per-provider compile seam, folding ContextRegistry), you may only raise it if you bring GENUINELY NEW evidence — and you MUST name the settled item in settled_ref. When in doubt, set settled_ref and let the verifier judge.
+- SETTLED GROUND IS OFF LIMITS as an "open" proposal. If your idea matches a decisions/ ruling or a deferred/ item (warm-singleton memo-swap, child lazy-alloc, exec/codegen, free-threaded immortalization, per-provider compile seam, folding ContextRegistry), you may only raise it if you bring GENUINELY NEW evidence — and you MUST name the settled item in settled_ref. When in doubt, set settled_ref and let the verifier judge.
 - Respect the stances as settled: no exec/codegen (zero-dep), conservative feature set, sync-only resolution. Do not propose them.
 - No lint/style. ruff and ty own those.
 - Set hot_path (is this on the resolve path?), leverage, risk, confidence. Set invariant_at_risk to "n/a" for perf.
@@ -252,11 +253,11 @@ TRIAGE — each finding carries verifier_votes (3), plus derived flags. Assign e
 
 DEDUPLICATE first: a perf and a readability finding on the same file:line region are often one root; merge, keep the sharper title, union evidence, list both lenses.
 
-WRITE the report to planning/audits/2026-07-19-perf-readability-audit-report.md with your Write tool, EXACTLY this structure:
+WRITE the report to .superpowers/audits/perf-readability-report.md (git-ignored scratch) with your Write tool, EXACTLY this structure:
 
 # Perf & Readability Refactor Audit Report — 2026-07-19
 
-**Spec:** planning/changes/2026-07-19.08-perf-readability-audit.md
+**Spec:** the PR body for this sweep.
 **Baseline:** ${ctx.baseline_commit}
 **Method:** Two-lens multi-agent workflow (perf + readability finders; 3-lens adversarial verify: read-real-code, decision-conflict, invariant-safety; majority survive). No code changes; perf findings are bench-mapped hypotheses.
 
