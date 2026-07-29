@@ -78,8 +78,10 @@ section above is quick orientation; `architecture/` holds the authoritative acco
 
 - **Cutting a release (maintainers)** is tag-driven via
   [`.github/workflows/release.yml`](.github/workflows/release.yml): write the
-  notes at `docs/changelog/<version>.md` (used verbatim as the GitHub Release
-  body, and published on the docs site), then push a bare-semver-**named** tag
+  notes at `planning/releases/<version>.md` from
+  [`planning/_templates/release.md`](planning/_templates/release.md) (used
+  verbatim as the GitHub Release body; `docs/changelog.md` links to the
+  directory rather than republishing it), then push a bare-semver-**named** tag
   off green `main` —
   `git tag -m "modern-di 2.19.2" 2.19.2 && git push origin 2.19.2`. Only the tag
   *name* must be bare semver (that is what the workflow matches); the tag object
