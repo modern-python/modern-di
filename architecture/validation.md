@@ -8,7 +8,9 @@ dependencies**, and **missing required dependencies**.
 
 `container.validate()` is the only thing that walks the graph. Nothing validates at construction, at
 `open()`, at [`add_providers`](containers.md#integration-seam), or at `resolve()` — a container is fully
-usable, and stays usable, without ever calling `validate()`. Call it explicitly, whenever you want the
+usable, and stays usable, without ever calling `validate()`. That the trigger is explicit is a
+deliberate choice, not an omission: an implicit-validation design was built and discarded — see
+[`explicit-only-validation`](../planning/decisions/2026-07-26-explicit-only-validation.md). Call it explicitly, whenever you want the
 whole graph checked at once:
 
 ```python

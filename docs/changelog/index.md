@@ -1,7 +1,12 @@
 # Changelog
 
-Release notes for every published version, newest first. Each page is the same
-text as the corresponding [GitHub Release](https://github.com/modern-python/modern-di/releases).
+Curated release notes, newest first. Each page is the same text as the
+corresponding [GitHub Release](https://github.com/modern-python/modern-di/releases).
+
+Notes are written per release from **2.15.0** onward. Earlier versions were
+released without curated notes — see the
+[GitHub releases list](https://github.com/modern-python/modern-di/releases) for
+their auto-generated changelogs.
 
 
 ## 3.x
@@ -13,6 +18,7 @@ text as the corresponding [GitHub Release](https://github.com/modern-python/mode
 
 ## 2.x
 
+- [**2.31.1**](2.31.1.md) — containers stop being garbage the refcounter can't free
 - [**2.31.0**](2.31.0.md) — faster cold starts
 - [**2.30.0**](2.30.0.md) — free-threaded (Beta), and a concurrency fix
 - [**2.29.0**](2.29.0.md) — the compiled resolver

@@ -33,17 +33,23 @@ true.
 
 **4. Run `just check-planning` and `just check-links` before pushing.**
 
-## The two axes
+## What lives where
 
-- **`architecture/` (repo root) — the present.** One file per capability, plus a
-  single `glossary.md` (the ubiquitous language). Living prose, no frontmatter,
-  dated by git, updated in the same PR that ships the change.
-- **`planning/` — the standing record.** Not a history of every change (the git
-  log and the PR bodies are that), but the two things neither of those surfaces:
-  what was decided against, and what is waiting.
+A shipped change leaves three traces, none of them a file in this directory: the
+diff, the updated capability page in [`architecture/`](../architecture/), and the
+PR body. Between them they answer *what changed*, *what is true now*, and *why*.
 
-A shipped change leaves three durable traces — the diff, the updated capability
-page, and the PR body. It does not leave a file here.
+`planning/` holds only what those three cannot:
+
+- **`decisions/` — what was decided against.** A rejected alternative leaves no
+  trace in a diff (the code that was not written) and does not belong in
+  `architecture/` (it is not current behaviour). Without a home it gets
+  re-proposed.
+- **`deferred/` — what is waiting.** Real work, not scheduled. Nothing else in
+  the repo records the absence of something.
+
+If a fact fits in `architecture/`, the diff, or the PR body, it goes there
+instead. This directory is the residue, and it should stay small.
 
 ## Artifacts
 
@@ -56,9 +62,6 @@ page, and the PR body. It does not leave a file here.
   it up cold, and cites no report. Frontmatter: `summary`. A required
   `**Revisit trigger:**` section — an item with no trigger is abandoned, not
   deferred.
-- **[`docs/changelog/<semver>.md`](../docs/changelog/)** — per-release notes,
-  authored prose, used verbatim as the GitHub Release body and published on the
-  docs site.
 - **[`_templates/`](_templates/)** — `decision.md`, `deferred.md`,
   `release.md`, `glossary.md`.
 - **[`scripts/`](scripts/)** — reusable multi-agent audit harnesses. A sweep's
@@ -85,11 +88,3 @@ each file is the single source of truth; there is no committed copy to drift.
 `just check-planning` validates it, and `just check-links` validates every
 relative Markdown link and heading anchor in the repo — including the trees a
 site builder never sees.
-
-## Releases
-
-Tag-driven via [`.github/workflows/release.yml`](../.github/workflows/release.yml).
-Write the notes at `docs/changelog/<version>.md` first — the workflow aborts
-before publishing if a stable tag has none — then push a bare-semver-named tag off
-green `main`. See the release section of [`CLAUDE.md`](../CLAUDE.md) for the full
-procedure.
