@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Decline a provider-facing seam (ResolutionContext view / promoting Container internals) — one Container implementation makes it a hypothetical seam, the crossings are 3 core-internal reaches, and the supported/internal split is already documented.
-supersedes: null
-superseded_by: null
 ---
 
 # No provider-facing seam on Container

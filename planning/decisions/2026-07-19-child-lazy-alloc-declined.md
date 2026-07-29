@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Decline lazy-allocating the child-container RLock/CacheRegistry/ContextRegistry — measured saving is ~0 for realistic caching request cycles and ~2-3.5% only for a narrow no-cache child, not worth a resolve hot-path branch plus re-introducing the singleton-creation race.
-supersedes: null
-superseded_by: null
 ---
 
 # Decline lazy-allocation of child-container registries

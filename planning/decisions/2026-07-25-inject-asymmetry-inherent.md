@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: The @inject asymmetry (4 integrations decorator-free, 8 require @inject) is inherent, not an adapter gap — @inject is required exactly where the host framework exposes no per-parameter provider seam; do not unify, document the rationale.
-supersedes: null
-superseded_by: null
 ---
 
 # The @inject asymmetry is inherent — do not unify

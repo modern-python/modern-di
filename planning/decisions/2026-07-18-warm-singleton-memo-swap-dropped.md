@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Drop the warm-singleton resolver memo-swap — built, fully tested, and measured at ~1.6x (short of the pre-committed 2x gate, because `resolve_provider`'s dispatch floor is unremovable by the swap); a bounded win does not buy a permanent cross-cutting invalidation invariant.
-supersedes: null
-superseded_by: null
 ---
 
 # Drop the warm-singleton resolver memo-swap

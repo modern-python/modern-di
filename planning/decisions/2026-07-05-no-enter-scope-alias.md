@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Rejected a Container.enter_scope() alias; build_child_container stays the single scope-entry spelling.
-supersedes: null
-superseded_by: null
 ---
 
 # No enter_scope alias for build_child_container

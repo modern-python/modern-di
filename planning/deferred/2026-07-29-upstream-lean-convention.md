@@ -1,5 +1,5 @@
 ---
-summary: Whether the lean convention (no `changes/`, no `audits/`, spec in the PR body) goes upstream as planning-convention 3.0.0 — the harvest suggests it only pays off in a repo that already promotes reliably, which is a reason to soak longer than first planned.
+summary: Whether the lean convention (no `changes/`, no `audits/`, spec in the PR body, and now a slimmed decision frontmatter with a locally forked `index.py`) goes upstream as planning-convention 3.0.0 — the harvest suggests it only pays off in a repo that already promotes reliably, which is a reason to soak longer than first planned.
 ---
 
 # Upstream the lean convention, or keep it a local deviation
@@ -40,18 +40,44 @@ who may not meet that bar. Three routes:
    portability language, accept the loss of shared vocabulary across the org's
    repos.
 
-Two things should inform whichever route is taken, and neither has evidence yet:
+## The second axis: the schema fork
+
+The deviation was layout-only when this item was filed. It is not any more.
+Decision frontmatter dropped `status` and `supersedes`, keeping `summary` plus an
+optional `superseded_by` whose *presence* means superseded — matching how
+`deferred/` already treats location as status. That required editing
+`planning/index.py`, which line 1 declares is **vendored into consumers'
+`planning/`**. So this repo's copy of the tooling now differs from upstream
+2.2.0, not just its directory layout.
+
+That widens the upstream question rather than changing its answer. A layout
+deviation is something a consumer opts into by reading a README; a vendored-file
+deviation is something that silently loses their edits the next time `APPLY.md`
+re-vendors. Whichever route is taken, the schema has to travel with it or be
+reverted — the two cannot ship apart.
+
+It also strengthens route 2 (an optional profile). The frontmatter change is
+cheap to make optional — `DECISION_REQUIRED` is one tuple — in a way that
+deleting `changes/` is not.
+
+Three things should inform whichever route is taken, and none has evidence yet:
 
 - Whether writing specs in PR bodies actually holds up over a month of real
   changes, or quietly degrades into thin descriptions because nothing in the repo
   enforces the shape the way `check-planning` enforced change-file frontmatter.
 - Whether `decisions/` and `deferred/` grow at a rate that keeps them scannable.
-  They are 24 and 11 files now; the value of the whole design rests on them
+  They are 24 and 10 files now; the value of the whole design rests on them
   staying small enough to read.
+- Whether `superseded_by` is ever actually written. In 24 decisions the old
+  `status` field never once took its second value. If a year passes with no
+  supersession, the honest conclusion is that `decisions/` needs no state marker
+  at all and the key should go too.
 
 ## Revisit trigger
 
 After roughly a month of real changes under the new convention (so, from
-late August 2026) — with two checks before deciding: re-read the last ten merged
-PR bodies and judge whether they are specs or descriptions, and count
-`decisions/` + `deferred/` against the 24 + 11 baseline recorded here.
+late August 2026) — with three checks before deciding: re-read the last ten
+merged PR bodies and judge whether they are specs or descriptions; count
+`decisions/` + `deferred/` against the 24 + 10 baseline recorded here; and diff
+`planning/index.py` and `planning/links.py` against upstream 2.2.0 to see how far
+the vendored files have drifted.

@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: The provider-type set is closed (Factory, Alias, ContextProvider, container_provider). Retract "Subclassing AbstractProvider" from the documented supported extension points rather than restoring the open dispatch the compiled resolver removed.
-supersedes: null
-superseded_by: null
 ---
 
 # Custom providers are not an extension point; the provider set is closed

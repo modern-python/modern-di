@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Re-decline exec codegen on the resolve hot path — the reframe that "zero-dependency" was never the real objection holds, but the bounded 1.3-1.9x prize (high-arity/deep-chain only) does not clear the standing maintainability and free-threading costs.
-supersedes: null
-superseded_by: null
 ---
 
 # Re-decline exec codegen on the resolve hot path

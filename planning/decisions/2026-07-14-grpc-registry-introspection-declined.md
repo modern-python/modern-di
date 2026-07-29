@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Decline a blessed provider-introspection seam (container.is_registered) for grpc's idempotent registration — one consumer is a hypothetical seam; grpc keeps its local guard.
-supersedes: null
-superseded_by: null
 ---
 
 # No blessed provider-introspection seam for grpc's registry drill
