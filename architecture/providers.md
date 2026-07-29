@@ -1,7 +1,8 @@
 # Provider Catalog
 
-This document describes every provider type in `modern-di`. It is the authoritative reference; if anything here
-conflicts with other documentation, the code governs.
+Every provider type in `modern-di`: what each one is, and the mechanism behind it. This page is the
+truth home for the catalog, kept true by the promotion rule — a change to a provider's behaviour
+edits this page in the same PR. `docs/providers/` covers how to use them.
 
 ---
 
@@ -77,13 +78,9 @@ resolution order).
 
 ### Recursive resolution
 
-When a `Factory` is resolved, `WiringPlan.build` (in `modern_di/wiring.py`) iterates the parsed parameter map and
-partitions it into the plan; the factory's **compiled resolver** then invokes each matched dependency's own
-compiled resolver, captured by reference at compile time (the chain of closure calls that replaces per-edge
-`resolve_provider` recursion — see [resolution.md](resolution.md#compiled-resolvers)). The plan is memoized on the
-`ProvidersRegistry` (keyed by `provider_id`) and cleared on registry mutation
-(i.e. after `add_providers`); the compiled resolver is memoized the same way. Resolution errors are
-annotated with a breadcrumb describing the current factory, so the full chain appears in the exception.
+A `Factory`'s parsed parameter map is partitioned into a wiring plan, and its compiled resolver calls
+each dependency's resolver by reference — see [resolution.md](resolution.md#compiled-resolvers), which
+owns the plan, the memoization, and the breadcrumb.
 
 ### Static kwargs and `skip_creator_parsing`
 
@@ -177,23 +174,5 @@ internally; its effective scope at resolution time is derived from its source pr
 
 ## `container_provider` — the container itself
 
-`container_provider` is a pre-built singleton exported from `modern_di.providers`. It is automatically registered
-in every container and resolves to the `Container` instance at the appropriate scope. Use it when a class needs to
-accept the container as a dependency.
-
----
-
-## Public exports
-
-All provider types and `CacheSettings` are re-exported from `modern_di.providers`:
-
-```python
-from modern_di import providers
-
-providers.Factory
-providers.CacheSettings
-providers.ContextProvider
-providers.Alias
-providers.AbstractProvider
-providers.container_provider
-```
+A pre-built singleton, auto-registered in every container, that resolves to the `Container` asking for
+it. See [containers.md](containers.md#container_provider) for its registration mechanics.
