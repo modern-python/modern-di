@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Chose `Factory(cache=bool|CacheSettings)` over a `Singleton` class, a `cached=` flag, or `cache_settings=True`.
-supersedes: null
-superseded_by: null
 ---
 
 # Ergonomic caching toggle: `cache=` argument, not a `Singleton` class

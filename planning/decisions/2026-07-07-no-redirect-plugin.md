@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Drop the mkdocs-redirects plugin entirely — merged-page URLs 404 instead of being preserved.
-supersedes: null
-superseded_by: null
 ---
 
 # No redirect plugin — merged-page URLs 404

@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Accept an except-body-only helper for the creator-call TypeError rule — it dodges the frame cost that made the drift-lock bundle reject a shared helper, because the moved code runs only on the raise path.
-supersedes: null
-superseded_by: null
 ---
 
 # Extract the creator-call error rule via an except-body-only helper

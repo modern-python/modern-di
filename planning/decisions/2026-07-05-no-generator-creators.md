@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Rejected yield-based generator creators for 3.0; CacheSettings(finalizer=) stays the single teardown channel.
-supersedes: null
-superseded_by: null
 ---
 
 # No generator creators in core Factory

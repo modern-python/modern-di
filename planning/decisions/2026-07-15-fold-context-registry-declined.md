@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Decline folding ContextRegistry into Container — it is a documented, symmetric node in the shared-vs-per-container four-registry model, not incidental co-location, so the ~18-line deletion would break a uniform abstraction for no real friction.
-supersedes: null
-superseded_by: null
 ---
 
 # Keep ContextRegistry as its own module

@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: No static/compile-time wiring checker and no mypy/pyright/ty plugin; opt-in runtime validate() plus declaration-time signature parsing is the deliberate model.
-supersedes: null
-superseded_by: null
 ---
 
 # No static / compile-time wiring checker

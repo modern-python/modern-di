@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: The 8 integrations scoring D3<2 in the blessed-ready audit stay as-is — the root-lifecycle gaps are inherent framework-lifecycle limits plus the deliberate caller-owns-root contract, not fixable ergonomics; typer's callback fix considered and deferred.
-supersedes: null
-superseded_by: null
 ---
 
 # D3 root-lifecycle gaps are inherent — no integration code changes

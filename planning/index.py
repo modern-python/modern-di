@@ -9,6 +9,10 @@ artifact.
 
 ``date`` and ``slug`` are derived from the file name, not
 frontmatter — the name is the single source of truth for both.
+
+Both artifact kinds carry ``summary`` and nothing else required. A decision has
+no ``status`` field: absent ``superseded_by`` means accepted, and its presence
+means superseded.
 """
 
 import pathlib
@@ -17,11 +21,10 @@ import sys
 
 
 ROOT = pathlib.Path(__file__).parent
-VALID_DECISION_STATUS = {"accepted", "superseded"}
 DEFERRED_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})-(?P<slug>.+)$")
 DECISION_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})-(?P<slug>.+)$")
 DEFERRED_REQUIRED = ("summary",)
-DECISION_REQUIRED = ("status", "summary")
+DECISION_REQUIRED = ("summary",)
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
@@ -91,8 +94,6 @@ def format_row(row: dict[str, str]) -> str:
     date = row.get("date", "")
     summary = row.get("summary") or "(no summary)"
     line = f"- **[{slug}]({path})** ({date}) — {summary}"
-    if row.get("supersedes"):
-        line += f" _(supersedes {row['supersedes']})_"
     if row.get("superseded_by"):
         line += f" _(superseded by {row['superseded_by']})_"
     return line
@@ -129,15 +130,11 @@ def _check_deferred(path: pathlib.Path, violations: list[str]) -> None:
 
 
 def _check_decision(path: pathlib.Path, violations: list[str]) -> None:
-    """Validate one decision file (requires `status` + `summary`)."""
+    """Validate one decision file (requires `summary`)."""
     rel = f"decisions/{path.name}"
     if DECISION_RE.match(path.stem) is None:
         violations.append(f"{rel}: file name is not 'YYYY-MM-DD-slug.md'")
-    fields = parse_frontmatter(path.read_text(encoding="utf-8"))
-    _require(fields, DECISION_REQUIRED, rel, violations)
-    status = fields.get("status", "")
-    if status and status not in VALID_DECISION_STATUS:
-        violations.append(f"{rel}: invalid status '{status}' (allowed: {', '.join(sorted(VALID_DECISION_STATUS))})")
+    _require(parse_frontmatter(path.read_text(encoding="utf-8")), DECISION_REQUIRED, rel, violations)
 
 
 def check(root: pathlib.Path) -> list[str]:

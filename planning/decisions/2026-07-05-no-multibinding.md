@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: No multibinding / collection injection — resolving `list[T]` to every provider registered for `T` contradicts the type→provider map the registry is built on; revisit only on concrete user demand, not on field precedent.
-supersedes: null
-superseded_by: null
 ---
 
 # No multibinding or collection injection

@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Reverse validation.md's "deliberate duplication" stance on the extraction axis — extract the shared graph traversal into a DependencyGraph module while keeping validate() and the runtime guard as distinct policies.
-supersedes: null
-superseded_by: null
 ---
 
 # Extract the shared provider-graph traversal, keep the two cycle policies

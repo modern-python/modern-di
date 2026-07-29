@@ -1,9 +1,11 @@
 ---
-status: accepted        # accepted | superseded
 summary: One line — shown in `just index`.
-supersedes: null
-superseded_by: null
 ---
+
+<!-- There is no `status:` field. Presence in decisions/ means accepted. When a
+     later decision supersedes this one, add `superseded_by: <its-slug>` to the
+     frontmatter above — `just index` renders it. -->
+
 
 # One-line capitalized title
 

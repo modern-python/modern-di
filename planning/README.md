@@ -8,9 +8,13 @@ options rejected) and the work deliberately not scheduled.
 > **Local deviation.** This repo tracks the portable convention from
 > [`lesnik512/planning-convention`](https://github.com/lesnik512/planning-convention)
 > (applied version in `.convention-version`, beside this file), but currently
-> **deviates from it**: `changes/`, `audits/`, and `retros/` were removed, and
-> the per-change spec moved into the PR body. If the deviation holds, it goes
-> upstream as convention 3.0.0 and is re-applied via that repo's `APPLY.md` flow.
+> **deviates from it** on four counts: `changes/`, `audits/`, and `retros/` were
+> removed; the per-change spec moved into the PR body; decision frontmatter lost
+> its `status` and `supersedes` keys; and `index.py` — a vendored file — was
+> edited locally to match that schema. If the deviation holds, it goes upstream
+> as convention 3.0.0 and is re-applied via that repo's `APPLY.md` flow. See
+> [`deferred/2026-07-29-upstream-lean-convention.md`](deferred/2026-07-29-upstream-lean-convention.md)
+> for the open question and its revisit trigger.
 
 ## Quick path (start here)
 
@@ -55,30 +59,39 @@ instead. This directory is the residue, and it should stay small.
 
 - **[`decisions/<YYYY-MM-DD>-<slug>.md`](decisions/)** — one file per design
   decision taken, especially options *rejected*, each with a revisit trigger, so
-  reviews don't re-litigate them. Frontmatter: `status` (accepted|superseded),
-  `summary`, and optional `supersedes` / `superseded_by`.
+  reviews don't re-litigate them. Frontmatter: `summary`, plus `superseded_by`
+  once something supersedes it.
 - **[`deferred/<YYYY-MM-DD>-<slug>.md`](deferred/)** — one file per open item,
   each **self-contained**: it inlines the evidence and reasoning needed to pick
   it up cold, and cites no report. Frontmatter: `summary`. A required
   `**Revisit trigger:**` section — an item with no trigger is abandoned, not
   deferred.
-- **[`_templates/`](_templates/)** — `decision.md`, `deferred.md`,
-  `release.md`, `glossary.md`.
+- **[`_templates/`](_templates/)** — `decision.md`, `deferred.md`, `release.md`.
 - **[`scripts/`](scripts/)** — reusable multi-agent audit harnesses. A sweep's
   durable output is a PR plus `deferred/` items; the report itself is transient
   and is not committed.
 
-### The deferred lifecycle
+### Location is status
 
-An item's **presence in `deferred/` is its status** — there is no `status:`
-field. When it resolves:
+Neither artifact carries a `status:` field. Where a file sits, and which keys it
+has, is what its state means.
+
+A **deferred item's presence in `deferred/` is its status**. When it resolves:
 
 - **it ships** → delete the file. Its truth is now in `architecture/` and the
   release notes.
 - **it is declined** → move it to `decisions/`, so the refusal is on record.
 
+A **decision is accepted unless it says otherwise**. There is no exit from
+`decisions/` — a superseded decision stays readable, or it gets re-litigated —
+so the one state worth recording is marked by adding `superseded_by: <slug>`,
+which `just index` renders. Absent means accepted. The inverse `supersedes` key
+is gone: it is derivable, and two pointers per relationship is one too many to
+keep honest.
+
 `date` and `slug` are derived from the file name and never repeated in
-frontmatter. `summary` is one line; it is the only field the index renders.
+frontmatter. `summary` is one line; it is the only field the index renders for
+an ordinary entry.
 
 ## Index
 

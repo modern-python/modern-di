@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Integration kit lives in core as low-level primitives; outliers bypass rather than the primitive absorbing them.
-supersedes: null
-superseded_by: null
 ---
 
 # Integration kit is low-level primitives in core, and outliers bypass it

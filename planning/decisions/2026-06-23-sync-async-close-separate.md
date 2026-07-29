@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Keep sync/async close paths separate — the divergence is intrinsic, not duplication.
-supersedes: null
-superseded_by: null
 ---
 
 # Keep sync and async `close` paths separate

@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Making SignatureItem an opaque resolved parameter (a 2026-07-13 review candidate) is superseded — the graph-traversal unification already extracted its two behaviours as wiring.py functions.
-supersedes: null
-superseded_by: null
 ---
 
 # SignatureItem opacity is superseded by the wiring extraction

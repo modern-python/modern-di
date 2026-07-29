@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Rendered error text is diagnostic, not a public contract — the structured attributes are; a change may reformat a message without a deprecation cycle.
-supersedes: null
-superseded_by: null
 ---
 
 # Rendered error text is not a public contract

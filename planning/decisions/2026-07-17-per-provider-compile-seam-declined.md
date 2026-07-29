@@ -1,5 +1,4 @@
 ---
-status: accepted
 summary: Decline a per-provider compile() seam that would dissolve resolver_compiler's type-dispatch and its reaches into provider privates — one compiler makes it a hypothetical seam, and the concentrated hot-path closures are a deliberate property. Only the phantom docstrings were a real defect; those were fixed.
 ---
 

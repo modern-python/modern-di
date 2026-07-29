@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: Validation is explicit-only — `validate()` is the sole trigger. The alternative that kept it implicit (splitting the walk into monotone checks at construction and completeness at first use) was implemented, measured, and discarded: its machinery was out of proportion to the guarantee, and the cheap version taxes the resolve hot path for a startup-time concern.
-supersedes: null
-superseded_by: null
 ---
 
 # Validation is explicit-only; implicit validation was built and discarded

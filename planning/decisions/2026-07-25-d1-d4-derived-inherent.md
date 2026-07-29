@@ -1,8 +1,5 @@
 ---
-status: accepted
 summary: D1 (one-call setup) and D4 (quickstart length) sub-2 scores are arithmetic consequences of the already-inherent @inject (D5) and caller-owned root lifecycle (D3) — no independent quickstart or setup fix; the audit's item-5 one-line trim does not hold. Post-rollout blessed-ready count is 4 (the ceiling under the inherent rulings).
-supersedes: null
-superseded_by: null
 ---
 
 # D1/D4 sub-2 scores are derived — no independent fix
