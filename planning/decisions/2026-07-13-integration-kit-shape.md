@@ -10,8 +10,8 @@ superseded_by: null
 **Decision:** Extract the shared adapter skeleton into a framework-agnostic
 module inside `modern-di` core, exposing only low-level primitives; genuine
 outliers call core's `build_child_container` directly rather than the primitives
-growing parameters to swallow them. See the design in
-[changes/2026-07-13.02-integration-kit.md](../changes/2026-07-13.02-integration-kit.md).
+growing parameters to swallow them. The shipped shape is documented in
+[`integration-kit.md`](../../architecture/integration-kit.md).
 
 ## Context
 

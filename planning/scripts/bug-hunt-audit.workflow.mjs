@@ -2,6 +2,7 @@ export const meta = {
   name: 'bug-hunt-audit',
   description: 'Four-dimension (UX/security/tests/logic) bug-hunt audit of modern-di with adversarial verify and triaged report.',
   whenToUse: 'Run when you want a fresh triaged backlog of bugs and quality risks across the modern-di repo.',
+  // The report is transient scratch: a sweep's durable output is a PR plus planning/deferred/ items.
   phases: [
     { title: 'Discover', detail: 'map files, extract behavior claims' },
     { title: 'Find',     detail: 'four parallel dimension finders' },
@@ -266,7 +267,7 @@ function synthPrompt(survivors) {
    - wont-fix — reclassification is "intended-behavior". Record so they don't resurface next audit.
    Findings outside these definitions: drop to nice-to-have.
 
-3. WRITE the report to planning/audits/2026-06-05-bug-hunt-audit-report.md using your Write tool. Use this exact structure:
+3. WRITE the report to .superpowers/audits/bug-hunt-report.md (git-ignored scratch) using your Write tool. Use this exact structure:
 
 \`\`\`markdown
 # Bug-Hunt Audit Report — 2026-06-05
@@ -322,7 +323,7 @@ function synthPrompt(survivors) {
 (same structure, plus a final line "Rationale:" quoting the spec/CLAUDE.md line that endorses this behavior)
 \`\`\`
 
-4. After writing the report, return the structured summary (report_path = "planning/audits/2026-06-05-bug-hunt-audit-report.md", counts per bucket).
+4. After writing the report, return the structured summary (report_path = ".superpowers/audits/bug-hunt-report.md", counts per bucket).
 
 SURVIVORS (already verified):
 ${JSON.stringify(survivors, null, 2)}

@@ -206,7 +206,7 @@ computes `.allowed_scopes` from `parent_scope`, and `UnknownFactoryKwargError` r
 and `close_matches` is the shared difflib primitive. `ProvidersRegistry` is pure storage; `exceptions`
 owns how everything *looks*. The messages themselves stay inline
 f-strings in the class that raises them — only the shared glyph logic is factored out, not the
-message catalog (see [2026-06-23.02-inline-error-messages](../planning/changes/2026-06-23.02-inline-error-messages.md)).
+message catalog.
 
 Rendered error text is diagnostic, not a public contract; the structured attributes and the class
 hierarchy are. See [2026-07-14-error-text-is-not-a-contract](../planning/decisions/2026-07-14-error-text-is-not-a-contract.md).

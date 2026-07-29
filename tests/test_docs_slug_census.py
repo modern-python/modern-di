@@ -2,7 +2,7 @@
 
 Every concrete `ModernDIError` subclass sets a unique `docs_slug`, and the slugs stand in a
 bijection with the pages under `docs/troubleshooting/<slug>.md` — the full completeness gate.
-See planning/changes/2026-07-07.06-error-docs-registry.md.
+A new exception class without its page (or a page without its class) fails here, not in review.
 """
 
 import pathlib

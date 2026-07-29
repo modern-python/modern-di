@@ -14,8 +14,7 @@ parsing that already fails early on an unwireable creator.
 
 ## Context
 
-The 2026-07-19 DI static-analysis research
-([audit](../audits/2026-07-19-di-static-analysis-surface-report.md)) examined how
+The 2026-07-19 DI static-analysis research examined how
 the wider field verifies wiring *before* runtime, to decide whether modern-di
 should add a static safety net — an opt-in mypy/pyright/`ty` plugin or a
 richer statically-checkable API — on top of runtime `validate()`. Three verified

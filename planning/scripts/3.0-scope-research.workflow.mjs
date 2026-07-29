@@ -2,6 +2,7 @@ export const meta = {
   name: '3.0-scope-research',
   description: 'UX-weighted 3.0-scope research: UX/API/DX + integration UX (+ light perf/readability re-confirm), gated against the v3-ux prior-candidate ledger, producing a leverage-vs-risk report with a 3.0-relevance cross-tab.',
   whenToUse: 'Run to gather fresh evidence for what should ride the modern-di 3.0 breaking-change budget, beyond the five queued switches.',
+  // The report is transient scratch: a sweep's durable output is a PR plus planning/deferred/ items.
   phases: [
     { title: 'Discover',   detail: 'file map + v3-ux prior-candidate ledger + decisions/deferred/switches' },
     { title: 'Find',       detail: 'three lenses: ux-api-dx, integration-ux, perf-readability re-confirm' },
@@ -166,7 +167,7 @@ const SYNTH_SUMMARY_SCHEMA = {
 
 const LEDGER_PROMPT = `You are the ledger agent for a modern-di 3.0-scope research pass. Extract the prior-decision guardrail so downstream finders do not re-surface settled or shipped ideas. Do NOT analyze or opine.
 
-1. Read planning/audits/2026-07-05-v3-ux-research-report.md. Extract EVERY candidate:
+1. Read the 3.0 UX research findings from the PR history and planning/decisions/. Extract EVERY candidate:
    - Section 4 (consciously rejected field practices),
    - Section 5 (the ranked shortlist of 30 — headers like "### 1. API-1 — ..."),
    - the appendix refuted candidates.
@@ -181,7 +182,7 @@ const MAP_PROMPT = `You are the map agent for a modern-di 3.0-scope research pas
 1. baseline_commit: \`git rev-parse --short HEAD\`.
 2. file_map: every file under modern_di/ (path, line count, one-line role), plus top-level docs structure (README.md, docs/ subdirs at one level) and modern_di/integrations.py. Skip __pycache__.
 3. decisions: every planning/decisions/*.md — slug + one-line holding.
-4. deferred_items: every deferred.md "## " item — title + one-line gist.
+4. deferred_items: every planning/deferred/ file — title + one-line gist.
 5. recent_commits: \`git log --oneline -30\` subject lines (signals what shipped since 2026-07-05).
 
 Return the structured blob.`
@@ -207,7 +208,7 @@ const INTEGRATION_FINDER_PROMPT = (ctx) => `You are the INTEGRATION-UX lens find
 CONTEXT:
 ${JSON.stringify(ctx, null, 2)}
 
-IMPORTANT LIMITATION: the sibling integration repos are NOT in this working tree. Work from: (a) planning/audits/2026-07-05-v3-ux-research-report.md section 3.4 (integration shape) and its INT-* / A2 candidates, (b) architecture/integration-kit.md, (c) modern_di/integrations.py (the core seam), (d) deferred.md's A2 "blessed-ready" and INT-6 items. For anything you cannot confirm from these, set integration_confidence="needs-sibling-confirmation".
+IMPORTANT LIMITATION: the sibling integration repos are NOT in this working tree. Work from: (a) architecture/integration-kit.md, (b) modern_di/integrations.py (the core seam), (c) planning/deferred/ and planning/decisions/ for the settled integration rulings. For anything you cannot confirm from these, set integration_confidence="needs-sibling-confirmation".
 
 FOCUS: the @inject asymmetry (7 of 12 integrations require it, 4 do not), one-import setup / blessed-readiness (A2), lifespan wiring boilerplate, the resolve entry-point (resolve_dependency), and whether the core seam forces per-integration re-implementation.
 
@@ -218,7 +219,7 @@ RULES:
 
 Aim for 3-8 findings. Return the structured object with lens="integration-ux".`
 
-const PERF_READ_FINDER_PROMPT = (ctx) => `You are the PERF + READABILITY RE-CONFIRM lens for a modern-di 3.0-scope research pass. This is a LIGHT pass, not a re-audit: performance and readability were both audited and actioned THIS session (see planning/audits/2026-07-19-perf-readability-audit-report.md and PRs #356-358 in recent_commits). Perf is at its documented floor; readability findings were fixed.
+const PERF_READ_FINDER_PROMPT = (ctx) => `You are the PERF + READABILITY RE-CONFIRM lens for a modern-di 3.0-scope research pass. This is a LIGHT pass, not a re-audit: performance and readability were both audited and actioned THIS session (see PRs #356-358 in recent_commits). Perf is at its documented floor; readability findings were fixed.
 
 CONTEXT:
 ${JSON.stringify(ctx, null, 2)}
@@ -285,11 +286,11 @@ TRIAGE — each finding carries verifier_votes (3) + derived flags.
 
 DEDUPLICATE across lenses first.
 
-WRITE the report to planning/audits/2026-07-19-3.0-scope-research-report.md with your Write tool. Structure:
+WRITE the report to .superpowers/audits/3.0-scope-research-report.md (git-ignored scratch) with your Write tool. Structure:
 
 # modern-di 3.0-Scope Research Report — 2026-07-19
 
-**Spec:** planning/changes/2026-07-19.12-3.0-scope-research.md
+**Spec:** the PR body for this sweep.
 **Baseline:** ${ctx.baseline_commit}
 **Method:** UX-weighted multi-agent workflow (ux-api-dx + integration-ux + light perf/readability re-confirm; 3-lens adversarial verify: read-real-code, prior-art-conflict, ux-realism; majority survive). Gated against the 2026-07-05 v3-ux prior-candidate ledger. No code changes; informs the 3.0 scope brainstorm.
 
