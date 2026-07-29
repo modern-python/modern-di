@@ -25,8 +25,7 @@ their auto-generated changelogs.
 - [**2.28.0**](2.28.0.md) — the integration kit
 - [**2.27.0**](2.27.0.md) — shorter registrations, self-resetting overrides, anchored errors
 - [**2.26.0**](2.26.0.md) — every exception links its troubleshooting page
-- [**2.25.0**](2.25.0.md) — blessed integration seams: add_providers and resolve_dependency
-- [**2.24.0**](2.24.0.md) — richer error diagnostics, two transitional warnings, to-3.x migration guide
+- [**2.25.0**](2.25.0.md) — error diagnostics, transitional warnings, and blessed integration seams
 - [**2.23.0**](2.23.0.md) — private `Container` internals
 - [**2.22.0**](2.22.0.md) — ergonomic `Factory(cache=…)`; closed-container reuse softened to a deprecation
 - [**2.21.1**](2.21.1.md) — release pipeline on PyPI Trusted Publishing
