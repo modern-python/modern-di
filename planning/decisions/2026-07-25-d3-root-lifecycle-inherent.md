@@ -94,5 +94,4 @@ integration's `setup_di`/lifecycle wiring, so this decision's conclusion —
 **no integration code changes** — still stands: every caveat this audit
 documented changes failure mode (from a hard raise to "finalizers silently
 don't run") rather than disappearing, and the per-integration deployment notes
-were reworded to say so, but no integration's lifecycle code changed. Status
-stays `accepted`.
+were reworded to say so, but no integration's lifecycle code changed.
