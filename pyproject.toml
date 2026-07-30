@@ -86,5 +86,5 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage]
 run.concurrency = ["thread"]
-run.omit = ["benchmarks/*"]
+run.omit = ["benchmarks/*", "planning/scripts/*"]
 report.exclude_also = ["if typing.TYPE_CHECKING:"]
