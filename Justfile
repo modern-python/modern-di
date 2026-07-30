@@ -54,7 +54,7 @@ bench-report runs="5":
     uv run --no-sync python benchmarks/report.py --runs {{ runs }}
 
 # Pull the 180-day PyPI download table for the DI field and our integrations.
-# This generates the table in planning/deferred/2026-06-18-adoption-groundwork.md — never hand-assemble it.
+# Run this before committing maintainer time to adoption work — never hand-assemble the numbers.
 market-data:
     uv run --no-sync python planning/scripts/market_data.py
 

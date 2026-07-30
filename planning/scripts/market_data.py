@@ -1,8 +1,9 @@
-"""Generate the PyPI download table in planning/deferred/2026-06-18-adoption-groundwork.md.
+"""Size the Python DI field by PyPI downloads: the rival set, and our own integration split.
 
-The table is generated, never hand-assembled: `collect()` pulls each package's daily series from
-pypistats and `build_table()` reduces it to markdown. Split so the reduction is unit-testable
-without network (see tests/test_market_data.py).
+Run it before spending maintainer time on adoption or outreach — it answers which framework, if
+any, that time should target. `collect()` pulls each package's daily series from pypistats and
+`build_table()` reduces it to markdown. Split so the reduction is unit-testable without network
+(see tests/test_market_data.py).
 
 Mirrors are excluded: mirror traffic is not installs, and this table exists to carry a number
 worth betting maintainer time on.
