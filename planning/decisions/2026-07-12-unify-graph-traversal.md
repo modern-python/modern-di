@@ -51,7 +51,13 @@ Rejected alternatives:
 
 ## Revisit trigger
 
-Reopen if either holds: (a) benchmarks show the `walk()` event-stream
-indirection measurably slows `validate()` or the guard; or (b) `validate=False`
-is ever dropped — then the runtime guard disappears, the seam collapses to a
-single caller, and the shared module is no longer justified.
+Benchmarks show the `walk()` event-stream indirection measurably slows
+`validate()` or the guard.
+
+The original second limb — "`validate=False` is ever dropped, so the runtime
+guard disappears and the seam collapses to a single caller" — is retired: 3.1
+went the other way. Validation is now explicit-only, `Container(validate=...)`
+is an ignored no-op removed at 4.0, and the `RecursionError`-to-
+`CircularDependencyError` guard is therefore permanent rather than contingent.
+Two callers of one traversal is settled; only a single-caller collapse would
+reopen the seam, and nothing on the roadmap produces one.

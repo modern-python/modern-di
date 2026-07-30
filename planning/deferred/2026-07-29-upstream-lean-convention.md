@@ -66,8 +66,8 @@ Three things should inform whichever route is taken, and none has evidence yet:
   changes, or quietly degrades into thin descriptions because nothing in the repo
   enforces the shape the way `check-planning` enforced change-file frontmatter.
 - Whether `decisions/` and `deferred/` grow at a rate that keeps them scannable.
-  They are 24 and 10 files now; the value of the whole design rests on them
-  staying small enough to read.
+  They are 24 and 7 files as of 2026-07-30; the value of the whole design rests
+  on them staying small enough to read.
 - Whether `superseded_by` is ever actually written. In 24 decisions the old
   `status` field never once took its second value. If a year passes with no
   supersession, the honest conclusion is that `decisions/` needs no state marker
@@ -78,6 +78,6 @@ Three things should inform whichever route is taken, and none has evidence yet:
 After roughly a month of real changes under the new convention (so, from
 late August 2026) — with three checks before deciding: re-read the last ten
 merged PR bodies and judge whether they are specs or descriptions; count
-`decisions/` + `deferred/` against the 24 + 10 baseline recorded here; and diff
+`decisions/` + `deferred/` against the 24 + 7 baseline recorded here; and diff
 `planning/index.py` and `planning/links.py` against upstream 2.2.0 to see how far
 the vendored files have drifted.

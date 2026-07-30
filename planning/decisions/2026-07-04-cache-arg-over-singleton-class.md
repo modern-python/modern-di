@@ -48,6 +48,10 @@ gets sugar. Internals are untouched — the sugar normalizes into the existing
 
 ## Revisit trigger
 
-Reopen if the `cache_settings=` deprecation is scheduled for removal (a major
-release), or if a caching mode arises that a single `bool | CacheSettings`
-argument cannot express cleanly.
+A caching mode arises that a single `bool | CacheSettings` argument cannot
+express cleanly.
+
+The other half of this trigger — the `cache_settings=` deprecation reaching
+removal — has since fired and resolved: 3.0 dropped the alias, so `cache=` is
+the only spelling and `cache_settings` survives only as the normalized internal
+attribute. The single-axis model the decision chose is now the whole surface.

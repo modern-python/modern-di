@@ -11,14 +11,14 @@ recorded by the earlier creator-call-error drift-lock work.
 
 ## Context
 
-The drift-lock bundle (`changes/2026-07-17.02`) faced the same four-copy
-duplication of the rule "a binding `TypeError` becomes `CreatorCallError` with a
+The earlier creator-call-error drift-lock work (2026-07-17) faced the same
+four-copy duplication of the rule "a binding `TypeError` becomes `CreatorCallError` with a
 prepended step; a `TypeError` from inside the creator body propagates unchanged."
 It explicitly rejected deduping: *"Do not extract a shared helper — that
 reintroduces the frame the inlining removed,"* and locked the copies with a
 cross-path equivalence test instead.
 
-That rejection weighed one helper shape: a helper wrapping the whole
+That rejection weighed exactly one helper shape: a helper wrapping the whole
 `creator(...)` call, which adds a Python frame on **every** resolve — the success
 path the single-path compiled resolver (PR #334) exists to keep frame-free.
 
@@ -30,9 +30,8 @@ success.
 
 ## Decision & rationale
 
-Chose the except-body helper. The drift-lock bundle's objection is real but
-scoped to whole-call wrapping; it does not bind the except-body form. Under this
-form:
+Chose the except-body helper. The drift-lock objection is real but scoped to
+whole-call wrapping; it does not bind the except-body form. Under this form:
 
 - The success (hot) path stays `return creator(*args)` byte-for-byte — no frame
   is restored. A `--benchmark-compare-fail=mean:5%` resolve-bench gate confirms
@@ -44,7 +43,7 @@ form:
   `raise` at each site, so a creator-body `TypeError` propagates with its
   traceback unchanged.
 
-The narrower frame concern the drift-lock bundle protected is honored, not
+The narrower frame concern the drift-lock work protected is honored, not
 overridden — the reversal applies precisely because the except-body form
 sidesteps it.
 
