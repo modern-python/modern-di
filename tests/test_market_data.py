@@ -2,12 +2,16 @@
 
 import datetime
 import json
+import typing
 import urllib.error
 
 import pytest
-from typing_extensions import Self
 
 from planning.scripts import market_data
+
+
+if typing.TYPE_CHECKING:
+    import typing_extensions
 
 
 REFERENCE = datetime.date(2026, 7, 29)
@@ -85,7 +89,7 @@ class _Response:
     def __init__(self, payload: bytes) -> None:
         self._payload = payload
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> "typing_extensions.Self":
         return self
 
     def __exit__(self, *_: object) -> None:
