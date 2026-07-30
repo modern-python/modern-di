@@ -40,11 +40,22 @@ Where the detail lives — read the matching capability file before changing beh
 
 ### Key files
 
+Every module under `modern_di/` except the package `__init__.py` re-exports. If
+you add a module, add it here.
+
 - `modern_di/container.py` — Container class, the main entry point
+- `modern_di/resolver_compiler.py` — the **single resolve path**: one flat closure compiled per provider, memoized on the registry. Each resolver front-guards its own override, navigates its scope once, and inlines the kwargs build and creator call to hold the per-node frame budget at 1. A new provider type must add a branch here or `compile_resolver` raises
+- `modern_di/wiring.py` — `WiringPlan`: partitions a creator's parsed parameters into provider / static / context buckets plus `unwireable`. A pure function of its inputs (no cache, scope, or live context), so it runs outside the container lock and is exercisable without a Container
 - `modern_di/providers/factory.py` — Factory and CacheSettings (singleton pattern via caching + optional finalizer)
 - `modern_di/providers/context_provider.py` — ContextProvider for runtime-injected values
 - `modern_di/providers/container_provider.py` — auto-registered provider that resolves to the Container itself
+- `modern_di/providers/alias.py` — Alias: re-exports a registered type under another name; transparent to scope via the `redirect_target` hook
+- `modern_di/providers/abstract.py` — `AbstractProvider`, the base every provider type extends, and the `provider_id` counter that keys every registry and memo
+- `modern_di/types.py` — the `UNSET` sentinel (`UnsetType`) that separates "not passed" from "explicitly `None`", plus the shared TypeVars. Load-bearing on the resolve path: it is the miss marker for both the override lookup and the cache slot
 - `modern_di/types_parser.py` — Signature introspection engine (parses type hints for DI wiring)
+- `modern_di/dependency_graph.py` — the one static graph walk (`DependencyGraph.walk`), consumed by `validate()` and the runtime cycle guard. Explicit-stack, never recursive: a caller runs it inside a `RecursionError` handler near CPython's stack limit. It walks `WiringPlan.edges`, so what `validate()` traverses is exactly what `resolve()` follows
+- `modern_di/registries/` — the four registries: `providers_registry` (type → provider, plus the shared plan/resolver memos) and `overrides_registry` are shared tree-wide; `cache_registry` and `context_registry` are per-container. See [architecture/containers.md](architecture/containers.md)
+- `modern_di/integrations.py` — the integration kit: Layer 1 (`bind`, `classify_connection`) derives a child container's scope/context from `ContextProvider`s; Layer 2 (`Marker`, `from_di`, `parse_markers`, `resolve_markers`) is the `Annotated`-marker injector. Neither layer wraps `build_child_container`
 - `modern_di/suggester.py` — what a suggestion *is* (the `Suggestion` record) and how to *find* one: `suggest(requested_type, providers)` owns the policy (hierarchy hints, typo matching, cap, ordering); `close_matches` is the shared difflib primitive (also used by `UnknownFactoryKwargError`). Carries no formatting
 - `modern_di/scope.py` — Scope enum
 - `modern_di/group.py` — Group base class for provider namespaces
