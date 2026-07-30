@@ -30,7 +30,9 @@ def _flat(end: datetime.date, days: int, per_day: int) -> list[dict]:
 
 
 def test_summarize_sums_each_window() -> None:
-    stats = market_data.summarize("p", _flat(REFERENCE, 180, 1), REFERENCE)
+    # 200 days, wider than any window, so a window-boundary regression (e.g. _HALF_YEAR growing
+    # past 180) is caught rather than silently contributing zero from outside a 180-day fixture.
+    stats = market_data.summarize("p", _flat(REFERENCE, 200, 1), REFERENCE)
     assert (stats.d30, stats.d90, stats.d180) == (30, 90, 180)
 
 
@@ -59,6 +61,19 @@ def test_summarize_reports_no_trend_when_the_previous_window_is_empty() -> None:
 
 def test_newest_date_reads_the_latest_day_in_the_series() -> None:
     assert market_data.newest_date(_flat(REFERENCE, 5, 1)) == REFERENCE
+
+
+def test_summarize_rejects_a_row_not_in_the_without_mirrors_category() -> None:
+    rows = _flat(REFERENCE, 3, 1)
+    rows[0]["category"] = "with_mirrors"
+    with pytest.raises(market_data.MarketDataError, match="mirrors=false was not honored"):
+        market_data.summarize("p", rows, REFERENCE)
+
+
+def test_summarize_rejects_a_duplicate_date() -> None:
+    rows = _flat(REFERENCE, 3, 1) + _flat(REFERENCE, 1, 1)
+    with pytest.raises(market_data.MarketDataError, match="duplicate date"):
+        market_data.summarize("p", rows, REFERENCE)
 
 
 def test_render_table_orders_by_thirty_day_downloads() -> None:
@@ -130,6 +145,16 @@ def test_fetch_series_treats_malformed_payloads_as_retryable() -> None:
         return _Response(b"<html>rate limited</html>")
 
     with pytest.raises(market_data.MarketDataError):
+        market_data.fetch_series("nope", opener=opener, attempts=2, sleep=lambda _: None)
+
+
+def test_fetch_series_retries_a_hanging_opener_rather_than_blocking() -> None:
+    # TimeoutError is an OSError, so a stalled connection (a WAF, or a rate limiter that accepts
+    # the TCP connection and never responds) must be retried like any other OSError, not hang.
+    def opener(_: str) -> _Response:
+        raise TimeoutError
+
+    with pytest.raises(market_data.MarketDataError, match="after 2 attempts"):
         market_data.fetch_series("nope", opener=opener, attempts=2, sleep=lambda _: None)
 
 

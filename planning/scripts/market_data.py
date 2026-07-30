@@ -13,10 +13,10 @@ import argparse
 import collections.abc
 import dataclasses
 import datetime
+import functools
 import json
 import time
 import typing
-import urllib.error
 import urllib.request
 
 
@@ -59,10 +59,13 @@ API = "https://pypistats.org/api/packages/{package}/overall?mirrors=false"
 _ATTEMPTS = 4
 _DELAY = 2.0
 _PAUSE = 1.0
+_TIMEOUT = 30.0
 
 Opener = collections.abc.Callable[[str], typing.ContextManager]
 Sleeper = collections.abc.Callable[[float], None]
 Fetcher = collections.abc.Callable[[str], list[dict]]
+
+_default_opener: Opener = functools.partial(urllib.request.urlopen, timeout=_TIMEOUT)
 
 
 class MarketDataError(RuntimeError):
@@ -81,8 +84,23 @@ class Stats:
 
 
 def _daily(rows: list[dict]) -> dict[datetime.date, int]:
-    """Index a pypistats `data` list by date."""
-    return {datetime.date.fromisoformat(row["date"]): row["downloads"] for row in rows}
+    """Index a pypistats `data` list by date.
+
+    Rejects anything but the `without_mirrors` category and duplicate dates: either means the
+    `mirrors=false` query param was not honored, and silently keying by date would let a mirror-
+    inflated row overwrite (or lose to) the real one depending on response order alone.
+    """
+    daily: dict[datetime.date, int] = {}
+    for row in rows:
+        if row["category"] != "without_mirrors":
+            msg = f"unexpected category {row['category']!r} (mirrors=false was not honored)"
+            raise MarketDataError(msg)
+        date = datetime.date.fromisoformat(row["date"])
+        if date in daily:
+            msg = f"duplicate date {date.isoformat()} in series"
+            raise MarketDataError(msg)
+        daily[date] = row["downloads"]
+    return daily
 
 
 def _total(daily: dict[datetime.date, int], reference: datetime.date, start: int, days: int) -> int:
@@ -141,7 +159,7 @@ def build_table(rivals: list[Stats], ours: list[Stats], reference: datetime.date
 def fetch_series(
     package: str,
     *,
-    opener: Opener = urllib.request.urlopen,
+    opener: Opener = _default_opener,
     attempts: int = _ATTEMPTS,
     delay: float = _DELAY,
     sleep: Sleeper = time.sleep,

@@ -73,9 +73,8 @@ instead. This directory is the residue, and it should stay small.
 - **[`_templates/`](_templates/)** — `decision.md`, `deferred.md`, `release.md`.
 - **[`scripts/`](scripts/)** — reusable audit and data-collection harnesses. A
   sweep's durable output is a PR plus `deferred/` items; the report itself is
-  transient and is not committed. A collector's output is different: it is
-  pasted into the `deferred/` item it serves, because a deferred item must
-  inline its own evidence.
+  transient and is not committed. A collector's output is likewise transient:
+  it regenerates on demand and carries no committed artifact of its own.
 
 ### Location is status
 
