@@ -8,6 +8,7 @@ Mirrors are excluded: mirror traffic is not installs, and this table exists to c
 worth betting maintainer time on.
 """
 
+import argparse
 import collections.abc
 import dataclasses
 import datetime
@@ -177,3 +178,21 @@ def collect(
             sleep(pause)
         series[package] = fetch(package)
     return series
+
+
+def main() -> None:
+    """Pull both package sets and print the published markdown table."""
+    parser = argparse.ArgumentParser(description="Pull the PyPI download table for the adoption gate.")
+    parser.add_argument("--pause", type=float, default=_PAUSE, help="seconds between requests (rate-limit guard)")
+    args = parser.parse_args()
+
+    # dict.fromkeys dedupes modern-di, which belongs to both sets, so it is fetched once.
+    series = collect(tuple(dict.fromkeys(RIVALS + OURS)), pause=args.pause)
+    reference = max(newest_date(rows) for rows in series.values())
+    rivals = [summarize(package, series[package], reference) for package in RIVALS]
+    ours = [summarize(package, series[package], reference) for package in OURS]
+    print(build_table(rivals, ours, reference))  # noqa: T201
+
+
+if __name__ == "__main__":
+    main()

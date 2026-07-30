@@ -53,6 +53,11 @@ bench-compare:
 bench-report runs="5":
     uv run --no-sync python benchmarks/report.py --runs {{ runs }}
 
+# Pull the 180-day PyPI download table for the DI field and our integrations.
+# This generates the table in planning/deferred/2026-06-18-adoption-groundwork.md — never hand-assemble it.
+market-data:
+    uv run --no-sync python planning/scripts/market_data.py
+
 # Build + publish to PyPI. Version comes from the git tag ($GITHUB_REF_NAME); no pyproject bump.
 # Auth via PyPI Trusted Publishing (OIDC); uv publish auto-detects the CI id-token.
 publish:

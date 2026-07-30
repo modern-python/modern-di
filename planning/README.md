@@ -71,9 +71,11 @@ instead. This directory is the residue, and it should stay small.
   [`release.yml`](../.github/workflows/release.yml), which fails a stable tag
   that has no matching file. No frontmatter; the file name is the version.
 - **[`_templates/`](_templates/)** — `decision.md`, `deferred.md`, `release.md`.
-- **[`scripts/`](scripts/)** — reusable multi-agent audit harnesses. A sweep's
-  durable output is a PR plus `deferred/` items; the report itself is transient
-  and is not committed.
+- **[`scripts/`](scripts/)** — reusable audit and data-collection harnesses. A
+  sweep's durable output is a PR plus `deferred/` items; the report itself is
+  transient and is not committed. A collector's output is different: it is
+  pasted into the `deferred/` item it serves, because a deferred item must
+  inline its own evidence.
 
 ### Location is status
 
