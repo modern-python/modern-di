@@ -8,8 +8,14 @@ Mirrors are excluded: mirror traffic is not installs, and this table exists to c
 worth betting maintainer time on.
 """
 
+import collections.abc
 import dataclasses
 import datetime
+import json
+import time
+import typing
+import urllib.error
+import urllib.request
 
 
 WINDOW = 30
@@ -45,6 +51,20 @@ OURS = (
     "modern-di-aiogram",
     "modern-di-pytest",
 )
+
+API = "https://pypistats.org/api/packages/{package}/overall?mirrors=false"
+
+_ATTEMPTS = 4
+_DELAY = 2.0
+_PAUSE = 1.0
+
+Opener = collections.abc.Callable[[str], typing.ContextManager]
+Sleeper = collections.abc.Callable[[float], None]
+Fetcher = collections.abc.Callable[[str], list[dict]]
+
+
+class MarketDataError(RuntimeError):
+    """A package's series could not be retrieved; the table must not be published with a hole."""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -114,3 +134,46 @@ def build_table(rivals: list[Stats], ours: list[Stats], reference: datetime.date
     """Render the published table: the rival field, then our own integration split."""
     stamp = f"_PyPI downloads, mirrors excluded, windows ending {reference.isoformat()}._"
     return "\n\n".join([stamp, render_table("The field", rivals), render_table("modern-di integrations", ours)])
+
+
+def fetch_series(
+    package: str,
+    *,
+    opener: Opener = urllib.request.urlopen,
+    attempts: int = _ATTEMPTS,
+    delay: float = _DELAY,
+    sleep: Sleeper = time.sleep,
+) -> list[dict]:
+    """Fetch one package's daily series, retrying with exponential backoff.
+
+    Throttling is indistinguishable from a missing package at the call site, so every failure is
+    retried and an exhausted budget raises instead of returning an empty series.
+    """
+    for attempt in range(attempts):
+        try:
+            with opener(API.format(package=package)) as response:
+                rows = json.loads(response.read())["data"]
+        except (OSError, ValueError, KeyError, TypeError):
+            rows = []
+        if rows:
+            return rows
+        if attempt < attempts - 1:
+            sleep(delay * 2**attempt)
+    msg = f"{package}: no data after {attempts} attempts (throttled, or the package does not exist)"
+    raise MarketDataError(msg)
+
+
+def collect(
+    packages: tuple[str, ...],
+    *,
+    fetch: Fetcher = fetch_series,
+    pause: float = _PAUSE,
+    sleep: Sleeper = time.sleep,
+) -> dict[str, list[dict]]:
+    """Fetch every package's series sequentially, pausing between calls to stay under the rate limit."""
+    series: dict[str, list[dict]] = {}
+    for index, package in enumerate(packages):
+        if index:
+            sleep(pause)
+        series[package] = fetch(package)
+    return series

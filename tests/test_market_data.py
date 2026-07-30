@@ -1,6 +1,11 @@
 """The adoption download table is generated, not hand-assembled — this guards the generator."""
 
 import datetime
+import json
+import urllib.error
+
+import pytest
+from typing_extensions import Self
 
 from planning.scripts import market_data
 
@@ -72,3 +77,85 @@ def test_package_sets_are_deduped_and_both_anchor_on_modern_di() -> None:
     assert len(set(market_data.OURS)) == len(market_data.OURS)
     assert "modern-di" in market_data.RIVALS
     assert "modern-di" in market_data.OURS
+
+
+class _Response:
+    """A minimal stand-in for the context manager `urllib.request.urlopen` returns."""
+
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._payload
+
+
+def test_fetch_series_retries_until_the_throttling_clears() -> None:
+    payload = json.dumps({"data": _flat(REFERENCE, 3, 1)}).encode()
+    calls: list[str] = []
+
+    def opener(url: str) -> _Response:
+        calls.append(url)
+        if len(calls) < 3:  # noqa: PLR2004
+            msg = "throttled"
+            raise urllib.error.URLError(msg)
+        return _Response(payload)
+
+    rows = market_data.fetch_series("dishka", opener=opener, sleep=lambda _: None)
+    assert len(rows) == 3  # noqa: PLR2004
+    assert len(calls) == 3  # noqa: PLR2004
+    assert "mirrors=false" in calls[0]
+    assert "dishka" in calls[0]
+
+
+def test_fetch_series_raises_rather_than_returning_a_hole() -> None:
+    def opener(_: str) -> _Response:
+        return _Response(b'{"data": []}')
+
+    with pytest.raises(market_data.MarketDataError, match="after 4 attempts"):
+        market_data.fetch_series("nope", opener=opener, sleep=lambda _: None)
+
+
+def test_fetch_series_treats_malformed_payloads_as_retryable() -> None:
+    def opener(_: str) -> _Response:
+        return _Response(b"<html>rate limited</html>")
+
+    with pytest.raises(market_data.MarketDataError):
+        market_data.fetch_series("nope", opener=opener, attempts=2, sleep=lambda _: None)
+
+
+def test_fetch_series_backs_off_between_attempts() -> None:
+    waits: list[float] = []
+
+    def opener(_: str) -> _Response:
+        msg = "throttled"
+        raise urllib.error.URLError(msg)
+
+    with pytest.raises(market_data.MarketDataError):
+        market_data.fetch_series("nope", opener=opener, attempts=3, delay=2.0, sleep=waits.append)
+    assert waits == [2.0, 4.0]
+
+
+def test_collect_pauses_between_packages() -> None:
+    waits: list[float] = []
+    series = market_data.collect(
+        ("a", "b", "c"),
+        fetch=lambda _: _flat(REFERENCE, 1, 1),
+        pause=0.5,
+        sleep=waits.append,
+    )
+    assert list(series) == ["a", "b", "c"]
+    assert waits == [0.5, 0.5]
+
+
+def test_collect_propagates_a_failure_instead_of_skipping_the_package() -> None:
+    def fetch(package: str) -> list[dict]:
+        raise market_data.MarketDataError(package)
+
+    with pytest.raises(market_data.MarketDataError):
+        market_data.collect(("a",), fetch=fetch, sleep=lambda _: None)
