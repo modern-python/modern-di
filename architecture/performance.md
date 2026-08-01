@@ -38,6 +38,15 @@ popped mid-resolve still counts) across two chain depths and asserts the per-nod
 slope is exactly 2 — one resolver frame, one creator. Extracting the override
 guard into a helper moves it to 3 and fails the test by name.
 
+**On CPython below 3.12 the real slope is 3, not 2.** Each resolver's argument
+build is a comprehension — `<listcomp>` on the positional path, `<dictcomp>` on
+the kwargs path — and before [PEP 709](https://peps.python.org/pep-0709/) a
+comprehension is a separate code object, so it costs its own frame per resolved
+node. From 3.12 both are inlined into the resolver and the cost disappears. This
+is a genuine per-version difference in what a resolve costs, not a measurement
+artifact; the test carries the version-conditional constant rather than relaxing
+the assertion, so the budget stays enforced on every supported interpreter.
+
 The corollary for anyone adding a provider type: put the whole resolver in the
 closure. `compile_resolver` raising `TypeError` for an unknown provider type is
 deliberate — there is no interpreted fallback to inherit shared behaviour from.

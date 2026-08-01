@@ -95,7 +95,12 @@ _CHAIN: tuple[type, ...] = (_L0, _L1, _L2, _L3, _L4, _L5)
 #: The creator is the user's own object construction and is irreducible; the **1**
 #: resolver frame is the budget this module exists to hold. See
 #: ``architecture/performance.md``.
-_CALLS_PER_NODE = 2
+#:
+#: Before 3.12 each resolver's argument build is a *separate* code object -- the
+#: positional path's ``<listcomp>`` and the kwargs path's ``<dictcomp>`` -- so it
+#: costs a third frame per node. PEP 709 inlines both from 3.12, which is a real
+#: per-version cost difference, not a measurement artifact.
+_CALLS_PER_NODE = 2 if sys.version_info >= (3, 12) else 3
 
 
 def _warm_chain(depth: int) -> "tuple[Container, providers.Factory[typing.Any]]":
@@ -298,6 +303,6 @@ def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
 
     assert (deep - shallow) == (6 - 2) * _CALLS_PER_NODE, (
         f"per-node cost is {(deep - shallow) / (6 - 2)} Python calls, expected {_CALLS_PER_NODE} "
-        f"(1 resolver frame + 1 creator). A helper extracted from the compiled resolvers "
-        f"costs one frame per node -- see architecture/performance.md."
+        f"on Python {sys.version_info.major}.{sys.version_info.minor}. A helper extracted from "
+        f"the compiled resolvers costs one frame per resolved node -- see architecture/performance.md."
     )
