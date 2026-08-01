@@ -10,6 +10,7 @@ from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries import providers_registry as pr_mod
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
+from modern_di.types_parser import SignatureItem
 
 
 def test_providers_registry_find_provider_not_found() -> None:
@@ -179,3 +180,95 @@ def test_concurrent_first_resolve_of_same_provider_does_not_false_cycle(
         thread.join()
 
     assert not errors  # pre-fix: thread 2 raises RecursionError (a false cycle)
+
+
+class _RaceDep:
+    pass
+
+
+class _RaceSvc:
+    def __init__(self, dep: "_RaceDep | None" = None) -> None:
+        self.dep = dep
+
+
+def test_mutation_during_compile_does_not_strand_a_stale_resolver(monkeypatch: pytest.MonkeyPatch) -> None:
+    # `resolver_for` compiles outside `_lock` and publishes after. Without a generation check, a
+    # registration landing in that window clears a memo the resolver has not entered yet, and the
+    # stale resolver is then written in and never dropped -- so the registration is silently and
+    # permanently lost. Driven deterministically with an event rather than by racing threads: the
+    # natural race needs a deep graph to widen the window and is not a reliable gate.
+    svc = providers.Factory(creator=_RaceSvc, scope=Scope.APP)
+
+    class G(Group):
+        s = svc
+
+    container = Container(scope=Scope.APP, groups=[G])  # _RaceDep deliberately not registered yet
+    compiled = threading.Event()
+    may_publish = threading.Event()
+    real_compile = pr_mod.compile_resolver
+
+    def hold_open(
+        provider: AbstractProvider[typing.Any], registry: ProvidersRegistry
+    ) -> typing.Callable[[Container], typing.Any]:
+        resolver = real_compile(provider, registry)
+        if provider is svc:
+            compiled.set()
+            may_publish.wait(5)
+        return resolver
+
+    monkeypatch.setattr(pr_mod, "compile_resolver", hold_open)
+    worker = threading.Thread(target=lambda: container.resolve_provider(svc))
+    worker.start()
+    try:
+        assert compiled.wait(5), "compile never reached the publication window"  # pragma: no cover
+        container.add_providers(providers.Factory(creator=_RaceDep, scope=Scope.APP))
+    finally:
+        may_publish.set()
+        worker.join(5)
+
+    # _RaceDep is registered, so a resolve must now inject it -- from a fresh resolver, because the
+    # one compiled against the old registry must not have survived the invalidation.
+    assert container.providers_registry.find_provider(_RaceDep) is not None
+    assert isinstance(container.resolve_provider(svc).dep, _RaceDep)
+
+
+def test_mutation_during_plan_build_does_not_strand_a_stale_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    # `plan_for` has the same shape as `resolver_for` -- build outside the lock, store after -- so a
+    # stale wiring plan survives invalidation independently. Guarding only the resolver leaves this
+    # window open, which showed up as a residual failure rate once the resolver window was closed.
+    svc = providers.Factory(creator=_RaceSvc, scope=Scope.APP)
+
+    class G(Group):
+        s = svc
+
+    container = Container(scope=Scope.APP, groups=[G])
+    registry = container.providers_registry
+    built = threading.Event()
+    may_publish = threading.Event()
+    real_build = pr_mod.WiringPlan.build
+
+    def hold_open(
+        *,
+        parsed_kwargs: "dict[str, SignatureItem]",
+        kwargs: "dict[str, typing.Any] | None",
+        registry: ProvidersRegistry,
+        owner: "providers.Factory[typing.Any]",
+    ) -> pr_mod.WiringPlan:
+        plan = real_build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=registry, owner=owner)
+        if owner is svc:
+            built.set()
+            may_publish.wait(5)
+        return plan
+
+    monkeypatch.setattr(pr_mod.WiringPlan, "build", staticmethod(hold_open))
+    worker = threading.Thread(target=lambda: registry.plan_for(svc, svc._parsed_kwargs, svc._kwargs))
+    worker.start()
+    try:
+        assert built.wait(5), "plan build never reached the publication window"  # pragma: no cover
+        container.add_providers(providers.Factory(creator=_RaceDep, scope=Scope.APP))
+    finally:
+        may_publish.set()
+        worker.join(5)
+
+    monkeypatch.undo()
+    assert isinstance(container.resolve_provider(svc).dep, _RaceDep)

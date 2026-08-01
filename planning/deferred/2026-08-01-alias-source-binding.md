@@ -1,5 +1,5 @@
 ---
-summary: Binding an Alias to its source's compiled resolver at compile time measures -36% on every alias resolve (~100 ns and 3 frames per hop), blocked on eager compilation escaping the override front-guard and on the resolver-memo publication race.
+summary: Binding an Alias to its source's compiled resolver at compile time measures -36% on every alias resolve (~100 ns and 3 frames per hop); the memo-publication blocker is cleared, leaving eager compilation escaping the override front-guard as the sole prerequisite.
 ---
 
 # Bind an `Alias` to its source's compiled resolver
@@ -33,23 +33,19 @@ maximum pure-alias chain from 494 to 329 hops (`RecursionError` at compile time)
 Any future attempt must bind **lazily on first miss**, or bind only after the
 override front-guard has been cleared.
 
-**The resolver-memo publication race.** The licensing invariant — that a source
-registered after the alias compiles is picked up via `_invalidate()` — is false,
-because of a pre-existing window in `ProvidersRegistry.resolver_for`. See
-[`2026-08-01-resolver-memo-publication-race.md`](2026-08-01-resolver-memo-publication-race.md).
-Today's alias is accidentally immune because it re-looks-up its source on every
-resolve; binding the source is precisely what removes that immunity, turning a
-transient staleness window into a permanent `AliasSourceNotRegisteredError`. A
-verifier measured 377/400 trials failing under plain threads against 0/400 on
-`main` — a figure recorded here as reported and **not independently reproduced**;
-see that record for what is and is not confirmed.
+**~~The resolver-memo publication race.~~ Cleared.** The licensing invariant —
+that a source registered after the alias compiles is picked up via
+`_invalidate()` — was false, because `resolver_for` and `plan_for` published
+their memos without checking whether a mutation had landed while they built.
+Both are now generation-checked; see
+[`architecture/concurrency.md`](../../architecture/concurrency.md). This blocker
+no longer applies, and the first one below is the only remaining prerequisite.
 
 A working prototype is preserved at `prototype-alias-bind.diff` in this session's
 workflow transcript directory.
 
 ## Revisit trigger
 
-Resolver-memo publication becomes generation-checked under the registry lock
-(closing the second blocker), **and** alias source binding can be made lazy
-enough not to compile a subtree behind an active override (closing the first).
-Both are prerequisites; neither alone unblocks this.
+Alias source binding can be made lazy enough not to compile a subtree behind an
+active override. That is now the sole remaining prerequisite — resolver-memo
+publication became generation-checked, closing the other one.
