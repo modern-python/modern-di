@@ -1,4 +1,3 @@
-import contextlib
 import enum
 import os
 import pathlib
@@ -344,18 +343,19 @@ class Container:
         container deliberately — an implicit reuse reopens too, but warns. Opening an
         open container is a no-op. Validation is not run here; call :meth:`validate`.
         """
-        with self._lock or contextlib.nullcontext():
-            self.closed = False
+        self.closed = False
 
     def _prepare(self) -> None:
-        """Reopen a closed container on implicit reuse, warning once."""
-        with self._lock or contextlib.nullcontext():
-            if self.closed:  # re-checked under the lock: another thread may have reopened already
-                warnings.warn(
-                    exceptions.ContainerClosedWarning(container_scope=self.scope),
-                    stacklevel=_caller_stacklevel(),
-                )
-                self.closed = False
+        """Reopen a closed container on implicit reuse, warning the caller.
+
+        Callers guard with ``if closed``. Unlocked: threads racing a closed container
+        may each warn, but every one of them writes the same ``closed = False``.
+        """
+        warnings.warn(
+            exceptions.ContainerClosedWarning(container_scope=self.scope),
+            stacklevel=_caller_stacklevel(),
+        )
+        self.closed = False
 
     def __enter__(self) -> "typing_extensions.Self":
         self.open()

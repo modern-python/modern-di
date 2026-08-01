@@ -41,10 +41,12 @@ class ContextProvider(AbstractProvider[types.T_co]):
         if value is types.UNSET:
             resolving = container.find_container(self.scope)
             raise exceptions.ContextValueNotSetError(context_type=self.context_type, scope_name=resolving.scope.name)
-        return typing.cast(types.T_co, value)
+        # `is UNSET` does not narrow in ty (UNSET is a Final instance, not a tracked singleton);
+        # isinstance would narrow but costs ~10ns on the context resolve path.
+        return value  # ty: ignore[invalid-return-type]
 
-    def fetch_context_value(self, container: "Container") -> types.T_co | object:
+    def fetch_context_value(self, container: "Container") -> "types.T_co | types.UnsetType":
         container = container.find_container(self.scope)
-        if container.closed:  # guarded: `_prepare()` takes the lock before re-checking `closed`
+        if container.closed:  # guarded: `_prepare()` warns and reopens unconditionally
             container._prepare()  # noqa: SLF001
         return container.context_registry.find_context(self.context_type)
