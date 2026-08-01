@@ -53,7 +53,7 @@ def _make(a: _A, b: _B, c: _C) -> _Ordered:
 
 def _plan(registry: ProvidersRegistry, owner: "providers.Factory[object]") -> WiringPlan:
     """Build ``owner``'s wiring plan the way production does (via the registry memo)."""
-    return registry.plan_for(owner, owner._parsed_kwargs, owner._kwargs)  # noqa: SLF001
+    return registry.plan_for(owner, owner._parsed_kwargs, owner._kwargs)
 
 
 # ---------------------------------------------------------------------------

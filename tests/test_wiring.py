@@ -77,8 +77,8 @@ def test_wiring_plan_partitioning() -> None:
     )
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,  # noqa: SLF001
-        kwargs=owner._kwargs,  # noqa: SLF001
+        parsed_kwargs=owner._parsed_kwargs,
+        kwargs=owner._kwargs,
         registry=registry,
         owner=owner,
     )
@@ -109,7 +109,7 @@ def test_wiring_plan_nullable_no_default_goes_to_static_kwargs() -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_NullableNoDefaultCreator)
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,  # noqa: SLF001
+        parsed_kwargs=owner._parsed_kwargs,
         kwargs=None,
         registry=registry,
         owner=owner,
@@ -136,7 +136,7 @@ def test_wiring_plan_unwireable_no_raise() -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_UnwirableCreator)
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,  # noqa: SLF001
+        parsed_kwargs=owner._parsed_kwargs,
         kwargs=None,
         registry=registry,
         owner=owner,
@@ -179,8 +179,8 @@ def test_wiring_plan_edges_include_static_supplied_providers() -> None:
     )
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,  # noqa: SLF001
-        kwargs=owner._kwargs,  # noqa: SLF001
+        parsed_kwargs=owner._parsed_kwargs,
+        kwargs=owner._kwargs,
         registry=registry,
         owner=owner,
     )
@@ -299,11 +299,11 @@ def test_provider_kwargs_preserves_signature_order() -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_OrderedDeps)
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,  # noqa: SLF001
-        kwargs=owner._kwargs,  # noqa: SLF001
+        parsed_kwargs=owner._parsed_kwargs,
+        kwargs=owner._kwargs,
         registry=registry,
         owner=owner,
     )
 
     assert tuple(plan.provider_kwargs) == ("first", "second", "third")
-    assert tuple(plan.provider_kwargs) == tuple(owner._parsed_kwargs)  # noqa: SLF001
+    assert tuple(plan.provider_kwargs) == tuple(owner._parsed_kwargs)
