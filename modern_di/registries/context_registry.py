@@ -9,9 +9,10 @@ class ContextRegistry:
     context: dict[type[typing.Any], typing.Any]
 
     def find_context(self, context_type: type[types.T]) -> "types.T | types.UnsetType":
-        if context_type is not None and context_type in self.context:
-            return typing.cast(types.T, self.context[context_type])
-
+        # `in` + `[]` rather than `.get(key, UNSET)`: two specialized opcodes beat one method call
+        # with a default, and they keep honouring a dict subclass's `__contains__`/`__getitem__`.
+        if context_type in self.context:
+            return self.context[context_type]
         return types.UNSET
 
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
