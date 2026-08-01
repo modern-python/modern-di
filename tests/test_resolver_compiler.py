@@ -306,3 +306,21 @@ def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
         f"on Python {sys.version_info.major}.{sys.version_info.minor}. A helper extracted from "
         f"the compiled resolvers costs one frame per resolved node -- see architecture/performance.md."
     )
+
+
+def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
+    # The cold-miss thunk must not close over `target`: a closure promotes it to a cell, so
+    # MAKE_CELL runs in the resolver's prologue on every call -- including the warm hit that
+    # returns early, and the override hit that never reaches `target` at all. Measured at ~18 ns
+    # of a ~162 ns warm resolve. Nothing else in the suite would catch a revert to a lambda.
+    class G(Group):
+        cached = providers.Factory(creator=_A, scope=Scope.APP, cache=True)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    resolver = container.providers_registry.resolver_for(G.cached)
+    code = typing.cast("_pytypes.FunctionType", resolver).__code__
+
+    assert code.co_cellvars == (), (
+        f"the cached-factory resolver grew cell variables {code.co_cellvars}; "
+        f"a MAKE_CELL now runs on every warm hit -- see architecture/performance.md"
+    )

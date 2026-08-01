@@ -6,6 +6,7 @@ dependencies' resolvers by reference. Behavior-sensitive helpers (`_resolution_s
 `_resolve_context_value`, `prepend_step`) are reused, not reimplemented.
 """
 
+import functools
 import typing
 
 from modern_di import exceptions, types
@@ -228,7 +229,10 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
             return cached
         value, created = cache_item.get_or_create(
             target._lock,
-            resolve=lambda: build_cold(target),
+            # `partial`, never a lambda closing over `target`: a closure promotes `target` to a cell,
+            # so MAKE_CELL runs in this resolver's prologue on every warm hit too. See
+            # architecture/performance.md.
+            resolve=functools.partial(build_cold, target),
             # positional/kwargs builders have distinct arg types; get_or_create feeds each its own.
             create=typing.cast("typing.Callable[[typing.Any], typing.Any]", create_cold),
         )
