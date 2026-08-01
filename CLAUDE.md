@@ -37,6 +37,7 @@ Where the detail lives — read the matching capability file before changing beh
 | [architecture/testing-and-overrides.md](architecture/testing-and-overrides.md) | overrides + the `modern-di-pytest` integration |
 | [architecture/integration-kit.md](architecture/integration-kit.md) | framework-agnostic primitives for building an integration adapter |
 | [architecture/concurrency.md](architecture/concurrency.md) | thread-safety + free-threaded (PEP 703) support, at Beta |
+| [architecture/performance.md](architecture/performance.md) | why the warm resolve path is shaped as it is: the per-node frame budget, inlined memo hits, how to measure |
 
 ### Key files
 
@@ -44,7 +45,7 @@ Every module under `modern_di/` except the package `__init__.py` re-exports. If
 you add a module, add it here.
 
 - `modern_di/container.py` — Container class, the main entry point
-- `modern_di/resolver_compiler.py` — the **single resolve path**: one flat closure compiled per provider, memoized on the registry. Each resolver front-guards its own override, navigates its scope once, and inlines the kwargs build and creator call to hold the per-node frame budget at 1. A new provider type must add a branch here or `compile_resolver` raises
+- `modern_di/resolver_compiler.py` — the **single resolve path**: one flat closure compiled per provider, memoized on the registry. Each resolver front-guards its own override, navigates its scope once, and inlines the kwargs build and creator call to hold the per-node frame budget at 1 — the rationale lives in [architecture/performance.md](architecture/performance.md), and the budget is enforced by a test, so **do not extract a helper from these closures**. A new provider type must add a branch here or `compile_resolver` raises
 - `modern_di/wiring.py` — `WiringPlan`: partitions a creator's parsed parameters into provider / static / context buckets plus `unwireable`. A pure function of its inputs (no cache, scope, or live context), so it runs outside the container lock and is exercisable without a Container
 - `modern_di/providers/factory.py` — Factory and CacheSettings (singleton pattern via caching + optional finalizer)
 - `modern_di/providers/context_provider.py` — ContextProvider for runtime-injected values

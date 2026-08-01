@@ -129,8 +129,9 @@ class Container:
         self.context_registry = ContextRegistry(context=context or {})
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
-        # Inlined, not a helper: __init__ is on the per-request child-build path, so avoid the extra
-        # call frame. A root seeds container_provider so `Container` resolves to the resolving container.
+        # Inlined, not a helper: __init__ is on the per-request child-build path
+        # (architecture/performance.md). A root seeds container_provider so `Container`
+        # resolves to the resolving container.
         if parent_container:
             self.providers_registry = parent_container.providers_registry
             self.overrides_registry = parent_container.overrides_registry
@@ -216,10 +217,9 @@ class Container:
         if self.closed:
             self._prepare()
         try:
-            # Inlined memo hit: `resolver_for` opens with exactly this lookup and returns, and the
-            # method frame costs ~34ns of a ~170ns warm hit. Call it only on a miss, where it owns
-            # the cycle guard and the memo write. Stays inside the try so a RecursionError while
-            # compiling still becomes CircularDependencyError.
+            # Inlined memo hit; `resolver_for` is called only on a miss, where it owns the cycle
+            # guard and the memo write (architecture/performance.md). Inside the try so a
+            # RecursionError while compiling still becomes CircularDependencyError.
             registry = self.providers_registry
             resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
             if resolver is None:
@@ -371,10 +371,8 @@ class Container:
     async def __aexit__(self, *_: object) -> None:
         await self.close_async()
 
-    def __deepcopy__(self, *_: object, **__: object) -> "typing_extensions.Self":
-        """Prevent cloning object."""
+    def __copy__(self, *_: object, **__: object) -> "typing_extensions.Self":
+        """Never clone: a copied container would own a detached cache whose finalizers never run."""
         return self
 
-    def __copy__(self, *_: object, **__: object) -> "typing_extensions.Self":
-        """Prevent cloning object."""
-        return self
+    __deepcopy__ = __copy__

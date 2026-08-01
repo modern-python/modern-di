@@ -36,6 +36,9 @@ cross-link — see [containers.md](containers.md#validate) pointing at
   `modern-di-pytest` integration.
 - [concurrency.md](concurrency.md) — thread-safety and free-threaded (PEP 703)
   support, at Beta.
+- [performance.md](performance.md) — why the warm resolve path is shaped as it
+  is: the per-node frame budget, the inlined memo hits, and how to measure a
+  change without misreading the guard tier.
 - [glossary.md](glossary.md) — the project's ubiquitous language.
 - [integration-kit.md](integration-kit.md) — framework-agnostic primitives for
   building a framework integration adapter.

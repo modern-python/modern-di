@@ -29,8 +29,8 @@ _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedErr
 _STEP_ERRORS = (exceptions.ResolutionError, *_SCOPE_ERRORS)
 
 
-def _positional_names(f: "Factory[typing.Any]", plan: "WiringPlan") -> "tuple[str, ...] | None":
-    """Return the ordered param names to pass positionally, or None if the creator must use kwargs.
+def _can_call_positionally(f: "Factory[typing.Any]", plan: "WiringPlan") -> bool:
+    """Whether `f`'s creator can be called positionally instead of with `**kwargs`.
 
     Eligible only when every parsed parameter is a positional-or-keyword provider dependency, in
     signature order, with nothing omitted (no static, no context, no default-omitted, no
@@ -38,15 +38,15 @@ def _positional_names(f: "Factory[typing.Any]", plan: "WiringPlan") -> "tuple[st
     else keeps `creator(**kwargs)`. When in doubt, exclude.
     """
     if not plan.pure_provider:  # pure_provider already means no static and no context kwargs
-        return None
+        return False
     names = tuple(f._parsed_kwargs)
     if tuple(plan.provider_kwargs) != names:
-        return None  # a param was omitted/reordered, or a kwargs-overlay added an extra -> not a clean prefix
+        return False  # a param was omitted/reordered, or a kwargs-overlay added an extra -> not a clean prefix
     if any(item.is_keyword_only for item in f._parsed_kwargs.values()):
-        return None
-    if names and f._has_positional_only_gap:
-        return None  # positional-only param, dropped from _parsed_kwargs by the parser, would shift positional binding
-    return names
+        return False
+    # A positional-only param is dropped from _parsed_kwargs by the parser, so the remaining names
+    # can look like a clean prefix while a positional call would bind them to the wrong slots.
+    return not (names and f._has_positional_only_gap)
 
 
 def compile_resolver(
@@ -83,14 +83,13 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
     resolve_context = f._resolve_context_value
     creator = f._creator
 
-    if _positional_names(f, plan) is not None:
-        # Fast path: the whole signature is provider deps, in order — call positionally, skipping
-        # the measured 4-6x **kwargs cost. `pure` is True here, so no static/context folding runs.
+    if _can_call_positionally(f, plan):
+        # Positional fast path; `pure` is True here, so no static/context folding runs.
+        # See architecture/performance.md.
         pos = tuple(r for _name, r in prov)
 
         def resolve_positional(container: "Container") -> typing.Any:
-            # Override front-guard is inlined into every closure (not extracted): the compiled dispatch
-            # checks no overrides centrally, and a helper would add one Python frame per node.
+            # Inlined per closure, not extracted: frame budget — see architecture/performance.md.
             overrides = container.overrides_registry
             if overrides.has_overrides:
                 override = overrides.fetch_override(pid)
@@ -111,7 +110,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
                     creator=creator, exc=exc, resolution_step=resolution_step
                 )
                 if error is None:
-                    raise  # a TypeError from inside the creator body propagates unchanged
+                    raise
                 raise error from exc
 
         return resolve_positional
@@ -122,7 +121,6 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
             override = overrides.fetch_override(pid)
             if override is not types.UNSET:
                 return override
-        # Navigate once; same-scope deps (the common case) skip the find_container call.
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
             target._prepare()
@@ -144,7 +142,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
                 creator=creator, exc=exc, resolution_step=resolution_step
             )
             if error is None:
-                raise  # a TypeError from inside the creator body propagates unchanged
+                raise
             raise error from exc
 
     return resolve
@@ -167,9 +165,8 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
     creator = f._creator  # cold-miss only (not hot)
     call_creator = f._call_creator  # cold-miss only; reused (not hot)
 
-    # cold-miss builder + creator call: positional when the whole signature is provider deps in
-    # order (skips the **kwargs cost), else the kwargs pair. Both share the two-phase error handling.
-    if _positional_names(f, plan) is not None:
+    # Cold-miss builder + creator call, positional or kwargs. Both share the two-phase error handling.
+    if _can_call_positionally(f, plan):
         pos = tuple(r for _name, r in prov)
 
         def build_args(target: "Container") -> list[typing.Any]:
@@ -187,7 +184,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
                     creator=creator, exc=exc, resolution_step=resolution_step
                 )
                 if error is None:
-                    raise  # a TypeError from inside the creator body propagates unchanged
+                    raise
                 raise error from exc
 
         build_cold = build_args
@@ -220,16 +217,15 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
             target._prepare()
-        # Inlined memo hit: `fetch_cache_item` opens with exactly this lookup and returns, and the
-        # method frame costs ~23ns of a ~170ns warm hit. Call it only on a miss, where its
-        # `setdefault` is what makes concurrent first-resolvers share one CacheItem.
+        # Inlined memo hit; the method is called only on a miss, where its `setdefault` makes
+        # concurrent first-resolvers share one CacheItem. See architecture/performance.md.
         cache_registry = target.cache_registry
         cache_item = cache_registry._items.get(pid)
         if cache_item is None:
             cache_item = cache_registry.fetch_cache_item(f)
         cached = cache_item.cache
         if cached is not types.UNSET:
-            return cached  # warm hit: skip the get_or_create frame (same sentinel check it makes)
+            return cached
         value, created = cache_item.get_or_create(
             target._lock,
             resolve=lambda: build_cold(target),

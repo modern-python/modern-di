@@ -86,11 +86,10 @@ class CacheRegistry:
         return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
 
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
-        # Fast path: return an existing item without building a throwaway CacheItem (plain
-        # setdefault eagerly constructs one on every hit). The creation path still uses
-        # setdefault so first-resolvers share one CacheItem via a single atomic op — fetch runs outside
-        # the container lock (free-threaded-safe; see architecture/concurrency.md),
-        # and concurrent first-resolvers must share one CacheItem because the singleton cache
+        # Get before setdefault: a plain setdefault eagerly builds a throwaway CacheItem on every
+        # hit (architecture/performance.md). The creation path keeps setdefault, whose atomicity is
+        # what makes concurrent first-resolvers share one CacheItem — and it runs outside the
+        # container lock (see architecture/concurrency.md), because the singleton cache
         # and its double-checked lock live on that object.
         item = self._items.get(provider.provider_id)
         if item is not None:
