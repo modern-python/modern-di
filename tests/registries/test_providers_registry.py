@@ -46,14 +46,14 @@ def test_mutation_clears_the_resolver_and_plan_memos() -> None:
     dep_factory = providers.Factory(scope=Scope.APP, creator=_Dep, bound_type=_Dep)
     registry.add_providers(dep_factory)
     registry.resolver_for(dep_factory)  # populates _resolvers (and _plans via compile)
-    assert registry._resolvers  # noqa: SLF001
-    assert registry._plans  # noqa: SLF001
+    assert registry._resolvers
+    assert registry._plans
 
     class _Other: ...
 
     registry.add_providers(providers.Factory(scope=Scope.APP, creator=_Other, bound_type=_Other))
-    assert registry._resolvers == {}  # noqa: SLF001  # mutation cleared the memos
-    assert registry._plans == {}  # noqa: SLF001
+    assert registry._resolvers == {}  # mutation cleared the memos
+    assert registry._plans == {}
 
 
 def test_providers_registry_add_provider_duplicates() -> None:

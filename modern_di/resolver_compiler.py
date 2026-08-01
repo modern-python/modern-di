@@ -39,12 +39,12 @@ def _positional_names(f: "Factory[typing.Any]", plan: "WiringPlan") -> "tuple[st
     """
     if not plan.pure_provider:  # pure_provider already means no static and no context kwargs
         return None
-    names = tuple(f._parsed_kwargs)  # noqa: SLF001
+    names = tuple(f._parsed_kwargs)
     if tuple(plan.provider_kwargs) != names:
         return None  # a param was omitted/reordered, or a kwargs-overlay added an extra -> not a clean prefix
-    if any(item.is_keyword_only for item in f._parsed_kwargs.values()):  # noqa: SLF001
+    if any(item.is_keyword_only for item in f._parsed_kwargs.values()):
         return None
-    if names and f._has_positional_only_gap:  # noqa: SLF001
+    if names and f._has_positional_only_gap:
         return None  # positional-only param, dropped from _parsed_kwargs by the parser, would shift positional binding
     return names
 
@@ -70,7 +70,7 @@ def compile_resolver(
 def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: positional + kwargs, each flat to hold the per-node frame at 1)
     f: "Factory[typing.Any]", registry: "ProvidersRegistry"
 ) -> "typing.Callable[[Container], typing.Any]":
-    plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)  # noqa: SLF001
+    plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
     prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
@@ -79,16 +79,16 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
     pure = plan.pure_provider
     scope = f.scope
     pid = f.provider_id
-    resolution_step = f._resolution_step  # noqa: SLF001
-    resolve_context = f._resolve_context_value  # noqa: SLF001
-    creator = f._creator  # noqa: SLF001
+    resolution_step = f._resolution_step
+    resolve_context = f._resolve_context_value
+    creator = f._creator
 
     if _positional_names(f, plan) is not None:
         # Fast path: the whole signature is provider deps, in order — call positionally, skipping
         # the measured 4-6x **kwargs cost. `pure` is True here, so no static/context folding runs.
         pos = tuple(r for _name, r in prov)
 
-        def resolve_positional(container: "Container") -> typing.Any:  # noqa: ANN401
+        def resolve_positional(container: "Container") -> typing.Any:
             # Override front-guard is inlined into every closure (not extracted): the compiled dispatch
             # checks no overrides centrally, and a helper would add one Python frame per node.
             overrides = container.overrides_registry
@@ -98,7 +98,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
                     return override
             target = container if container.scope == scope else _navigate(container, scope, resolution_step)
             if target.closed:
-                target._prepare()  # noqa: SLF001
+                target._prepare()
             try:  # build the positional args from the dependency resolvers (a dependency can raise ResolutionError)
                 args = [r(target) for r in pos]
             except _STEP_ERRORS as exc:
@@ -116,7 +116,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
 
         return resolve_positional
 
-    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+    def resolve(container: "Container") -> typing.Any:
         overrides = container.overrides_registry
         if overrides.has_overrides:
             override = overrides.fetch_override(pid)
@@ -125,7 +125,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
         # Navigate once; same-scope deps (the common case) skip the find_container call.
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
-            target._prepare()  # noqa: SLF001
+            target._prepare()
         try:  # build the kwargs dict from provider/static/context bindings
             kwargs = {name: r(target) for name, r in prov}
             if not pure:
@@ -153,7 +153,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
 def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: positional + kwargs, plus the warm-hit resolve closure)
     f: "Factory[typing.Any]", registry: "ProvidersRegistry"
 ) -> "typing.Callable[[Container], typing.Any]":
-    plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)  # noqa: SLF001
+    plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
     prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
@@ -162,10 +162,10 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
     pure = plan.pure_provider
     scope = f.scope
     pid = f.provider_id
-    resolution_step = f._resolution_step  # noqa: SLF001
-    resolve_context = f._resolve_context_value  # noqa: SLF001
-    creator = f._creator  # noqa: SLF001  # cold-miss only (not hot)
-    call_creator = f._call_creator  # noqa: SLF001  # cold-miss only; reused (not hot)
+    resolution_step = f._resolution_step
+    resolve_context = f._resolve_context_value
+    creator = f._creator  # cold-miss only (not hot)
+    call_creator = f._call_creator  # cold-miss only; reused (not hot)
 
     # cold-miss builder + creator call: positional when the whole signature is provider deps in
     # order (skips the **kwargs cost), else the kwargs pair. Both share the two-phase error handling.
@@ -179,7 +179,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
                 exc.prepend_step(resolution_step())
                 raise
 
-        def create_positional(args: list[typing.Any]) -> typing.Any:  # noqa: ANN401
+        def create_positional(args: list[typing.Any]) -> typing.Any:
             try:
                 return creator(*args)
             except TypeError as exc:
@@ -211,7 +211,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
         build_cold = build_kwargs
         create_cold = call_creator
 
-    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+    def resolve(container: "Container") -> typing.Any:
         overrides = container.overrides_registry
         if overrides.has_overrides:
             override = overrides.fetch_override(pid)
@@ -219,19 +219,19 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
                 return override
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
-            target._prepare()  # noqa: SLF001
+            target._prepare()
         # Inlined memo hit: `fetch_cache_item` opens with exactly this lookup and returns, and the
         # method frame costs ~23ns of a ~170ns warm hit. Call it only on a miss, where its
         # `setdefault` is what makes concurrent first-resolvers share one CacheItem.
         cache_registry = target.cache_registry
-        cache_item = cache_registry._items.get(pid)  # noqa: SLF001
+        cache_item = cache_registry._items.get(pid)
         if cache_item is None:
             cache_item = cache_registry.fetch_cache_item(f)
         cached = cache_item.cache
         if cached is not types.UNSET:
             return cached  # warm hit: skip the get_or_create frame (same sentinel check it makes)
         value, created = cache_item.get_or_create(
-            target._lock,  # noqa: SLF001
+            target._lock,
             resolve=lambda: build_cold(target),
             # positional/kwargs builders have distinct arg types; get_or_create feeds each its own.
             create=typing.cast("typing.Callable[[typing.Any], typing.Any]", create_cold),
@@ -255,11 +255,11 @@ def _compile_unwireable_factory(
     """
     pid = f.provider_id
     scope = f.scope
-    resolution_step = f._resolution_step  # noqa: SLF001
-    build_error = f._argument_resolution_error  # noqa: SLF001
+    resolution_step = f._resolution_step
+    build_error = f._argument_resolution_error
     arg_name, item = plan.unwireable[0]
 
-    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+    def resolve(container: "Container") -> typing.Any:
         overrides = container.overrides_registry
         if overrides.has_overrides:
             override = overrides.fetch_override(pid)
@@ -267,7 +267,7 @@ def _compile_unwireable_factory(
                 return override
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
-            target._prepare()  # noqa: SLF001
+            target._prepare()
         error = build_error(arg_name=arg_name, item=item, registry=target.providers_registry)
         error.prepend_step(resolution_step())
         raise error
@@ -282,10 +282,10 @@ def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typi
     missing source and a source's own scope error each carry this alias's resolution step.
     """
     pid = a.provider_id
-    resolution_step = a._resolution_step  # noqa: SLF001
-    find_source = a._find_source  # noqa: SLF001
+    resolution_step = a._resolution_step
+    find_source = a._find_source
 
-    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+    def resolve(container: "Container") -> typing.Any:
         overrides = container.overrides_registry
         if overrides.has_overrides:
             override = overrides.fetch_override(pid)
@@ -304,7 +304,7 @@ def _compile_container_provider() -> "typing.Callable[[Container], typing.Any]":
     """Resolve to the resolving container itself — no scope navigation."""
     pid = container_provider.provider_id
 
-    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+    def resolve(container: "Container") -> typing.Any:
         overrides = container.overrides_registry
         if overrides.has_overrides:
             override = overrides.fetch_override(pid)
@@ -324,7 +324,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "typing.Call
     pid = cp.provider_id
     resolve_bound = cp.resolve
 
-    def resolve(container: "Container") -> typing.Any:  # noqa: ANN401
+    def resolve(container: "Container") -> typing.Any:
         overrides = container.overrides_registry
         if overrides.has_overrides:
             override = overrides.fetch_override(pid)
@@ -337,7 +337,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "typing.Call
 
 def _navigate(
     container: "Container",
-    scope: typing.Any,  # noqa: ANN401
+    scope: typing.Any,
     resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
 ) -> "Container":
     """Cross-scope target lookup; prepends the resolution step to a scope error, as the interpreted path does."""

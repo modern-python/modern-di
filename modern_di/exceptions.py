@@ -221,7 +221,7 @@ class InvalidScopeTypeError(ContainerError):
 
     __slots__ = ("scope_value",)
 
-    def __init__(self, *, scope_value: typing.Any) -> None:  # noqa: ANN401
+    def __init__(self, *, scope_value: object) -> None:
         self.scope_value = scope_value
         super().__init__(f"Scope must be an enum.IntEnum member; got {scope_value!r} ({type(scope_value).__name__}).")
 
@@ -348,8 +348,8 @@ class ArgumentResolutionError(ResolutionError):
         self,
         *,
         arg_name: str,
-        arg_type: typing.Any,  # noqa: ANN401
-        bound_type: typing.Any,  # noqa: ANN401
+        arg_type: type | None,
+        bound_type: "type | typing.Callable[..., typing.Any]",
         suggestions: "list[suggester.Suggestion] | None" = None,
         member_types: list[type] | None = None,
     ) -> None:
@@ -383,7 +383,7 @@ class CreatorCallError(ResolutionError):
 
     __slots__ = ("creator", "original_error")
 
-    def __init__(self, *, creator: typing.Any, original_error: Exception) -> None:  # noqa: ANN401
+    def __init__(self, *, creator: "typing.Callable[..., typing.Any]", original_error: Exception) -> None:
         self.creator = creator
         self.original_error = original_error
         creator_name = getattr(creator, "__name__", repr(creator))
@@ -395,7 +395,7 @@ class CreatorCallError(ResolutionError):
     def from_type_error(
         cls,
         *,
-        creator: typing.Any,  # noqa: ANN401
+        creator: "typing.Callable[..., typing.Any]",
         exc: TypeError,
         resolution_step: "typing.Callable[[], ResolutionStep]",
     ) -> "CreatorCallError | None":
@@ -557,7 +557,7 @@ class UnknownFactoryKwargError(RegistrationError):
     def __init__(
         self,
         *,
-        creator: typing.Any,  # noqa: ANN401
+        creator: "typing.Callable[..., typing.Any]",
         unknown_keys: list[str],
         known_keys: list[str],
     ) -> None:
@@ -591,7 +591,7 @@ class UnsupportedCreatorParameterError(RegistrationError):
 
     __slots__ = ("creator", "parameter_name", "reason")
 
-    def __init__(self, *, creator: typing.Any, parameter_name: str, reason: str) -> None:  # noqa: ANN401
+    def __init__(self, *, creator: "typing.Callable[..., typing.Any]", parameter_name: str, reason: str) -> None:
         self.creator = creator
         self.parameter_name = parameter_name
         self.reason = reason

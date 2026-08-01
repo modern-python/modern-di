@@ -348,7 +348,7 @@ def test_walk_errors_returns_flat_list_in_walk_order() -> None:
         svc = providers.Factory(creator=_NeedsMissing)
 
     container = Container(scope=Scope.APP, groups=[G])
-    errors = container._walk_errors()  # noqa: SLF001
+    errors = container._walk_errors()
 
     # Root order is registration order (a, b, svc): the cycle closes while walking from root
     # `a`, so it is appended before `svc`'s missing dependency is reached.
@@ -392,8 +392,8 @@ def test_build_child_container_propagates_use_lock_false() -> None:
     root = Container(use_lock=False)
     root.open()
     child = root.build_child_container(scope=Scope.REQUEST)
-    assert root._lock is None  # noqa: SLF001
-    assert child._lock is None  # noqa: SLF001
+    assert root._lock is None
+    assert child._lock is None
 
 
 def test_container_provider_resolves_on_subclasses() -> None:
@@ -534,11 +534,11 @@ def test_caller_stacklevel_does_not_skip_sibling_packages() -> None:
     # `modern_di_fastapi/` is a *sibling* of `modern_di/`, not part of it: a warning raised through
     # an integration must stop at the integration, not walk past it into framework code. Driven with
     # a synthesized frame so the test needs no sibling package installed.
-    package_dir = container_module._PACKAGE_DIR  # noqa: SLF001
+    package_dir = container_module._PACKAGE_DIR
     sibling = f"{package_dir.rstrip(os.sep)}_fastapi{os.sep}routing.py"
     namespace: dict[str, typing.Any] = {}
     exec(compile("def integration(fn):\n    return fn()\n", sibling, "exec"), namespace)  # noqa: S102
-    assert namespace["integration"](container_module._caller_stacklevel) == 1  # noqa: SLF001
+    assert namespace["integration"](container_module._caller_stacklevel) == 1
 
 
 def test_container_closed_warning_message() -> None:
@@ -611,16 +611,16 @@ def test_private_lock_and_scope_map_back_the_machinery() -> None:
 
     # _lock is a reentrant lock (threading.RLock is a factory, not a type, so
     # assert behavior, not isinstance)
-    assert root._lock is not None  # noqa: SLF001
-    assert root._lock.acquire()  # noqa: SLF001
-    assert root._lock.acquire()  # reentrant  # noqa: SLF001
-    root._lock.release()  # noqa: SLF001
-    root._lock.release()  # noqa: SLF001
+    assert root._lock is not None
+    assert root._lock.acquire()
+    assert root._lock.acquire()  # reentrant
+    root._lock.release()
+    root._lock.release()
     # The map holds ancestors only — never the container itself, which would be a reference cycle.
     # `find_container` short-circuits on its own scope, so a self-entry would be dead weight.
-    assert set(child._scope_map) == {Scope.APP}  # noqa: SLF001
-    assert child._scope_map[Scope.APP] is root  # noqa: SLF001
-    assert root._scope_map == {}  # noqa: SLF001
+    assert set(child._scope_map) == {Scope.APP}
+    assert child._scope_map[Scope.APP] is root
+    assert root._scope_map == {}
     assert child.find_container(Scope.REQUEST) is child  # own scope still resolves
     assert child.find_container(Scope.APP) is root
 
@@ -667,22 +667,22 @@ def test_use_lock_false_yields_no_private_lock() -> None:
     root = Container(use_lock=False)
     root.open()
     child = root.build_child_container(scope=Scope.REQUEST)
-    assert root._lock is None  # noqa: SLF001
-    assert child._lock is None  # noqa: SLF001
+    assert root._lock is None
+    assert child._lock is None
 
 
 def test_scope_map_alias_warns_and_forwards() -> None:
     container = Container()
     with pytest.warns(DeprecationWarning, match="scope_map"):
         aliased = container.scope_map
-    assert aliased is container._scope_map  # noqa: SLF001
+    assert aliased is container._scope_map
 
 
 def test_lock_alias_warns_and_forwards() -> None:
     container = Container(use_lock=True)
     with pytest.warns(DeprecationWarning, match="lock"):
         aliased = container.lock
-    assert aliased is container._lock  # noqa: SLF001
+    assert aliased is container._lock
 
 
 def test_resolve_emits_no_deprecation_warning() -> None:
