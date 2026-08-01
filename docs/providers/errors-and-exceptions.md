@@ -32,6 +32,7 @@ ModernDIError (RuntimeError)
 │   ├── DuplicateProviderTypeError
 │   ├── ChildContainerRegistrationError
 │   ├── GroupScopeConflictError
+│   ├── ProviderScopeFrozenError
 │   ├── UnknownFactoryKwargError
 │   ├── UnsupportedCreatorParameterError
 │   └── InvalidScopeDependencyError
@@ -145,6 +146,12 @@ Catch `RegistrationError` for declaration- and registration-time problems.
   cannot follow both defaults at once, and import order must never be what decides it. Inspect
   `.provider_name`, `.first_group`/`.first_scope`, and `.second_group`/`.second_scope`. See
   [Troubleshooting: GroupScopeConflictError](../troubleshooting/group-scope-conflict-error.md).
+- **`ProviderScopeFrozenError`** — raised when a `Group` would change the scope of a provider that
+  is already registered with a container. Resolvers compiled before the change captured the old
+  scope, so applying it would make the same provider resolve differently through an existing
+  container than through a fresh one. Inspect `.provider_name`, `.group_name`, `.current_scope`,
+  `.new_scope`. See
+  [Troubleshooting: ProviderScopeFrozenError](../troubleshooting/provider-scope-frozen-error.md).
 - **`UnknownFactoryKwargError`** — raised when `Factory(kwargs={...})` contains a key that is not a
   parameter of the creator's signature; lists the known parameters and "did you mean" hints. See
   [Troubleshooting: UnknownFactoryKwargError](../troubleshooting/unknown-factory-kwarg-error.md).

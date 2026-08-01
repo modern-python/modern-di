@@ -516,6 +516,37 @@ class ChildContainerRegistrationError(RegistrationError):
         )
 
 
+class ProviderScopeFrozenError(RegistrationError):
+    """A group tried to change the scope of a provider that is already registered.
+
+    Inspect ``.provider_name``, ``.group_name``, ``.current_scope``, ``.new_scope``.
+    """
+
+    docs_slug = "provider-scope-frozen-error"
+
+    __slots__ = ("current_scope", "group_name", "new_scope", "provider_name")
+
+    def __init__(
+        self,
+        *,
+        provider_name: str,
+        group_name: str,
+        current_scope: enum.IntEnum,
+        new_scope: enum.IntEnum,
+    ) -> None:
+        self.provider_name = provider_name
+        self.group_name = group_name
+        self.current_scope = current_scope
+        self.new_scope = new_scope
+        super().__init__(
+            f"Group {group_name} would change the scope of provider {provider_name} from "
+            f"{current_scope.name} to {new_scope.name}, but it is already registered with a "
+            f"container. Resolvers compiled before this point captured {current_scope.name}, so the "
+            f"change would apply inconsistently. Declare {group_name} before building the container, "
+            f"or set scope= explicitly on the provider."
+        )
+
+
 class GroupScopeConflictError(RegistrationError):
     """A scope-defaulted provider is shared by two groups with different default scopes.
 

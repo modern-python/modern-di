@@ -36,7 +36,14 @@ its own kwarg overrides it for its own body); otherwise the provider falls back 
 participates in stamping — its scope is always derived from its source, never chosen (see below). A
 scope-defaulted provider instance shared between two group bodies with different defaults raises
 `GroupScopeConflictError` (a `RegistrationError` subclass) at the second group's class-creation time, rather than
-letting import order decide; sharing the same instance with the same default scope across groups is a no-op. See
+letting import order decide; sharing the same instance with the same default scope across groups is a no-op.
+
+A group body **without** a `scope=` kwarg stamps nothing, so a provider listed only there stays unclaimed and a
+later group may still stamp it. That is sound only until the provider is registered: `add_providers`/`register`
+set `AbstractProvider._registered`, and a compiled resolver captures `scope` in its closure, so a change after
+that point would apply to later-compiled resolvers only. `_stamp_group_scope` therefore raises
+`ProviderScopeFrozenError` when a stamp would *change* the scope of a registered provider. A same-scope stamp
+still returns early and stays legal, so the shared-instance pattern above is unaffected. See
 [docs/providers/scopes.md#group-level-default-scope](../docs/providers/scopes.md#group-level-default-scope) for
 the user-facing walkthrough.
 
