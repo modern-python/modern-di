@@ -159,10 +159,12 @@ close, ready to be returned again without re-running the creator.
 
 `_prepare()` — not `open()` — is the primitive the resolve path calls: `resolve_provider` (and the
 compiled-resolver dispatch it wraps) calls it whenever `self.closed` is `True`, before doing anything
-else. Under the container's `_lock` it re-checks `closed` (another thread may have reopened the
-container already); if still closed, it warns with `ContainerClosedWarning` and clears `closed`. `open()`
-is a separate, public entry point that clears `closed` unconditionally, with no closed-check and no
-warning — a deliberate reopen is not a diagnostic-worthy event. Neither method runs validation; `open()`
+else. That caller-side `if closed` check is the only guard: `_prepare()` itself takes no lock and makes
+no re-check, warning with `ContainerClosedWarning` and clearing `closed` unconditionally. Concurrent
+reuse of one closed container therefore warns **at least once**, not exactly once — see
+[concurrency.md](concurrency.md#the-lifecycle). `open()` is a separate, public entry point that clears
+`closed` unconditionally, with no closed-check and no warning — a deliberate reopen is not a
+diagnostic-worthy event. Neither method runs validation; `open()`
 is a plain lifecycle op, symmetric with `close_sync()` / `close_async()`. `Container` implements both
 sync (`__enter__` / `__exit__`) and async (`__aenter__` / `__aexit__`) context managers; both call
 `open()` on entry and `close_sync()` / `close_async()` on exit.

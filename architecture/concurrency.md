@@ -1,16 +1,13 @@
 # Concurrency and free-threaded (PEP 703) safety
 
 modern-di is safe to resolve from multiple threads, and supported on free-threaded
-CPython (PEP 703, the `3.14t` build) at trove level **`2 - Beta`**: production-ready
+CPython (PEP 703, the `3.14t` build) at level **`2 - Beta`**: production-ready
 and tested under real multithreading, with the caveats below documented. This
 page is the standing contract.
 
 ## The lifecycle
 
-A container has three phases, and thread-safety is defined per phase — the same
-build → resolve → dispose shape every comparable DI framework assumes (a survey
-of the field found no framework that supports tearing a container down while
-other threads resolve from it):
+A container has three phases, and thread-safety is defined per phase — build → resolve → dispose shape:
 
 1. **Configure — single-threaded (startup).** Registering providers
    (`add_providers`, group construction) mutates the registry under its own lock,
@@ -25,9 +22,9 @@ other threads resolve from it):
 3. **Close — single-threaded (shutdown).** `close_sync` / `close_async` run
    finalizers and reset caches/overrides; `open` reopens a closed container so it
    can resolve and build children again. Close (or reopen) a container at a
-   single-threaded edge, after concurrent resolution has quiesced — **closing or
-   reopening a container while other threads still resolve from it is not
-   supported.**
+   single-threaded edge, after all concurrent resolution has finished —
+   **closing or reopening a container while other threads still resolve from it
+   is not supported.**
 
 Reuse-after-close is a race the concurrent resolve phase does handle, distinct
 from the unsupported race above: once a container has settled into the closed
@@ -36,13 +33,15 @@ independently calling `resolve` on that (now-closed) container at once — each
 unaware the others are doing the same. A container is open from construction
 (see [containers.md](containers.md#optional-open-lifecycle)), so this is the
 only path back to `closed = True` in the first place. `resolve_provider` calls
-`_prepare()` whenever `self.closed` is `True`, under the container's own
-`_lock` when `use_lock=True`. It re-checks `closed` after acquiring the lock,
-so a thread that loses the race to reopen simply finds the container already
-open and returns without warning again. `closed = False` is the last thing
-`_prepare()` does, after the warning is already emitted, so N threads racing a
-closed container produce exactly one `ContainerClosedWarning` and one reopen —
-never a double-warn.
+`_prepare()` whenever `self.closed` is `True`; `_prepare()` warns and sets
+`closed = False`, unlocked. The reopen needs no lock because it is idempotent —
+N threads racing a closed container all write the same `False`, and they go on
+to share one singleton via the cache lock below. What is *not* serialized is the
+warning: each racing thread may emit its own `ContainerClosedWarning`. The
+contract is **at least one** warning per reuse-after-close, not exactly one.
+Under the default warning filters Python's own per-location registry collapses
+the duplicates anyway; `simplefilter("always")` reveals them. `open()` is the
+same unlocked idempotent write, minus the warning.
 
 ## The model
 
