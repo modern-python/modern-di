@@ -70,6 +70,28 @@ are untouched.
 The warm cached resolve also returns before `CacheItem.get_or_create`, having
 already made the same `is UNSET` sentinel check that method opens with.
 
+### No cell on the warm path
+
+The cached-factory resolver's cold-miss thunk is built with
+`functools.partial(build_cold, target)` and **must never be a lambda closing over
+`target`**. A closure promotes `target` to a cell variable for the *whole*
+resolver, so `MAKE_CELL` runs in the prologue on **every** call — including the
+warm hit that returns two lines later, and the override hit that never reaches
+`target` at all. It also turns four `LOAD_FAST` into `LOAD_DEREF`.
+
+The mechanism is worth stating precisely, because the obvious rationale is wrong:
+`functools.partial` is **not** cheaper than a lambda. On CPython 3.14 it costs
+~69 ns to construct against the lambda's ~36 ns, and ~105 ns against ~75 ns for
+construct-plus-call. It is chosen *despite* that, because it is constructed once
+per cold miss while the cell it avoids was charged on every call. The thunk must
+therefore stay inside the cell-bearing resolver; hoisting its construction
+elsewhere would flip the trade.
+
+Enforced by
+`tests/test_resolver_compiler.py::test_cached_resolver_has_no_cell_on_the_warm_path`,
+which asserts `co_cellvars == ()` on the compiled resolver — nothing else in the
+suite would catch a revert to a lambda.
+
 ## The positional fast path
 
 When a creator's entire signature is provider dependencies in declaration order,
@@ -141,6 +163,8 @@ after. Byte-identical output means there is nothing to measure.
 | `creator(**kwargs)` vs `creator(*args)` | **4-6x** | the positional fast path's whole justification |
 | `resolver_for` method frame | ~34 ns | of a ~170 ns warm resolve (~20%) |
 | `fetch_cache_item` method frame | ~23 ns | of the same ~170 ns warm resolve (~14%) |
+| `MAKE_CELL` + 4 `LOAD_DEREF` in the cached resolver prologue | ~18 ns | of a ~162 ns warm cached hit (~11%); no path regressed, including a one-shot cold miss |
+| `functools.partial` vs a `lambda`, construct + call | +30 ns | why the partial is a deliberate trade, not a free swap |
 | `typing.cast` on the context resolve path | ~19 ns | removed in #404 |
 | `isinstance` vs an `is` identity check | ~10 ns | why the `UNSET` check is `is`, with a scoped `ty: ignore` |
 | A redundant `open()` lock acquire | ~81 ns | found in the comparative C6 body |
