@@ -14,7 +14,7 @@ if typing.TYPE_CHECKING:
 
 
 class ProvidersRegistry:
-    __slots__ = ("_building", "_lock", "_plans", "_providers", "_resolvers", "_validated")
+    __slots__ = ("_building", "_generation", "_lock", "_plans", "_providers", "_resolvers", "_validated")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -23,6 +23,7 @@ class ProvidersRegistry:
         self._resolvers: dict[int, typing.Callable[[Container], typing.Any]] = {}
         self._building = threading.local()  # per-thread compile-in-flight set; the cycle guard is per-call-stack
         self._validated = False
+        self._generation = 0
 
     def __len__(self) -> int:
         return len(self._providers)
@@ -59,8 +60,11 @@ class ProvidersRegistry:
         cached = self._plans.get(provider_id)
         if cached is not None:
             return cached
+        generation = self._generation  # read before building; a mutation during it bumps this
         plan = WiringPlan.build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=self, owner=provider)
-        self._plans[provider_id] = plan
+        with self._lock:
+            if self._generation == generation:
+                self._plans[provider_id] = plan
         return plan
 
     def _building_set(self) -> set[int]:
@@ -91,11 +95,17 @@ class ProvidersRegistry:
         if pid in building:
             return lambda c: c.resolve_provider(provider)  # back-edge: route the cycle through runtime
         building.add(pid)
+        generation = self._generation  # read before compiling; a mutation during it bumps this
         try:
             resolver = compile_resolver(provider, self)
         finally:
             building.discard(pid)
-        self._resolvers[pid] = resolver
+        with self._lock:
+            # Publish only if no mutation landed while we compiled. Otherwise this resolver was
+            # built against a registry that no longer exists, and memoizing it would strand it
+            # past the `_invalidate()` that was supposed to drop it.
+            if self._generation == generation:
+                self._resolvers[pid] = resolver
         return resolver
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
@@ -137,3 +147,4 @@ class ProvidersRegistry:
         self._plans.clear()
         self._resolvers.clear()
         self._validated = False
+        self._generation += 1

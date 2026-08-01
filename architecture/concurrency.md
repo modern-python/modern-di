@@ -59,8 +59,13 @@ same unlocked idempotent write, minus the warning.
   the same entry produce identical objects; the worst
   case is one duplicated build, never a wrong result. Clearing on mutation is sound because
   mutation is a single-threaded configure-phase operation (see [The lifecycle](#the-lifecycle)
-  above); a program that mutates the registry during concurrent resolution loses the old
-  version-stamp approach's rebuild-stale safety net. The cycle-guard `_building`
+  above). **Publication is generation-checked**, which restores the rebuild-stale safety
+  net a plain version stamp used to provide: both `resolver_for` and `plan_for` read
+  `_generation` before building, build outside the lock, and then publish under it *only if*
+  the generation is unchanged. Without that check a build begun before an `_invalidate()`
+  would store its result after the clear, stranding an entry compiled against a registry
+  that no longer exists — permanently, since the invalidation meant to drop it has already
+  happened. A build that loses the race is returned to its caller and simply not memoized. The cycle-guard `_building`
   set is **thread-local**: it tracks which providers are being compiled on *this*
   call stack, so a genuine same-thread `A -> B -> A` cycle is still caught by the
   back-edge thunk, while a concurrent first-resolve of the same provider on another
