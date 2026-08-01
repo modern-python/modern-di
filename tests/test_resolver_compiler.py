@@ -1,21 +1,24 @@
 """Direct tests for compiled-resolver path selection.
 
 The differential-harness suite in ``tests/providers/test_factory.py`` characterizes each
-compiled path black-box through ``resolve_provider``. These pin the two things it leaves
+compiled path black-box through ``resolve_provider``. These pin the three things it leaves
 unguarded: the argument-ordering invariant the positional fast path silently depends on,
-and ``_positional_names``' full contract (four exclusion rules plus the positive case),
-called directly.
+``_can_call_positionally``'s full contract (four exclusion rules plus the positive case)
+called directly, and the per-node frame budget the compiled path exists to hold.
 """
 
 import dataclasses
 import inspect
+import sys
+import types as _pytypes
+import typing
 
 import pytest
 
 from modern_di import Container, Group, Scope, providers
 from modern_di.providers import ContextProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.resolver_compiler import _positional_names
+from modern_di.resolver_compiler import _can_call_positionally
 from modern_di.wiring import WiringPlan
 
 
@@ -56,6 +59,84 @@ def _plan(registry: ProvidersRegistry, owner: "providers.Factory[object]") -> Wi
     return registry.plan_for(owner, owner._parsed_kwargs, owner._kwargs)
 
 
+@dataclasses.dataclass(slots=True)
+class _L0:
+    pass
+
+
+@dataclasses.dataclass(slots=True)
+class _L1:
+    dep: _L0
+
+
+@dataclasses.dataclass(slots=True)
+class _L2:
+    dep: _L1
+
+
+@dataclasses.dataclass(slots=True)
+class _L3:
+    dep: _L2
+
+
+@dataclasses.dataclass(slots=True)
+class _L4:
+    dep: _L3
+
+
+@dataclasses.dataclass(slots=True)
+class _L5:
+    dep: _L4
+
+
+_CHAIN: tuple[type, ...] = (_L0, _L1, _L2, _L3, _L4, _L5)
+
+#: Python calls one extra chain node costs: its resolver closure, plus its creator.
+#: The creator is the user's own object construction and is irreducible; the **1**
+#: resolver frame is the budget this module exists to hold. See
+#: ``architecture/performance.md``.
+#:
+#: Before 3.12 each resolver's argument build is a *separate* code object -- the
+#: positional path's ``<listcomp>`` and the kwargs path's ``<dictcomp>`` -- so it
+#: costs a third frame per node. PEP 709 inlines both from 3.12, which is a real
+#: per-version cost difference, not a measurement artifact.
+_CALLS_PER_NODE = 2 if sys.version_info >= (3, 12) else 3
+
+
+def _warm_chain(depth: int) -> "tuple[Container, providers.Factory[typing.Any]]":
+    """Build and warm a transient chain of ``depth`` nodes; return it and its root provider."""
+    members = {f"p{i}": providers.Factory(creator=node, scope=Scope.APP) for i, node in enumerate(_CHAIN[:depth])}
+    group = _pytypes.new_class(f"_Chain{depth}", (Group,), exec_body=lambda ns: ns.update(members))
+    container = Container(scope=Scope.APP, groups=[group])
+    root = members[f"p{depth - 1}"]
+    container.resolve_provider(root)  # compile the whole graph before measuring
+    return container, root
+
+
+def _count_python_calls(fn: "typing.Callable[[], object]") -> int:
+    """Count Python-level calls made by ``fn``.
+
+    Uses ``sys.setprofile`` rather than stack-depth sampling so a helper frame that is
+    *pushed and popped* during resolution (an extracted override guard, say) is still
+    counted -- sampling the depth inside a creator would miss exactly that regression.
+    """
+    calls = 0
+
+    def profiler(_frame: object, event: str, _arg: object) -> None:
+        # pragma: no cover - CPython does not trace inside a profile callback, so coverage
+        # cannot see this body. That it runs is exactly what the caller's assertion proves.
+        nonlocal calls
+        if event == "call":  # pragma: no cover
+            calls += 1  # pragma: no cover
+
+    sys.setprofile(profiler)
+    try:
+        fn()
+    finally:
+        sys.setprofile(None)
+    return calls
+
+
 # ---------------------------------------------------------------------------
 # Ordering invariant — the positional fast path binds args in signature order
 # ---------------------------------------------------------------------------
@@ -74,7 +155,7 @@ def test_positional_path_binds_args_in_signature_order() -> None:
     container = Container(groups=[G])
     container.open()
     plan = _plan(container.providers_registry, G.ordered)
-    assert _positional_names(G.ordered, plan) is not None  # self-guard: positional path selected
+    assert _can_call_positionally(G.ordered, plan)  # self-guard: positional path selected
 
     result = container.resolve(_Ordered)
     assert isinstance(result.a, _A)
@@ -83,12 +164,12 @@ def test_positional_path_binds_args_in_signature_order() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _positional_names — the full predicate contract, called directly
+# _can_call_positionally — the full predicate contract, called directly
 # ---------------------------------------------------------------------------
 
 
-def test_positional_names_returns_ordered_names() -> None:
-    # positive: every param is a provider dep in signature order -> the ordered names tuple.
+def test_can_call_positionally_accepts_ordered_provider_signature() -> None:
+    # positive: every param is a provider dep in signature order -> the positional path is eligible.
     registry = ProvidersRegistry()
     registry.add_providers(
         providers.Factory(creator=_A, scope=Scope.APP),
@@ -98,10 +179,10 @@ def test_positional_names_returns_ordered_names() -> None:
     owner = providers.Factory(creator=_make, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _positional_names(owner, _plan(registry, owner)) == ("a", "b", "c")
+    assert _can_call_positionally(owner, _plan(registry, owner)) is True
 
 
-def test_positional_names_rejects_static_or_context_kwarg() -> None:
+def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
     # rule 1: a context param makes the plan non-pure, so kwargs folding must run.
     def creator(dep: _A, req: _Req) -> _Ordered:
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
@@ -114,10 +195,10 @@ def test_positional_names_rejects_static_or_context_kwarg() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _positional_names(owner, _plan(registry, owner)) is None
+    assert _can_call_positionally(owner, _plan(registry, owner)) is False
 
 
-def test_positional_names_rejects_defaulted_omitted_param() -> None:
+def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
     # rule 2a: `opt` has a default and no provider, so it is omitted -> provider_kwargs is a
     # strict prefix of the signature, not the whole of it.
     def creator(dep: _A, opt: int = 5) -> _Ordered:
@@ -128,10 +209,10 @@ def test_positional_names_rejects_defaulted_omitted_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _positional_names(owner, _plan(registry, owner)) is None
+    assert _can_call_positionally(owner, _plan(registry, owner)) is False
 
 
-def test_positional_names_rejects_kwargs_overlay_reorder() -> None:
+def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
     # rule 2b: supplying `a` via the kwargs overlay defers it to the end of provider_kwargs,
     # so the binding order (b, a) no longer matches the signature (a, b).
     def creator(a: _A, b: _B) -> _Ordered:
@@ -145,10 +226,10 @@ def test_positional_names_rejects_kwargs_overlay_reorder() -> None:
 
     plan = _plan(registry, owner)
     assert tuple(plan.provider_kwargs) == ("b", "a")  # overlay put `a` last
-    assert _positional_names(owner, plan) is None
+    assert _can_call_positionally(owner, plan) is False
 
 
-def test_positional_names_rejects_keyword_only_param() -> None:
+def test_can_call_positionally_rejects_keyword_only_param() -> None:
     # rule 3: a keyword-only dep can never be passed positionally.
     def creator(*, dep: _A) -> _Ordered:
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
@@ -158,10 +239,10 @@ def test_positional_names_rejects_keyword_only_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _positional_names(owner, _plan(registry, owner)) is None
+    assert _can_call_positionally(owner, _plan(registry, owner)) is False
 
 
-def test_positional_names_rejects_positional_only_param() -> None:
+def test_can_call_positionally_rejects_positional_only_param() -> None:
     # rule 4: `prefix` is positional-only WITH a default, dropped from parsed_kwargs so the
     # remaining names look like a clean prefix ("dep",) -- but a positional call would bind
     # `dep` to the `prefix` slot. The parser's has_positional_only_gap flag must reject it.
@@ -173,7 +254,7 @@ def test_positional_names_rejects_positional_only_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _positional_names(owner, _plan(registry, owner)) is None
+    assert _can_call_positionally(owner, _plan(registry, owner)) is False
 
 
 def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -199,3 +280,29 @@ def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(inspect, "signature", _spy)
     container.resolve_provider(G.ordered)  # triggers compile of the whole graph
     assert calls == []  # no re-introspection at compile
+
+
+# ---------------------------------------------------------------------------
+# Frame budget — one resolver frame per chain node, and no more
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
+    # Every compiled resolver front-guards its own override, navigates its own scope and
+    # inlines its own kwargs build + creator call. That duplication is deliberate: any of it
+    # extracted into a shared helper would cost one Python frame *per resolved node*, which
+    # is the whole reason the compiled path exists (architecture/performance.md).
+    #
+    # Measured as a difference between two chain depths, so the fixed cost of the harness
+    # and of `resolve_provider` itself cancels and only the per-node slope is asserted.
+    shallow_container, shallow_root = _warm_chain(2)
+    deep_container, deep_root = _warm_chain(6)
+
+    shallow = _count_python_calls(lambda: shallow_container.resolve_provider(shallow_root))
+    deep = _count_python_calls(lambda: deep_container.resolve_provider(deep_root))
+
+    assert (deep - shallow) == (6 - 2) * _CALLS_PER_NODE, (
+        f"per-node cost is {(deep - shallow) / (6 - 2)} Python calls, expected {_CALLS_PER_NODE} "
+        f"on Python {sys.version_info.major}.{sys.version_info.minor}. A helper extracted from "
+        f"the compiled resolvers costs one frame per resolved node -- see architecture/performance.md."
+    )
