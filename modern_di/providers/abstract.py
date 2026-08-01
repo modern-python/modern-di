@@ -14,7 +14,7 @@ _provider_id_counter = itertools.count()
 
 
 class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
-    __slots__ = ("_scope_defaulted", "_stamping_group", "bound_type", "provider_id", "scope")
+    __slots__ = ("_registered", "_scope_defaulted", "_stamping_group", "bound_type", "provider_id", "scope")
 
     def __init__(
         self,
@@ -25,11 +25,16 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         self._scope_defaulted = isinstance(scope, types.UnsetType)
         self.scope: enum.IntEnum = Scope.APP if isinstance(scope, types.UnsetType) else scope
         self._stamping_group: str | None = None
+        self._registered = False
         self.bound_type = bound_type
         self.provider_id: typing.Final = next(_provider_id_counter)
 
     def _stamp_group_scope(self, scope: enum.IntEnum, group_name: str) -> None:
-        """Apply a Group-level default scope; no-op when the provider's scope was chosen explicitly."""
+        """Apply a Group-level default scope; no-op when the provider's scope was chosen explicitly.
+
+        Frozen once registered: a compiled resolver captures `scope`, so a later change would apply
+        only to resolvers compiled after it.
+        """
         if not self._scope_defaulted:
             return
         if self._stamping_group is not None:
@@ -42,6 +47,13 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
                     second_scope=scope,
                 )
             return
+        if self._registered and self.scope != scope:
+            raise exceptions.ProviderScopeFrozenError(
+                provider_name=self.display_name,
+                group_name=group_name,
+                current_scope=self.scope,
+                new_scope=scope,
+            )
         self.scope = scope
         self._stamping_group = group_name
 

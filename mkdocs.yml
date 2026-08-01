@@ -66,6 +66,7 @@ nav:
       - Duplicate Type Error: troubleshooting/duplicate-type-error.md
       - Child Container Registration: troubleshooting/child-container-registration-error.md
       - Group Scope Conflict: troubleshooting/group-scope-conflict-error.md
+      - Provider Scope Frozen: troubleshooting/provider-scope-frozen-error.md
       - Unknown Factory Kwarg: troubleshooting/unknown-factory-kwarg-error.md
       - Unsupported Creator Parameter: troubleshooting/unsupported-creator-parameter-error.md
       - Scope Chain Violation: troubleshooting/scope-chain.md
@@ -203,6 +204,7 @@ plugins:
           - troubleshooting/duplicate-type-error.md: Diagnosing duplicate bound_type registration errors
           - troubleshooting/child-container-registration-error.md: Diagnosing ChildContainerRegistrationError
           - troubleshooting/group-scope-conflict-error.md: Diagnosing GroupScopeConflictError
+          - troubleshooting/provider-scope-frozen-error.md: Diagnosing ProviderScopeFrozenError
           - troubleshooting/unknown-factory-kwarg-error.md: Diagnosing UnknownFactoryKwargError
           - troubleshooting/unsupported-creator-parameter-error.md: Diagnosing UnsupportedCreatorParameterError
           - troubleshooting/scope-chain.md: Diagnosing scope chain violation errors

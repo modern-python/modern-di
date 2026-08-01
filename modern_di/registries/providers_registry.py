@@ -103,6 +103,7 @@ class ProvidersRegistry:
             if provider_type in self._providers:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers[provider_type] = provider
+            provider._registered = True  # noqa: SLF001
             self._invalidate()
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
@@ -119,6 +120,11 @@ class ProvidersRegistry:
                 if provider_type in self._providers:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
+            # Only once the registration has actually succeeded, and over `args` rather than
+            # `new_providers`: a reference-only provider never enters `_providers`, but its
+            # resolver is still compiled and still captures its scope.
+            for provider in args:
+                provider._registered = True  # noqa: SLF001
             self._invalidate()
 
     def _invalidate(self) -> None:

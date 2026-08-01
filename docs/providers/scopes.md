@@ -151,6 +151,8 @@ Scope resolution follows a priority order:
 
 A scope-defaulted provider instance that is shared between two `Group` subclasses with different defaults raises [`GroupScopeConflictError`](../troubleshooting/group-scope-conflict-error.md) at class-creation time. Sharing the same provider instance with the same default scope across multiple groups is allowed.
 
+A group declared without a `scope=` kwarg stamps nothing, so a provider listed only in such a group keeps the `Scope.APP` default and can still be stamped by a later group — but only until it is registered with a container. After that, a group that would *change* its scope raises [`ProviderScopeFrozenError`](../troubleshooting/provider-scope-frozen-error.md), because resolvers compiled before the change already captured the old scope. Declare every group that lists a provider before building the container, or set `scope=` on the provider explicitly.
+
 ## See also
 
 - [Lifecycle](lifecycle.md) — finalizers and `close_async()` work per-scope.

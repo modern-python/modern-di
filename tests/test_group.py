@@ -8,6 +8,7 @@ from modern_di.exceptions import (
     GroupInstantiationError,
     GroupScopeConflictError,
     InvalidScopeTypeError,
+    ProviderScopeFrozenError,
 )
 
 
@@ -251,3 +252,73 @@ def test_group_scope_rejects_non_intenum() -> None:
 
         class BadGroup(Group, scope=99):  # ty: ignore[invalid-argument-type]
             svc = providers.Factory(_Svc)
+
+
+def test_group_cannot_change_scope_of_registered_provider() -> None:
+    # A group with no `scope=` never stamps, so it never claims the provider. Before the freeze a
+    # later scoped group could restamp it, and any resolver already compiled kept the old scope --
+    # so the same provider resolved from the same container gave a different answer than a fresh one.
+    shared = providers.Factory(_Svc)
+
+    class PlainGroup(Group):
+        svc = shared
+
+    container = Container(scope=Scope.APP, groups=[PlainGroup])
+    container.resolve_provider(shared)
+
+    with pytest.raises(ProviderScopeFrozenError, match="ScopedGroup") as exc_info:
+
+        class ScopedGroup(Group, scope=Scope.REQUEST):
+            svc = shared
+
+    assert exc_info.value.current_scope is Scope.APP
+    assert exc_info.value.new_scope is Scope.REQUEST
+    assert shared.scope is Scope.APP  # unchanged: the raise happens before the mutation
+
+
+def test_group_may_restamp_provider_that_was_never_registered() -> None:
+    # The freeze is keyed on registration, not on group membership: an unregistered provider is
+    # still free to take a group default, which is the ordinary declaration order.
+    shared = providers.Factory(_Svc)
+
+    class PlainGroup(Group):
+        svc = shared
+
+    class ScopedGroup(Group, scope=Scope.REQUEST):
+        svc = shared
+
+    assert shared.scope is Scope.REQUEST
+
+
+def test_group_same_scope_restamp_allowed_after_registration() -> None:
+    # docs/providers/scopes.md: sharing one provider instance across groups at the same scope is
+    # supported. Registration must not break that -- the freeze only rejects an actual change.
+    shared = providers.Factory(_Svc, scope=Scope.REQUEST)
+
+    class GroupA(Group, scope=Scope.REQUEST):
+        svc = shared
+
+    Container(scope=Scope.APP, groups=[GroupA])
+
+    class GroupB(Group, scope=Scope.REQUEST):
+        svc = shared
+
+    assert shared.scope is Scope.REQUEST
+
+
+def test_failed_registration_does_not_freeze_scope() -> None:
+    # The freeze must key on a registration that actually happened. A rejected add_providers
+    # leaves the provider unregistered, so a later group may still stamp it.
+    shared = providers.Factory(_Svc)
+
+    class PlainGroup(Group):
+        svc = shared
+
+    container = Container(scope=Scope.APP)
+    with pytest.raises(DuplicateProviderTypeError):
+        container.add_providers(shared, providers.Factory(_Svc))  # same bound_type twice
+
+    class ScopedGroup(Group, scope=Scope.REQUEST):
+        svc = shared
+
+    assert shared.scope is Scope.REQUEST
