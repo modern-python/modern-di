@@ -1,15 +1,15 @@
 ---
-summary: The context-kwarg path in the Factory closures still pays ~5 Python frames per kwarg; a narrow -9.2% variant is unrefuted, while the full -16.2% inline needs a ruling that ContextProvider.scope and context_type are frozen after registration.
+summary: The context-kwarg path in the Factory closures still pays ~4 Python frames per kwarg after the override-guard fix shipped; the remaining scope-hop and compile-time-fold parts need a ruling that ContextProvider.scope and context_type are frozen after registration.
 ---
 
 # Inline the context-kwarg path in the Factory closures
 
 A `Factory` parameter backed by a `ContextProvider` is resolved per resolve
 through `Factory._resolve_context_value`, which calls
-`overrides_registry.fetch_override`, then `ContextProvider.fetch_context_value`,
-which calls `find_container` and `ContextRegistry.find_context` — roughly five
-Python frames per context kwarg, on the path every framework integration takes
-for its per-request values.
+`ContextProvider.fetch_context_value`, which calls `find_container` and
+`ContextRegistry.find_context` — roughly four Python frames per context kwarg
+(five before the override guard shipped), on the path every framework
+integration takes for its per-request values.
 
 ## Why it is open
 
@@ -18,12 +18,11 @@ Measured on a REQUEST factory with one context kwarg: 312-329 ns → 225 ns
 splits into three parts of increasing invasiveness, and they do not stand or fall
 together:
 
-- **(i) Gate `fetch_override` on `has_overrides`.** `_resolve_context_value`
-  calls `overrides_registry.fetch_override(...)` unconditionally, while all seven
-  compiled closures gate the identical lookup behind `has_overrides` first.
-  Measured ~-41 ns (-5.3%) on every no-overrides resolve. This part was **not
-  refuted** — its invariant was verified by exhaustion — and it needs no ruling.
-  It is a small PR on its own, not a blocked item.
+- **(i) Gate `fetch_override` on `has_overrides`.** ~~`_resolve_context_value`
+  calls `overrides_registry.fetch_override(...)` unconditionally.~~ **Shipped.**
+  Measured -41.1 ns (-5.98%) on the no-overrides path, with the override-active
+  path also improving slightly (-4.4 ns). It needed no ruling and was never
+  blocked; only (ii) and (iii) below remain.
 - **(ii) Give the context hop the same-scope int-compare fast path** the Factory
   closures already have, instead of always calling `find_container`.
 - **(iii) Fold the bindings at compile time**, capturing `cp.context_type`,
