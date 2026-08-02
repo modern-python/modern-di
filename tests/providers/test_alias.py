@@ -479,3 +479,38 @@ def test_alias_to_a_same_scope_source_validates_clean_below_app() -> None:
     container = Container(scope=_BelowApp.ROOT, groups=[G])
     container.validate()
     assert container.providers_registry.is_validated() is True
+
+
+def test_alias_resolves_from_a_closed_container_with_warning() -> None:
+    # The alias hop itself carries no closed-container check; the entry `resolve_provider`
+    # reopens, exactly as it does for a context provider or `container_provider`.
+    container = Container(groups=[MyGroup])
+    container.open()
+    container.resolve(AbstractRepository)
+    container.close_sync()
+
+    with pytest.warns(exceptions.ContainerClosedWarning):
+        assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
+
+
+def test_mutual_alias_cycle_raises_circular_dependency_at_runtime() -> None:
+    # A pure-alias cycle has no factory node to trip the static guard, so it recurses at
+    # runtime until `resolve_provider` converts the RecursionError. The chain is rooted at
+    # the provider the caller asked for.
+    class First: ...
+
+    class Second: ...
+
+    class G(Group):
+        first = providers.Alias(source_type=Second, bound_type=First)
+        second = providers.Alias(source_type=First, bound_type=Second)
+
+    container = Container(groups=[G])
+    container.open()
+
+    with pytest.raises(CircularDependencyError) as exc:
+        container.resolve(First)
+
+    rendered = str(exc.value)
+    assert "First" in rendered
+    assert "Second" in rendered
