@@ -308,6 +308,54 @@ def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
     )
 
 
+def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
+    # An alias forwards to its source's compiled resolver by direct reference, like every
+    # Factory dependency. Routing through `_find_source` + `find_provider` +
+    # `resolve_provider` instead costs four frames per hop -- see architecture/performance.md.
+    class _Source: ...
+
+    class _Iface: ...
+
+    class _Direct(Group):
+        source = providers.Factory(creator=_Source, scope=Scope.APP)
+
+    class _Aliased(Group):
+        source = providers.Factory(creator=_Source, scope=Scope.APP)
+        iface = providers.Alias(source_type=_Source, bound_type=_Iface)
+
+    direct = Container(scope=Scope.APP, groups=[_Direct])
+    aliased = Container(scope=Scope.APP, groups=[_Aliased])
+    direct.resolve_provider(_Direct.source)  # compile before measuring
+    aliased.resolve_provider(_Aliased.iface)
+
+    without_alias = _count_python_calls(lambda: direct.resolve_provider(_Direct.source))
+    with_alias = _count_python_calls(lambda: aliased.resolve_provider(_Aliased.iface))
+
+    assert (with_alias - without_alias) == 1, (
+        f"an alias hop costs {with_alias - without_alias} Python calls, expected 1 (its own "
+        f"resolver). Looking the source up per resolve costs four -- see architecture/performance.md."
+    )
+
+
+def test_overridden_alias_compiles_nothing_of_its_source() -> None:
+    # The override front-guard runs before the source is ever looked up, so the mock pattern
+    # never pays to compile a subtree it will not touch.
+    class _Source: ...
+
+    class _Iface: ...
+
+    class _G(Group):
+        source = providers.Factory(creator=_Source, scope=Scope.APP)
+        iface = providers.Alias(source_type=_Source, bound_type=_Iface)
+
+    container = Container(scope=Scope.APP, groups=[_G])
+    sentinel = object()
+    container.override(_G.iface, sentinel)
+
+    assert container.resolve(_Iface) is sentinel
+    assert list(container.providers_registry._resolvers) == [_G.iface.provider_id]
+
+
 def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
     # The cold-miss thunk must not close over `target`: a closure promotes it to a cell, so
     # MAKE_CELL runs in the resolver's prologue on every call -- including the warm hit that
