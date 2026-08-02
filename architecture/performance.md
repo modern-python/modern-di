@@ -53,8 +53,8 @@ deliberate — there is no interpreted fallback to inherit shared behaviour from
 
 ## Inlined memo hits
 
-Two lookups are hand-inlined at their call site, with the method called only on
-a miss:
+Four lookups are hand-inlined across three call sites, with the method called
+only on a miss:
 
 | Call site | Inlines | Method still owns |
 |---|---|---|
@@ -64,9 +64,9 @@ a miss:
 
 In each case the method being inlined *opens with exactly that lookup and
 returns*, so the inline is not a reimplementation that can drift — it is the
-method's own fast path, hoisted past its frame. Both keep calling the real method
-on a miss, so the miss-path invariants (cycle detection, single shared `CacheItem`)
-are untouched.
+method's own fast path, hoisted past its frame. All three keep calling the real
+method on a miss, so the miss-path invariants (cycle detection, single shared
+`CacheItem`, the dangling-source error) are untouched.
 
 The alias case inlines two lookups rather than one, because the hop is two indirections deep: without them an
 alias costs four Python frames (`_find_source`, `find_provider`, `resolve_provider`, then the source's

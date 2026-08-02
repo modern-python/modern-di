@@ -494,8 +494,8 @@ def test_alias_resolves_from_a_closed_container_with_warning() -> None:
 
 
 def test_alias_picks_up_a_source_registered_after_a_failed_resolve() -> None:
-    # The compiled alias caches nothing, so a source registered after a failed resolve is
-    # picked up on the next one. A closure that bound its source would not do this.
+    # The compiled alias caches nothing, so a source registered after a failed resolve is picked up next.
+    # Catches caching on the provider instance; a compile-local bind is already defeated by registry invalidation.
     class Late: ...
 
     class LateIface: ...
