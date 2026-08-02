@@ -493,6 +493,27 @@ def test_alias_resolves_from_a_closed_container_with_warning() -> None:
         assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
 
 
+def test_alias_picks_up_a_source_registered_after_a_failed_resolve() -> None:
+    # The compiled alias caches nothing, so a source registered after a failed resolve is
+    # picked up on the next one. A closure that bound its source would not do this.
+    class Late: ...
+
+    class LateIface: ...
+
+    class G(Group):
+        iface = providers.Alias(source_type=Late, bound_type=LateIface)
+
+    container = Container(groups=[G])
+    container.open()
+
+    with pytest.raises(AliasSourceNotRegisteredError):
+        container.resolve(LateIface)
+
+    container.add_providers(providers.Factory(creator=Late))
+
+    assert isinstance(container.resolve(LateIface), Late)
+
+
 def test_mutual_alias_cycle_raises_circular_dependency_at_runtime() -> None:
     # A pure-alias cycle has no factory node to trip the static guard, so it recurses at
     # runtime until `resolve_provider` converts the RecursionError. The chain is rooted at
