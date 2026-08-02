@@ -60,12 +60,18 @@ a miss:
 |---|---|---|
 | `Container.resolve_provider` | `providers_registry._resolvers.get(pid)` | the cycle guard and memo write, on a miss |
 | `_compile_cached_factory`'s `resolve` | `cache_registry._items.get(pid)` | `setdefault`, which is what makes concurrent first-resolvers share one `CacheItem` |
+| `_compile_alias`'s `resolve` | `providers_registry._providers.get(source_type)` and `._resolvers.get(source.provider_id)` | `find_provider`'s error, and `resolver_for`'s cycle guard and memo write, on a miss |
 
-In both cases the method being inlined *opens with exactly that lookup and
+In each case the method being inlined *opens with exactly that lookup and
 returns*, so the inline is not a reimplementation that can drift — it is the
 method's own fast path, hoisted past its frame. Both keep calling the real method
 on a miss, so the miss-path invariants (cycle detection, single shared `CacheItem`)
 are untouched.
+
+The alias case inlines two lookups rather than one, because the hop is two indirections deep: without them an
+alias costs four Python frames (`_find_source`, `find_provider`, `resolve_provider`, then the source's
+resolver) where every `Factory` dependency costs one.
+`tests/test_resolver_compiler.py::test_alias_hop_costs_exactly_one_resolver_frame` holds it at one.
 
 The warm cached resolve also returns before `CacheItem.get_or_create`, having
 already made the same `is UNSET` sentinel check that method opens with.
