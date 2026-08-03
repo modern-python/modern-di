@@ -54,7 +54,7 @@ kwargs path, neither of which the chain test measures.
 closure — override guard, scope hop, closed-target reopen, both error handlers —
 so each rung multiplies the branch set that has to be reached by tests, not just
 the binding. Arity 0 and 1 are where the measured win lives (leaves, and chains,
-which are arity 1 per node): ~-34% on a single transient resolve and ~-26% on a
+which are arity 1 per node): ~-33% on a single transient resolve and ~-28% on a
 depth-6 chain. Rungs beyond 1 duplicate that whole branch set for a gain no
 scenario in `benchmarks/` demonstrates.
 

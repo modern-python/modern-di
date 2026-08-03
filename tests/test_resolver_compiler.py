@@ -120,8 +120,8 @@ _CHAIN: tuple[type, ...] = (_L0, _L1, _L2, _L3, _L4, _L5)
 #: Version-independent because these chain nodes have arity 1, which the positional
 #: path compiles to a closure that names its argument and calls the creator directly
 #: -- no comprehension, so nothing for PEP 709 to inline or not inline. A comprehension
-#: frame survives only on the arity-4+ generic star-call and on the kwargs path, where
-#: below 3.12 it still costs a third frame per node.
+#: frame survives on the arity-2+ generic star-call and on the kwargs path, where below
+#: 3.12 it still costs a third frame per node.
 _CALLS_PER_NODE = 2
 
 
@@ -187,9 +187,11 @@ def test_positional_path_binds_args_in_signature_order() -> None:
 
 @pytest.mark.parametrize("arity", [0, 1, 2, 3, 4])
 def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int) -> None:
-    # The positional path compiles a separate closure per arity (0-3) plus a generic star-call
-    # for 4+, so each rung binds its own arguments and each can regress alone. The types are
-    # distinct, so a misordered rung lands a _P1 in .p0 and the assertion fails.
+    # The positional path compiles a separate closure at arity 0 and 1, plus the generic
+    # star-call for 2+; each binds its own arguments and can regress alone. Arities 2, 3 and 4
+    # all exercise that one generic closure -- kept because binding order at higher arity is
+    # worth asserting, not because they are separate rungs. The types are distinct, so a
+    # misordered binding lands a _P1 in .p0 and the assertion fails.
     types_ = [_P0, _P1, _P2, _P3][:arity]
     params = ", ".join(f"p{i}: _P{i}" for i in range(arity))
     args = ", ".join(f"p{i}" for i in range(arity))
@@ -245,6 +247,9 @@ def test_arity_rung_front_guards_the_override(arity: int) -> None:
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
+    # Line coverage of the cross-scope hop's success path. The wrong target is not observable
+    # here -- deps navigate themselves -- so the mutant that skips navigation is killed by the
+    # closed-target and dependency-error tests below, not by this one.
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
     app.open()
@@ -546,6 +551,21 @@ def test_no_compiled_resolver_closes_over_its_registry() -> None:
     ]
 
     assert capturing == []
+
+
+@pytest.mark.parametrize(
+    ("arity", "expected"), [(0, "resolve_arity0"), (1, "resolve_arity1"), (2, "resolve_positional")]
+)
+def test_positional_path_selects_the_arity_specialised_closure(arity: int, expected: str) -> None:
+    # Asserted on the code object because nothing else can see it: the rungs are semantically
+    # identical to the generic star-call, and from 3.12 PEP 709 inlines the comprehension the
+    # frame-budget test would otherwise notice. Delete a rung and this fails on every
+    # interpreter; without it, only the 3.10 and 3.11 jobs would catch the regression, and they
+    # would report it as an extracted helper.
+    group = _arity_group(arity)
+    container = Container(scope=Scope.APP, groups=[group])
+    resolver = container.providers_registry.resolver_for(group.target)
+    assert typing.cast("_pytypes.FunctionType", resolver).__code__.co_name == expected
 
 
 def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:

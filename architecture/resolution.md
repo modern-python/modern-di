@@ -128,11 +128,12 @@ resolver briefly holds the only reference. modern-di manages no finalizer for su
 container owns. An unretained transient is freed by CPython's ordinary refcounting, and the resolver's
 shape decides the order.
 
-That shape changed with the arity ladder, and **not uniformly across versions**: the star-call's
-intermediate list frees back-to-front on every interpreter, while the ladder's named locals are
-released with the frame — same back-to-front order on 3.14, but front-to-back on 3.10. Code that
-depends on `__del__` ordering for unretained injected dependencies was relying on an accident of the
-call convention, and never on anything stated here.
+**Nothing observable changed when the arity ladder landed**, and the reason is worth recording: the
+ladder caps at arity 1, so it never holds more than one named local and there is no order to alter.
+Measured main-vs-ladder on 3.10 and 3.14, arities 1 through 3, the collection order is identical. The
+rule is stated in advance of the case that would test it — a rung at arity 2+ would release named
+locals with the frame rather than through the star-call's intermediate list, and on CPython below
+3.12 that is a different order. Such a rung is a performance change, not a breaking one.
 
 ## Breadcrumb definition sites
 
