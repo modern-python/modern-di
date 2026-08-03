@@ -27,9 +27,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ./cache
-          key: benchmark-baseline-${{ runner.os }}-${{ github.run_id }}
+          key: benchmark-baseline-v2-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-baseline-${{ runner.os }}-
+            benchmark-baseline-v2-${{ runner.os }}-
       - name: Compare against main and comment (non-gating)
         uses: benchmark-action/github-action-benchmark@v1
         continue-on-error: true
@@ -40,10 +40,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           comment-always: ${{ github.event_name == 'pull_request' }}
           fail-on-alert: false
-          alert-threshold: "150%"
+          alert-threshold: "120%"
       - name: Save benchmark baseline (main only)
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
         with:
           path: ./cache
-          key: benchmark-baseline-${{ runner.os }}-${{ github.run_id }}
+          key: benchmark-baseline-v2-${{ runner.os }}-${{ github.run_id }}

@@ -8,6 +8,7 @@ broken setup cannot post a fake-fast number. See benchmarks/README.md.
 
 import dataclasses
 
+from benchmarks._pinned import ITER_UNDER_1US, ITER_UNDER_2US, ITER_UNDER_300NS, ROUNDS
 from modern_di import Container, Group, Scope, providers
 
 
@@ -35,7 +36,9 @@ class SingletonGroup(Group):
 def test_g1_transient_resolve(benchmark):
     container = Container(scope=Scope.APP, groups=[TransientGroup])
     container.open()
-    result = benchmark(container.resolve_provider, TransientGroup.svc)
+    result = benchmark.pedantic(
+        container.resolve_provider, args=(TransientGroup.svc,), rounds=ROUNDS, iterations=ITER_UNDER_1US
+    )
     assert isinstance(result, Service)
     assert isinstance(result.dep, Dep)
 
@@ -44,7 +47,9 @@ def test_g2_cached_resolve(benchmark):
     container = Container(scope=Scope.APP, groups=[SingletonGroup])
     container.open()
     container.resolve_provider(SingletonGroup.svc)  # warm the cache
-    result = benchmark(container.resolve_provider, SingletonGroup.svc)
+    result = benchmark.pedantic(
+        container.resolve_provider, args=(SingletonGroup.svc,), rounds=ROUNDS, iterations=ITER_UNDER_300NS
+    )
     assert isinstance(result, Service)
 
 
@@ -91,7 +96,9 @@ class ChainGroup(Group):
 def test_g3_deep_chain(benchmark):
     container = Container(scope=Scope.APP, groups=[ChainGroup])
     container.open()
-    result = benchmark(container.resolve_provider, ChainGroup.c0)
+    result = benchmark.pedantic(
+        container.resolve_provider, args=(ChainGroup.c0,), rounds=ROUNDS, iterations=ITER_UNDER_1US
+    )
     assert isinstance(result, C0)
     assert isinstance(result.c1.c2.c3.c4.c5, C5)
 
@@ -178,7 +185,9 @@ class WideGroup(Group):
 def test_g4_wide_resolve(benchmark):
     container = Container(scope=Scope.APP, groups=[WideGroup])
     container.open()
-    result = benchmark(container.resolve_provider, WideGroup.wide)
+    result = benchmark.pedantic(
+        container.resolve_provider, args=(WideGroup.wide,), rounds=ROUNDS, iterations=ITER_UNDER_2US
+    )
     assert isinstance(result, Wide)
     assert isinstance(result.l9, L9)
 
@@ -204,7 +213,9 @@ def test_g5_cross_scope(benchmark):
     app.open()
     req = app.build_child_container(scope=Scope.REQUEST)
     req.open()
-    result = benchmark(req.resolve_provider, CrossScopeGroup.req_svc)
+    result = benchmark.pedantic(
+        req.resolve_provider, args=(CrossScopeGroup.req_svc,), rounds=ROUNDS, iterations=ITER_UNDER_1US
+    )
     assert isinstance(result, RequestService)
     assert isinstance(result.app, AppService)
 
@@ -239,7 +250,9 @@ def test_g9_context_resolve(benchmark):
     app.open()
     req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})
     req.open()
-    result = benchmark(req.resolve_provider, ContextGroup.handler)
+    result = benchmark.pedantic(
+        req.resolve_provider, args=(ContextGroup.handler,), rounds=ROUNDS, iterations=ITER_UNDER_1US
+    )
     assert isinstance(result, Handler)
     assert isinstance(result.req, RequestObj)
     assert isinstance(result.dep, AppDep)
@@ -267,5 +280,31 @@ def test_g12_override_active_resolve(benchmark):
     container.open()
     container.override(OverrideChainGroup.sentinel, Sentinel())
     container.resolve_provider(OverrideChainGroup.c0)  # warm
-    result = benchmark(container.resolve_provider, OverrideChainGroup.c0)
+    result = benchmark.pedantic(
+        container.resolve_provider, args=(OverrideChainGroup.c0,), rounds=ROUNDS, iterations=ITER_UNDER_2US
+    )
     assert isinstance(result, C0)
+
+
+# --- G18: alias hop, against G2 as the control ---
+class AliasIface: ...
+
+
+class AliasGroup(Group):
+    dep = providers.Factory(creator=Dep, scope=Scope.APP)
+    source = providers.Factory(creator=Service, scope=Scope.APP, cache=True)
+    alias = providers.Alias(source_type=Service, bound_type=AliasIface)
+
+
+def test_g18_alias_hop(benchmark):
+    # An alias forwards to its source's compiled resolver. Its cost is this scenario minus G2
+    # (the same cached provider resolved directly), which is the only way the hop is visible --
+    # `test_alias_hop_costs_exactly_one_resolver_frame` catches the hop being deleted, not the
+    # hop getting slower.
+    container = Container(scope=Scope.APP, groups=[AliasGroup])
+    container.open()
+    container.resolve_provider(AliasGroup.alias)  # warm: compile + fill the source's cache
+    result = benchmark.pedantic(
+        container.resolve_provider, args=(AliasGroup.alias,), rounds=ROUNDS, iterations=ITER_UNDER_300NS
+    )
+    assert isinstance(result, Service)

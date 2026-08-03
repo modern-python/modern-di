@@ -10,6 +10,7 @@ Containers are built and warmed in setup; only the resolve is timed. See benchma
 
 import dataclasses
 
+from benchmarks._pinned import ITER_UNDER_300NS, ROUNDS
 from modern_di import Container, Group, Scope, providers
 
 
@@ -33,7 +34,7 @@ def test_g16_resolve_by_type(benchmark):
     container = Container(scope=Scope.APP, groups=[ByTypeGroup])
     container.open()
     container.resolve(Service)  # warm the cache and the compiled resolver
-    result = benchmark(container.resolve, Service)
+    result = benchmark.pedantic(container.resolve, args=(Service,), rounds=ROUNDS, iterations=ITER_UNDER_300NS)
     assert isinstance(result, Service)
     assert isinstance(result.dep, Dep)
 
@@ -60,6 +61,6 @@ def test_g17_resolve_by_type_large_registry(benchmark):
     container = Container(scope=Scope.APP, groups=[_WIDE_REGISTRY_GROUP])
     container.open()
     container.resolve(Service)  # warm
-    result = benchmark(container.resolve, Service)
+    result = benchmark.pedantic(container.resolve, args=(Service,), rounds=ROUNDS, iterations=ITER_UNDER_300NS)
     assert isinstance(result, Service)
     assert isinstance(result.dep, Dep)
