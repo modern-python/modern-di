@@ -191,15 +191,28 @@ class Container:
         return self._lock
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
-        """Resolve a dependency by its type."""
-        provider = self.providers_registry.find_provider(dependency_type)
-        if not provider:
+        """Resolve a dependency by its type.
+
+        Carries its own copy of `resolve_provider`'s body rather than calling it: the extra
+        frame is ~19% of a by-type resolve. The duplication is deliberate and the two must be
+        edited together -- see planning/decisions/2026-08-03-resolve-provider-not-a-seam.md.
+        """
+        registry = self.providers_registry
+        provider = registry._providers.get(dependency_type)  # noqa: SLF001
+        if provider is None:
             raise exceptions.ProviderNotRegisteredError(
                 provider_type=dependency_type,
-                suggestions=suggester.suggest(dependency_type, self.providers_registry),
+                suggestions=suggester.suggest(dependency_type, registry),
             )
-
-        return self.resolve_provider(provider)
+        if self.closed:
+            self._prepare()
+        try:
+            resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
+            if resolver is None:
+                resolver = registry.resolver_for(provider)
+            return resolver(self)
+        except RecursionError as exc:
+            _handle_recursion_error(provider, self, exc)
 
     def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
         """Resolve a provider reference or a type — the marker-dispatch entry point for integrations.
@@ -213,7 +226,10 @@ class Container:
         return self.resolve(dependency)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        """Resolve a specific provider by reference via its compiled resolver."""
+        """Resolve a specific provider by reference via its compiled resolver.
+
+        `resolve` holds a copy of this body; any change here belongs there too.
+        """
         if self.closed:
             self._prepare()
         try:
@@ -226,7 +242,12 @@ class Container:
                 resolver = registry.resolver_for(provider)
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(provider, self, exc)
+            # `resolve` carries its own copy of this call, so below 3.12 -- where coverage traces
+            # instead of using `sys.monitoring` -- this one is reached only by a by-reference
+            # cycle, and the RecursionError tears the tracer down before the line is recorded.
+            # It does execute: `test_by_reference_cycle_raises_circular_dependency_error` fails
+            # without it, and coverage records it when tracing this module alone.
+            _handle_recursion_error(provider, self, exc)  # pragma: no cover
 
     def _walk_errors(self) -> list[Exception]:
         """Walk the graph once, returning every wiring error in walk order."""

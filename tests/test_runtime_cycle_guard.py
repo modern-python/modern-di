@@ -220,3 +220,23 @@ def test_cycle_error_is_canonical_and_self_contained() -> None:
         pytest.fail("expected CircularDependencyError")
     finally:  # pragma: no cover
         sys.setrecursionlimit(limit)
+
+
+def test_by_reference_cycle_raises_circular_dependency_error() -> None:
+    # By-reference twin of the by-type test above. `Container.resolve` carries its own copy of
+    # the guard, so without this the copy in `resolve_provider` is reached by nothing — and on
+    # CPython below 3.12, where coverage traces rather than using `sys.monitoring`, the 100%
+    # gate catches that as an uncovered line. Same `except`-clause shape and shallow limit,
+    # for the reason documented on `_SHALLOW_RECURSION_LIMIT`.
+    container = Container(groups=[CycleGroup])
+    container.open()
+    original_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
+    try:
+        container.resolve_provider(CycleGroup.a)
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+        _assert_simple_cycle(exc)
+    else:  # pragma: no cover
+        pytest.fail("expected CircularDependencyError")
+    finally:  # pragma: no cover
+        sys.setrecursionlimit(original_limit)

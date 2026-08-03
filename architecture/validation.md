@@ -92,8 +92,10 @@ as a resolution breadcrumb — including the aligned scope column — so a cycle
 read identically. See [resolution.md](resolution.md#one-renderer) for that drawer.
 
 > **Runtime resolution has a cycle guard too — but `validate()` remains the way to see all errors up front.**
-> `Container.resolve_provider` wraps the compiled-resolver dispatch (`resolver_for(provider)(self)`) in
-> `try/except RecursionError`. The
+> `Container.resolve_provider` **and `Container.resolve`** each wrap the compiled-resolver dispatch
+> (`resolver_for(provider)(self)`) in `try/except RecursionError` — `resolve` carries its own copy of that
+> body rather than delegating, so the by-type entry point pays no extra frame
+> ([decision](../planning/decisions/2026-08-03-resolve-provider-not-a-seam.md)). The
 > handler first short-circuits: if the registry is already validated (`_validated` is `True`), the static
 > graph is known acyclic, so the overflow is genuine self-recursion and the `RecursionError` re-raises untouched
 > without any walk. Otherwise, when an unvalidated circular graph's first resolve overflows the stack, the handler

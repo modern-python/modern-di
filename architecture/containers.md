@@ -157,9 +157,10 @@ close, ready to be returned again without re-running the creator.
 
 ### Open and reopen (context-manager protocol)
 
-`_prepare()` — not `open()` — is the primitive the resolve path calls: `resolve_provider` (and the
-compiled-resolver dispatch it wraps) calls it whenever `self.closed` is `True`, before doing anything
-else. That caller-side `if closed` check is the only guard: `_prepare()` itself takes no lock and makes
+`_prepare()` — not `open()` — is the primitive the resolve path calls: `resolve_provider` and `resolve`
+(and the compiled-resolver dispatch they wrap) call it whenever `self.closed` is `True`, before doing
+anything else — `resolve` holds its own copy of that check rather than delegating
+([decision](../planning/decisions/2026-08-03-resolve-provider-not-a-seam.md)). That caller-side `if closed` check is the only guard: `_prepare()` itself takes no lock and makes
 no re-check, warning with `ContainerClosedWarning` and clearing `closed` unconditionally. Concurrent
 reuse of one closed container therefore warns **at least once**, not exactly once — see
 [concurrency.md](concurrency.md#the-lifecycle). `open()` is a separate, public entry point that clears
