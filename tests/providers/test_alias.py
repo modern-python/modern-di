@@ -530,9 +530,8 @@ def test_mutual_alias_cycle_raises_circular_dependency_at_runtime() -> None:
     container = Container(groups=[G])
     container.open()
 
-    with pytest.raises(CircularDependencyError) as exc:
+    # Asserted via `match=` rather than after the block: a RecursionError tears down the
+    # trace function, so below 3.12 -- where coverage traces instead of using
+    # sys.monitoring -- any line following it here runs unrecorded and fails the gate.
+    with pytest.raises(CircularDependencyError, match=r"(?s)First.*Second"):
         container.resolve(First)
-
-    rendered = str(exc.value)
-    assert "First" in rendered
-    assert "Second" in rendered
