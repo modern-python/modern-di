@@ -60,7 +60,7 @@ only on a miss:
 |---|---|---|
 | `Container.resolve_provider` | `providers_registry._resolvers.get(pid)` | the cycle guard and memo write, on a miss |
 | `_compile_cached_factory`'s `resolve` | `cache_registry._items.get(pid)` | `setdefault`, which is what makes concurrent first-resolvers share one `CacheItem` |
-| `_compile_alias`'s `resolve` | `providers_registry._providers.get(source_type)` and `._resolvers.get(source.provider_id)` | `find_provider`'s error, and `resolver_for`'s cycle guard and memo write, on a miss |
+| `_compile_alias`'s `resolve` | `providers_registry._providers.get(source_type)` and `._resolvers.get(source.provider_id)` | `_find_source`'s error, and `resolver_for`'s cycle guard and memo write, on a miss |
 
 In each case the method being inlined *opens with exactly that lookup and
 returns*, so the inline is not a reimplementation that can drift — it is the
