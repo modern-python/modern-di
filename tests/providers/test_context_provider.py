@@ -486,3 +486,28 @@ def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step() -> No
         container.resolve(Svc)
 
     assert str(exc.value).count("Svc") == 1
+
+
+def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The hop is an int compare when the container is already at the provider's scope; calling
+    # find_container to be handed back the same container costs a frame per context kwarg.
+    class Cfg: ...
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Svc:
+        cfg: Cfg
+
+    class G(Group):
+        cfg = providers.ContextProvider(Cfg, scope=Scope.REQUEST)
+        svc = providers.Factory(creator=Svc, scope=Scope.REQUEST)
+
+    app = Container(scope=Scope.APP, groups=[G])
+    app.open()
+    request = app.build_child_container(scope=Scope.REQUEST, context={Cfg: Cfg()})
+
+    calls: list[object] = []
+    original = Container.find_container
+    monkeypatch.setattr(Container, "find_container", lambda self, scope: calls.append(scope) or original(self, scope))
+
+    assert isinstance(request.resolve(Svc), Svc)
+    assert calls == []
