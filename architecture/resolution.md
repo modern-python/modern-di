@@ -115,6 +115,26 @@ negative cases matter more than the positive one — a keyword-only parameter, o
 parameter dropped from `_parsed_kwargs` by the parser, would shift or reject positional binding, and
 both keep the kwargs call.
 
+Arity 0 and 1 compile to a closure that names its argument and calls the creator directly, instead of
+building a list and star-calling it; arity 2+ keeps the star-call. See
+[performance.md](performance.md#the-per-node-frame-budget) for why the ladder stops there.
+
+### Transient teardown order is unspecified
+
+**The order in which transient dependencies are collected is not part of the contract.** It is only
+observable at all for a dependency the creator does *not* retain — one it uses and drops — where the
+resolver briefly holds the only reference. modern-di manages no finalizer for such an object:
+`CacheSettings(finalizer=)` applies to cached providers, and `close_sync` / `close_async` to what a
+container owns. An unretained transient is freed by CPython's ordinary refcounting, and the resolver's
+shape decides the order.
+
+**Nothing observable changed when the arity ladder landed**, and the reason is worth recording: the
+ladder caps at arity 1, so it never holds more than one named local and there is no order to alter.
+Measured main-vs-ladder on 3.10 and 3.14, arities 1 through 3, the collection order is identical. The
+rule is stated in advance of the case that would test it — a rung at arity 2+ would release named
+locals with the frame rather than through the star-call's intermediate list, and on CPython below
+3.12 that is a different order. Such a rung is a performance change, not a breaking one.
+
 ## Breadcrumb definition sites
 
 Each step a `Factory` prepends onto a breadcrumb chain may carry an optional definition site — the
