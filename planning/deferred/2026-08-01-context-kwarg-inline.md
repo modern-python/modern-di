@@ -1,5 +1,5 @@
 ---
-summary: The context-kwarg path in the Factory closures still pays ~4 Python frames per kwarg after the override-guard fix shipped; the remaining scope-hop and compile-time-fold parts need a ruling that ContextProvider.scope and context_type are frozen after registration.
+summary: Only the compile-time fold is left: parts (i) and (ii) shipped, and (iii) still needs a ruling that ContextProvider.scope and context_type are frozen after registration -- it also carries most of the remaining win, since (ii) measured only -2.5%.
 ---
 
 # Inline the context-kwarg path in the Factory closures
@@ -7,8 +7,9 @@ summary: The context-kwarg path in the Factory closures still pays ~4 Python fra
 A `Factory` parameter backed by a `ContextProvider` is resolved per resolve
 through `Factory._resolve_context_value`, which calls
 `ContextProvider.fetch_context_value`, which calls `find_container` and
-`ContextRegistry.find_context` — roughly four Python frames per context kwarg
-(five before the override guard shipped), on the path every framework
+`ContextRegistry.find_context` — three Python frames per context kwarg when the
+resolving container is already at the provider's scope (four before the hop's
+int compare shipped, five before the override guard), on the path every framework
 integration takes for its per-request values.
 
 ## Why it is open
@@ -24,7 +25,17 @@ together:
   path also improving slightly (-4.4 ns). It needed no ruling and was never
   blocked; only (ii) and (iii) below remain.
 - **(ii) Give the context hop the same-scope int-compare fast path** the Factory
-  closures already have, instead of always calling `find_container`.
+  closures already have, instead of always calling `find_container`. **Shipped
+  (2026-08-03).** It needed no ruling. Measured **-2.5%** on `g9_context`
+  (~707 → ~690 ns, four A/B/A runs: -3.05, -1.29, -3.98, -1.94%, all negative,
+  against 0.4-1.7% baseline drift) — real but far below the -9.2% this item
+  estimated for the narrow variant, because most of that estimate lives in (iii).
+  Since the timing sits close to the harness's own drift, the suite asserts the
+  *structural* claim instead: `test_same_scope_context_hop_does_not_call_find_container`.
+  The predicted `_navigate` trap was confirmed and avoided — a plain int compare,
+  never `_navigate`, which prepends a resolution step the caller then prepends
+  again; `test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step`
+  pins that and was verified to fail against the double-prepending shape.
 - **(iii) Fold the bindings at compile time**, capturing `cp.context_type`,
   `cp.scope`, `cp.provider_id` and `absent_disposition(item)` into the closure
   instead of re-reading them per resolve.
@@ -51,4 +62,5 @@ resolution-step breadcrumb, and CI stays green while it does.
 A maintainer ruling that a `ContextProvider`'s `scope` **and** `context_type` are
 fixed once it is registered — the same shape as the scope freeze, extended to
 identity — **or** context kwargs showing up hot in a profile from a real
-integration. Part (i) needs neither and can be picked up at any time.
+integration. That ruling is now the only gate: parts (i) and (ii) have shipped,
+so (iii) is all that remains, and it holds most of the estimated win.
