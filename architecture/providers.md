@@ -141,12 +141,18 @@ and the two paths are independent:
   whole lookup inline, applying `absent_disposition`'s ruling for an absent value: if the dependent parameter has
   a default or is nullable it is silently satisfied; otherwise an `ArgumentResolutionError` is raised.
 
-**A registered `ContextProvider`'s identity is fixed.** Its `scope` and its `context_type` are read once, when
-its consumer's resolver is compiled, and folded into that closure — so changing either after registration applies
-only to resolvers compiled afterwards, and silently. This is the same freeze `ProviderScopeFrozenError` enforces
-for group-stamped scope, extended to `context_type` and stated as a contract rather than enforced against direct
-attribute assignment. Rebinding `provider.context_type` or `provider.scope` on a registered provider is not
-supported; construct a second provider instead.
+**A `ContextProvider`'s identity is fixed once something has resolved through it.** Its `scope` and its
+`context_type` are read when a consumer's resolver is compiled and folded into that closure, so changing either
+afterwards applies only to resolvers compiled later — silently, since neither attribute touches a registry and
+so nothing invalidates the memo. How much of that is *enforced* differs by attribute and by route:
+
+- `scope` on a **registered** provider is enforced against group stamping by `ProviderScopeFrozenError`.
+- `scope` on a provider that is never registered — one passed only as `Factory(creator, kwargs={"x": cp})` —
+  is **not** enforced: `_registered` stays `False`, so a later `Group` may stamp it without error.
+- `context_type` is not enforced on either route.
+
+So this is a contract, not a mechanism: rebinding `provider.scope` or `provider.context_type` on a provider that
+is already in use is unsupported. Construct a second provider instead.
 
 Either **declaration route** reaches that dependent-parameter path: matched by type from the registry, or
 passed explicitly as `Factory(creator, kwargs={"request": the_provider})`. `WiringPlan.build` buckets both

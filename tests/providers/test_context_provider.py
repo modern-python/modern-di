@@ -465,10 +465,13 @@ def test_kwargs_context_provider_without_parsed_signature_injects_present_value(
     assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"
 
 
-def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step() -> None:
+@pytest.mark.parametrize("cache", [False, True])
+def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step(cache: bool) -> None:
     # The context hop raises a bare scope error and the Factory closure prepends its own step
     # exactly once. Routing the hop through the compiler's `_navigate`, which prepends a step
     # itself, would render the factory twice while every other assertion stayed green.
+    # Parametrized because the lookup is folded into the transient and cached closures
+    # separately, and each copy can regress on its own.
     class Cfg: ...
 
     @dataclasses.dataclass(kw_only=True, slots=True)
@@ -477,7 +480,7 @@ def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step() -> No
 
     class G(Group):
         cfg = providers.ContextProvider(Cfg, scope=Scope.REQUEST)
-        svc = providers.Factory(creator=Svc, scope=Scope.APP)
+        svc = providers.Factory(creator=Svc, scope=Scope.APP, cache=cache)
 
     container = Container(scope=Scope.APP, groups=[G])
     container.open()
@@ -554,6 +557,21 @@ def test_cached_factory_context_kwarg_uses_override() -> None:
     class G(Group):
         ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP, cache=True)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    container.open()
+    sentinel = _CachedCtx()
+    container.override(G.ctx, sentinel)
+    assert container.resolve(_CachedNullable).ctx is sentinel
+
+
+def test_transient_factory_context_kwarg_uses_override() -> None:
+    # Twin of the cached test above: the transient closure holds its own copy of the fold, and
+    # its override branch must `continue`. The parameter is nullable with no default, so falling
+    # through to the live lookup would overwrite the override with None.
+    class G(Group):
+        ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
+        svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP)
 
     container = Container(scope=Scope.APP, groups=[G])
     container.open()

@@ -139,6 +139,8 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
             kwargs = {name: r(target) for name, r in prov}
             if not pure:
                 kwargs.update(static)
+                # `find_container`, never `_navigate`: that helper prepends a resolution step and
+                # the `except` below prepends this factory's own, rendering the caller twice.
                 for name, cpid, cscope, ctype, disp, item in ctx:
                     if overrides.has_overrides:
                         override = overrides.fetch_override(cpid)
@@ -223,6 +225,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
                 if not pure:
                     kwargs.update(static)
                     overrides = target.overrides_registry
+                    # `find_container`, never `_navigate` -- see the transient copy above.
                     for name, cpid, cscope, ctype, disp, item in ctx:
                         if overrides.has_overrides:
                             override = overrides.fetch_override(cpid)
