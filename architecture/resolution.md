@@ -115,6 +115,25 @@ negative cases matter more than the positive one — a keyword-only parameter, o
 parameter dropped from `_parsed_kwargs` by the parser, would shift or reject positional binding, and
 both keep the kwargs call.
 
+Arity 0 and 1 compile to a closure that names its argument and calls the creator directly, instead of
+building a list and star-calling it; arity 2+ keeps the star-call. See
+[performance.md](performance.md#the-per-node-frame-budget) for why the ladder stops there.
+
+### Transient teardown order is unspecified
+
+**The order in which transient dependencies are collected is not part of the contract.** It is only
+observable at all for a dependency the creator does *not* retain — one it uses and drops — where the
+resolver briefly holds the only reference. modern-di manages no finalizer for such an object:
+`CacheSettings(finalizer=)` applies to cached providers, and `close_sync` / `close_async` to what a
+container owns. An unretained transient is freed by CPython's ordinary refcounting, and the resolver's
+shape decides the order.
+
+That shape changed with the arity ladder, and **not uniformly across versions**: the star-call's
+intermediate list frees back-to-front on every interpreter, while the ladder's named locals are
+released with the frame — same back-to-front order on 3.14, but front-to-back on 3.10. Code that
+depends on `__del__` ordering for unretained injected dependencies was relying on an accident of the
+call convention, and never on anything stated here.
+
 ## Breadcrumb definition sites
 
 Each step a `Factory` prepends onto a breadcrumb chain may carry an optional definition site — the

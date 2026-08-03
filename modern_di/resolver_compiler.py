@@ -97,6 +97,66 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
         # See architecture/performance.md.
         pos = tuple(r for _name, r in prov)
 
+        # Arity ladder. `len(pos)` is fixed at compile time, so 0 and 1 deps get a closure that
+        # names its argument and calls the creator directly -- no list build, no
+        # CALL_FUNCTION_EX unpack, and below 3.12 no comprehension frame either. Each rung is a
+        # full copy for the same reason the rest of this module is: a shared helper would cost a
+        # frame per node -- which is also why the ladder stops at 1. Every measured win lives at
+        # arity 0 and 1 (leaves and chains); rungs beyond that duplicate the closure's whole
+        # branch set for a gain no scenario in `benchmarks/` shows. Arity 2+ falls through to the
+        # generic star-call below.
+        if len(pos) == 0:
+
+            def resolve_arity0(container: "Container") -> typing.Any:
+                overrides = container.overrides_registry
+                if overrides.has_overrides:
+                    override = overrides.fetch_override(pid)
+                    if override is not types.UNSET:
+                        return override
+                target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+                if target.closed:
+                    target._prepare()
+                try:
+                    return creator()
+                except TypeError as exc:
+                    error = exceptions.CreatorCallError.from_type_error(
+                        creator=creator, exc=exc, resolution_step=resolution_step
+                    )
+                    if error is None:
+                        raise
+                    raise error from exc
+
+            return resolve_arity0
+
+        if len(pos) == 1:
+            (r0,) = pos
+
+            def resolve_arity1(container: "Container") -> typing.Any:
+                overrides = container.overrides_registry
+                if overrides.has_overrides:
+                    override = overrides.fetch_override(pid)
+                    if override is not types.UNSET:
+                        return override
+                target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+                if target.closed:
+                    target._prepare()
+                try:
+                    a0 = r0(target)
+                except _STEP_ERRORS as exc:
+                    exc.prepend_step(resolution_step())
+                    raise
+                try:
+                    return creator(a0)
+                except TypeError as exc:
+                    error = exceptions.CreatorCallError.from_type_error(
+                        creator=creator, exc=exc, resolution_step=resolution_step
+                    )
+                    if error is None:
+                        raise
+                    raise error from exc
+
+            return resolve_arity1
+
         def resolve_positional(container: "Container") -> typing.Any:
             # Inlined per closure, not extracted: frame budget — see architecture/performance.md.
             overrides = container.overrides_registry

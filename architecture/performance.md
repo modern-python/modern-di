@@ -38,14 +38,25 @@ popped mid-resolve still counts) across two chain depths and asserts the per-nod
 slope is exactly 2 — one resolver frame, one creator. Extracting the override
 guard into a helper moves it to 3 and fails the test by name.
 
-**On CPython below 3.12 the real slope is 3, not 2.** Each resolver's argument
-build is a comprehension — `<listcomp>` on the positional path, `<dictcomp>` on
-the kwargs path — and before [PEP 709](https://peps.python.org/pep-0709/) a
-comprehension is a separate code object, so it costs its own frame per resolved
-node. From 3.12 both are inlined into the resolver and the cost disappears. This
-is a genuine per-version difference in what a resolve costs, not a measurement
-artifact; the test carries the version-conditional constant rather than relaxing
-the assertion, so the budget stays enforced on every supported interpreter.
+**The slope is 2 on every supported interpreter, and that took work.** A
+resolver's argument build used to be a comprehension — `<listcomp>` on the
+positional path, `<dictcomp>` on the kwargs path — and before
+[PEP 709](https://peps.python.org/pep-0709/) a comprehension is a separate code
+object, so below 3.12 it cost a third frame per resolved node. The **arity
+ladder** removed that on the path the budget measures: `len(pos)` is fixed at
+compile time, so a factory with 0 or 1 provider dependencies compiles to a
+closure that names its argument and calls the creator directly — no list, no
+`CALL_FUNCTION_EX`, and no comprehension for PEP 709 to inline or not inline. A
+comprehension frame survives only on the arity-2+ generic star-call and on the
+kwargs path, neither of which the chain test measures.
+
+**The ladder stops at arity 1 deliberately.** Every rung is a full copy of the
+closure — override guard, scope hop, closed-target reopen, both error handlers —
+so each rung multiplies the branch set that has to be reached by tests, not just
+the binding. Arity 0 and 1 are where the measured win lives (leaves, and chains,
+which are arity 1 per node): ~-34% on a single transient resolve and ~-26% on a
+depth-6 chain. Rungs beyond 1 duplicate that whole branch set for a gain no
+scenario in `benchmarks/` demonstrates.
 
 The corollary for anyone adding a provider type: put the whole resolver in the
 closure. `compile_resolver` raising `TypeError` for an unknown provider type is

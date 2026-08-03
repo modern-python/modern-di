@@ -15,7 +15,7 @@ import typing
 
 import pytest
 
-from modern_di import Container, Group, Scope, providers
+from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.providers import ContextProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.resolver_compiler import _can_call_positionally
@@ -48,6 +48,27 @@ class _Ordered:
     a: _A
     b: _B
     c: _C
+
+
+@dataclasses.dataclass(slots=True)
+class _P0: ...
+
+
+@dataclasses.dataclass(slots=True)
+class _P1: ...
+
+
+@dataclasses.dataclass(slots=True)
+class _P2: ...
+
+
+@dataclasses.dataclass(slots=True)
+class _P3: ...
+
+
+@dataclasses.dataclass(slots=True)
+class _Bag:
+    values: tuple[typing.Any, ...]
 
 
 def _make(a: _A, b: _B, c: _C) -> _Ordered:
@@ -96,11 +117,12 @@ _CHAIN: tuple[type, ...] = (_L0, _L1, _L2, _L3, _L4, _L5)
 #: resolver frame is the budget this module exists to hold. See
 #: ``architecture/performance.md``.
 #:
-#: Before 3.12 each resolver's argument build is a *separate* code object -- the
-#: positional path's ``<listcomp>`` and the kwargs path's ``<dictcomp>`` -- so it
-#: costs a third frame per node. PEP 709 inlines both from 3.12, which is a real
-#: per-version cost difference, not a measurement artifact.
-_CALLS_PER_NODE = 2 if sys.version_info >= (3, 12) else 3
+#: Version-independent because these chain nodes have arity 1, which the positional
+#: path compiles to a closure that names its argument and calls the creator directly
+#: -- no comprehension, so nothing for PEP 709 to inline or not inline. A comprehension
+#: frame survives only on the arity-4+ generic star-call and on the kwargs path, where
+#: below 3.12 it still costs a third frame per node.
+_CALLS_PER_NODE = 2
 
 
 def _warm_chain(depth: int) -> "tuple[Container, providers.Factory[typing.Any]]":
@@ -161,6 +183,150 @@ def test_positional_path_binds_args_in_signature_order() -> None:
     assert isinstance(result.a, _A)
     assert isinstance(result.b, _B)
     assert isinstance(result.c, _C)
+
+
+@pytest.mark.parametrize("arity", [0, 1, 2, 3, 4])
+def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int) -> None:
+    # The positional path compiles a separate closure per arity (0-3) plus a generic star-call
+    # for 4+, so each rung binds its own arguments and each can regress alone. The types are
+    # distinct, so a misordered rung lands a _P1 in .p0 and the assertion fails.
+    types_ = [_P0, _P1, _P2, _P3][:arity]
+    params = ", ".join(f"p{i}: _P{i}" for i in range(arity))
+    args = ", ".join(f"p{i}" for i in range(arity))
+    namespace: dict[str, typing.Any] = {f"_P{i}": t for i, t in enumerate(types_)} | {"_Bag": _Bag}
+    exec(f"def _creator({params}) -> _Bag:\n    return _Bag(values=({args}{',' if arity else ''}))", namespace)  # noqa: S102
+    creator = namespace["_creator"]
+
+    members = {f"p{i}": providers.Factory(creator=t, scope=Scope.APP) for i, t in enumerate(types_)}
+    members["bag"] = providers.Factory(creator=creator, scope=Scope.APP)
+    group = _pytypes.new_class(f"_ArityGroup{arity}", (Group,), exec_body=lambda ns: ns.update(members))
+
+    container = Container(scope=Scope.APP, groups=[group])
+    container.open()
+    plan = _plan(container.providers_registry, members["bag"])
+    assert _can_call_positionally(members["bag"], plan)  # self-guard: positional path selected
+
+    bag = container.resolve_provider(members["bag"])
+    assert len(bag.values) == arity
+    for i, value in enumerate(bag.values):
+        assert isinstance(value, types_[i]), f"arg {i} bound out of order at arity {arity}"
+
+
+def _arity_group(
+    arity: int, *, creator: "typing.Callable[..., typing.Any] | None" = None, scope: Scope = Scope.APP
+) -> typing.Any:  # noqa: ANN401 - a runtime-built Group subclass is not statically typeable
+    """Group whose `target` factory takes `arity` provider deps on the positional path."""
+    types_ = [_P0, _P1, _P2][:arity]
+    if creator is None:
+        params = ", ".join(f"p{i}: _P{i}" for i in range(arity))
+        args = ", ".join(f"p{i}" for i in range(arity))
+        ns: dict[str, typing.Any] = {"_P0": _P0, "_P1": _P1, "_P2": _P2, "_Bag": _Bag}
+        exec(f"def _c({params}) -> _Bag:\n    return _Bag(values=({args}{',' if arity else ''}))", ns)  # noqa: S102
+        creator = ns["_c"]
+    members = {f"p{i}": providers.Factory(creator=t, scope=Scope.APP) for i, t in enumerate(types_)}
+    members["target"] = providers.Factory(creator=creator, scope=scope, bound_type=_Bag)
+    return _pytypes.new_class(f"_AG{arity}_{scope.name}", (Group,), exec_body=lambda ns2: ns2.update(members))
+
+
+# Each arity rung is a full copy of the closure, so every branch in it -- the override
+# front-guard, the scope hop, the closed-target reopen, and both error handlers -- exists once
+# per rung and regresses independently. These parametrize over the rungs the ladder compiles.
+
+
+@pytest.mark.parametrize("arity", [0, 1, 2])
+def test_arity_rung_front_guards_the_override(arity: int) -> None:
+    group = _arity_group(arity)
+    container = Container(scope=Scope.APP, groups=[group])
+    container.open()
+    sentinel = object()
+    container.override(group.target, sentinel)
+    assert container.resolve_provider(group.target) is sentinel
+
+
+@pytest.mark.parametrize("arity", [0, 1, 2])
+def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
+    group = _arity_group(arity)
+    app = Container(scope=Scope.APP, groups=[group])
+    app.open()
+    request = app.build_child_container(scope=Scope.REQUEST)
+    assert isinstance(request.resolve_provider(group.target), _Bag)
+
+
+@pytest.mark.parametrize("arity", [0, 1, 2])
+def test_arity_rung_reopens_a_closed_target(arity: int) -> None:
+    # The closed target must be an ANCESTOR, not the container the call enters on: the entry
+    # `resolve_provider` reopens itself first, so only a cross-scope hop reaches the closure's
+    # own `if target.closed` guard.
+    group = _arity_group(arity)
+    app = Container(scope=Scope.APP, groups=[group])
+    app.open()
+    request = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+    with pytest.warns(exceptions.ContainerClosedWarning):
+        assert isinstance(request.resolve_provider(group.target), _Bag)
+
+
+@pytest.mark.parametrize("arity", [0, 1, 2])
+def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
+    # A creator whose real signature needs one more argument than the parser reports: the
+    # positional call then raises TypeError, which the rung must convert to CreatorCallError.
+    def _needs_one_more(*args: object, extra: object) -> _Bag:  # noqa: ARG001  # pragma: no cover
+        msg = "unreachable - binding fails before the body runs; that is the point"
+        raise AssertionError(msg)
+
+    # The parser reads `__signature__`/`__annotations__`; the real callable requires `extra`, so
+    # the positional call fails at the binding boundary (no inner traceback frame) -- which is
+    # exactly what `CreatorCallError.from_type_error` converts.
+    params = [
+        inspect.Parameter(f"p{i}", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=t)
+        for i, t in enumerate([_P0, _P1, _P2][:arity])
+    ]
+    _needs_one_more.__signature__ = inspect.Signature(params, return_annotation=_Bag)  # ty: ignore[unresolved-attribute]
+    _needs_one_more.__annotations__ = {f"p{i}": t for i, t in enumerate([_P0, _P1, _P2][:arity])} | {"return": _Bag}
+
+    group = _arity_group(arity, creator=_needs_one_more)
+    container = Container(scope=Scope.APP, groups=[group])
+    container.open()
+    with pytest.raises(exceptions.CreatorCallError):
+        container.resolve_provider(group.target)
+
+
+@pytest.mark.parametrize("arity", [0, 1, 2])
+def test_arity_rung_reraises_a_type_error_from_inside_the_creator(arity: int) -> None:
+    # A TypeError with an inner traceback frame is the creator's own failure, not a binding one:
+    # every rung must let it through unwrapped.
+    params = ", ".join(f"p{i}: _P{i}" for i in range(arity))
+    ns: dict[str, typing.Any] = {"_P0": _P0, "_P1": _P1, "_P2": _P2, "_Bag": _Bag}
+    exec(f"def _c({params}) -> _Bag:\n    raise TypeError('from inside')", ns)  # noqa: S102
+
+    group = _arity_group(arity, creator=ns["_c"])
+    container = Container(scope=Scope.APP, groups=[group])
+    container.open()
+    with pytest.raises(TypeError, match="from inside") as exc:
+        container.resolve_provider(group.target)
+    assert not isinstance(exc.value, exceptions.CreatorCallError)
+
+
+@pytest.mark.parametrize("arity", [1, 2])
+def test_arity_rung_prepends_its_step_to_a_dependency_error(arity: int) -> None:
+    # Arity 0 builds no arguments, so it has no argument-build `try`; 1 is the rung and 2 is the
+    # generic star-call, and each carries its own copy of the handler.
+    deps = [f"_D{i}" for i in range(arity)]
+    ns: dict[str, typing.Any] = {}
+    for name in deps:
+        exec(f"class {name}: ...", ns)  # noqa: S102
+    params = ", ".join(f"p{i}: {name}" for i, name in enumerate(deps))
+    exec(f"class _Shallow:\n    def __init__(self, {params}) -> None: ...", ns)  # noqa: S102
+
+    members = {name.lower(): providers.Factory(creator=ns[name], scope=Scope.REQUEST) for name in deps}
+    members["shallow"] = providers.Factory(creator=ns["_Shallow"], scope=Scope.APP)
+    group = _pytypes.new_class(f"_DepErr{arity}", (Group,), exec_body=lambda gns: gns.update(members))
+
+    container = Container(scope=Scope.APP, groups=[group])
+    container.open()
+    with pytest.raises(exceptions.ScopeNotInitializedError) as exc:
+        container.resolve_provider(members["shallow"])
+    assert "_Shallow" in str(exc.value)
 
 
 # ---------------------------------------------------------------------------
