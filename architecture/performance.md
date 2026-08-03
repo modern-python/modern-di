@@ -126,6 +126,15 @@ int compare and **not** the compiler's `_navigate`: that helper prepends a
 resolution step, and the calling `Factory` closure prepends its own, so the caller
 would appear twice in the breadcrumb.
 
+A `Factory`'s **context kwargs do not call it at all**. Their `provider_id`,
+scope, `context_type` and absent-disposition are folded into the compiled closure,
+which does the override guard, the scope compare, the registry read and the
+disposition inline — the same int-compare shape, one fewer indirection. Measured
+at ~-6% (~42 ns per context kwarg) on `g9_context`. The value itself is still read
+live on every resolve; only the binding is frozen, which is licensed by a
+registered `ContextProvider`'s identity being fixed
+([providers.md](providers.md#contextprovider--runtime-injected-values)).
+
 `Scope._next_deeper` is memoized because it is a constant function of an immutable
 enum member, consulted per child on the default `build_child_container()` path.
 

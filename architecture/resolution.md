@@ -57,10 +57,13 @@ change, not a refactor.
   re-read it.
 - **Errors are built fresh, never memoized.** `prepend_step` *mutates* the exception as it propagates,
   so a stored instance would accumulate breadcrumbs across repeated or nested resolves.
-- **Behaviour-sensitive helpers are reused, not reimplemented.** `_resolution_step`,
-  `_resolve_context_value`, `prepend_step`, `ContextProvider.resolve`, and
-  `CreatorCallError.from_type_error` have one home each; the compiler calls them rather than inlining
-  their semantics.
+- **Behaviour-sensitive helpers are reused, not reimplemented.** `_resolution_step`, `prepend_step`,
+  `ContextProvider.resolve`, and `CreatorCallError.from_type_error` have one home each; the compiler
+  calls them rather than inlining their semantics. The **context-kwarg lookup is the deliberate
+  exception**: it is folded into each compiled closure, and the helper it replaced was deleted rather
+  than left alongside, so the semantics still have exactly one home per closure instead of two homes
+  to keep in step. Its licence is that a registered `ContextProvider`'s scope and `context_type` are
+  fixed — see [providers.md](providers.md#contextprovider--runtime-injected-values).
 - **A new provider type fails loudly.** `compile_resolver` raises `TypeError` for any type it has no
   branch for — the single place an unsupported provider is rejected.
 
