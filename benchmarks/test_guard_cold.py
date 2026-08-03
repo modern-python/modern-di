@@ -66,3 +66,30 @@ def test_g8_cold_first_resolve(benchmark):
     result = benchmark(_cold_build_and_resolve)
     assert isinstance(result, C0)
     assert isinstance(result.c1.c2.c3.c4.c5, C5)
+
+
+# --- G8b: the same shape with caching on, so the cached cold-miss builders are timed ---
+class CachedChainGroup(Group):
+    c5 = providers.Factory(creator=C5, scope=Scope.APP, cache=True)
+    c4 = providers.Factory(creator=C4, scope=Scope.APP, cache=True)
+    c3 = providers.Factory(creator=C3, scope=Scope.APP, cache=True)
+    c2 = providers.Factory(creator=C2, scope=Scope.APP, cache=True)
+    c1 = providers.Factory(creator=C1, scope=Scope.APP, cache=True)
+    c0 = providers.Factory(creator=C0, scope=Scope.APP, cache=True)
+
+
+def _cold_build_and_resolve_cached() -> C0:
+    container = Container(scope=Scope.APP, groups=[CachedChainGroup])
+    container.open()
+    return container.resolve_provider(CachedChainGroup.c0)
+
+
+def test_g8b_cold_first_resolve_cached(benchmark):
+    # G8's `cache=True` sibling. G8 is all-transient, so it never reaches
+    # `_compile_cached_factory`'s cold-miss builders (`build_cold` / `create_cold`); the only
+    # other coverage is incidental inside G15, which batches 50 misses into one timed call and
+    # dilutes a single builder ~50x. This times six of them against G8 as the control, so a
+    # regression confined to the cached cold path is readable as the G8b/G8 difference.
+    result = benchmark(_cold_build_and_resolve_cached)
+    assert isinstance(result, C0)
+    assert isinstance(result.c1.c2.c3.c4.c5, C5)

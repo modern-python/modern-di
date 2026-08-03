@@ -13,6 +13,7 @@ See benchmarks/README.md.
 import asyncio
 import dataclasses
 
+from benchmarks._pinned import ITER_UNDER_1US, ROUNDS
 from modern_di import Container, Group, Scope, providers
 
 
@@ -31,7 +32,9 @@ class BuildGroup(Group):
 def test_g6_build_child_container(benchmark):
     app = Container(scope=Scope.APP, groups=[BuildGroup])
     app.open()
-    result = benchmark(app.build_child_container, scope=Scope.REQUEST)
+    result = benchmark.pedantic(
+        app.build_child_container, kwargs={"scope": Scope.REQUEST}, rounds=ROUNDS, iterations=ITER_UNDER_1US
+    )
     assert result.scope is Scope.REQUEST
 
 
@@ -40,7 +43,7 @@ def test_g6b_build_child_container_auto_scope(benchmark):
     # scope and never exercises it; this guards the memoized auto-increment step against regressing.
     app = Container(scope=Scope.APP, groups=[BuildGroup])
     app.open()
-    result = benchmark(app.build_child_container)
+    result = benchmark.pedantic(app.build_child_container, rounds=ROUNDS, iterations=ITER_UNDER_1US)
     assert result.scope is Scope.SESSION
 
 
