@@ -1,5 +1,5 @@
 ---
-summary: Inlining find_provider and resolve_provider into Container.resolve is a reproduced flat ~30 ns per by-type resolve (~60 ns on 3.10), held back by a CPython 3.10 coverage-gate failure and an 8-line duplicated body that must be edited in lockstep with resolve_provider.
+summary: Inlining find_provider and resolve_provider into Container.resolve is a reproduced flat ~30 ns per by-type resolve (~60 ns on 3.10), held back solely by an 8-line duplicated body that must be edited in lockstep with resolve_provider -- the CPython 3.10 coverage-gate blocker is verified fixable in ~10 lines of test.
 ---
 
 # Inline the by-type resolve entry point
@@ -42,6 +42,17 @@ It is not shippable as submitted:
   near-limit cycle unwinds where 3.10 suspends the trace function. Worth noting
   the prototyper *did* run 3.10 — without coverage — which is exactly why it
   missed this.
+
+  **The fix is verified (2026-08-03), not just plausible.** A by-reference cycle
+  (`container.resolve_provider(provider)` on a mutual `Factory` cycle) records
+  `container.py:229` on 3.10, 5 runs out of 5. The mechanism is confirmed and
+  general: a `RecursionError` tears down the trace function, and below 3.12 —
+  where coverage traces instead of using `sys.monitoring` — anything executing
+  after the unwind in the *same* frame goes unrecorded. The same effect hit
+  `tests/providers/test_alias.py` in 3.2.0 and was fixed there by asserting
+  through `pytest.raises(match=)` so no line follows the recursion. So this
+  bullet costs roughly ten lines of test, and **the duplicated body below is the
+  only real blocker left.**
 - Two `architecture/` pages state the now-false singular and would need editing:
   `containers.md` and `validation.md` each name only `resolve_provider` as the
   path that compiles and dispatches.
@@ -58,8 +69,8 @@ this session's workflow transcript directory.
 
 ## Revisit trigger
 
-`resolve_provider`'s `RecursionError` handler gains a by-reference test so 3.10
-coverage holds, **and** a maintainer accepts the duplicated body as a standing
-maintenance cost. Alternatively, the by-type path shows up as a measurable
+A maintainer accepts the duplicated body as a standing maintenance cost — that
+is now the sole gate, since the 3.10 coverage fix is verified to work and is
+~10 lines of test. Alternatively, the by-type path shows up as a measurable
 bottleneck in a real integration profile, which would settle the trade on its
 own.
