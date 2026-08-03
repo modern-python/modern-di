@@ -356,6 +356,32 @@ def test_overridden_alias_compiles_nothing_of_its_source() -> None:
     assert list(container.providers_registry._resolvers) == [_G.iface.provider_id]
 
 
+def test_no_compiled_resolver_closes_over_its_registry() -> None:
+    # A resolver that captures its registry forms a cycle with the memo holding it, so the
+    # registry is reclaimable only by cyclic GC. Every closure reads its registries off the
+    # container argument instead.
+    class _Src: ...
+
+    class _Iface: ...
+
+    class _G(Group):
+        source = providers.Factory(creator=_Src, scope=Scope.APP)
+        iface = providers.Alias(source_type=_Src, bound_type=_Iface)
+
+    container = Container(scope=Scope.APP, groups=[_G])
+    container.resolve(_Iface)
+    registry = container.providers_registry
+
+    capturing = [
+        fn.__qualname__
+        for fn in typing.cast("tuple[_pytypes.FunctionType, ...]", tuple(registry._resolvers.values()))
+        for cell in (fn.__closure__ or ())
+        if cell.cell_contents is registry
+    ]
+
+    assert capturing == []
+
+
 def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
     # The cold-miss thunk must not close over `target`: a closure promotes it to a cell, so
     # MAKE_CELL runs in the resolver's prologue on every call -- including the warm hit that

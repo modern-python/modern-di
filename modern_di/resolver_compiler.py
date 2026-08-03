@@ -59,7 +59,7 @@ def compile_resolver(
             return _compile_transient_factory(provider, registry)
         return _compile_cached_factory(provider, registry)
     if type(provider) is Alias:
-        return _compile_alias(provider, registry)
+        return _compile_alias(provider)
     if provider is container_provider:
         return _compile_container_provider()
     if type(provider) is ContextProvider:
@@ -275,7 +275,7 @@ def _compile_unwireable_factory(
     return resolve
 
 
-def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "typing.Callable[[Container], typing.Any]":
+def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
     """Call the source's compiled resolver directly, wrapping scope/resolution errors with its own step.
 
     The source lookup and its resolver memo read are inlined, and nothing is cached: a source
@@ -294,6 +294,7 @@ def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "ty
             if override is not types.UNSET:
                 return override
         try:
+            registry = container.providers_registry
             source = registry._providers.get(source_type)
             if source is None:
                 source = find_source(container)  # raises AliasSourceNotRegisteredError
