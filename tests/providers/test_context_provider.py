@@ -5,7 +5,12 @@ import warnings
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import ArgumentResolutionError, ContainerClosedWarning, ContextValueNotSetError
+from modern_di.exceptions import (
+    ArgumentResolutionError,
+    ContainerClosedWarning,
+    ContextValueNotSetError,
+    ScopeNotInitializedError,
+)
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -458,3 +463,26 @@ def test_kwargs_context_provider_without_parsed_signature_injects_present_value(
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now})
     app_container.open()
     assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"
+
+
+def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step() -> None:
+    # The context hop raises a bare scope error and the Factory closure prepends its own step
+    # exactly once. Routing the hop through the compiler's `_navigate`, which prepends a step
+    # itself, would render the factory twice while every other assertion stayed green.
+    class Cfg: ...
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Svc:
+        cfg: Cfg
+
+    class G(Group):
+        cfg = providers.ContextProvider(Cfg, scope=Scope.REQUEST)
+        svc = providers.Factory(creator=Svc, scope=Scope.APP)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    container.open()
+
+    with pytest.raises(ScopeNotInitializedError) as exc:
+        container.resolve(Svc)
+
+    assert str(exc.value).count("Svc") == 1
