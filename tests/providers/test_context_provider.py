@@ -511,3 +511,23 @@ def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest
 
     assert isinstance(request.resolve(Svc), Svc)
     assert calls == []
+
+    # The cross-scope hop must still route through find_container, which is the blessed
+    # extension point 2026-08-01-scope-map-inline-declined.md protects.
+    class AppCfg: ...
+
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Wider:
+        app_cfg: AppCfg
+
+    class G2(Group):
+        app_cfg = providers.ContextProvider(AppCfg, scope=Scope.APP)
+        wider = providers.Factory(creator=Wider, scope=Scope.REQUEST)
+
+    app2 = Container(scope=Scope.APP, groups=[G2], context={AppCfg: AppCfg()})
+    app2.open()
+    request2 = app2.build_child_container(scope=Scope.REQUEST)
+
+    calls.clear()
+    assert isinstance(request2.resolve(Wider), Wider)
+    assert calls == [Scope.APP]

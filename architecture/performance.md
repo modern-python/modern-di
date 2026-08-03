@@ -120,6 +120,12 @@ dependencies — the common case — skip navigation entirely via an int compare
 O(1), and holds ancestors only: a `scope: self` entry would make every container
 a reference cycle, so none could be freed by refcounting.
 
+`ContextProvider.fetch_context_value` carries the same guard, so a request value
+read from the request container costs no navigation frame either. It uses a plain
+int compare and **not** the compiler's `_navigate`: that helper prepends a
+resolution step, and the calling `Factory` closure prepends its own, so the caller
+would appear twice in the breadcrumb.
+
 `Scope._next_deeper` is memoized because it is a constant function of an immutable
 enum member, consulted per child on the default `build_child_container()` path.
 

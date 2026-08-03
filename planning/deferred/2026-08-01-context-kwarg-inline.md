@@ -1,5 +1,5 @@
 ---
-summary: Only the compile-time fold is left: parts (i) and (ii) shipped, and (iii) still needs a ruling that ContextProvider.scope and context_type are frozen after registration -- it also carries most of the remaining win, since (ii) measured only -2.5%.
+summary: Only the compile-time fold is left: parts (i) and (ii) shipped, and (iii) still needs a ruling that ContextProvider.scope and context_type are frozen after registration -- what it is worth on its own has never been measured apart from the full inline.
 ---
 
 # Inline the context-kwarg path in the Factory closures
@@ -23,13 +23,17 @@ together:
   calls `overrides_registry.fetch_override(...)` unconditionally.~~ **Shipped.**
   Measured -41.1 ns (-5.98%) on the no-overrides path, with the override-active
   path also improving slightly (-4.4 ns). It needed no ruling and was never
-  blocked; only (ii) and (iii) below remain.
+  blocked. (ii) has since shipped too; only (iii) remains.
 - **(ii) Give the context hop the same-scope int-compare fast path** the Factory
   closures already have, instead of always calling `find_container`. **Shipped
   (2026-08-03).** It needed no ruling. Measured **-2.5%** on `g9_context`
   (~707 → ~690 ns, four A/B/A runs: -3.05, -1.29, -3.98, -1.94%, all negative,
-  against 0.4-1.7% baseline drift) — real but far below the -9.2% this item
-  estimated for the narrow variant, because most of that estimate lives in (iii).
+  against 0.4-1.7% baseline drift). That percentage is **not** comparable to the
+  -9.2% recorded above for the narrow variant: this one is measured on
+  `g9_context` at ~707 ns, that one on a ~312-329 ns benchmark. In absolute terms
+  (ii) is worth ~17 ns, which with (i)'s -41 ns puts the pair at roughly -18% of
+  that original baseline — so the narrow variant's target is already met, and
+  what (iii) adds on its own has not been measured apart from the full inline.
   Since the timing sits close to the harness's own drift, the suite asserts the
   *structural* claim instead: `test_same_scope_context_hop_does_not_call_find_container`.
   The predicted `_navigate` trap was confirmed and avoided — a plain int compare,
@@ -54,8 +58,10 @@ demonstrated counterexample but does **not** by itself license the capture:
 The submitted prototype also failed the gates: +12 executable statements,
 coverage 100% → 99% (eight new uncovered lines, five in the cold cached copy),
 and two *new* ruff violations (`C901` 15>10, `PLR0912` 14>12) on the hot closure.
-The obvious `_navigate`-based implementation of (ii) double-prepends the
-resolution-step breadcrumb, and CI stays green while it does.
+The obvious `_navigate`-based implementation of (ii) double-prepended the
+resolution-step breadcrumb while CI stayed green — no longer true since (ii)
+shipped with `test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step`,
+which turns that shape red.
 
 ## Revisit trigger
 
@@ -63,4 +69,5 @@ A maintainer ruling that a `ContextProvider`'s `scope` **and** `context_type` ar
 fixed once it is registered — the same shape as the scope freeze, extended to
 identity — **or** context kwargs showing up hot in a profile from a real
 integration. That ruling is now the only gate: parts (i) and (ii) have shipped,
-so (iii) is all that remains, and it holds most of the estimated win.
+so (iii) is all that remains. What it is worth on its own is unmeasured — the
+-28% above is the full inline, (i) and (ii) included.

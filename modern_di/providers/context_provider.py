@@ -48,7 +48,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
     def fetch_context_value(self, container: "Container") -> "types.T_co | types.UnsetType":
         # Same-scope int compare before the hop, as the compiled Factory closures do: a request
         # value read from the request container skips `find_container`'s frame. Not the compiler's
-        # `_navigate` -- that prepends a resolution step, which the caller then prepends again.
+        # `_navigate` — that prepends a resolution step, which the caller then prepends again.
         if container.scope != self.scope:
             container = container.find_container(self.scope)
         if container.closed:  # guarded: `_prepare()` warns and reopens unconditionally
