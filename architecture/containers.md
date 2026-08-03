@@ -137,7 +137,7 @@ explicitly under `Container` rather than inferred from a type annotation).
    `close_async()` can clean them up.
 
 2. **`closed = True`** — set in a `finally` block, even if finalizers raised. A subsequent
-   `resolve_provider` (or a nested provider resolving at a closed ancestor scope) self-heals: it
+   `resolve` / `resolve_provider` (or a nested provider resolving at a closed ancestor scope) self-heals: it
    reopens the container via `_prepare()` and emits `ContainerClosedWarning`, rather than raising.
    Re-enter the container via `with`/`async with`, or call `container.open()`, for a silent reopen
    instead — see [Optional-open lifecycle](#optional-open-lifecycle).
@@ -160,7 +160,8 @@ close, ready to be returned again without re-running the creator.
 `_prepare()` — not `open()` — is the primitive the resolve path calls: `resolve_provider` and `resolve`
 (and the compiled-resolver dispatch they wrap) call it whenever `self.closed` is `True`, before doing
 anything else — `resolve` holds its own copy of that check rather than delegating
-([decision](../planning/decisions/2026-08-03-resolve-provider-not-a-seam.md)). That caller-side `if closed` check is the only guard: `_prepare()` itself takes no lock and makes
+([decision](../planning/decisions/2026-08-03-resolve-provider-not-a-seam.md)).
+That caller-side `if closed` check is the only guard: `_prepare()` itself takes no lock and makes
 no re-check, warning with `ContainerClosedWarning` and clearing `closed` unconditionally. Concurrent
 reuse of one closed container therefore warns **at least once**, not exactly once — see
 [concurrency.md](concurrency.md#the-lifecycle). `open()` is a separate, public entry point that clears

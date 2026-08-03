@@ -32,8 +32,8 @@ state at a single-threaded edge, nothing prevents several threads from then
 independently calling `resolve` on that (now-closed) container at once — each
 unaware the others are doing the same. A container is open from construction
 (see [containers.md](containers.md#optional-open-lifecycle)), so this is the
-only path back to `closed = True` in the first place. `resolve_provider` calls
-`_prepare()` whenever `self.closed` is `True`; `_prepare()` warns and sets
+only path back to `closed = True` in the first place. `resolve` and
+`resolve_provider` each call `_prepare()` whenever `self.closed` is `True`; `_prepare()` warns and sets
 `closed = False`, unlocked. The reopen needs no lock because it is idempotent —
 N threads racing a closed container all write the same `False`, and they go on
 to share one singleton via the cache lock below. What is *not* serialized is the

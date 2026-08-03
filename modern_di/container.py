@@ -242,12 +242,7 @@ class Container:
                 resolver = registry.resolver_for(provider)
             return resolver(self)
         except RecursionError as exc:
-            # `resolve` carries its own copy of this call, so below 3.12 -- where coverage traces
-            # instead of using `sys.monitoring` -- this one is reached only by a by-reference
-            # cycle, and the RecursionError tears the tracer down before the line is recorded.
-            # It does execute: `test_by_reference_cycle_raises_circular_dependency_error` fails
-            # without it, and coverage records it when tracing this module alone.
-            _handle_recursion_error(provider, self, exc)  # pragma: no cover
+            _handle_recursion_error(provider, self, exc)
 
     def _walk_errors(self) -> list[Exception]:
         """Walk the graph once, returning every wiring error in walk order."""
