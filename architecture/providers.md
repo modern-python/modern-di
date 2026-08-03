@@ -137,10 +137,22 @@ and the two paths are independent:
   `ContextValueNoneWarning` still exists in `exceptions.py` (retained so existing
   `filterwarnings` configs don't break) but nothing raises it any more.
 - **As a dependent parameter** of another provider (e.g. a `Factory` constructor argument typed as the context
-  type): unaffected by the above — `Factory` reads the value via `fetch_context_value` (not `resolve`), so no
-  exception is raised on this path. `Factory._resolve_context_value` handles the absent-context case live via the
-  shared `absent_disposition` helper: if the dependent parameter has a default or is nullable it is silently
-  satisfied; otherwise an `ArgumentResolutionError` is raised.
+  type): unaffected by the above — no exception is raised on this path. The compiled `Factory` closure does the
+  whole lookup inline, applying `absent_disposition`'s ruling for an absent value: if the dependent parameter has
+  a default or is nullable it is silently satisfied; otherwise an `ArgumentResolutionError` is raised.
+
+**A `ContextProvider`'s identity is fixed once something has resolved through it.** Its `scope` and its
+`context_type` are read when a consumer's resolver is compiled and folded into that closure, so changing either
+afterwards applies only to resolvers compiled later — silently, since neither attribute touches a registry and
+so nothing invalidates the memo. How much of that is *enforced* differs by attribute and by route:
+
+- `scope` on a **registered** provider is enforced against group stamping by `ProviderScopeFrozenError`.
+- `scope` on a provider that is never registered — one passed only as `Factory(creator, kwargs={"x": cp})` —
+  is **not** enforced: `_registered` stays `False`, so a later `Group` may stamp it without error.
+- `context_type` is not enforced on either route.
+
+So this is a contract, not a mechanism: rebinding `provider.scope` or `provider.context_type` on a provider that
+is already in use is unsupported. Construct a second provider instead.
 
 Either **declaration route** reaches that dependent-parameter path: matched by type from the registry, or
 passed explicitly as `Factory(creator, kwargs={"request": the_provider})`. `WiringPlan.build` buckets both

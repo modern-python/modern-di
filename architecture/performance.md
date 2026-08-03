@@ -120,11 +120,23 @@ dependencies — the common case — skip navigation entirely via an int compare
 O(1), and holds ancestors only: a `scope: self` entry would make every container
 a reference cycle, so none could be freed by refcounting.
 
-`ContextProvider.fetch_context_value` carries the same guard, so a request value
-read from the request container costs no navigation frame either. It uses a plain
-int compare and **not** the compiler's `_navigate`: that helper prepends a
-resolution step, and the calling `Factory` closure prepends its own, so the caller
-would appear twice in the breadcrumb.
+A `Factory`'s **context kwargs** carry the same guard, folded. Each binding's
+`provider_id`, scope, `context_type` and absent-disposition are captured at compile
+time, and the compiled closure does the override guard, the scope compare, the
+registry read and the disposition inline — so a request value read from the request
+container costs no navigation frame and no helper frame. Measured at ~-6% (~42 ns
+per context kwarg) on `g9_context`. The value itself is still read live on every
+resolve; only the binding is frozen, which is licensed by a `ContextProvider`'s
+identity being fixed once in use
+([providers.md](providers.md#contextprovider--runtime-injected-values)).
+
+Both folded loops use `find_container` and **never** the compiler's `_navigate`:
+that helper prepends a resolution step, and the enclosing closure prepends the
+factory's own, so the caller would appear twice in the breadcrumb. The loops are
+separate copies and each can regress alone, so
+`test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step` is
+parametrized over both. `ContextProvider.fetch_context_value` keeps the same
+int-compare guard for the direct-resolve path, which is now its only caller.
 
 `Scope._next_deeper` is memoized because it is a constant function of an immutable
 enum member, consulted per child on the default `build_child_container()` path.
