@@ -3,7 +3,9 @@
 Each resolver front-guards its own override, navigates its target once (same-scope deps skip
 the navigation via an int compare), inlines the kwargs build and creator call, and calls its
 dependencies' resolvers by reference. Behavior-sensitive helpers (`_resolution_step`,
-`_resolve_context_value`, `prepend_step`) are reused, not reimplemented.
+`prepend_step`) are reused, not reimplemented. Context kwargs are folded at compile time --
+`ContextProvider.scope` and `.context_type` are fixed once registered, see
+architecture/providers.md -- so the whole context lookup is inline here and owns its behaviour.
 """
 
 import functools
@@ -15,6 +17,7 @@ from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.providers.factory import Factory
+from modern_di.wiring import _Absent, absent_disposition
 
 
 if typing.TYPE_CHECKING:
@@ -24,7 +27,9 @@ if typing.TYPE_CHECKING:
     from modern_di.wiring import WiringPlan
 
     _ProvResolvers: typing.TypeAlias = tuple[tuple[str, typing.Callable[[Container], typing.Any]], ...]
-    _CtxBindings: typing.TypeAlias = tuple[tuple[str, ContextProvider[typing.Any], SignatureItem], ...]
+    #: name, ContextProvider.provider_id, its scope, its context_type, absent disposition, item.
+    #: Folded at compile time; the identity of a registered ContextProvider does not change.
+    _CtxBindings: typing.TypeAlias = tuple[tuple[str, int, typing.Any, type, _Absent, SignatureItem], ...]
 
 _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError)
 _STEP_ERRORS = (exceptions.ResolutionError, *_SCOPE_ERRORS)
@@ -76,12 +81,15 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
         return _compile_unwireable_factory(f, plan)
     prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
     static = plan.static_kwargs
-    ctx: _CtxBindings = tuple((name, cp, item) for name, (cp, item) in plan.context_kwargs.items())
+    ctx: _CtxBindings = tuple(
+        (name, cp.provider_id, cp.scope, cp.context_type, absent_disposition(item), item)
+        for name, (cp, item) in plan.context_kwargs.items()
+    )
     pure = plan.pure_provider
     scope = f.scope
     pid = f.provider_id
     resolution_step = f._resolution_step
-    resolve_context = f._resolve_context_value
+    build_arg_error = f._argument_resolution_error
     creator = f._creator
 
     if _can_call_positionally(f, plan):
@@ -116,7 +124,9 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
 
         return resolve_positional
 
-    def resolve(container: "Container") -> typing.Any:
+    # The folded context lookup is inline by design: extracting it would cost a Python frame
+    # per context kwarg, which is the budget this module exists to hold.
+    def resolve(container: "Container") -> typing.Any:  # noqa: C901, PLR0912
         overrides = container.overrides_registry
         if overrides.has_overrides:
             override = overrides.fetch_override(pid)
@@ -129,10 +139,22 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
             kwargs = {name: r(target) for name, r in prov}
             if not pure:
                 kwargs.update(static)
-                for name, cp, item in ctx:
-                    value = resolve_context(target, name, cp, item)
+                for name, cpid, cscope, ctype, disp, item in ctx:
+                    if overrides.has_overrides:
+                        override = overrides.fetch_override(cpid)
+                        if override is not types.UNSET:
+                            kwargs[name] = override
+                            continue
+                    holder = target if target.scope == cscope else target.find_container(cscope)
+                    if holder.closed:
+                        holder._prepare()
+                    value = holder.context_registry.find_context(ctype)
                     if value is not types.UNSET:
                         kwargs[name] = value
+                    elif disp is _Absent.NULL:
+                        kwargs[name] = None
+                    elif disp is not _Absent.OMIT:
+                        raise build_arg_error(arg_name=name, item=item)
         except _STEP_ERRORS as exc:
             exc.prepend_step(resolution_step())
             raise
@@ -157,12 +179,15 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
         return _compile_unwireable_factory(f, plan)
     prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
     static = plan.static_kwargs
-    ctx: _CtxBindings = tuple((name, cp, item) for name, (cp, item) in plan.context_kwargs.items())
+    ctx: _CtxBindings = tuple(
+        (name, cp.provider_id, cp.scope, cp.context_type, absent_disposition(item), item)
+        for name, (cp, item) in plan.context_kwargs.items()
+    )
     pure = plan.pure_provider
     scope = f.scope
     pid = f.provider_id
     resolution_step = f._resolution_step
-    resolve_context = f._resolve_context_value
+    build_arg_error = f._argument_resolution_error
     creator = f._creator  # cold-miss only (not hot)
     call_creator = f._call_creator  # cold-miss only; reused (not hot)
 
@@ -197,10 +222,23 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
                 kwargs = {name: r(target) for name, r in prov}
                 if not pure:
                     kwargs.update(static)
-                    for name, cp, item in ctx:
-                        value = resolve_context(target, name, cp, item)
+                    overrides = target.overrides_registry
+                    for name, cpid, cscope, ctype, disp, item in ctx:
+                        if overrides.has_overrides:
+                            override = overrides.fetch_override(cpid)
+                            if override is not types.UNSET:
+                                kwargs[name] = override
+                                continue
+                        holder = target if target.scope == cscope else target.find_container(cscope)
+                        if holder.closed:
+                            holder._prepare()
+                        value = holder.context_registry.find_context(ctype)
                         if value is not types.UNSET:
                             kwargs[name] = value
+                        elif disp is _Absent.NULL:
+                            kwargs[name] = None
+                        elif disp is not _Absent.OMIT:
+                            raise build_arg_error(arg_name=name, item=item)
             except _STEP_ERRORS as exc:
                 exc.prepend_step(resolution_step())
                 raise

@@ -531,3 +531,84 @@ def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest
     calls.clear()
     assert isinstance(request2.resolve(Wider), Wider)
     assert calls == [Scope.APP]
+
+
+# The context lookup is folded into both compiled closures, so the cached (singleton) copy
+# needs its own coverage of every disposition -- the transient copy's tests do not reach it.
+
+
+class _CachedCtx: ...
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _CachedNullable:
+    ctx: _CachedCtx | None
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _CachedRequired:
+    ctx: _CachedCtx
+
+
+def test_cached_factory_context_kwarg_uses_override() -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
+        svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP, cache=True)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    container.open()
+    sentinel = _CachedCtx()
+    container.override(G.ctx, sentinel)
+    assert container.resolve(_CachedNullable).ctx is sentinel
+
+
+def test_cached_factory_context_kwarg_absent_and_nullable_injects_none() -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
+        svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP, cache=True)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    container.open()
+    assert container.resolve(_CachedNullable).ctx is None
+
+
+def test_cached_factory_context_kwarg_absent_and_required_raises() -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
+        svc = providers.Factory(creator=_CachedRequired, scope=Scope.APP, cache=True)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    container.open()
+    with pytest.raises(ArgumentResolutionError) as exc:
+        container.resolve(_CachedRequired)
+    assert exc.value.arg_name == "ctx"
+
+
+def test_cached_factory_context_kwarg_through_closed_holder_warns() -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
+        svc = providers.Factory(creator=_CachedNullable, scope=Scope.REQUEST, cache=True)
+
+    value = _CachedCtx()
+    app = Container(scope=Scope.APP, groups=[G], context={_CachedCtx: value})
+    app.open()
+    request = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+
+    with pytest.warns(ContainerClosedWarning):
+        assert request.resolve(_CachedNullable).ctx is value
+
+
+def test_transient_factory_context_kwarg_through_closed_holder_warns() -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
+        svc = providers.Factory(creator=_CachedNullable, scope=Scope.REQUEST)
+
+    value = _CachedCtx()
+    app = Container(scope=Scope.APP, groups=[G], context={_CachedCtx: value})
+    app.open()
+    request = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+
+    with pytest.warns(ContainerClosedWarning):
+        assert request.resolve(_CachedNullable).ctx is value

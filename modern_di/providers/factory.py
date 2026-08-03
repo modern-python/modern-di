@@ -6,9 +6,8 @@ import warnings
 
 from modern_di import exceptions, suggester, types
 from modern_di.providers.abstract import AbstractProvider
-from modern_di.providers.context_provider import ContextProvider
 from modern_di.types_parser import SignatureItem, parse_creator
-from modern_di.wiring import WiringPlan, _Absent, absent_disposition
+from modern_di.wiring import WiringPlan
 
 
 if typing.TYPE_CHECKING:
@@ -170,31 +169,6 @@ class Factory(AbstractProvider[types.T_co]):
         # deterministic function of the registry's contents, so a race at worst repeats the build
         # (architecture/concurrency.md).
         return container.providers_registry.plan_for(self, self._parsed_kwargs, self._kwargs)
-
-    def _resolve_context_value(
-        self, container: "Container", arg_name: str, provider: ContextProvider[typing.Any], item: SignatureItem
-    ) -> typing.Any:  # noqa: ANN401
-        """Resolve a context-backed parameter live. Returns ``types.UNSET`` to omit the kwarg.
-
-        Absent value falls back to the creator default (omit), ``None`` (nullable), or raises
-        ``ArgumentResolutionError`` (required).
-        """
-        # Front-guard on `has_overrides` first, as the seven compiled closures do: `fetch_override`
-        # opens with the same emptiness check, so an ungated call costs a frame to learn nothing.
-        overrides = container.overrides_registry
-        if overrides.has_overrides:
-            override = overrides.fetch_override(provider.provider_id)
-            if override is not types.UNSET:
-                return override
-        value = provider.fetch_context_value(container)
-        if value is not types.UNSET:
-            return value
-        disposition = absent_disposition(item)
-        if disposition is _Absent.OMIT:
-            return types.UNSET  # omit kwarg; creator default applies
-        if disposition is _Absent.NULL:
-            return None
-        raise self._argument_resolution_error(arg_name=arg_name, item=item)
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter-name → dependency-provider mapping using only the providers registry.
