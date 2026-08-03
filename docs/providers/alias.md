@@ -2,7 +2,7 @@
 
 `Alias` lets one type resolve to whatever provider already handles a different type. The most common use is binding an abstract base or `Protocol` to a concrete implementation that is already registered, without registering the implementation twice.
 
-Resolving the alias delegates straight back through the container, so overrides and caching on the source provider apply transparently.
+Resolving the alias calls the source's resolver directly, so overrides and caching on the source provider apply transparently.
 
 ## Parameters
 

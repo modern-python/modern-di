@@ -276,12 +276,14 @@ def _compile_unwireable_factory(
 
 
 def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
-    """Forward to the alias's source resolver, wrapping scope/resolution errors with its own step.
+    """Call the source's compiled resolver directly, wrapping scope/resolution errors with its own step.
 
-    A single try/except covers both the dangling-source lookup and the forwarded resolve, so a
-    missing source and a source's own scope error each carry this alias's resolution step.
+    The source lookup and its resolver memo read are inlined, and nothing is cached: a source
+    registered later is picked up on the next resolve. A single try/except covers the
+    dangling-source lookup and the forwarded resolve, so both carry this alias's resolution step.
     """
     pid = a.provider_id
+    source_type = a._source_type
     resolution_step = a._resolution_step
     find_source = a._find_source
 
@@ -292,7 +294,14 @@ def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typi
             if override is not types.UNSET:
                 return override
         try:
-            return container.resolve_provider(find_source(container))
+            registry = container.providers_registry
+            source = registry._providers.get(source_type)
+            if source is None:
+                source = find_source(container)  # raises AliasSourceNotRegisteredError
+            source_resolver = registry._resolvers.get(source.provider_id)
+            if source_resolver is None:
+                source_resolver = registry.resolver_for(source)
+            return source_resolver(container)
         except _STEP_ERRORS as exc:
             exc.prepend_step(resolution_step())
             raise

@@ -165,10 +165,12 @@ as nullable would silently swallow the unset-context signal — so it keeps dire
 providers.Alias(ConcreteDatabase, bound_type=DatabaseProtocol)
 ```
 
-The compiled `Alias` resolver forwards to `container.resolve_provider(source_provider)` after its own override
-guard — it holds no cache of its own — wrapping a scope/resolution error with the alias's own step; `Alias` also
-accepts an optional `bound_type` override. See [docs/providers/alias.md](../docs/providers/alias.md) for the
-user-facing rationale and caching implications.
+The compiled `Alias` resolver calls its source's compiled resolver directly, after its own override guard — it
+holds no cache of its own — wrapping a scope/resolution error with the alias's own step. The source lookup and
+the source's resolver-memo read are inlined into the closure (see
+[performance.md](performance.md#inlined-memo-hits)); nothing is cached there, so a source registered after the
+alias first resolves is picked up on the next one. `Alias` also accepts an optional `bound_type` override. See
+[docs/providers/alias.md](../docs/providers/alias.md) for the user-facing rationale and caching implications.
 
 `Alias` overrides the `redirect_target(container)` node hook to return its source provider (`None` when the
 source type is unregistered), marking the alias as a transparent redirect. `DependencyGraph.terminal_scope`

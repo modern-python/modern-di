@@ -479,3 +479,59 @@ def test_alias_to_a_same_scope_source_validates_clean_below_app() -> None:
     container = Container(scope=_BelowApp.ROOT, groups=[G])
     container.validate()
     assert container.providers_registry.is_validated() is True
+
+
+def test_alias_resolves_from_a_closed_container_with_warning() -> None:
+    # The alias hop itself carries no closed-container check; the entry `resolve_provider`
+    # reopens, exactly as it does for a context provider or `container_provider`.
+    container = Container(groups=[MyGroup])
+    container.open()
+    container.resolve(AbstractRepository)
+    container.close_sync()
+
+    with pytest.warns(exceptions.ContainerClosedWarning):
+        assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
+
+
+def test_alias_picks_up_a_source_registered_after_a_failed_resolve() -> None:
+    # The compiled alias caches nothing, so a source registered after a failed resolve is picked up next.
+    # Catches only a negative cache (remembering the miss) -- a positive one would pass too, since a
+    # registered provider can't be replaced (DuplicateProviderTypeError) and registering anything clears `_resolvers`.
+    class Late: ...
+
+    class LateIface: ...
+
+    class G(Group):
+        iface = providers.Alias(source_type=Late, bound_type=LateIface)
+
+    container = Container(groups=[G])
+    container.open()
+
+    with pytest.raises(AliasSourceNotRegisteredError):
+        container.resolve(LateIface)
+
+    container.add_providers(providers.Factory(creator=Late))
+
+    assert isinstance(container.resolve(LateIface), Late)
+
+
+def test_mutual_alias_cycle_raises_circular_dependency_at_runtime() -> None:
+    # A pure-alias cycle has no factory node to trip the static guard, so it recurses at
+    # runtime until `resolve_provider` converts the RecursionError. The chain is rooted at
+    # the provider the caller asked for.
+    class First: ...
+
+    class Second: ...
+
+    class G(Group):
+        first = providers.Alias(source_type=Second, bound_type=First)
+        second = providers.Alias(source_type=First, bound_type=Second)
+
+    container = Container(groups=[G])
+    container.open()
+
+    # Asserted via `match=` rather than after the block: a RecursionError tears down the
+    # trace function, so below 3.12 -- where coverage traces instead of using
+    # sys.monitoring -- any line following it here runs unrecorded and fails the gate.
+    with pytest.raises(CircularDependencyError, match=r"(?s)First.*Second"):
+        container.resolve(First)
