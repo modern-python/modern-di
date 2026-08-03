@@ -220,3 +220,43 @@ def test_cycle_error_is_canonical_and_self_contained() -> None:
         pytest.fail("expected CircularDependencyError")
     finally:  # pragma: no cover
         sys.setrecursionlimit(limit)
+
+
+def test_by_reference_cycle_raises_circular_dependency_error() -> None:
+    # By-reference twin of the by-type test above, and the only guard on `resolve_provider`'s
+    # own conversion: `Container.resolve` carries a second copy, so replacing the conversion
+    # here with a bare re-raise still passes every by-type cycle test. This is a behavioural
+    # guard, not a coverage one -- the line is covered by
+    # `test_by_reference_recursionerror_passes_through`, which reaches it without an overflow.
+    # Same `except`-clause shape and shallow limit, per `_SHALLOW_RECURSION_LIMIT`.
+    container = Container(groups=[CycleGroup])
+    container.open()
+    original_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
+    try:
+        container.resolve_provider(CycleGroup.a)
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+        _assert_simple_cycle(exc)
+    else:  # pragma: no cover
+        pytest.fail("expected CircularDependencyError")
+    finally:  # pragma: no cover
+        sys.setrecursionlimit(original_limit)
+
+
+def test_by_reference_recursionerror_passes_through() -> None:
+    # Reaches `resolve_provider`'s handler WITHOUT a stack overflow, so the trace function is
+    # still alive and the line is recorded on CPython below 3.12. The by-type twin of this
+    # (`test_validated_graph_reraises_recursionerror_without_walk`) now lands on `resolve`'s
+    # own copy of the handler, leaving this entry point otherwise untraced.
+    class SelfRec:
+        def __init__(self) -> None:
+            raise RecursionError
+
+    class G(Group):
+        s = providers.Factory(scope=Scope.APP, creator=SelfRec)
+
+    container = Container(scope=Scope.APP, groups=[G])
+    container.validate()
+    container.open()
+    with pytest.raises(RecursionError):
+        container.resolve_provider(G.s)

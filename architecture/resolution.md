@@ -7,8 +7,10 @@ made true.
 ## Entry points
 
 - `container.resolve(SomeType)` — looks up `SomeType` in `providers_registry` (raising
-  `ProviderNotRegisteredError`, with closest-match suggestions, if none is registered), then delegates to
-  `resolve_provider`.
+  `ProviderNotRegisteredError`, with closest-match suggestions, if none is registered), then dispatches to the
+  compiled resolver itself. It holds its own copy of `resolve_provider`'s body rather than delegating, so the
+  by-type path pays no extra frame; the two copies must be edited together
+  ([decision](../planning/decisions/2026-08-03-resolve-provider-not-a-seam.md)).
 - `container.resolve_provider(provider)` — resolves by provider reference, skipping the registry lookup.
   It reopens the entry container if it was closed (see [containers.md](containers.md#closing)), then calls
   `providers_registry.resolver_for(provider)(self)` and wraps any escaped `RecursionError` (the runtime cycle

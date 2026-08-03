@@ -53,20 +53,31 @@ deliberate — there is no interpreted fallback to inherit shared behaviour from
 
 ## Inlined memo hits
 
-Four lookups are hand-inlined across three call sites, with the method called
+Six lookups are hand-inlined across four call sites, with the method called
 only on a miss:
 
 | Call site | Inlines | Method still owns |
 |---|---|---|
 | `Container.resolve_provider` | `providers_registry._resolvers.get(pid)` | the cycle guard and memo write, on a miss |
+| `Container.resolve` | `providers_registry._providers.get(dependency_type)` and `._resolvers.get(pid)` | `find_provider`'s absence result, and `resolver_for`'s cycle guard and memo write, on a miss |
 | `_compile_cached_factory`'s `resolve` | `cache_registry._items.get(pid)` | `setdefault`, which is what makes concurrent first-resolvers share one `CacheItem` |
 | `_compile_alias`'s `resolve` | `providers_registry._providers.get(source_type)` and `._resolvers.get(source.provider_id)` | `_find_source`'s error, and `resolver_for`'s cycle guard and memo write, on a miss |
 
 In each case the method being inlined *opens with exactly that lookup and
 returns*, so the inline is not a reimplementation that can drift — it is the
-method's own fast path, hoisted past its frame. All three keep calling the real
+method's own fast path, hoisted past its frame. All four keep calling the real
 method on a miss, so the miss-path invariants (cycle detection, single shared
 `CacheItem`, the dangling-source error) are untouched.
+
+`Container.resolve` goes further than a hoisted lookup: it carries a **copy of
+`resolve_provider`'s whole body** — the closed check, the memo hit, the
+`resolver_for` fallback, the resolver call and the `RecursionError` conversion.
+That is the one place in the library where a block of logic is deliberately
+duplicated rather than shared, and both copies must be edited together. It is
+worth ~-19% on a by-type resolve, and it is licensed by `resolve_provider` not
+being an interception seam — an override has seen only top-level calls since the
+compiled resolvers landed
+([decision](../planning/decisions/2026-08-03-resolve-provider-not-a-seam.md)).
 
 The alias case inlines two lookups rather than one, because the hop is two indirections deep: without them an
 alias costs four Python frames (`_find_source`, `find_provider`, `resolve_provider`, then the source's
