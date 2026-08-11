@@ -160,6 +160,11 @@ class _LateCtxGroup(Group):
 
 
 def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
+    """INVARIANT: a ContextProvider dependency is read live on every resolve.
+
+    Only the *binding* is frozen at compile time, never the value. Caching the value would make a
+    later `set_context` invisible to non-cached factories across scopes.
+    """
     container = Container(scope=Scope.APP, groups=[_LateCtxGroup])
     container.open()
     first = container.resolve(_NeedsLateCtx)
@@ -318,8 +323,11 @@ class _CachedCtxGroup(Group):
 
 
 def test_late_context_does_not_rebuild_cached_singleton() -> None:
-    # Documented limitation: a cached factory's instance is fixed at first build;
-    # a later set_context does not retroactively rebuild it.
+    """INVARIANT: a cached factory is built once and does not re-read a later context value.
+
+    This is the deliberate boundary on live context: caching wins. Making the cached path re-read
+    would turn `cache=True` into a per-resolve check.
+    """
     app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
     app.open()
     first = app.resolve(_CachedCtxSvc)
@@ -467,11 +475,13 @@ def test_kwargs_context_provider_without_parsed_signature_injects_present_value(
 
 @pytest.mark.parametrize("cache", [False, True])
 def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step(cache: bool) -> None:
-    # The context hop raises a bare scope error and the Factory closure prepends its own step
-    # exactly once. Routing the hop through the compiler's `_navigate`, which prepends a step
-    # itself, would render the factory twice while every other assertion stayed green.
-    # Parametrized because the lookup is folded into the transient and cached closures
-    # separately, and each copy can regress on its own.
+    """INVARIANT: a scope error through a context kwarg carries exactly one breadcrumb step.
+
+    The folded loops call `find_container`, never the compiler's `_navigate` -- that helper prepends
+    a step and the enclosing closure prepends the factory's own, so the caller would appear twice.
+    The cached and transient loops are separate copies, which is why this is parametrized.
+    """
+
     class Cfg: ...
 
     @dataclasses.dataclass(kw_only=True, slots=True)
@@ -492,8 +502,12 @@ def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step(cache: 
 
 
 def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The hop is an int compare when the container is already at the provider's scope; calling
-    # find_container to be handed back the same container costs a frame per context kwarg.
+    """INVARIANT: a same-scope context kwarg costs no navigation.
+
+    The compiled closure folds the scope compare inline. Replacing it with an unconditional
+    `find_container` call adds a frame per context kwarg to the hottest path.
+    """
+
     class Cfg: ...
 
     @dataclasses.dataclass(kw_only=True, slots=True)

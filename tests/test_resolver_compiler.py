@@ -237,6 +237,12 @@ def _arity_group(
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_front_guards_the_override(arity: int) -> None:
+    """INVARIANT: every compiled resolver checks the override registry before anything else.
+
+    The guard runs before scope navigation, before the cache and before the creator, so overriding
+    an otherwise-unwireable factory still short-circuits. Each arity rung is a full copy of the
+    closure, so a rung added without the guard regresses only that rung.
+    """
     group = _arity_group(arity)
     container = Container(scope=Scope.APP, groups=[group])
     container.open()
@@ -247,6 +253,11 @@ def test_arity_rung_front_guards_the_override(arity: int) -> None:
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
+    """INVARIANT: a resolver walks to its declared scope exactly once per resolve.
+
+    The same-scope case is an int compare, not a `find_container` call. Each arity rung carries its
+    own copy of the hop, so a rung added without it resolves from the wrong container.
+    """
     # Line coverage of the cross-scope hop's success path. The wrong target is not observable
     # here -- deps navigate themselves -- so the mutant that skips navigation is killed by the
     # closed-target and dependency-error tests below, not by this one.
@@ -354,6 +365,13 @@ def test_can_call_positionally_accepts_ordered_provider_signature() -> None:
 
 
 def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
+    """INVARIANT: the positional-path predicate excludes a static-or-context kwarg.
+
+    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
+    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
+    them trades correctness for speed.
+    """
+
     # rule 1: a context param makes the plan non-pure, so kwargs folding must run.
     def creator(dep: _A, req: _Req) -> _Ordered:
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
@@ -370,6 +388,13 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
 
 
 def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
+    """INVARIANT: the positional-path predicate excludes a defaulted, omitted param.
+
+    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
+    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
+    them trades correctness for speed.
+    """
+
     # rule 2a: `opt` has a default and no provider, so it is omitted -> provider_kwargs is a
     # strict prefix of the signature, not the whole of it.
     def creator(dep: _A, opt: int = 5) -> _Ordered:
@@ -384,6 +409,13 @@ def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
 
 
 def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
+    """INVARIANT: the positional-path predicate excludes a kwargs-overlay reorder.
+
+    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
+    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
+    them trades correctness for speed.
+    """
+
     # rule 2b: supplying `a` via the kwargs overlay defers it to the end of provider_kwargs,
     # so the binding order (b, a) no longer matches the signature (a, b).
     def creator(a: _A, b: _B) -> _Ordered:
@@ -401,6 +433,13 @@ def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
 
 
 def test_can_call_positionally_rejects_keyword_only_param() -> None:
+    """INVARIANT: the positional-path predicate excludes a keyword-only param.
+
+    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
+    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
+    them trades correctness for speed.
+    """
+
     # rule 3: a keyword-only dep can never be passed positionally.
     def creator(*, dep: _A) -> _Ordered:
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
@@ -414,6 +453,13 @@ def test_can_call_positionally_rejects_keyword_only_param() -> None:
 
 
 def test_can_call_positionally_rejects_positional_only_param() -> None:
+    """INVARIANT: the positional-path predicate excludes a positional-only param.
+
+    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
+    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
+    them trades correctness for speed.
+    """
+
     # rule 4: `prefix` is positional-only WITH a default, dropped from parsed_kwargs so the
     # remaining names look like a clean prefix ("dep",) -- but a positional call would bind
     # `dep` to the `prefix` slot. The parser's has_positional_only_gap flag must reject it.
@@ -511,8 +557,12 @@ def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
 
 
 def test_overridden_alias_compiles_nothing_of_its_source() -> None:
-    # The override front-guard runs before the source is ever looked up, so the mock pattern
-    # never pays to compile a subtree it will not touch.
+    """INVARIANT: an override short-circuits before its provider's subtree is compiled.
+
+    The front-guard runs before the alias source is looked up, so the mock pattern never pays to
+    compile a subtree it will not touch. Moving the guard below the source lookup breaks that.
+    """
+
     class _Source: ...
 
     class _Iface: ...
@@ -530,9 +580,12 @@ def test_overridden_alias_compiles_nothing_of_its_source() -> None:
 
 
 def test_no_compiled_resolver_closes_over_its_registry() -> None:
-    # A resolver that captures its registry forms a cycle with the memo holding it, so the
-    # registry is reclaimable only by cyclic GC. Every closure reads its registries off the
-    # container argument instead.
+    """INVARIANT: no compiled resolver captures its registry in a closure cell.
+
+    A resolver that captures the registry forms a cycle with the memo holding it, so the registry
+    becomes reclaimable only by cyclic GC. Every closure reads its registries off the container arg.
+    """
+
     class _Src: ...
 
     class _Iface: ...
@@ -559,11 +612,12 @@ def test_no_compiled_resolver_closes_over_its_registry() -> None:
     ("arity", "expected"), [(0, "resolve_arity0"), (1, "resolve_arity1"), (2, "resolve_positional")]
 )
 def test_positional_path_selects_the_arity_specialised_closure(arity: int, expected: str) -> None:
-    # Asserted on the code object because nothing else can see it: the rungs are semantically
-    # identical to the generic star-call, and from 3.12 PEP 709 inlines the comprehension the
-    # frame-budget test would otherwise notice. Delete a rung and this fails on every
-    # interpreter; without it, only the 3.10 and 3.11 jobs would catch the regression, and they
-    # would report it as an extracted helper.
+    """INVARIANT: arity 0 and 1 compile to their own specialised closures.
+
+    Below 3.12 a comprehension is a separate code object, so a generic star-call costs a third frame
+    per node. Deleting a rung fails here on every interpreter; without this test only the 3.10 and
+    3.11 jobs would notice, and they would misreport it as an extracted helper.
+    """
     group = _arity_group(arity)
     container = Container(scope=Scope.APP, groups=[group])
     resolver = container.providers_registry.resolver_for(group.target)

@@ -520,6 +520,12 @@ def test_explicit_open_after_close_does_not_warn() -> None:
 
 
 def test_child_built_off_closed_parent_warns_only_when_the_parent_resolves() -> None:
+    """INVARIANT: building a child container does not require the parent to be open.
+
+    `build_child_container` reads the parent's scope map and its two shared registries; it resolves
+    nothing and touches no cache, so there is deliberately no closed-check on the parent. Adding one
+    would break every integration that builds a request child after a shutdown/restart cycle.
+    """
     app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
     app.open()
     app.close_sync()

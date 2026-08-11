@@ -60,6 +60,13 @@ def test_validate_collects_all_error_kinds_once() -> None:
 
 
 def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """INVARIANT: `_validated` memoizes a clean walk; it never gates whether validation may run.
+
+    Nothing validates automatically, so the flag only records that the last walk of the current
+    registry contents was clean. Treating it as a gate would make `validate()` silently skip a graph
+    the caller asked it to check.
+    """
+
     class X: ...
 
     class G(Group):
