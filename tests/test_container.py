@@ -993,12 +993,26 @@ class _DeferFactoryNeedingRequestGroup(Group):
 
 
 def test_construction_never_validates() -> None:
+    """INVARIANT: `validate()` is the only thing that walks the graph.
+
+    Constructing a container from a cyclic group raises nothing; only the later `validate()` call
+    surfaces `ValidationFailedError`. An `__init__` that walked eagerly is the split-validation
+    machinery `2026-07-26-explicit-only-validation.md` built and discarded.
+    """
     container = Container(scope=Scope.APP, groups=[CycleGroup])  # a cycle: no raise here any more
     with pytest.raises(ValidationFailedError):
         container.validate()
 
 
 def test_add_providers_never_validates_and_does_not_roll_back() -> None:
+    """INVARIANT: `validate()` is the only thing that walks the graph.
+
+    `add_providers` registers `Broken` quietly -- no raise, no rollback -- even onto a registry
+    already marked validated; only the next explicit `validate()` call surfaces
+    `ValidationFailedError`. An `add_providers` that walked eagerly is the rollback path
+    `2026-07-26-explicit-only-validation.md` built and discarded.
+    """
+
     @dataclasses.dataclass(kw_only=True, slots=True)
     class Missing: ...
 
@@ -1018,6 +1032,13 @@ def test_add_providers_never_validates_and_does_not_roll_back() -> None:
 
 
 def test_open_never_validates() -> None:
+    """INVARIANT: `validate()` is the only thing that walks the graph.
+
+    `open()` on a cyclic graph raises nothing, neither called directly nor entered via the context
+    manager. Binding validation to `open()` was 3.0's design, discarded per
+    `2026-07-26-explicit-only-validation.md` after the root's open hook not firing in some execution
+    contexts caused six production defects.
+    """
     container = Container(scope=Scope.APP, groups=[CycleGroup])
     container.open()  # no raise
     with container:  # nor via the context manager
@@ -1025,7 +1046,13 @@ def test_open_never_validates() -> None:
 
 
 def test_resolve_never_validates() -> None:
-    # A broken graph surfaces at the resolve that hits it, not as an aggregate.
+    """INVARIANT: `validate()` is the only thing that walks the graph.
+
+    Resolving `_DeferBrokenService` on an unvalidated broken graph raises `ArgumentResolutionError`
+    for the one missing dependency, not `ValidationFailedError` for the whole graph -- proving
+    `resolve()` never walks looking for other errors. Making it validate first is the per-resolve tax
+    `2026-07-26-explicit-only-validation.md` rejected.
+    """
     container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
     with pytest.raises(ArgumentResolutionError):
         container.resolve(_DeferBrokenService)
