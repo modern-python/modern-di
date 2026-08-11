@@ -60,11 +60,14 @@ def test_validate_collects_all_error_kinds_once() -> None:
 
 
 def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch) -> None:
-    """INVARIANT: `_validated` memoizes a clean walk; it never gates whether validation may run.
+    """INVARIANT: `_validated` memoizes a clean walk, so a repeat `validate()` skips the walk.
 
-    Nothing validates automatically, so the flag only records that the last walk of the current
-    registry contents was clean. Treating it as a gate would make `validate()` silently skip a graph
-    the caller asked it to check.
+    A mutator that forgets to clear the flag leaves a stale clean result: `validate()` returns free
+    without re-walking a graph that actually changed. That nothing validates automatically --
+    construction, `add_providers`, `open()` and `resolve()` all leave the flag alone -- is proven
+    separately by `test_construction_never_validates`,
+    `test_add_providers_never_validates_and_does_not_roll_back`, `test_open_never_validates` and
+    `test_resolve_never_validates` in `tests/test_container.py`.
     """
 
     class X: ...
