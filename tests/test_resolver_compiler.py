@@ -459,13 +459,12 @@ def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyP
 
 
 def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
-    # Every compiled resolver front-guards its own override, navigates its own scope and
-    # inlines its own kwargs build + creator call. That duplication is deliberate: any of it
-    # extracted into a shared helper would cost one Python frame *per resolved node*, which
-    # is the whole reason the compiled path exists (architecture/performance.md).
-    #
-    # Measured as a difference between two chain depths, so the fixed cost of the harness
-    # and of `resolve_provider` itself cancels and only the per-node slope is asserted.
+    """INVARIANT: resolving one node costs exactly one Python frame -- its own compiled resolver.
+
+    Extracting the override guard, the scope hop, the kwargs build or the creator call into a shared
+    helper costs one frame *per resolved node* and moves the slope from 2 to 3. Measured as a
+    difference between two chain depths, so the harness's fixed cost cancels.
+    """
     shallow_container, shallow_root = _warm_chain(2)
     deep_container, deep_root = _warm_chain(6)
 
@@ -475,14 +474,17 @@ def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
     assert (deep - shallow) == (6 - 2) * _CALLS_PER_NODE, (
         f"per-node cost is {(deep - shallow) / (6 - 2)} Python calls, expected {_CALLS_PER_NODE} "
         f"on Python {sys.version_info.major}.{sys.version_info.minor}. A helper extracted from "
-        f"the compiled resolvers costs one frame per resolved node -- see architecture/performance.md."
+        f"the compiled resolvers costs one frame per resolved node."
     )
 
 
 def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
-    # An alias forwards to its source's compiled resolver by direct reference, like every
-    # Factory dependency. Routing through `_find_source` + `find_provider` +
-    # `resolve_provider` instead costs four frames per hop -- see architecture/performance.md.
+    """INVARIANT: an alias hop costs one Python frame, like any Factory dependency.
+
+    The alias resolver inlines the source lookup and the source's resolver-memo read. Routing
+    through `_find_source` + `find_provider` + `resolve_provider` instead costs four frames per hop.
+    """
+
     class _Source: ...
 
     class _Iface: ...
@@ -504,7 +506,7 @@ def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
 
     assert (with_alias - without_alias) == 1, (
         f"an alias hop costs {with_alias - without_alias} Python calls, expected 1 (its own "
-        f"resolver). Looking the source up per resolve costs four -- see architecture/performance.md."
+        f"resolver). Looking the source up per resolve costs four."
     )
 
 
@@ -569,10 +571,13 @@ def test_positional_path_selects_the_arity_specialised_closure(arity: int, expec
 
 
 def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
-    # The cold-miss thunk must not close over `target`: a closure promotes it to a cell, so
-    # MAKE_CELL runs in the resolver's prologue on every call -- including the warm hit that
-    # returns early, and the override hit that never reaches `target` at all. Measured at ~18 ns
-    # of a ~162 ns warm resolve. Nothing else in the suite would catch a revert to a lambda.
+    """INVARIANT: the cached-factory resolver has no cell variables.
+
+    The cold-miss thunk must stay a `functools.partial`, never a lambda closing over `target`: a
+    closure promotes `target` to a cell, so MAKE_CELL runs in the prologue on every call --
+    including the warm hit that returns two lines later. Nothing else in the suite catches a revert.
+    """
+
     class G(Group):
         cached = providers.Factory(creator=_A, scope=Scope.APP, cache=True)
 
@@ -581,6 +586,5 @@ def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
     code = typing.cast("_pytypes.FunctionType", resolver).__code__
 
     assert code.co_cellvars == (), (
-        f"the cached-factory resolver grew cell variables {code.co_cellvars}; "
-        f"a MAKE_CELL now runs on every warm hit -- see architecture/performance.md"
+        f"the cached-factory resolver grew cell variables {code.co_cellvars}; a MAKE_CELL now runs on every warm hit"
     )
