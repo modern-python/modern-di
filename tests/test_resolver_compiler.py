@@ -239,9 +239,11 @@ def _arity_group(
 def test_arity_rung_front_guards_the_override(arity: int) -> None:
     """INVARIANT: every compiled resolver checks the override registry before anything else.
 
-    The guard runs before scope navigation, before the cache and before the creator, so overriding
-    an otherwise-unwireable factory still short-circuits. Each arity rung is a full copy of the
-    closure, so a rung added without the guard regresses only that rung.
+    The guard runs before scope navigation, before the cache and before the creator. Each arity rung
+    is a full copy of the closure, so a rung added without the guard regresses only that rung. That
+    the same guard still short-circuits an otherwise-unwireable factory is proven separately by
+    `test_unwireable_factory_override_short_circuits` in `tests/providers/test_factory.py` -- this
+    test's dependencies are all ordinarily wireable.
     """
     group = _arity_group(arity)
     container = Container(scope=Scope.APP, groups=[group])
@@ -255,12 +257,11 @@ def test_arity_rung_front_guards_the_override(arity: int) -> None:
 def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
     """INVARIANT: a resolver walks to its declared scope exactly once per resolve.
 
-    The same-scope case is an int compare, not a `find_container` call. Each arity rung carries its
-    own copy of the hop, so a rung added without it resolves from the wrong container.
+    The same-scope case is an int compare, not a `find_container` call. This test pins that the rung
+    navigates at all; the wrong target is not observable here (dependencies navigate themselves), so
+    the skip-navigation mutant is killed by `test_arity_rung_reopens_a_closed_target` and
+    `test_arity_rung_prepends_its_step_to_a_dependency_error`.
     """
-    # Line coverage of the cross-scope hop's success path. The wrong target is not observable
-    # here -- deps navigate themselves -- so the mutant that skips navigation is killed by the
-    # closed-target and dependency-error tests below, not by this one.
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
     app.open()
