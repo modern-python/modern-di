@@ -29,7 +29,7 @@ Options: (a) fold it and update the docs; (b) decline.
 
 Chose (b). The deciding evidence: **`ContextRegistry` is a documented, symmetric
 node in a deliberate model, not incidental co-location.**
-`architecture/containers.md` has a "Registry sharing" section that organises the
+`architecture/containers.md` (since removed) had a "Registry sharing" section that organised the
 four registries by a real axis — *shared across the tree* (`ProvidersRegistry`,
 `OverridesRegistry`) vs *per-container* (`CacheRegistry`, `ContextRegistry`).
 `ContextRegistry` sits symmetric with `CacheRegistry` as one of the two

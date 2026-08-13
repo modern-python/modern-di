@@ -60,7 +60,7 @@ Two things from the attempt were kept:
    torn-free. The research it triggered established that the
    build → resolve → dispose lifecycle with single-threaded teardown is the
    universal field standard, now stated explicitly in
-   [`concurrency.md`](../../architecture/concurrency.md).
+   [`2026-08-11-free-threaded-beta-not-stable.md`](2026-08-11-free-threaded-beta-not-stable.md).
 2. It revealed a better direction — the **dispatch-floor simplification**
    (invalidate-on-mutation instead of a version stamp per resolve), which
    *removes* per-resolve work instead of adding a bypass and is licensed by that

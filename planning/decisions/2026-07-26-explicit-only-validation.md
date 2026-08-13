@@ -6,9 +6,8 @@ summary: Validation is explicit-only — `validate()` is the sole trigger. The a
 
 **Decision:** `container.validate()` is the only thing that walks the graph.
 Neither `__init__` nor `open()` nor `add_providers` nor `resolve()` ever
-validates, and `Container(validate=...)` is a deprecated no-op. The rule is in
-[`validation.md`](../../architecture/validation.md); this records the design
-that was tried instead and why it lost.
+validates, and `Container(validate=...)` is a deprecated no-op. This records
+the design that was tried instead and why it lost.
 
 ## Context
 

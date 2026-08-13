@@ -176,7 +176,7 @@ not of measured work.
 **Thread-safety configuration differs, at each framework's default.** dishka's `make_container`
 defaults to `lock_factory=<class '_thread.lock'>`, so every `get()` in C1-C3 acquires a lock;
 `make_async_container` defaults to `asyncio.Lock`. modern-di's cached-read path is lock-free by
-design (see `architecture/concurrency.md`), and its creation lock is double-checked. Every
+design (see `docs/introduction/design-decisions.md`), and its creation lock is double-checked. Every
 framework here runs at its default, which is the comparison a user gets out of the box -- but a
 dishka user targeting single-threaded work can pass `lock_factory=None`, and that would move
 dishka's C1-C3 cells. The axis is disclosed rather than normalized away.

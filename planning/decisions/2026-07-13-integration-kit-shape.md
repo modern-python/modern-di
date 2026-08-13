@@ -7,8 +7,9 @@ summary: Integration kit lives in core as low-level primitives; outliers bypass 
 **Decision:** Extract the shared adapter skeleton into a framework-agnostic
 module inside `modern-di` core, exposing only low-level primitives; genuine
 outliers call core's `build_child_container` directly rather than the primitives
-growing parameters to swallow them. The shipped shape is documented in
-[`integration-kit.md`](../../architecture/integration-kit.md).
+growing parameters to swallow them. The boundary this shipped with is recorded in
+[`2026-08-11-integration-kit-per-adapter-boundary.md`](2026-08-11-integration-kit-per-adapter-boundary.md),
+which lists what stays per-adapter rather than moving into the shared kit.
 
 ## Context
 

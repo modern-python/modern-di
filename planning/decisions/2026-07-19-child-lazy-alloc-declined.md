@@ -40,7 +40,8 @@ hot path. Against a ~0-to-3.5% narrow win, lazy-allocation costs:
 2. **Re-introducing the singleton-creation race the lock exists to prevent** —
    lazy lock creation must itself be atomic, so it needs a guard lock or a
    CAS-style publish, a new concurrency-correctness surface against the freshly
-   documented Beta contract ([`concurrency.md`](../../architecture/concurrency.md)).
+   documented Beta contract
+   ([`2026-08-11-free-threaded-beta-not-stable.md`](2026-08-11-free-threaded-beta-not-stable.md)).
 
 The `CacheRegistry`/`ContextRegistry` variants are *weaker* still: they are used
 more often in realistic children, so they save even less. Net negative for a

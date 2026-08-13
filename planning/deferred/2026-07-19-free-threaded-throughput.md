@@ -31,8 +31,8 @@ shared object — inherent), then the shared **provider** objects (distinct-cont
 closures and their captured cells (every `LOAD_DEREF` of a shared capture increfs
 it). The per-container lock is **not** the bottleneck. First-resolve does
 additionally serialize on the double-checked creation lock — see
-[`concurrency.md`](../../architecture/concurrency.md), which states the supported
-lifecycle contract and the Beta status of free-threaded support.
+[`2026-08-11-free-threaded-beta-not-stable.md`](../decisions/2026-08-11-free-threaded-beta-not-stable.md),
+which states the supported lifecycle contract and the Beta status of free-threaded support.
 
 A throwaway **immortalization experiment** (ctypes set of `ob_ref_local` on the
 free-threaded build, offset verified against a known-immortal object) confirmed

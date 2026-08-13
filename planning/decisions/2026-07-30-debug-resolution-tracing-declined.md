@@ -67,7 +67,7 @@ taking.
 
 **Holding: decline.** Resolution stays untraced. Diagnostics remain the job of
 the error messages, which already carry the resolution breadcrumb chain
-(`architecture/` and `docs/troubleshooting/`) at zero hot-path cost.
+(`architecture/`, at the time, and `docs/troubleshooting/`) at zero hot-path cost.
 
 ## Revisit trigger
 
