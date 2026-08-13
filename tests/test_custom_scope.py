@@ -194,6 +194,28 @@ def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
         parent.build_child_container(scope=ZeroEnum.ZERO)
 
 
+def _module_level_imports(source: str) -> set[str]:
+    """Top-level module names `source` imports, from both `import x` and `from x import y`.
+
+    A relative `from . import y` parses to `ImportFrom(module=None, level=1, ...)` -- `node.module`
+    is `None`, so that case falls back to the names in `node.names` themselves rather than
+    silently dropping the import (which would let a `from . import exceptions` pass unnoticed).
+    """
+    tree = ast.parse(source)
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imported.add(node.module.split(".")[0])
+            else:
+                for alias in node.names:
+                    imported.add(alias.name.split(".")[0])
+    return imported
+
+
 def test_scope_module_imports_only_enum() -> None:
     """INVARIANT: `modern_di/scope.py` imports nothing but `enum`.
 
@@ -201,12 +223,12 @@ def test_scope_module_imports_only_enum() -> None:
     a `scope.py` that imported `exceptions` would cycle. That is why `_next_deeper` returns `None`
     at the deepest member instead of raising `MaxScopeReachedError` itself.
     """
-    tree = ast.parse(pathlib.Path(modern_di.scope.__file__).read_text(encoding="utf-8"))
-    imported: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                imported.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom) and node.module:  # pragma: no cover - scope.py has no `from` import today
-            imported.add(node.module.split(".")[0])
+    source = pathlib.Path(modern_di.scope.__file__).read_text(encoding="utf-8")
+    imported = _module_level_imports(source)
     assert imported == {"enum"}, f"scope.py grew imports: {sorted(imported)}"
+
+    # Prove the extractor itself would catch a relative import of the forbidden dependency -- the
+    # assertion above is only trustworthy if this branch is real, not a no-op.
+    assert _module_level_imports("from . import exceptions\n") == {"exceptions"}
+    # And the absolute `from x import y` form, so both `ImportFrom` branches are genuinely exercised.
+    assert _module_level_imports("from enum import IntEnum\n") == {"enum"}
