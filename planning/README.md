@@ -74,8 +74,9 @@ test alone would fail on; a sibling test may be the one that actually trips. The
 of truth is the invariant plus the whole suite, not the docstring plus its single
 test — the accepted cost is that a reader cannot tell, from one docstring alone,
 whether that test or a sibling one catches a given regression.
-`tests/test_invariant_census.py` enforces the shape and checks that every test cited
-from a `modern_di/` comment exists.
+`tests/test_invariant_census.py` enforces the shape and checks that every test name or
+path cited from a `modern_di/`, `tests/`, `CLAUDE.md`, or `planning/decisions/`/`planning/deferred/`
+comment or docstring resolves to something real.
 
 ## What lives where
 

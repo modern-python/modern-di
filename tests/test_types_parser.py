@@ -35,16 +35,26 @@ if typing.TYPE_CHECKING:
     ],
 )
 def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
-    """INVARIANT: inside a union, a parameterized generic member degrades to its bare origin.
-
-    `list[str] | None` and `GenericClass[str] | None` (parametrize table above) both resolve to
-    `arg_type=list` / `arg_type=GenericClass` — the element type is dropped, not enforced. `int | list[str]` can
-    match a provider registered for plain `list` regardless of what it holds. This is intentional
-    and is not a wiring guarantee: the asymmetry with the bare-generic case (`list[str]` alone
-    raises `UnsupportedCreatorParameterError` at declaration, see `_generic_param_creator` below)
-    is deliberate, not a bug to reconcile by making one side match the other.
-    """
     assert SignatureItem.from_type(type_) == result
+
+
+def test_union_member_degrades_to_bare_origin() -> None:
+    """INVARIANT: inside a union, each member degrades to its bare origin type; the element type is not enforced.
+
+    `list[str] | None` and `GenericClass[str] | None` both resolve to `arg_type=list` and
+    `arg_type=GenericClass` — the element type is dropped, not enforced. `int | list[str]` can match a
+    provider registered for plain `list` regardless of what it holds. This is intentional and not a
+    wiring guarantee: the asymmetry with the bare-generic case (`list[str]` alone raises
+    `UnsupportedCreatorParameterError` at declaration — see
+    `test_parameterized_generic_param_without_default_raises_at_declaration`) is deliberate, not a bug
+    to reconcile by making one side match the other.
+    """
+    assert SignatureItem.from_type(list[str] | None) == SignatureItem(  # ty: ignore[invalid-argument-type]
+        arg_type=list, is_nullable=True
+    )
+    assert SignatureItem.from_type(GenericClass[str] | None) == SignatureItem(  # ty: ignore[invalid-argument-type]
+        arg_type=GenericClass, is_nullable=True
+    )
 
 
 @pytest.mark.parametrize("default", [None, 3, "x"])
