@@ -25,6 +25,14 @@ Cached `Factory` providers use a per-container reentrant lock (`threading.RLock`
   per-container dict with no ordering, queueing, or merge; concurrent writes to
   the same key keep whichever landed last. Do them during setup, or per-request
   on a request-local child container — never from competing threads.
+- **Free-threaded CPython (PEP 703) is supported at `2 - Beta`.** Production-ready
+  and tested under real multithreading on the `3.14t` build. It is Beta rather than
+  Stable for one specific reason: modern-di relies on object-publication ordering —
+  that a reader observing a stored reference sees fully-initialized fields — and
+  CPython publishes no memory model, so that is implementation behaviour rather than
+  a spec guarantee. Throughput also does not scale across cores; per-op latency is
+  competitive, but atomic reference counting of the objects every resolve shares
+  tracks the GIL.
 
 ## 3. No global state
 

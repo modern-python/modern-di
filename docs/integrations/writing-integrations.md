@@ -119,8 +119,9 @@ depends on how the framework runs handlers:
   scope + context for one provider without the isinstance scan. An adapter
   whose unit of work carries **no** connection object (a Typer command) skips
   the kit entirely and calls `build_child_container(scope=...)` directly. See
-  [architecture/integration-kit.md](https://github.com/modern-python/modern-di/blob/main/architecture/integration-kit.md)
-  for which shape fits which adapter.
+  [How the existing integrations realize the
+  contract](#how-the-existing-integrations-realize-the-contract) for which
+  shape fits which adapter.
 
 - **Middleware** (FastStream) — a `BaseMiddleware` whose `consume_scope` builds
   the child, stashes it in the framework context for the duration of the call,
@@ -399,11 +400,13 @@ Each official integration is its own repository and PyPI package, mirroring the
   genuinely unreachable boot line (`if __name__ == "__main__"` / server-run).
   Link it from the README with a `Usage example: [examples/](./examples)` line
   directly under `Full guide:`.
-- **Mirror `modern-di`'s** `CLAUDE.md`, `Justfile`, and `architecture/` truth
-  home. Keep resolution sync-only and add no runtime dependency beyond the
-  framework and `modern-di`. `ruff` is unpinned and CI floats it forward, so keep
-  `CPY001` (no per-file copyright header) in the lint `ignore` and reflow any
-  pre-existing Markdown-embedded code fences the current `ruff` reformats.
+- **Mirror `modern-di`'s** `CLAUDE.md` and `Justfile`. Keep behavioural invariants
+  in named tests rather than in a prose truth home, and record rejected
+  alternatives under `planning/decisions/`. Keep resolution sync-only and add no
+  runtime dependency beyond the framework and `modern-di`. `ruff` is unpinned and
+  CI floats it forward, so keep `CPY001` (no per-file copyright header) in the
+  lint `ignore` and reflow any pre-existing Markdown-embedded code fences the
+  current `ruff` reformats.
 - **Docs.** Add a `docs/integrations/<framework>.md` usage page **in the
   `modern-di` repo** and a nav entry for it in `mkdocs.yml` (under the matching
   family group: Web / Tasks & events / Bots / RPC / CLI / Testing). Follow the
@@ -467,6 +470,6 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `examples/app.py` (+ smoke test asserting real injected output, 100%
       coverage, no `omit`) and a README `Usage example: [examples/](./examples)`
       line.
-- [ ] `CLAUDE.md`, `Justfile`, `architecture/` mirrored;
+- [ ] `CLAUDE.md` and `Justfile` mirrored; invariants pinned by named tests;
       [planning-convention](https://github.com/lesnik512/planning-convention)
       followed.

@@ -215,7 +215,7 @@ would have cost it.
 **Thread-safety configuration differs, at each framework's default.** dishka's `make_container`
 defaults to `lock_factory=<class '_thread.lock'>`, so every `get()` behind its C1–C3 cells
 acquires a lock; modern-di's cached read is lock-free by design (see
-[`architecture/concurrency.md`](https://github.com/modern-python/modern-di/blob/main/architecture/concurrency.md)).
+[Design decisions](design-decisions.md#the-thread-safety-boundary)).
 Both run at their defaults, which is the comparison a user
 gets out of the box — a dishka user targeting single-threaded work can pass `lock_factory=None`,
 and that would move dishka's C1–C3 cells. The axis is disclosed rather than normalized away.
