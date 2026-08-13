@@ -23,10 +23,12 @@ That promotion discipline **worked** — PRs did update the pages. It just didn'
 that keeps a doc small. Two prior attempts tried to correct the resulting bloat by cutting the pages
 back down rather than questioning whether the pages should exist at all:
 
-- **`b2404c4`** (#282, 2026-07-07, "docs: trim architecture/ to charter — invariants only") — a
-  433-line net cut.
+- **`b2404c4`** (#282, 2026-07-07, "docs: trim architecture/ to charter — invariants only") — 433
+  deletions against 110 insertions across six pages, a net −323.
 - **`047b6ea`** (#395, 2026-07-29, "docs(architecture): thin resolution.md to invariants; one owner per
-  concept") — a 292-line net cut from `resolution.md` alone.
+  concept") — 292 deletions against 147 insertions across four pages (`README.md`, `containers.md`,
+  `providers.md`, `resolution.md`), a net −145; `resolution.md` alone was 206 deletions against 121
+  insertions, a net −85.
 
 Both regrew. `resolution.md` — a 175-line file at the point this decision was made — accumulated
 +617/−442 lines across 23 commits since it existed; a page trimmed twice still ended up net-larger than
@@ -38,9 +40,11 @@ general, it's specifically the pages the promotion checklist forces continuous r
 ## Decision & rationale
 
 **The promotion discipline was not the failure — it was working exactly as designed, and that's the
-problem.** Measured at the branch point for this change: of the 67 commits touching `modern_di/` since
-mid-June, 48 also touched `architecture/` — 72%. That's a *high* compliance rate with "did you update
-the page?" The checklist item that drove it only ever asked that one question. It never asked "should
+problem.** Measured at `ed9b00d`, the commit this branch forked from (deliberately excluding this
+branch's own commits, so the figure describes the pre-existing problem rather than this branch's own
+churn): of the 67 commits touching `modern_di/` since mid-June, 48 also touched `architecture/` — 72%.
+That's a *high* compliance rate with "did you update the page?" The checklist item that drove it only
+ever asked that one question. It never asked "should
 this paragraph exist?" So every PR that touched behaviour had a structural incentive to *add* a
 sentence explaining the new behaviour, and no PR had any correspondent incentive to *remove* a sentence
 whose enforcement value had already been captured elsewhere — in a test, in a type signature, in the
