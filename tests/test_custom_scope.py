@@ -1,8 +1,11 @@
+import ast
 import dataclasses
 import enum
+import pathlib
 
 import pytest
 
+import modern_di.scope
 from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
     InvalidChildScopeError,
@@ -189,3 +192,21 @@ def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
     parent.open()
     with pytest.raises(InvalidChildScopeError):
         parent.build_child_container(scope=ZeroEnum.ZERO)
+
+
+def test_scope_module_imports_only_enum() -> None:
+    """INVARIANT: `modern_di/scope.py` imports nothing but `enum`.
+
+    `exceptions.py` imports `_deeper_members` to derive `InvalidChildScopeError.allowed_scopes`, so
+    a `scope.py` that imported `exceptions` would cycle. That is why `_next_deeper` returns `None`
+    at the deepest member instead of raising `MaxScopeReachedError` itself.
+    """
+    tree = ast.parse(pathlib.Path(modern_di.scope.__file__).read_text(encoding="utf-8"))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:  # pragma: no cover - scope.py has no `from` import today
+            imported.add(node.module.split(".")[0])
+    assert imported == {"enum"}, f"scope.py grew imports: {sorted(imported)}"

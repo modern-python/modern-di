@@ -17,8 +17,9 @@ import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.providers import ContextProvider
+from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.resolver_compiler import _can_call_positionally
+from modern_di.resolver_compiler import _can_call_positionally, compile_resolver
 from modern_di.wiring import WiringPlan
 
 
@@ -643,3 +644,22 @@ def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
     assert code.co_cellvars == (), (
         f"the cached-factory resolver grew cell variables {code.co_cellvars}; a MAKE_CELL now runs on every warm hit"
     )
+
+
+# ---------------------------------------------------------------------------
+# compile_resolver dispatch — an unhandled provider type fails at compile time
+# ---------------------------------------------------------------------------
+
+
+def test_compile_resolver_rejects_an_unknown_provider_type() -> None:
+    """INVARIANT: a provider type with no compiler branch raises TypeError.
+
+    There is no interpreted fallback to inherit shared behaviour from, so a new provider type that
+    forgets its branch must fail at compile time rather than resolve to something plausible.
+    """
+
+    class _Unsupported(AbstractProvider[int]):
+        __slots__ = ()
+
+    with pytest.raises(TypeError, match="no compiled resolver for provider type _Unsupported"):
+        compile_resolver(_Unsupported(scope=Scope.APP, bound_type=None), ProvidersRegistry())
