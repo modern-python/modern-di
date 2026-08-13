@@ -142,7 +142,8 @@ class ProvidersRegistry:
 
         Called under `self._lock` by every mutation. Clearing has the same breadth the old version
         bump did (a bump invalidated every memo anyway) and frees stale entries eagerly. Sound
-        because mutation is a single-threaded configure-phase operation (architecture/concurrency.md).
+        because mutation is a single-threaded configure-phase operation (configure-phase mutation;
+        see tests/test_free_threading.py).
         """
         self._plans.clear()
         self._resolvers.clear()

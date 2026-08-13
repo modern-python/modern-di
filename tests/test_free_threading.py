@@ -5,7 +5,7 @@ Under the GIL it passes trivially but still exercises the double-checked cache l
 and the setdefault-shared CacheItem; on a 3.14t build it runs those paths GIL-free.
 The free-threaded *interpreter* assertion lives in CI (_checks.yml), not here, to
 keep this suite version-agnostic and 100%-line-covered on every build.
-See architecture/concurrency.md.
+See planning/decisions/2026-08-11-free-threaded-beta-not-stable.md.
 """
 
 import threading

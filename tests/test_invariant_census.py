@@ -1,8 +1,9 @@
-"""Census of invariant tests and the comments that cite them.
+"""Census of invariant tests and the citations that point to them.
 
-Every ``test_*`` name cited from a comment in ``modern_di/`` resolves to a real test, and every
-``INVARIANT:`` docstring states what breaks it. A rename that orphans a citation fails here rather
-than in review -- the citations are all that replaced the deleted ``architecture/`` pages.
+Every ``test_*`` name cited from a comment or docstring under ``modern_di/`` or ``tests/``
+resolves to a real test, and every ``INVARIANT:`` docstring states what breaks it. A rename
+that orphans a citation fails here rather than in review -- the citations are all that
+replaced the deleted prose documentation pages.
 """
 
 import ast
@@ -22,6 +23,9 @@ _INVARIANT = "INVARIANT:"
 # The claim paragraph, then the "what breaks it" paragraph -- fewer than two means the second is missing.
 _MIN_PARAGRAPHS = 2
 
+# Module included so a module-level docstring counts; ast.walk yields it before its descendants.
+_DOCSTRING_NODE_TYPES = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
 
 def _test_functions() -> list[tuple[pathlib.Path, ast.FunctionDef | ast.AsyncFunctionDef]]:
     found = []
@@ -35,7 +39,11 @@ def _test_functions() -> list[tuple[pathlib.Path, ast.FunctionDef | ast.AsyncFun
     return found
 
 
-def _cited_names(path: pathlib.Path) -> set[str]:
+def _citation_paths() -> list[pathlib.Path]:
+    return sorted({*_SRC_DIR.rglob("*.py"), *_TESTS_DIR.rglob("*.py")})
+
+
+def _comment_citations(path: pathlib.Path) -> set[str]:
     """Names cited from real comments only -- tokenize, so a `#` inside a string is not a comment."""
     with path.open("rb") as handle:
         return {
@@ -46,17 +54,29 @@ def _cited_names(path: pathlib.Path) -> set[str]:
         }
 
 
+def _docstring_citations(path: pathlib.Path) -> set[str]:
+    """Names cited from any module/class/function docstring in the file."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, _DOCSTRING_NODE_TYPES):
+            docstring = ast.get_docstring(node)
+            if docstring:
+                names.update(_CITATION.findall(docstring))
+    return names
+
+
 def test_every_cited_test_exists() -> None:
     known = {node.name for _, node in _test_functions()}
     assert known, "the walk over tests/ found no test functions"
 
     orphans = sorted(
         f"{path.relative_to(_REPO_ROOT)}: {name}"
-        for path in sorted(_SRC_DIR.rglob("*.py"))
-        for name in _cited_names(path)
+        for path in _citation_paths()
+        for name in _comment_citations(path) | _docstring_citations(path)
         if name not in known
     )
-    assert not orphans, f"comments cite tests that do not exist: {orphans}"
+    assert not orphans, f"comments or docstrings cite tests that do not exist: {orphans}"
 
 
 def test_every_invariant_states_what_breaks_it() -> None:

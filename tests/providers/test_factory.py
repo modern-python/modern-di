@@ -183,8 +183,9 @@ def test_factory_overridden_request_scope() -> None:
 
 def test_override_bypasses_scope_check_from_shallower_container() -> None:
     # Documented intentional: an override is returned before the scope check, so a
-    # deeper-scoped provider can be resolved from a shallower container — see
-    # architecture/testing-and-overrides.md "Scope behaviour under overrides".
+    # deeper-scoped provider can be resolved from a shallower container. An overridden
+    # provider resolves from whichever container was asked -- the short-circuit fires
+    # before find_container.
     app_container = Container(groups=[MyGroup])
     app_container.open()
     with pytest.raises(ScopeNotInitializedError):

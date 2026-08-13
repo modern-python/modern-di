@@ -4,8 +4,8 @@ Each resolver front-guards its own override, navigates its target once (same-sco
 the navigation via an int compare), inlines the kwargs build and creator call, and calls its
 dependencies' resolvers by reference. Behavior-sensitive helpers (`_resolution_step`,
 `prepend_step`) are reused, not reimplemented. Context kwargs are folded at compile time --
-`ContextProvider.scope` and `.context_type` are fixed once registered, see
-architecture/providers.md -- so the whole context lookup is inline here and owns its behaviour.
+`ContextProvider.scope` and `.context_type` are fixed once registered, so the whole context
+lookup is inline here and owns its behaviour (see test_same_scope_context_hop_does_not_call_find_container).
 """
 
 import functools
@@ -94,7 +94,7 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
 
     if _can_call_positionally(f, plan):
         # Positional fast path; `pure` is True here, so no static/context folding runs.
-        # See architecture/performance.md.
+        # See test_resolve_costs_exactly_one_resolver_frame_per_node.
         pos = tuple(r for _name, r in prov)
 
         # Arity ladder. `len(pos)` is fixed at compile time, so 0 and 1 deps get a closure that
@@ -158,7 +158,8 @@ def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: p
             return resolve_arity1
 
         def resolve_positional(container: "Container") -> typing.Any:
-            # Inlined per closure, not extracted: frame budget — see architecture/performance.md.
+            # Inlined per closure, not extracted: frame budget -- see
+            # test_resolve_costs_exactly_one_resolver_frame_per_node.
             overrides = container.overrides_registry
             if overrides.has_overrides:
                 override = overrides.fetch_override(pid)
@@ -320,7 +321,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
         if target.closed:
             target._prepare()
         # Inlined memo hit; the method is called only on a miss, where its `setdefault` makes
-        # concurrent first-resolvers share one CacheItem. See architecture/performance.md.
+        # concurrent first-resolvers share one CacheItem. See test_cached_resolver_has_no_cell_on_the_warm_path.
         cache_registry = target.cache_registry
         cache_item = cache_registry._items.get(pid)
         if cache_item is None:
@@ -332,7 +333,7 @@ def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: pos
             target._lock,
             # `partial`, never a lambda closing over `target`: a closure promotes `target` to a cell,
             # so MAKE_CELL runs in this resolver's prologue on every warm hit too. See
-            # architecture/performance.md.
+            # test_cached_resolver_has_no_cell_on_the_warm_path.
             resolve=functools.partial(build_cold, target),
             # positional/kwargs builders have distinct arg types; get_or_create feeds each its own.
             create=typing.cast("typing.Callable[[typing.Any], typing.Any]", create_cold),

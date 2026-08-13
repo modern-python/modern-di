@@ -165,9 +165,9 @@ class Factory(AbstractProvider[types.T_co]):
 
     def _plan(self, container: "Container") -> WiringPlan:
         # Memoized on the shared providers registry, so a deeper-scope factory builds its plan once
-        # tree-wide (architecture/performance.md). Building runs outside the container lock — a
-        # deterministic function of the registry's contents, so a race at worst repeats the build
-        # (architecture/concurrency.md).
+        # tree-wide (see test_resolve_costs_exactly_one_resolver_frame_per_node). Building runs
+        # outside the container lock — a deterministic function of the registry's contents, so a
+        # race at worst repeats the build (see tests/test_free_threading.py).
         return container.providers_registry.plan_for(self, self._parsed_kwargs, self._kwargs)
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:

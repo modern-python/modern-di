@@ -130,8 +130,8 @@ class Container:
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
         # Inlined, not a helper: __init__ is on the per-request child-build path
-        # (architecture/performance.md). A root seeds container_provider so `Container`
-        # resolves to the resolving container.
+        # (see test_resolve_costs_exactly_one_resolver_frame_per_node). A root seeds
+        # container_provider so `Container` resolves to the resolving container.
         if parent_container:
             self.providers_registry = parent_container.providers_registry
             self.overrides_registry = parent_container.overrides_registry
@@ -234,8 +234,8 @@ class Container:
             self._prepare()
         try:
             # Inlined memo hit; `resolver_for` is called only on a miss, where it owns the cycle
-            # guard and the memo write (architecture/performance.md). Inside the try so a
-            # RecursionError while compiling still becomes CircularDependencyError.
+            # guard and the memo write (see test_resolve_costs_exactly_one_resolver_frame_per_node).
+            # Inside the try so a RecursionError while compiling still becomes CircularDependencyError.
             registry = self.providers_registry
             resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
             if resolver is None:

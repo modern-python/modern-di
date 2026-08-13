@@ -114,8 +114,8 @@ _CHAIN: tuple[type, ...] = (_L0, _L1, _L2, _L3, _L4, _L5)
 
 #: Python calls one extra chain node costs: its resolver closure, plus its creator.
 #: The creator is the user's own object construction and is irreducible; the **1**
-#: resolver frame is the budget this module exists to hold. See
-#: ``architecture/performance.md``.
+#: resolver frame is the budget this module exists to hold. Pinned below by
+#: ``test_resolve_costs_exactly_one_resolver_frame_per_node``.
 #:
 #: Version-independent because these chain nodes have arity 1, which the positional
 #: path compiles to a closure that names its argument and calls the creator directly
