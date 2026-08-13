@@ -37,8 +37,8 @@ effect. State the numbers, not "benchmarked".
       what breaks it. Do **not** write prose about mechanism — there is no page for
       it. See [`planning/README.md`](../planning/README.md#where-a-fact-goes).
 - [ ] **Adding a fact anywhere?** Run the admission check: derivable from
-      `modern_di/` → don't write it; enforceable → a test; deliberately not
-      guaranteed → `planning/decisions/`; a user needs it → `docs/`.
+      `modern_di/` → don't write it; enforceable → a test; a user needs it →
+      `docs/`; otherwise it does not get written.
 - [ ] **Rejected an alternative** with reasoning that would otherwise be
       re-litigated? File it in [`planning/decisions/`](../planning/decisions/)
       with a revisit trigger — not here.

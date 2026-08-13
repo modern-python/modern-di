@@ -40,14 +40,13 @@ Four homes, one owner each:
 |---|---|
 | `modern_di/` | anything readable from the module — the default |
 | a named test | an **invariant**: must stay true, and a change could silently break it |
-| `decisions/` | a rejected alternative, or a **negative contract** — something deliberately unspecified |
+| `decisions/` | a rejected alternative, with the reasoning that would otherwise be re-litigated |
 | `docs/` | anything a user needs |
 
 Before writing a line anywhere:
 
 > Can an agent get this by reading `modern_di/`? → **don't write it.**
 > Would a wrong change here fail a test? → it belongs **in the test**, not in prose.
-> Is it something we deliberately do *not* guarantee? → **`decisions/`**.
 > Does a user need it? → **`docs/`**.
 > Otherwise it does not get written.
 
