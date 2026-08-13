@@ -35,6 +35,15 @@ if typing.TYPE_CHECKING:
     ],
 )
 def test_signature_item_parser(type_: type, result: SignatureItem) -> None:
+    """INVARIANT: inside a union, a parameterized generic member degrades to its bare origin.
+
+    `list[str] | None` and `GenericClass[str] | None` (parametrize table above) both resolve to
+    `arg_type=list` / `arg_type=GenericClass` — the element type is dropped, not enforced. `int | list[str]` can
+    match a provider registered for plain `list` regardless of what it holds. This is intentional
+    and is not a wiring guarantee: the asymmetry with the bare-generic case (`list[str]` alone
+    raises `UnsupportedCreatorParameterError` at declaration, see `_generic_param_creator` below)
+    is deliberate, not a bug to reconcile by making one side match the other.
+    """
     assert SignatureItem.from_type(type_) == result
 
 

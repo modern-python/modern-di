@@ -8,8 +8,8 @@ summary: The `architecture/` directory is deleted; its facts route to code, a na
 enforceable claim becomes an `INVARIANT:`-marked test guarded by `tests/test_invariant_census.py`; a
 negative contract (something deliberately *not* guaranteed) becomes a `planning/decisions/` record; a
 framework-facing contract moves to `docs/`; a term worth pinning down that isn't fully derivable from
-code stays in whatever residual glossary form `planning/` ends up using. Nothing is promoted to a
-standalone prose "truth home" page again.
+code stays in the Vocabulary block in `CLAUDE.md`. Nothing is promoted to a standalone prose "truth
+home" page again.
 
 ## Context
 
@@ -80,6 +80,11 @@ would serve neither well.
 the glossary's `Avoid:` entries — the deliberately-not-used synonyms for a term, and why — are not
 derivable from reading the code. Code shows what a name *is*; it doesn't show what a contributor
 *almost* called it instead and why that was wrong. That negative information has nowhere else to live.
+
+**Where it landed:** a short Vocabulary block in `CLAUDE.md`, not a standalone glossary file. It is
+small enough — ten entries, name plus one-line `Avoid:` — that the continuous-re-editing failure mode
+the rest of this decision describes doesn't apply to it, and it is read as part of the file every
+contributor already opens rather than a page someone has to remember exists.
 
 ## Revisit trigger
 

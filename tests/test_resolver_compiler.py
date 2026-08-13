@@ -371,7 +371,8 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
 
     A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
     path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
-    them trades correctness for speed.
+    them trades correctness for speed. The other reject-case tests for `_can_call_positionally`
+    below share this rationale rather than repeating it.
     """
 
     # rule 1: a context param makes the plan non-pure, so kwargs folding must run.
@@ -392,9 +393,8 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
 def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
     """INVARIANT: the positional-path predicate excludes a defaulted, omitted param.
 
-    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
-    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
-    them trades correctness for speed.
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
     """
 
     # rule 2a: `opt` has a default and no provider, so it is omitted -> provider_kwargs is a
@@ -413,9 +413,8 @@ def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
 def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
     """INVARIANT: the positional-path predicate excludes a kwargs-overlay reorder.
 
-    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
-    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
-    them trades correctness for speed.
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
     """
 
     # rule 2b: supplying `a` via the kwargs overlay defers it to the end of provider_kwargs,
@@ -437,9 +436,8 @@ def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
 def test_can_call_positionally_rejects_keyword_only_param() -> None:
     """INVARIANT: the positional-path predicate excludes a keyword-only param.
 
-    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
-    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
-    them trades correctness for speed.
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
     """
 
     # rule 3: a keyword-only dep can never be passed positionally.
@@ -457,9 +455,8 @@ def test_can_call_positionally_rejects_keyword_only_param() -> None:
 def test_can_call_positionally_rejects_positional_only_param() -> None:
     """INVARIANT: the positional-path predicate excludes a positional-only param.
 
-    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
-    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
-    them trades correctness for speed.
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
     """
 
     # rule 4: `prefix` is positional-only WITH a default, dropped from parsed_kwargs so the

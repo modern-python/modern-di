@@ -13,7 +13,7 @@ This project uses `just` (task runner) and `uv` (package manager). The
 or read it for every recipe and its intent. The non-obvious essentials:
 
 - `just test [args]` — pytest, **no coverage**; targeted runs won't trip the
-  gate. Passes args through: `just test tests/providers/test_factory.py -k test_name`.
+  gate. Passes args through: `just test tests/providers/test_factory.py -k <substring>`.
 - `just test-ci` — the **gated** full run (100% line coverage); this is what CI runs.
 - `just lint` (autofix) / `just lint-ci` (no autofix; also validates planning bundles).
 - `just check-planning` validates `planning/deferred/` + `planning/decisions/` frontmatter; `just index` prints that listing.
@@ -108,7 +108,8 @@ local deviation from `planning-convention` 2.2.0.
 
 ## Vocabulary
 
-A term is listed only when there is a synonym to reject.
+A term is listed only when there is a synonym to reject, or a meaning subtle enough that code and
+docs must agree on it.
 
 - **Container** — owns the registries and resolves within a scope. *Avoid:* injector.
 - **Provider** — a declaration of *how to produce* a dependency; the recipe, not the value. *Avoid:* service,

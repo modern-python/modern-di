@@ -62,6 +62,10 @@ load-bearing and none removed one, so the pages ratcheted toward restating code,
 restatement is what goes stale. The absence of the directory is the mechanism. See
 [`decisions/2026-08-11-drop-architecture-directory.md`](decisions/2026-08-11-drop-architecture-directory.md).
 
+`decisions/` and `INVARIANT:` docstrings inherit the same risk from the other direction: nothing yet
+prunes a record once its call is settled or a docstring once its claim stops mattering, so keeping
+either lean is a habit this project owes them now, not a one-time fix earned by deleting a directory.
+
 An invariant is written as a test whose name is the claim, with a docstring opening
 `INVARIANT:` and a second paragraph naming **what breaks it**. That second paragraph
 is where an anti-refactor warning lives — design rationale, not a report of what this

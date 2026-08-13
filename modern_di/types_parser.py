@@ -33,6 +33,9 @@ class SignatureItem:
 
         # union type
         if isinstance(type_, types.UnionType) or typing.get_origin(type_) is typing.Union:
+            # A parameterized generic member degrades to its origin (list[str] -> list); the
+            # element type is not enforced. Intentional asymmetry, not a wiring guarantee --
+            # see test_signature_item_parser.
             union_members = [typing.get_origin(x) or x for x in typing.get_args(type_)]
             non_none_members = [member for member in union_members if member is not types.NoneType]
             if len(non_none_members) != len(union_members):
