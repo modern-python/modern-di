@@ -1,8 +1,11 @@
+import ast
 import dataclasses
 import enum
+import pathlib
 
 import pytest
 
+import modern_di.scope
 from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
     InvalidChildScopeError,
@@ -97,21 +100,26 @@ def test_invalid_child_scope_with_conflicting_value() -> None:
 
 
 def test_scope_algebra_answers_deeper_members_for_any_int_enum() -> None:
-    # The rule has one home and takes ANY IntEnum: Python forbids extending an enum that
-    # has members (`class MyScope(Scope)` -> TypeError), so a custom scope is a standalone
-    # IntEnum and the algebra cannot be methods on Scope without silently skipping it.
+    """INVARIANT: the scope algebra takes any IntEnum, not only `Scope`.
+
+    A custom scope cannot subclass `Scope` (Python forbids extending an enum with members), so an
+    algebra expressed as methods on `Scope` would apply to the five built-in members and nothing
+    else. Free functions are what make custom scopes work at all.
+    """
     assert _deeper_members(MyScope.TENANT) == [MyScope.BACKGROUND_JOB]
     assert _deeper_members(MyScope.BACKGROUND_JOB) == []
     assert _deeper_members(Scope.ACTION) == [Scope.STEP]
 
 
 def test_scope_algebra_next_deeper_is_the_shallowest_deeper_member() -> None:
-    # Non-contiguous values: the next scope is the smallest member greater than the current
-    # one, never current.value + 1 (which need not be a member at all).
+    """INVARIANT: `_next_deeper` returns the shallowest deeper member of the provider's own enum.
+
+    Not `value + 1` -- a non-contiguous custom enum (`TENANT=6, JOB=10`) must derive `JOB` from
+    `TENANT`. Returning `None` at the deepest member (rather than raising) is what keeps `scope.py`
+    from importing `exceptions.py`.
+    """
     assert _next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB
     assert _next_deeper(Scope.APP) is Scope.SESSION
-    # None at the deepest member: `scope.py` stays dependency-free, so raising
-    # MaxScopeReachedError here would cycle (exceptions imports scope for allowed_scopes).
     assert _next_deeper(GappedScope.BACKGROUND_JOB) is None
     assert _next_deeper(Scope.STEP) is None
 
@@ -184,3 +192,43 @@ def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
     parent.open()
     with pytest.raises(InvalidChildScopeError):
         parent.build_child_container(scope=ZeroEnum.ZERO)
+
+
+def _module_level_imports(source: str) -> set[str]:
+    """Top-level module names `source` imports, from both `import x` and `from x import y`.
+
+    A relative `from . import y` parses to `ImportFrom(module=None, level=1, ...)` -- `node.module`
+    is `None`, so that case falls back to the names in `node.names` themselves rather than
+    silently dropping the import (which would let a `from . import exceptions` pass unnoticed).
+    """
+    tree = ast.parse(source)
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imported.add(node.module.split(".")[0])
+            else:
+                for alias in node.names:
+                    imported.add(alias.name.split(".")[0])
+    return imported
+
+
+def test_scope_module_imports_only_enum() -> None:
+    """INVARIANT: `modern_di/scope.py` imports nothing but `enum`.
+
+    `exceptions.py` imports `_deeper_members` to derive `InvalidChildScopeError.allowed_scopes`, so
+    a `scope.py` that imported `exceptions` would cycle. That is why `_next_deeper` returns `None`
+    at the deepest member instead of raising `MaxScopeReachedError` itself.
+    """
+    source = pathlib.Path(modern_di.scope.__file__).read_text(encoding="utf-8")
+    imported = _module_level_imports(source)
+    assert imported == {"enum"}, f"scope.py grew imports: {sorted(imported)}"
+
+    # Prove the extractor itself would catch a relative import of the forbidden dependency -- the
+    # assertion above is only trustworthy if this branch is real, not a no-op.
+    assert _module_level_imports("from . import exceptions\n") == {"exceptions"}
+    # And the absolute `from x import y` form, so both `ImportFrom` branches are genuinely exercised.
+    assert _module_level_imports("from enum import IntEnum\n") == {"enum"}

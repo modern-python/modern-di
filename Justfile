@@ -22,7 +22,7 @@ lint-ci:
     uv run python planning/links.py
 
 # Check every relative Markdown link and heading anchor. `mkdocs --strict` only sees
-# docs/; architecture/ and planning/ live outside docs_dir and are read on GitHub.
+# docs/; planning/ lives outside docs_dir and is read on GitHub.
 check-links:
     uv run python planning/links.py
 

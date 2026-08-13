@@ -158,8 +158,12 @@ def test_self_recursing_creator_passes_through_recursion_error() -> None:
 
 
 def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytest.MonkeyPatch) -> None:
-    # A self-recursive creator on a validated (acyclic-static) graph must re-raise the
-    # RecursionError untouched, short-circuiting before find_cycle_from is ever consulted.
+    """INVARIANT: on a validated graph an escaped RecursionError re-raises untouched.
+
+    A validated graph is known acyclic, so the overflow is genuine self-recursion in a creator.
+    Walking anyway would misreport it as a circular dependency and burn stack near the limit.
+    """
+
     class SelfRec:
         def __init__(self) -> None:
             raise RecursionError

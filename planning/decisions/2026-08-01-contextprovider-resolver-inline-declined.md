@@ -28,8 +28,8 @@ touched no registry, so `_invalidate()` never fired and the memoized resolver wa
 never dropped. A `Group` subclass declared after first resolve could restamp a
 shared `ContextProvider` from APP to REQUEST; today's delegating resolver raises
 `ScopeNotInitializedError`, and the inlined one would return a silently stale
-value. That hazard has since been closed at its source — see
-[`architecture/providers.md`](../../architecture/providers.md) and
+value. That hazard has since been closed at its source — documented at the time
+in `architecture/providers.md` (since removed) and enforced by
 `ProviderScopeFrozenError` — but it was closed by *freezing the scope at
 registration*, not by making the capture safe in general, and it was found while
 refuting this candidate rather than before proposing it.

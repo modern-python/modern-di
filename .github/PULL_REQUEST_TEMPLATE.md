@@ -32,14 +32,17 @@ effect. State the numbers, not "benchmarked".
 
 ### Before merging
 
-- [ ] **Behaviour changed?** Hand-edit the matching `architecture/<capability>.md`
-      **in this PR**, so the promotion is reviewed with the code. That edit is
-      what keeps `architecture/` true.
+- [ ] **Behaviour changed?** If a wrong change here could pass silently, pin it with
+      a test whose name is the claim and whose docstring opens `INVARIANT:` and says
+      what breaks it. Do **not** write prose about mechanism — there is no page for
+      it. See [`planning/README.md`](../planning/README.md#where-a-fact-goes).
+- [ ] **Adding a fact anywhere?** Run the admission check: derivable from
+      `modern_di/` → don't write it; enforceable → a test; a user needs it →
+      `docs/`; otherwise it does not get written.
 - [ ] **Rejected an alternative** with reasoning that would otherwise be
       re-litigated? File it in [`planning/decisions/`](../planning/decisions/)
       with a revisit trigger — not here.
 - [ ] **Found real work you are not doing now?** File it in
       [`planning/deferred/`](../planning/deferred/), self-contained, with a
       revisit trigger — not here.
-- [ ] **New or sharpened domain term?** Update `architecture/glossary.md`.
 - [ ] `just lint-ci` and `just test-ci` pass.

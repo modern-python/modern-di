@@ -49,8 +49,8 @@ ruled on together.
 
 **Field check.** An audit of all 13 sibling integration wheels found zero
 `Container` subclasses and zero `resolve_provider` overrides. `Container`
-subclassing is not documented as an extension point anywhere in `architecture/` or
-`docs/`.
+subclassing was not documented as an extension point anywhere in `architecture/`
+(since removed) or `docs/`.
 
 **Accepted costs**, disclosed rather than discovered later:
 

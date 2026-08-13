@@ -60,6 +60,16 @@ def test_validate_collects_all_error_kinds_once() -> None:
 
 
 def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """INVARIANT: `_validated` memoizes a clean walk, so a repeat `validate()` skips the walk.
+
+    A mutator that forgets to clear the flag leaves a stale clean result: `validate()` returns free
+    without re-walking a graph that actually changed. That nothing validates automatically --
+    construction, `add_providers`, `open()` and `resolve()` all leave the flag alone -- is proven
+    separately by `test_construction_never_validates`,
+    `test_add_providers_never_validates_and_does_not_roll_back`, `test_open_never_validates` and
+    `test_resolve_never_validates` in `tests/test_container.py`.
+    """
+
     class X: ...
 
     class G(Group):
@@ -85,3 +95,31 @@ def test_runtime_guard_converts_unvalidated_cycle() -> None:
     container.open()
     with pytest.raises(exceptions.CircularDependencyError):
         container.resolve(_A)
+
+
+def test_validate_walks_the_same_edges_resolve_follows() -> None:
+    """INVARIANT: the graph validate() walks is the graph resolve() follows.
+
+    Edges come from `WiringPlan.edges`, a view derived from the same buckets resolve() reads, so a
+    provider named in a declaration-time `kwargs={...}` is an edge like any type-matched one.
+    Assembling the validation edge set separately would let the two drift, and a cycle routed
+    through a `kwargs=` provider would surface as a bare RecursionError instead.
+    """
+
+    class _Leaf: ...
+
+    class _Root:
+        def __init__(self, leaf: _Leaf) -> None:
+            self.leaf = leaf  # pragma: no cover - validate() never instantiates providers
+
+    class G(Group):
+        leaf = Factory(scope=Scope.REQUEST, creator=_Leaf)
+        # Named via kwargs, not type-matched: the by-type pass skips a name present in kwargs,
+        # so this edge exists only if the overlay pass feeds it into WiringPlan.edges.
+        root = Factory(scope=Scope.APP, creator=_Root, kwargs={"leaf": leaf})
+
+    container = Container(scope=Scope.APP, groups=[G])
+    with pytest.raises(exceptions.ValidationFailedError) as caught:
+        container.validate()
+
+    assert any(isinstance(error, exceptions.InvalidScopeDependencyError) for error in caught.value.errors)

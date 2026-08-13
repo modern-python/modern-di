@@ -17,8 +17,9 @@ import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.providers import ContextProvider
+from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.resolver_compiler import _can_call_positionally
+from modern_di.resolver_compiler import _can_call_positionally, compile_resolver
 from modern_di.wiring import WiringPlan
 
 
@@ -114,8 +115,8 @@ _CHAIN: tuple[type, ...] = (_L0, _L1, _L2, _L3, _L4, _L5)
 
 #: Python calls one extra chain node costs: its resolver closure, plus its creator.
 #: The creator is the user's own object construction and is irreducible; the **1**
-#: resolver frame is the budget this module exists to hold. See
-#: ``architecture/performance.md``.
+#: resolver frame is the budget this module exists to hold. Pinned below by
+#: ``test_resolve_costs_exactly_one_resolver_frame_per_node``.
 #:
 #: Version-independent because these chain nodes have arity 1, which the positional
 #: path compiles to a closure that names its argument and calls the creator directly
@@ -237,6 +238,14 @@ def _arity_group(
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_front_guards_the_override(arity: int) -> None:
+    """INVARIANT: every compiled resolver checks the override registry before anything else.
+
+    The guard runs before scope navigation, before the cache and before the creator. Each arity rung
+    is a full copy of the closure, so a rung added without the guard regresses only that rung. That
+    the same guard still short-circuits an otherwise-unwireable factory is proven separately by
+    `test_unwireable_factory_override_short_circuits` in `tests/providers/test_factory.py` -- this
+    test's dependencies are all ordinarily wireable.
+    """
     group = _arity_group(arity)
     container = Container(scope=Scope.APP, groups=[group])
     container.open()
@@ -247,9 +256,13 @@ def test_arity_rung_front_guards_the_override(arity: int) -> None:
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
-    # Line coverage of the cross-scope hop's success path. The wrong target is not observable
-    # here -- deps navigate themselves -- so the mutant that skips navigation is killed by the
-    # closed-target and dependency-error tests below, not by this one.
+    """INVARIANT: a resolver walks to its declared scope exactly once per resolve.
+
+    The same-scope case is an int compare, not a `find_container` call. This test pins that the rung
+    navigates at all; the wrong target is not observable here (dependencies navigate themselves), so
+    the skip-navigation mutant is killed by `test_arity_rung_reopens_a_closed_target` and
+    `test_arity_rung_prepends_its_step_to_a_dependency_error`.
+    """
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
     app.open()
@@ -354,6 +367,14 @@ def test_can_call_positionally_accepts_ordered_provider_signature() -> None:
 
 
 def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
+    """INVARIANT: the positional-path predicate excludes a static-or-context kwarg.
+
+    A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
+    path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
+    them trades correctness for speed. The other reject-case tests for `_can_call_positionally`
+    below share this rationale rather than repeating it.
+    """
+
     # rule 1: a context param makes the plan non-pure, so kwargs folding must run.
     def creator(dep: _A, req: _Req) -> _Ordered:
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
@@ -370,6 +391,12 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
 
 
 def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
+    """INVARIANT: the positional-path predicate excludes a defaulted, omitted param.
+
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
+    """
+
     # rule 2a: `opt` has a default and no provider, so it is omitted -> provider_kwargs is a
     # strict prefix of the signature, not the whole of it.
     def creator(dep: _A, opt: int = 5) -> _Ordered:
@@ -384,6 +411,12 @@ def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
 
 
 def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
+    """INVARIANT: the positional-path predicate excludes a kwargs-overlay reorder.
+
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
+    """
+
     # rule 2b: supplying `a` via the kwargs overlay defers it to the end of provider_kwargs,
     # so the binding order (b, a) no longer matches the signature (a, b).
     def creator(a: _A, b: _B) -> _Ordered:
@@ -401,6 +434,12 @@ def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
 
 
 def test_can_call_positionally_rejects_keyword_only_param() -> None:
+    """INVARIANT: the positional-path predicate excludes a keyword-only param.
+
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
+    """
+
     # rule 3: a keyword-only dep can never be passed positionally.
     def creator(*, dep: _A) -> _Ordered:
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
@@ -414,6 +453,12 @@ def test_can_call_positionally_rejects_keyword_only_param() -> None:
 
 
 def test_can_call_positionally_rejects_positional_only_param() -> None:
+    """INVARIANT: the positional-path predicate excludes a positional-only param.
+
+    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    a correctness bug, not a slow path.
+    """
+
     # rule 4: `prefix` is positional-only WITH a default, dropped from parsed_kwargs so the
     # remaining names look like a clean prefix ("dep",) -- but a positional call would bind
     # `dep` to the `prefix` slot. The parser's has_positional_only_gap flag must reject it.
@@ -459,13 +504,12 @@ def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyP
 
 
 def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
-    # Every compiled resolver front-guards its own override, navigates its own scope and
-    # inlines its own kwargs build + creator call. That duplication is deliberate: any of it
-    # extracted into a shared helper would cost one Python frame *per resolved node*, which
-    # is the whole reason the compiled path exists (architecture/performance.md).
-    #
-    # Measured as a difference between two chain depths, so the fixed cost of the harness
-    # and of `resolve_provider` itself cancels and only the per-node slope is asserted.
+    """INVARIANT: resolving one node costs exactly one Python frame -- its own compiled resolver.
+
+    Extracting the override guard, the scope hop, the kwargs build or the creator call into a shared
+    helper costs one frame *per resolved node* and moves the slope from 2 to 3. Measured as a
+    difference between two chain depths, so the harness's fixed cost cancels.
+    """
     shallow_container, shallow_root = _warm_chain(2)
     deep_container, deep_root = _warm_chain(6)
 
@@ -475,14 +519,17 @@ def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
     assert (deep - shallow) == (6 - 2) * _CALLS_PER_NODE, (
         f"per-node cost is {(deep - shallow) / (6 - 2)} Python calls, expected {_CALLS_PER_NODE} "
         f"on Python {sys.version_info.major}.{sys.version_info.minor}. A helper extracted from "
-        f"the compiled resolvers costs one frame per resolved node -- see architecture/performance.md."
+        f"the compiled resolvers costs one frame per resolved node."
     )
 
 
 def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
-    # An alias forwards to its source's compiled resolver by direct reference, like every
-    # Factory dependency. Routing through `_find_source` + `find_provider` +
-    # `resolve_provider` instead costs four frames per hop -- see architecture/performance.md.
+    """INVARIANT: an alias hop costs one Python frame, like any Factory dependency.
+
+    The alias resolver inlines the source lookup and the source's resolver-memo read. Routing
+    through `_find_source` + `find_provider` + `resolve_provider` instead costs four frames per hop.
+    """
+
     class _Source: ...
 
     class _Iface: ...
@@ -504,13 +551,17 @@ def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
 
     assert (with_alias - without_alias) == 1, (
         f"an alias hop costs {with_alias - without_alias} Python calls, expected 1 (its own "
-        f"resolver). Looking the source up per resolve costs four -- see architecture/performance.md."
+        f"resolver). Looking the source up per resolve costs four."
     )
 
 
 def test_overridden_alias_compiles_nothing_of_its_source() -> None:
-    # The override front-guard runs before the source is ever looked up, so the mock pattern
-    # never pays to compile a subtree it will not touch.
+    """INVARIANT: an override short-circuits before its provider's subtree is compiled.
+
+    The front-guard runs before the alias source is looked up, so the mock pattern never pays to
+    compile a subtree it will not touch. Moving the guard below the source lookup breaks that.
+    """
+
     class _Source: ...
 
     class _Iface: ...
@@ -528,9 +579,12 @@ def test_overridden_alias_compiles_nothing_of_its_source() -> None:
 
 
 def test_no_compiled_resolver_closes_over_its_registry() -> None:
-    # A resolver that captures its registry forms a cycle with the memo holding it, so the
-    # registry is reclaimable only by cyclic GC. Every closure reads its registries off the
-    # container argument instead.
+    """INVARIANT: no compiled resolver captures its registry in a closure cell.
+
+    A resolver that captures the registry forms a cycle with the memo holding it, so the registry
+    becomes reclaimable only by cyclic GC. Every closure reads its registries off the container arg.
+    """
+
     class _Src: ...
 
     class _Iface: ...
@@ -557,11 +611,12 @@ def test_no_compiled_resolver_closes_over_its_registry() -> None:
     ("arity", "expected"), [(0, "resolve_arity0"), (1, "resolve_arity1"), (2, "resolve_positional")]
 )
 def test_positional_path_selects_the_arity_specialised_closure(arity: int, expected: str) -> None:
-    # Asserted on the code object because nothing else can see it: the rungs are semantically
-    # identical to the generic star-call, and from 3.12 PEP 709 inlines the comprehension the
-    # frame-budget test would otherwise notice. Delete a rung and this fails on every
-    # interpreter; without it, only the 3.10 and 3.11 jobs would catch the regression, and they
-    # would report it as an extracted helper.
+    """INVARIANT: arity 0 and 1 compile to their own specialised closures.
+
+    Below 3.12 a comprehension is a separate code object, so a generic star-call costs a third frame
+    per node. Deleting a rung fails here on every interpreter; without this test only the 3.10 and
+    3.11 jobs would notice, and they would misreport it as an extracted helper.
+    """
     group = _arity_group(arity)
     container = Container(scope=Scope.APP, groups=[group])
     resolver = container.providers_registry.resolver_for(group.target)
@@ -569,10 +624,13 @@ def test_positional_path_selects_the_arity_specialised_closure(arity: int, expec
 
 
 def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
-    # The cold-miss thunk must not close over `target`: a closure promotes it to a cell, so
-    # MAKE_CELL runs in the resolver's prologue on every call -- including the warm hit that
-    # returns early, and the override hit that never reaches `target` at all. Measured at ~18 ns
-    # of a ~162 ns warm resolve. Nothing else in the suite would catch a revert to a lambda.
+    """INVARIANT: the cached-factory resolver has no cell variables.
+
+    The cold-miss thunk must stay a `functools.partial`, never a lambda closing over `target`: a
+    closure promotes `target` to a cell, so MAKE_CELL runs in the prologue on every call --
+    including the warm hit that returns two lines later. Nothing else in the suite catches a revert.
+    """
+
     class G(Group):
         cached = providers.Factory(creator=_A, scope=Scope.APP, cache=True)
 
@@ -581,6 +639,24 @@ def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
     code = typing.cast("_pytypes.FunctionType", resolver).__code__
 
     assert code.co_cellvars == (), (
-        f"the cached-factory resolver grew cell variables {code.co_cellvars}; "
-        f"a MAKE_CELL now runs on every warm hit -- see architecture/performance.md"
+        f"the cached-factory resolver grew cell variables {code.co_cellvars}; a MAKE_CELL now runs on every warm hit"
     )
+
+
+# ---------------------------------------------------------------------------
+# compile_resolver dispatch — an unhandled provider type fails at compile time
+# ---------------------------------------------------------------------------
+
+
+def test_compile_resolver_rejects_an_unknown_provider_type() -> None:
+    """INVARIANT: a provider type with no compiler branch raises TypeError.
+
+    There is no interpreted fallback to inherit shared behaviour from, so a new provider type that
+    forgets its branch must fail at compile time rather than resolve to something plausible.
+    """
+
+    class _Unsupported(AbstractProvider[int]):
+        __slots__ = ()
+
+    with pytest.raises(TypeError, match="no compiled resolver for provider type _Unsupported"):
+        compile_resolver(_Unsupported(scope=Scope.APP, bound_type=None), ProvidersRegistry())

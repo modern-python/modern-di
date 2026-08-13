@@ -17,8 +17,9 @@ re-apply via that repo's `APPLY.md` flow.
 files hold nothing durable. That held — 113 change files plus 18 audit reports
 yielded only 3 promotions to `decisions/`. But the *reason* was not the predicted
 one. The why-nots were not missing from `changes/`; they had **already been
-promoted** into `architecture/`, `ROADMAP.md`, `benchmarks/README.md`, and
-`docs/introduction/design-decisions.md` at ship time. Of the 33 files examined,
+promoted** into `architecture/` (since removed — see the note below),
+`ROADMAP.md`, `benchmarks/README.md`, and `docs/introduction/design-decisions.md`
+at ship time. Of the 33 files examined,
 16 were redundant because their content had been promoted or already had a
 `decisions/` file.
 
@@ -32,7 +33,8 @@ to be true of itself before this is safe" — and 3.0.0 would ship it to consume
 who may not meet that bar. Three routes:
 
 1. **Soak longer here**, then upstream as 3.0.0 with a stated precondition:
-   adopt only if your `architecture/` promotions are reliable.
+   adopt only if your capability-documentation promotions are reliable
+   (`architecture/` was this repo's version of that target; see the note below).
 2. **Upstream as an optional profile** alongside the current one, so repos choose.
    This was considered when the plan was made and passed over; the harvest is an
    argument to reconsider it.
@@ -72,6 +74,29 @@ Three things should inform whichever route is taken, and none has evidence yet:
   `status` field never once took its second value. If a year passes with no
   supersession, the honest conclusion is that `decisions/` needs no state marker
   at all and the key should go too.
+
+## Update: the promotion target this item relied on is gone
+
+`architecture/` was deleted 2026-08-11:
+11 capability pages routed instead to code, a named `INVARIANT:`-marked test,
+`decisions/`, or `docs/`, per the four-homes admission check now in
+`planning/README.md`. The premise this item's central finding rested on —
+deleting `changes/` was safe *because* `architecture/` promotion discipline
+worked — is no longer demonstrable the same way, because the thing being
+promoted *into* no longer exists as a single directory to point at.
+
+This does not resolve the upstream question; if anything it sharpens it. The
+harvest's finding still holds as a historical fact (16 of 33 examined files
+were redundant because their content had already reached a durable home by ship
+time). But route 1's phrasing above — "adopt only if your `architecture/`
+promotions are reliable" — no longer names a target this repo still has. A
+2.30.0-vintage answer would need to generalize it to "adopt only if your
+capability facts reliably reach *some* durable home (code, tests,
+`decisions/`, `docs/`)," which is the four-homes model this repo now runs, not
+the two-destination one (`architecture/` and everything else) the harvest was
+measured against. Whether that generalized claim holds needs its own evidence;
+none exists yet. The revisit trigger below is unchanged — this update narrows
+what "check" means but does not move the date.
 
 ## Revisit trigger
 

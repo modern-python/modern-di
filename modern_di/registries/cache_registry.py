@@ -87,10 +87,10 @@ class CacheRegistry:
 
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
         # Get before setdefault: a plain setdefault eagerly builds a throwaway CacheItem on every
-        # hit (architecture/performance.md). The creation path keeps setdefault, whose atomicity is
-        # what makes concurrent first-resolvers share one CacheItem — and it runs outside the
-        # container lock (see architecture/concurrency.md), because the singleton cache
-        # and its double-checked lock live on that object.
+        # hit (see test_cached_resolver_has_no_cell_on_the_warm_path). The creation path keeps
+        # setdefault, whose atomicity is what makes concurrent first-resolvers share one CacheItem
+        # — and it runs outside the container lock, because the singleton cache and its
+        # double-checked lock live on that object.
         item = self._items.get(provider.provider_id)
         if item is not None:
             return item

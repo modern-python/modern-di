@@ -30,6 +30,12 @@ def test_mark_validated_sets_validated() -> None:
 
 
 def test_mutation_clears_validated() -> None:
+    """INVARIANT: every registry mutation clears `_validated`.
+
+    `register` and `add_providers` are the only mutators. One that forgets to clear leaves a stale
+    clean result, so a later `validate()` returns free without walking the now-larger graph -- and
+    the runtime cycle guard stays armed to re-raise instead of converting.
+    """
     registry = ProvidersRegistry()
     registry.mark_validated()
     assert registry.is_validated() is True
