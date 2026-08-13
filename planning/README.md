@@ -55,12 +55,12 @@ Before writing a line anywhere:
 
 This is deliberate, and it is the second lesson rather than the first. A capability
 directory (`architecture/`) was kept for four months and cut to invariants twice —
-`b2404c4` (#282, 2026-07-07, −433 lines) and `047b6ea` (#395, 2026-07-29, −292
-lines) — and regrew both times. Promotion discipline was not the problem: 72% of
-commits touching `modern_di/` also touched it. Every PR added a paragraph that felt
-load-bearing and none removed one, so the pages ratcheted toward restating code, and
-restatement is what goes stale. The absence of the directory is the mechanism. See
-[`decisions/2026-08-11-drop-architecture-directory.md`](decisions/2026-08-11-drop-architecture-directory.md).
+`b2404c4` (#282, 2026-07-07: 433 deletions against 110 insertions across six pages)
+and `047b6ea` (#395, 2026-07-29: 292 against 147 across four) — and regrew both
+times. Promotion discipline was not the problem: 72% of commits touching
+`modern_di/` also touched it. Every PR added a paragraph that felt load-bearing and
+none removed one, so the pages ratcheted toward restating code, and restatement is
+what goes stale. The absence of the directory is the mechanism.
 
 `decisions/` and `INVARIANT:` docstrings inherit the same risk from the other direction: nothing yet
 prunes a record once its call is settled or a docstring once its claim stops mattering, so keeping

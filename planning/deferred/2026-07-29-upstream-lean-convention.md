@@ -77,8 +77,7 @@ Three things should inform whichever route is taken, and none has evidence yet:
 
 ## Update: the promotion target this item relied on is gone
 
-`architecture/` was deleted 2026-08-11
-([`2026-08-11-drop-architecture-directory.md`](../decisions/2026-08-11-drop-architecture-directory.md)):
+`architecture/` was deleted 2026-08-11:
 11 capability pages routed instead to code, a named `INVARIANT:`-marked test,
 `decisions/`, or `docs/`, per the four-homes admission check now in
 `planning/README.md`. The premise this item's central finding rested on —
