@@ -39,9 +39,9 @@ hot path. Against a ~0-to-3.5% narrow win, lazy-allocation costs:
 1. A `None`-check on the cached-resolve hot path plus a `_use_lock` slot.
 2. **Re-introducing the singleton-creation race the lock exists to prevent** —
    lazy lock creation must itself be atomic, so it needs a guard lock or a
-   CAS-style publish, a new concurrency-correctness surface against the freshly
+   CAS-style publish, a new concurrency-correctness surface against the
    documented Beta contract
-   ([`2026-08-11-free-threaded-beta-not-stable.md`](2026-08-11-free-threaded-beta-not-stable.md)).
+   ([design decisions](../../docs/introduction/design-decisions.md#the-thread-safety-boundary)).
 
 The `CacheRegistry`/`ContextRegistry` variants are *weaker* still: they are used
 more often in realistic children, so they save even less. Net negative for a
