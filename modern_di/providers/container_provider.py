@@ -7,6 +7,8 @@ from modern_di.scope import Scope
 class _ContainerProvider(AbstractProvider[typing.Any]):
     __slots__ = ()
 
+    _takes_group_scope = False
+
     def __init__(self) -> None:
         super().__init__(scope=Scope.APP, bound_type=None)
 

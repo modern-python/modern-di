@@ -13,8 +13,18 @@ if typing.TYPE_CHECKING:
 _provider_id_counter = itertools.count()
 
 
+class _ExplicitScope:
+    """Scope-source marker for a scope that came from the provider's own ``scope=`` argument."""
+
+
+_EXPLICIT_SCOPE: typing.Final = _ExplicitScope()
+
+
 class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
-    __slots__ = ("_registered", "_scope_defaulted", "_stamping_group", "bound_type", "provider_id", "scope")
+    __slots__ = ("_registered", "_scope_source", "bound_type", "provider_id", "scope")
+
+    _takes_group_scope: typing.ClassVar[bool] = True
+    """Whether a Group-level default scope applies. False when the effective scope is derived."""
 
     def __init__(
         self,
@@ -22,26 +32,27 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         scope: enum.IntEnum | types.UnsetType,
         bound_type: type | None,
     ) -> None:
-        self._scope_defaulted = isinstance(scope, types.UnsetType)
-        self.scope: enum.IntEnum = Scope.APP if isinstance(scope, types.UnsetType) else scope
-        self._stamping_group: str | None = None
+        explicit_scope = scope if isinstance(scope, enum.IntEnum) else None
+        self.scope: enum.IntEnum = Scope.APP if explicit_scope is None else explicit_scope
+        self._scope_source: str | _ExplicitScope | None = None if explicit_scope is None else _EXPLICIT_SCOPE
         self._registered = False
         self.bound_type = bound_type
         self.provider_id: typing.Final = next(_provider_id_counter)
 
     def _stamp_group_scope(self, scope: enum.IntEnum, group_name: str) -> None:
-        """Apply a Group-level default scope; no-op when the provider's scope was chosen explicitly.
+        """Apply a Group-level default scope; no-op unless this provider's scope is still an unclaimed default.
 
         Frozen once registered: a compiled resolver captures `scope`, so a later change would apply
         only to resolvers compiled after it.
         """
-        if not self._scope_defaulted:
+        source = self._scope_source
+        if not self._takes_group_scope or isinstance(source, _ExplicitScope):
             return
-        if self._stamping_group is not None:
+        if source is not None:
             if self.scope != scope:
                 raise exceptions.GroupScopeConflictError(
                     provider_name=self.display_name,
-                    first_group=self._stamping_group,
+                    first_group=source,
                     first_scope=self.scope,
                     second_group=group_name,
                     second_scope=scope,
@@ -55,7 +66,7 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
                 new_scope=scope,
             )
         self.scope = scope
-        self._stamping_group = group_name
+        self._scope_source = group_name
 
     @property
     def display_name(self) -> str:

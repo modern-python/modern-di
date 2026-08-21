@@ -2,7 +2,6 @@ import typing
 
 from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
-from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
@@ -12,16 +11,16 @@ if typing.TYPE_CHECKING:
 class Alias(AbstractProvider[types.T_co]):
     __slots__ = ("_source_type",)
 
+    _takes_group_scope = False
+
     def __init__(
         self,
         source_type: type[types.T_co],
         *,
         bound_type: type | types.UnsetType | None = types.UNSET,
     ) -> None:
-        # Always a concrete IntEnum (never UNSET), so `_scope_defaulted` stays False and
-        # group-default stamping skips aliases. An alias's effective scope is derived from its source.
         super().__init__(
-            scope=Scope.APP, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type
+            scope=types.UNSET, bound_type=source_type if isinstance(bound_type, types.UnsetType) else bound_type
         )
         self._source_type = source_type
 
