@@ -428,13 +428,15 @@ def _compile_container_provider() -> "typing.Callable[[Container], typing.Any]":
 
 
 def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
-    """Front-guard the override, then delegate to the bound `ContextProvider.resolve`.
+    """Front-guard the override, then inline the context lookup at this provider's fixed scope.
 
-    Reuses the bound method so the unset-value `ContextValueNotSetError` stays identical, not
-    reimplemented.
+    The same inline lookup the folded context kwargs use, with the scope read once here rather than
+    per resolve (see test_direct_context_resolve_reads_the_scope_only_at_compile_time).
+    `find_container`, never `_navigate`: nothing prepends a resolution step on the direct path.
     """
     pid = cp.provider_id
-    resolve_bound = cp.resolve
+    scope = cp.scope
+    context_type = cp.context_type
 
     def resolve(container: "Container") -> typing.Any:
         overrides = container.overrides_registry
@@ -442,7 +444,13 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "typing.Call
             override = overrides.fetch_override(pid)
             if override is not types.UNSET:
                 return override
-        return resolve_bound(container)
+        target = container if container.scope == scope else container.find_container(scope)
+        if target.closed:
+            target._prepare()
+        value = target.context_registry.find_context(context_type)
+        if value is types.UNSET:
+            raise exceptions.ContextValueNotSetError(context_type=context_type, scope_name=scope.name)
+        return value
 
     return resolve
 

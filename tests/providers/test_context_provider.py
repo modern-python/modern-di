@@ -11,6 +11,8 @@ from modern_di.exceptions import (
     ContextValueNotSetError,
     ScopeNotInitializedError,
 )
+from modern_di.providers.abstract import AbstractProvider
+from modern_di.types import UNSET
 
 
 request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
@@ -644,3 +646,71 @@ def test_transient_factory_context_kwarg_through_closed_holder_warns() -> None:
 
     with pytest.warns(ContainerClosedWarning):
         assert request.resolve(_CachedNullable).ctx is value
+
+
+def test_direct_context_resolve_reads_the_scope_only_at_compile_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """INVARIANT: the compiled resolver for a ContextProvider consults `scope` once, at compile time.
+
+    `scope` is a derived property, so reading it per resolve costs ~11ns on a path the marker
+    injectors hit once per marker per request. Delegating the lookup back to the provider instead
+    of inlining it here reintroduces that read.
+    """
+
+    class Cfg: ...
+
+    class G(Group):
+        cfg = providers.ContextProvider(Cfg, scope=Scope.REQUEST)
+
+    app = Container(scope=Scope.APP, groups=[G])
+    app.open()
+    request = app.build_child_container(scope=Scope.REQUEST, context={Cfg: Cfg()})
+    assert isinstance(request.resolve(Cfg), Cfg)  # compile the resolver
+
+    reads = 0
+    original = AbstractProvider.scope.fget
+
+    def counting_scope(self: providers.ContextProvider[object]) -> object:
+        nonlocal reads
+        reads += 1
+        return original(self)
+
+    monkeypatch.setattr(AbstractProvider, "scope", property(counting_scope))
+    assert G.cfg.scope is Scope.REQUEST  # positive control: the counter is wired in
+    assert reads == 1
+
+    reads = 0
+    assert isinstance(request.resolve(Cfg), Cfg)
+    assert reads == 0
+
+
+def test_fetch_context_value_reports_an_absent_value_instead_of_raising() -> None:
+    """The public accessor returns UNSET where a direct resolve of the same provider raises."""
+
+    class Cfg: ...
+
+    provider = providers.ContextProvider(Cfg, scope=Scope.APP)
+    app = Container(scope=Scope.APP)
+    app.add_providers(provider)
+    app.open()
+
+    assert provider.fetch_context_value(app) is UNSET
+    with pytest.raises(ContextValueNotSetError):
+        app.resolve(Cfg)
+
+
+def test_fetch_context_value_hops_to_the_provider_scope_reopening_a_closed_owner() -> None:
+    """From a deeper container the accessor navigates to the provider's own scope, reopening it if closed."""
+
+    class Cfg: ...
+
+    cfg = Cfg()
+    provider = providers.ContextProvider(Cfg, scope=Scope.APP)
+    app = Container(scope=Scope.APP, context={Cfg: cfg})
+    app.add_providers(provider)
+    app.open()
+    request = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+
+    with pytest.warns(ContainerClosedWarning):
+        assert provider.fetch_context_value(request) is cfg
+    assert app.closed is False
