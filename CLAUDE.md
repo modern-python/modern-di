@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 This project uses `just` (task runner) and `uv` (package manager). The
-[`Justfile`](Justfile) is the source of truth for recipes — run `just --list`
+[`Justfile`](justfile) is the source of truth for recipes — run `just --list`
 or read it for every recipe and its intent. The non-obvious essentials:
 
 - `just test [args]` — pytest, **no coverage**; targeted runs won't trip the
