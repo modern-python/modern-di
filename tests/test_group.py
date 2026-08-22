@@ -322,3 +322,34 @@ def test_failed_registration_does_not_freeze_scope() -> None:
         svc = shared
 
     assert shared.scope is Scope.REQUEST
+
+
+def test_group_scope_alias_still_resolves_from_the_source_container() -> None:
+    """INVARIANT: a group default never reaches an Alias; its effective scope derives from its source.
+
+    `Alias._takes_group_scope` is False for this reason. Stamping one would move its stored scope
+    off the placeholder and make the alias unresolvable from the container its source lives in --
+    here, a REQUEST stamp on an APP-scoped source resolved from the APP container.
+    """
+
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        svc = providers.Factory(_Svc, scope=Scope.APP)
+        alias = providers.Alias(_Svc, bound_type=_Ctx)
+
+    app_container = Container(groups=[RequestGroup])
+    assert isinstance(app_container.resolve(_Ctx), _Svc)
+
+
+def test_group_scope_does_not_stamp_the_container_provider() -> None:
+    """INVARIANT: a group default never reaches the container provider.
+
+    It resolves to whichever container is asking, at every scope, and it is public -- so a group
+    body may list it. A REQUEST stamp would make the one shared singleton unresolvable from the
+    APP container for every other group in the process.
+    """
+
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        current = providers.container_provider
+
+    assert providers.container_provider.scope is Scope.APP
+    assert RequestGroup.get_named_providers()["current"] is providers.container_provider

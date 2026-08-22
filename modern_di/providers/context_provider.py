@@ -1,7 +1,7 @@
 import enum
 import typing
 
-from modern_di import exceptions, types
+from modern_di import types
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -35,15 +35,6 @@ class ContextProvider(AbstractProvider[types.T_co]):
 
     def __repr__(self) -> str:
         return f"ContextProvider(context_type={self.context_type!r}, scope={self.scope!r})"
-
-    def resolve(self, container: "Container") -> types.T_co:
-        value = self.fetch_context_value(container)
-        if value is types.UNSET:
-            resolving = container.find_container(self.scope)
-            raise exceptions.ContextValueNotSetError(context_type=self.context_type, scope_name=resolving.scope.name)
-        # `is UNSET` does not narrow in ty (UNSET is a Final instance, not a tracked singleton);
-        # isinstance would narrow but costs ~10ns on the context resolve path.
-        return value  # ty: ignore[invalid-return-type]
 
     def fetch_context_value(self, container: "Container") -> "types.T_co | types.UnsetType":
         # Same-scope int compare before the hop, as the compiled Factory closures do: a request
