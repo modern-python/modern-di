@@ -102,13 +102,7 @@ class DependencyPathMixin:
     chain of provider names as it propagates back up to the caller. With an empty `dependency_path`
     (the error never passed through a resolution frame) `_render_body` returns the base message
     unchanged.
-
-    Empty `__slots__`: each concrete error declares the `_base_message`/`dependency_path` slots
-    itself, avoiding the `TypeError: multiple bases have instance lay-out conflict` that a slotted
-    mixin combined with an `Exception` subclass would otherwise raise.
     """
-
-    __slots__ = ()
 
     def __init__(self, message: str) -> None:
         self._base_message = message
