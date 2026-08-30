@@ -108,19 +108,23 @@ local deviation from `planning-convention` 2.2.0.
 
 ## Vocabulary
 
-A term is listed only when there is a synonym to reject, or a meaning subtle enough that code and
-docs must agree on it.
+The domain glossary lives in [`CONTEXT.md`](CONTEXT.md) at the repo root: every term, the synonyms it
+rejects, and the rule deciding what is admitted. Read it before naming a concept in code, a test
+name, or an issue title.
 
-- **Container** — owns the registries and resolves within a scope. *Avoid:* injector.
-- **Provider** — a declaration of *how to produce* a dependency; the recipe, not the value. *Avoid:* service,
-  dependency.
-- **Scope** — one band in the container hierarchy. *Avoid:* lifetime, layer.
-- **Group** — a non-instantiable namespace class declaring providers. *Avoid:* module.
-- **Resolution** — producing a value from its provider. *Avoid:* injection (reserve that for passing a resolved
-  value into a handler).
-- **Override** — a test-time replacement of a resolved value. *Avoid:* mock, patch (an override supplies a
-  concrete value; it does not wrap or spy).
-- **Bound type** — the type a provider is registered under. *Avoid:* registered type, return type.
-- **Wiring plan** — the partition of a creator's parameters by how each is satisfied. *Avoid:* compiled kwargs.
-- **Finalizer** — a cleanup callback on a cached provider, run LIFO at close. *Avoid:* teardown, destructor.
-- **Connection** — the framework object a unit of work carries. *Avoid:* request (too HTTP-specific).
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `modern-python/modern-di`, driven through the `gh` CLI; rejected enhancements are
+recorded in `docs/adr/`. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its role name. See
+[`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context: one root `CONTEXT.md` plus `docs/adr/`. See
+[`docs/agents/domain.md`](docs/agents/domain.md).
