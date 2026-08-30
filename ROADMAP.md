@@ -61,11 +61,12 @@ Strawberry, Quart, RQ, APScheduler, Jobify, Flet, ag2.
   measurement drift. The bound stated when this was planned held: it trimmed the
   cell, it did not close it. dependency-injector's ~48 ns is a C-level slot read
   on a Cython core, which pure Python does not reach.
-  A third step remains open and is **deliberately deferred**: an APP-scoped
-  resolver could close over its `CacheItem` and reach ~16 ns, but the target is
-  only invariant because one registry belongs to one root, so the registry would
-  have to reference its root — the container reference cycle removed in 3.1.1.
-  That needs a weakref and a proof, for ~30 ns.
+  A third step remains open and is tracked in
+  [issue #434](https://github.com/modern-python/modern-di/issues/434): an
+  APP-scoped resolver could close over its `CacheItem` and reach ~16 ns, but the
+  target is only invariant because one registry belongs to one root, so the
+  registry would have to reference its root — the container reference cycle
+  removed in 3.1.1. That needs a weakref and a proof, for ~30 ns.
 
 ### Docs & ecosystem
 - **Canonical on-ramp per integration** — every official integration ships a

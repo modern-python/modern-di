@@ -80,7 +80,7 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 # The single resolve path compiles closures over provider internals: reading `Factory._creator`
 # and friends is the design, not an incident, and every compiled resolver returns `typing.Any`.
 # Suppressed per-file rather than on 31 individual lines. Growing this coupling is the revisit
-# trigger on planning/deferred/2026-08-01-compiler-provider-compile-spec.md.
+# trigger on https://github.com/modern-python/modern-di/issues/436.
 "modern_di/resolver_compiler.py" = ["SLF001", "ANN401"]
 # White-box tests assert on container and registry internals; that is what they are for.
 "tests/**" = ["SLF001"]
