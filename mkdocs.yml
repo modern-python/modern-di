@@ -120,6 +120,10 @@ theme:
         icon: material/brightness-4
         name: Switch to system preference
 
+# docs/agents/ is agent configuration, not user documentation.
+exclude_docs: |
+  /agents/
+
 validation:
   omitted_files: warn
   absolute_links: warn
