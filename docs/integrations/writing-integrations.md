@@ -433,13 +433,8 @@ Each official integration is its own repository and PyPI package, mirroring the
   [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and
   the most relevant recipe, and the `## API` table last. Integrations do not
   ship their own docs site.
-- **Release.** Tag-driven, mirroring `modern-di`: write release notes and push a
-  bare semver tag off green `main`.
-
-!!! tip "Planning convention"
-    For the planning/change-management setup, following the
-    [planning-convention](https://github.com/lesnik512/planning-convention) is
-    recommended — the same two-axis convention the `modern-di` repo uses.
+- **Release.** Tag-driven, mirroring `modern-di`: push a bare semver tag off
+  green `main` and let the workflow publish.
 
 ## Checklist
 
@@ -470,6 +465,4 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `examples/app.py` (+ smoke test asserting real injected output, 100%
       coverage, no `omit`) and a README `Usage example: [examples/](./examples)`
       line.
-- [ ] `CLAUDE.md` and `Justfile` mirrored; invariants pinned by named tests;
-      [planning-convention](https://github.com/lesnik512/planning-convention)
-      followed.
+- [ ] `CLAUDE.md` and `Justfile` mirrored; invariants pinned by named tests.
