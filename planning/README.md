@@ -17,7 +17,8 @@ the template and ship a conventional-commit title.
 
 - an alternative you **rejected** with reasoning → an ADR in
   [`docs/adr/`](../docs/adr/), numbered `NNNN-slug.md`
-- work that is real but **not scheduled** → `deferred/`
+- work that is real but **not scheduled** → a GitHub issue (see
+  [`docs/agents/issue-tracker.md`](../docs/agents/issue-tracker.md))
 
 **3. Run `just check-links` before pushing.**
 
@@ -66,11 +67,6 @@ whether that test or a sibling one catches a given regression.
 
 ## Artifacts
 
-- **[`deferred/<YYYY-MM-DD>-<slug>.md`](deferred/)** — one file per open item,
-  each **self-contained**: it inlines the evidence and reasoning needed to pick
-  it up cold. A required `**Revisit trigger:**` section — an item with no trigger
-  is abandoned, not deferred. This directory is being retired in favour of GitHub
-  Issues; do not add to it.
 - **[`releases/<version>.md`](releases/)** — one file per curated release, from
   `_templates/release.md`. Used **verbatim** as the GitHub Release body by
   [`release.yml`](../.github/workflows/release.yml), which fails a stable tag
@@ -83,6 +79,6 @@ whether that test or a sibling one catches a given regression.
   `just check-links` and by `just lint-ci`. It covers the trees a site builder
   never sees.
 
-A **deferred item's presence in `deferred/` is its status**. When it resolves: if
-it ships, delete the file (its truth is now in the code and the release notes); if
-it is declined, write the refusal as an ADR under [`docs/adr/`](../docs/adr/).
+This directory holds no work queue. Open work is a GitHub issue and refused work
+is an ADR under [`docs/adr/`](../docs/adr/); there is no third state and nothing
+here to add a file to.

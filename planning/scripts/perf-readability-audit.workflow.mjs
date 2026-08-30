@@ -1,10 +1,10 @@
 export const meta = {
   name: 'perf-readability-audit',
-  description: 'Two-lens (performance + readability) decision-grade audit of modern_di, gated against the settled decisions/deferred corpus, producing a leverage-vs-risk report.',
+  description: 'Two-lens (performance + readability) decision-grade audit of modern_di, gated against known ground (settled ADRs, already-recorded open issues), producing a leverage-vs-risk report.',
   whenToUse: 'Run for a fresh both-axes refactor survey that separates new perf hypotheses from already-settled ground and finds off-hot-path readability seams.',
-  // The report is transient scratch: a sweep's durable output is a PR plus planning/deferred/ items.
+  // The report is transient scratch: a sweep's durable output is a PR plus a GitHub issue or an ADR.
   phases: [
-    { title: 'Discover',   detail: 'file map + settled corpus (decisions, deferred, guard scenarios)' },
+    { title: 'Discover',   detail: 'file map + known ground (ADRs, open issues, guard scenarios)' },
     { title: 'Find',       detail: 'two parallel lens finders: performance, readability' },
     { title: 'Verify',     detail: 'three lenses per finding, majority vote' },
     { title: 'Synthesize', detail: 'dedup, leverage-vs-risk triage, write report' },
@@ -16,7 +16,7 @@ export const meta = {
 const CONTEXT_BLOB_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['baseline_commit', 'file_map', 'decisions', 'deferred_items', 'guard_scenarios', 'competitive_note', 'recent_commits'],
+  required: ['baseline_commit', 'file_map', 'decisions', 'open_issues', 'guard_scenarios', 'competitive_note', 'recent_commits'],
   properties: {
     baseline_commit: { type: 'string', description: 'short HEAD sha from `git rev-parse --short HEAD`' },
     file_map: {
@@ -45,17 +45,17 @@ const CONTEXT_BLOB_SCHEMA = {
         },
       },
     },
-    deferred_items: {
+    open_issues: {
       type: 'array',
-      description: 'Every planning/deferred/ item: short title, one-line gist, revisit trigger.',
+      description: 'Every open GitHub issue: number, short title, one-line gist.',
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'gist', 'revisit_trigger'],
+        required: ['number', 'title', 'gist'],
         properties: {
-          title:           { type: 'string' },
-          gist:            { type: 'string' },
-          revisit_trigger: { type: 'string' },
+          number: { type: 'integer' },
+          title:  { type: 'string' },
+          gist:   { type: 'string' },
         },
       },
     },
@@ -72,7 +72,7 @@ const CONTEXT_BLOB_SCHEMA = {
         },
       },
     },
-    competitive_note: { type: 'string', description: 'The current standing summary from planning/deferred/ (where modern-di sits vs rivals and the accepted floor).' },
+    competitive_note: { type: 'string', description: 'Where modern-di sits vs rivals (docs/introduction/performance.md) and the accepted floor (the no-exec stance).' },
     recent_commits:   { type: 'array', items: { type: 'string' } },
   },
 }
@@ -95,7 +95,7 @@ const RAW_FINDING_SCHEMA = {
     guard_scenario:      { type: 'string', description: 'PERF: the G-id (G1-G15) that would confirm it, plus expected-leverage note. READABILITY: "n/a".' },
     hot_path:            { type: 'boolean', description: 'true if the code is on the resolve hot path' },
     invariant_at_risk:   { type: 'string', description: 'READABILITY: the invariant the change must not break (frame count / 100% cov / zero-dep / behavior), or "none". PERF: "n/a".' },
-    settled_ref:         { type: 'string', description: 'if you suspect this matches a decisions/ or deferred/ item, name it here; else "".' },
+    settled_ref:         { type: 'string', description: 'if you suspect this matches an ADR or an open issue, name it here; else "".' },
   },
 }
 
@@ -117,7 +117,7 @@ const VERDICT_SCHEMA = {
     lens:          { enum: ['read-real-code', 'decision-conflict', 'invariant-safety'] },
     confirmed:     { type: 'boolean', description: 'read-real-code: code matches claim. decision-conflict: finding is FRESH (not already settled). invariant-safety: change is safe & leverage-honest. Default false when uncertain.' },
     reasoning:     { type: 'string', description: '1-3 sentences citing what the code/decision actually is.' },
-    settled_match: { type: 'string', description: 'decision-conflict lens only: the decision slug / deferred title this duplicates, or "" if genuinely fresh. Other lenses set "".' },
+    settled_match: { type: 'string', description: 'decision-conflict lens only: the ADR slug / issue number this duplicates, or "" if genuinely fresh. Other lenses set "".' },
   },
 }
 
@@ -154,11 +154,11 @@ Do exactly this:
 
 3. decisions: read every file under docs/adr/. For each, record its slug (the filename without number/extension is fine) and a one-line holding — WHAT WAS DECIDED, especially what was rejected (e.g. "declined folding ContextRegistry into Container", "no exec codegen"). These are the settled-ground guardrail.
 
-4. deferred_items: read every file in planning/deferred/. For each item, record a short title, a one-line gist, and its revisit trigger. Capture the perf items faithfully (warm-singleton memo-swap dropped, codegen ceiling, free-threaded non-scaling) — these must not be re-proposed as open.
+4. open_issues: run \`gh issue list --state open --limit 100 --json number,title,body\`. For each, record its number, a short title, and a one-line gist. Capture the perf items faithfully (warm-singleton headroom, free-threaded non-scaling) — these are already known and must not be re-proposed as fresh.
 
 5. guard_scenarios: read benchmarks/README.md and record the G1-G15 catalog: each id and what it isolates.
 
-6. competitive_note: one paragraph from planning/deferred/ summarizing where modern-di currently sits vs rivals and what the accepted floor is (the no-exec stance, the C2 warm-singleton gap).
+6. competitive_note: one paragraph summarizing where modern-di currently sits vs rivals and what the accepted floor is — the standing from docs/introduction/performance.md, the no-exec stance from docs/adr/0017-exec-hot-path-declined.md.
 
 7. recent_commits: subject lines from \`git log --oneline -20\`.
 
@@ -172,7 +172,7 @@ ${JSON.stringify(ctx, null, 2)}
 RULES:
 - Read the ACTUAL source before any finding (open modern_di/resolver_compiler.py, container.py, registries/*.py, providers/*.py, wiring.py, dependency_graph.py). The blob is a map, not the code.
 - Every finding is a HYPOTHESIS, not a claim. Set guard_scenario to the G-id (G1-G15) that would confirm it plus a one-line expected-leverage note. No prototyping, no bench runs — you are proposing what to measure, not measuring.
-- SETTLED GROUND IS OFF LIMITS as an "open" proposal. If your idea matches a decisions/ ruling or a deferred/ item (warm-singleton memo-swap, child lazy-alloc, exec/codegen, free-threaded immortalization, per-provider compile seam, folding ContextRegistry), you may only raise it if you bring GENUINELY NEW evidence — and you MUST name the settled item in settled_ref. When in doubt, set settled_ref and let the verifier judge.
+- KNOWN GROUND IS OFF LIMITS as an "open" proposal. If your idea matches an ADR ruling or an open issue (warm-singleton memo-swap, child lazy-alloc, exec/codegen, free-threaded immortalization, per-provider compile seam, folding ContextRegistry), you may only raise it if you bring GENUINELY NEW evidence — and you MUST name the settled item in settled_ref. When in doubt, set settled_ref and let the verifier judge.
 - Respect the stances as settled: no exec/codegen (zero-dep), conservative feature set, sync-only resolution. Do not propose them.
 - No lint/style. ruff and ty own those.
 - Set hot_path (is this on the resolve path?), leverage, risk, confidence. Set invariant_at_risk to "n/a" for perf.
@@ -213,16 +213,16 @@ DO: open the file, read the cited line + 10-30 lines of context. If the code mat
   if (lens === 'decision-conflict') {
     return `You are the DECISION-CONFLICT verifier — the mature-repo guardrail. Decide whether this finding is GENUINELY FRESH or already settled.
 
-SETTLED CORPUS (decisions + deferred items):
+KNOWN GROUND — an ADR is a settled refusal, an open issue is work already recorded:
 decisions: ${JSON.stringify(ctx.decisions, null, 2)}
-deferred_items: ${JSON.stringify(ctx.deferred_items, null, 2)}
+open_issues: ${JSON.stringify(ctx.open_issues, null, 2)}
 
 FINDING:
 ${f}
 
 DO:
-1. Check the finding against every decision holding and deferred item.
-2. If it duplicates a settled ruling/deferred item WITHOUT genuinely new evidence: confirmed=false, and set settled_match to that decision slug / deferred title. Quote the holding in reasoning.
+1. Check the finding against every ADR holding and open issue.
+2. If it duplicates an ADR ruling or an already-open issue WITHOUT genuinely new evidence: confirmed=false, and set settled_match to that ADR slug / issue number. Quote the holding — or the issue's gist — in reasoning.
 3. If it is genuinely fresh (or brings new evidence a skeptic would accept): confirmed=true, settled_match="".
 Default confirmed=false when the overlap is real and the "new evidence" is thin. Set lens="decision-conflict". Return the verdict.`
   }
@@ -303,10 +303,10 @@ One paragraph: the dominant themes and the single most important takeaway (e.g. 
 
 ## already-settled
 ### <title>
-- Matches: <decision slug / deferred title>
+- Matches: <ADR slug / issue number>
 - Lens(es): …
 
-**Why settled.** Quote the ruling/deferred holding. (These are recorded, not actioned.)
+**Why settled.** Quote the ADR ruling or the issue. (These are recorded, not actioned.)
 
 After writing, return the structured summary (report_path + counts per bucket). If survivors is empty, still write the report with each bucket "(no findings)" and return zero counts.
 
@@ -321,7 +321,7 @@ const context = await agent(DISCOVER_PROMPT, {
   schema: CONTEXT_BLOB_SCHEMA,
   model: 'haiku',
 })
-log(`discover: ${context.file_map.length} files, ${context.decisions.length} decisions, ${context.deferred_items.length} deferred items, ${context.guard_scenarios.length} guard scenarios @ ${context.baseline_commit}`)
+log(`discover: ${context.file_map.length} files, ${context.decisions.length} decisions, ${context.open_issues.length} open issues, ${context.guard_scenarios.length} guard scenarios @ ${context.baseline_commit}`)
 
 phase('Find')
 const lenses = [

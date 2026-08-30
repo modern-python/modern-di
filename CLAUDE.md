@@ -67,13 +67,15 @@ verification); it is reviewed with the diff. There is no change file and no lane
 to choose. A trivial PR (typo, dep bump, formatter) deletes the template and
 ships a conventional-commit title.
 
-Two things outlive the PR: an alternative **rejected** with reasoning becomes an
-ADR in [`docs/adr/`](docs/adr/) (`NNNN-slug.md`, sequential — see
+Two things outlive the PR, and there are exactly two places to put them: an
+alternative **rejected** with reasoning becomes an ADR in
+[`docs/adr/`](docs/adr/) (`NNNN-slug.md`, sequential — see
 [`docs/agents/domain.md`](docs/agents/domain.md)), and real work **not
-scheduled** goes to `planning/deferred/` (self-contained, with a revisit
-trigger). There is no separate truth-home directory — the living truth about
-behaviour is the code and its `INVARIANT:`-marked tests, and a behaviour change
-is reviewed with the diff, not promoted to a page. See
+scheduled** becomes a GitHub issue (see
+[`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)). There is no
+third state. There is no separate truth-home directory either — the living truth
+about behaviour is the code and its `INVARIANT:`-marked tests, and a behaviour
+change is reviewed with the diff, not promoted to a page. See
 [`planning/README.md`](planning/README.md) for the admission check that decides
 where a given fact belongs.
 

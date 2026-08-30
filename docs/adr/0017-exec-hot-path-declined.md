@@ -26,4 +26,5 @@ row, and dissolving the dependency-purity framing manufactures no win the measur
 **Revisit trigger:** a user-reported, real-world resolve bottleneck on a high-arity node or a deep
 singleton/scoped chain — the two forms where `exec` could pay — that the closure resolver provably
 cannot close. A synthetic micro-benchmark or a hypothetical does not qualify. This is the
-codegen-ceiling half of the open warm-singleton perf-headroom question.
+codegen-ceiling half of the open warm-singleton perf-headroom question,
+[issue #434](https://github.com/modern-python/modern-di/issues/434).
