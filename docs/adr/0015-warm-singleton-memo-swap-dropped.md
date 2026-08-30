@@ -4,6 +4,11 @@
 singleton hit keeps paying the normal compiled-resolver path. The mechanism was built in full,
 measured, and reverted.
 
+The lever it was aimed at: after the single-path compiled resolver (#334), the warm singleton hit
+was 292 ns, against dishka ~245 ns, wireup ~98 ns, that-depends ~85 ns, and dependency-injector
+~61 ns — modern-di paid `resolver_for` dispatch, the override front-guard, and `fetch_cache_item` on
+every warm hit.
+
 wireup's technique — swap a cached provider's stored resolver for a bare `return value` closure
 once the value exists — is sound here only for **APP** scope, where one registry ↔ one APP
 container ↔ one tree-wide value holds; deeper scopes cache per child container, so a
@@ -12,7 +17,7 @@ pre-committed gate: ship iff the warm hit reached ≤ ~146 ns (at least halved) 
 with zero correctness regression and a green free-threaded stress test.
 
 **Measured** (best-of-3, stable medians, machine-relative): guard g2 warm hit 584 → 375 ns;
-comparative C2 333 → 208 ns. A consistent **~1.6x**, enough to pass dishka (292 ns), short of the
+comparative C2 333 → 208 ns. A consistent **~1.6x**, enough to pass dishka, short of the
 ≤146 ns gate. The shortfall is structural: `resolve_provider`'s dispatch floor — the
 closed-container shim frame, the `resolver_for` lookup, the version check — sits upstream of the
 closure body the swap replaces, so "near-free" was never architecturally reachable this way. A

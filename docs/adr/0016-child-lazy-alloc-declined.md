@@ -3,12 +3,15 @@
 **Decision:** `Container.__init__` keeps eagerly building the per-child `RLock`, `CacheRegistry`,
 and `ContextRegistry`. They are not lazy-allocated.
 
+After the `_next_deeper` memo (#348) took ~40% off default child-build, the remaining per-child cost
+was three eager allocations: `RLock` (~195-214 ns), `CacheRegistry` (~217 ns), `ContextRegistry`
+(~189 ns).
+
 **Measured** ceiling (`use_lock=True` vs `False`, which already skips the RLock alloc; py3.10,
 guidance), starting from the strongest candidate — the `RLock`, since REQUEST children rarely create
 singletons:
 
-- Isolated child build: RLock alloc ≈ **195 ns/child** (`CacheRegistry` ≈ 217 ns, `ContextRegistry`
-  ≈ 189 ns).
+- Isolated child build: RLock alloc ≈ **195 ns/child**.
 - **Realistic caching request cycle** (build child → resolve a REQUEST-cached resource → close, the
   C4/G7 shape): saving ≈ **0 (0.4%)** — a caching child *uses* the lock, so lazy only defers the
   allocation and adds a `None`-check.

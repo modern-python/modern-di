@@ -1,8 +1,7 @@
 """Census of the invariant tests themselves.
 
-Every ``INVARIANT:`` docstring states what breaks it. The claim alone is a label; the second
-paragraph is the anti-refactor warning, and it is the reason the convention replaces prose
-documentation pages rather than restating them.
+Every ``INVARIANT:`` docstring states what breaks it: the claim alone is a label, and the second
+paragraph is the anti-refactor warning.
 """
 
 import ast

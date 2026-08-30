@@ -34,7 +34,7 @@ const CONTEXT_BLOB_SCHEMA = {
     },
     decisions: {
       type: 'array',
-      description: 'Every planning/decisions/*.md ruling: slug + one-line holding (especially what was rejected).',
+      description: 'Every docs/adr/*.md ruling: slug + one-line holding (especially what was rejected).',
       items: {
         type: 'object',
         additionalProperties: false,
@@ -152,7 +152,7 @@ Do exactly this:
 
 2. file_map: every file under modern_di/ (source) — relative path, line count, one-line role. Skip __pycache__.
 
-3. decisions: read every file under planning/decisions/. For each, record its slug (the filename without date/extension is fine) and a one-line holding — WHAT WAS DECIDED, especially what was rejected (e.g. "declined folding ContextRegistry into Container", "no exec codegen"). These are the settled-ground guardrail.
+3. decisions: read every file under docs/adr/. For each, record its slug (the filename without number/extension is fine) and a one-line holding — WHAT WAS DECIDED, especially what was rejected (e.g. "declined folding ContextRegistry into Container", "no exec codegen"). These are the settled-ground guardrail.
 
 4. deferred_items: read every file in planning/deferred/. For each item, record a short title, a one-line gist, and its revisit trigger. Capture the perf items faithfully (warm-singleton memo-swap dropped, codegen ceiling, free-threaded non-scaling) — these must not be re-proposed as open.
 
