@@ -34,14 +34,14 @@ Two levers, both now settled:
 - **The memo-swap** (swap the cached provider's resolver for a bare
   `return value` closure) was built, fully tested, measured at ~1.6x, and
   dropped — see
-  [`warm-singleton-memo-swap-dropped`](../decisions/2026-07-18-warm-singleton-memo-swap-dropped.md).
+  [`0015-warm-singleton-memo-swap-dropped`](../../docs/adr/0015-warm-singleton-memo-swap-dropped.md).
   The decisive finding is that `resolve_provider`'s dispatch floor is upstream of
   the swap and unremovable by it, so the technique provably cannot reach
   "near-free".
 - **The codegen ceiling on transient and deep-chain** is the cost of staying
   `exec`-free: dishka and wireup inline dependency calls into generated source,
   removing the per-node closure-call frame modern-di keeps. Re-declined — see
-  [`exec-hot-path-declined`](../decisions/2026-07-19-exec-hot-path-declined.md).
+  [`0017-exec-hot-path-declined`](../../docs/adr/0017-exec-hot-path-declined.md).
   The supporting measurement: closures already capture ~80-90% of the available
   ceiling, and `exec` buys a further 0-4% at fixed arity. So being modestly
   behind the codegen leaders on construction-heavy graphs is an accepted floor,

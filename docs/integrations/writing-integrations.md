@@ -402,7 +402,7 @@ Each official integration is its own repository and PyPI package, mirroring the
   directly under `Full guide:`.
 - **Mirror `modern-di`'s** `CLAUDE.md` and `Justfile`. Keep behavioural invariants
   in named tests rather than in a prose truth home, and record rejected
-  alternatives under `planning/decisions/`. Keep resolution sync-only and add no
+  alternatives as ADRs under `docs/adr/`. Keep resolution sync-only and add no
   runtime dependency beyond the framework and `modern-di`. `ruff` is unpinned and
   CI floats it forward, so keep `CPY001` (no per-file copyright header) in the
   lint `ignore` and reflow any pre-existing Markdown-embedded code fences the

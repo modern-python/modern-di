@@ -15,13 +15,13 @@ or read it for every recipe and its intent. The non-obvious essentials:
 - `just test [args]` — pytest, **no coverage**; targeted runs won't trip the
   gate. Passes args through: `just test tests/providers/test_factory.py -k <substring>`.
 - `just test-ci` — the **gated** full run (100% line coverage); this is what CI runs.
-- `just lint` (autofix) / `just lint-ci` (no autofix; also validates planning bundles).
-- `just check-planning` validates `planning/deferred/` + `planning/decisions/` frontmatter; `just index` prints that listing.
+- `just lint` (autofix) / `just lint-ci` (no autofix; also runs the repo-wide link check).
+- `just check-links` validates every relative Markdown link and heading anchor in the repo, including the trees `mkdocs --strict` never sees.
 
 ## Architecture
 
 - **Scope** — `IntEnum`, `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. A provider resolves only from a container of the same or deeper (higher-int) scope; otherwise a clear error is raised.
-- **Container** — the central object. Root: `Container(scope=Scope.APP, groups=[MyGroup])`; children via `container.build_child_container(scope=Scope.REQUEST, context={...})`. Children share the parent's providers/overrides registries; cache/context are per-container. Pass `validate=True` (or call `container.validate()`) for cycle + transitive-scope checks.
+- **Container** — the central object. Root: `Container(scope=Scope.APP, groups=[MyGroup])`; children via `container.build_child_container(scope=Scope.REQUEST, context={...})`. Children share the parent's providers/overrides registries; cache/context are per-container. Call `container.validate()` for cycle + transitive-scope checks; it is the only trigger — `Container(validate=...)` is accepted, ignored, and warns.
 
 There is no separate capability-page home for behavior detail — it lives in the code and its
 `INVARIANT:`-marked tests. Before writing prose about a capability, run the admission check in
@@ -67,15 +67,15 @@ verification); it is reviewed with the diff. There is no change file and no lane
 to choose. A trivial PR (typo, dep bump, formatter) deletes the template and
 ships a conventional-commit title.
 
-Two things outlive the PR and are committed under `planning/`: an alternative
-**rejected** with reasoning goes to `planning/decisions/`, and real work **not
+Two things outlive the PR: an alternative **rejected** with reasoning becomes an
+ADR in [`docs/adr/`](docs/adr/) (`NNNN-slug.md`, sequential — see
+[`docs/agents/domain.md`](docs/agents/domain.md)), and real work **not
 scheduled** goes to `planning/deferred/` (self-contained, with a revisit
 trigger). There is no separate truth-home directory — the living truth about
 behaviour is the code and its `INVARIANT:`-marked tests, and a behaviour change
 is reviewed with the diff, not promoted to a page. See
-[`planning/README.md`](planning/README.md) for the full convention, including
-the admission check that decides where a given fact belongs; it is a documented
-local deviation from `planning-convention` 2.2.0.
+[`planning/README.md`](planning/README.md) for the admission check that decides
+where a given fact belongs.
 
 - **Cutting a release (maintainers)** is tag-driven via
   [`.github/workflows/release.yml`](.github/workflows/release.yml): write the
@@ -103,8 +103,8 @@ local deviation from `planning-convention` 2.2.0.
 - Docstrings: public API documents the contract; internal helpers get a
   one-line contract, plus at most 1–2 lines for a genuinely non-obvious
   constraint. Never narrate implementation or justify code to a reviewer —
-  cross-file rationale lives in an `INVARIANT:` test docstring or
-  `planning/decisions/`.
+  cross-file rationale lives in an `INVARIANT:` test docstring or an ADR under
+  `docs/adr/`.
 
 ## Vocabulary
 

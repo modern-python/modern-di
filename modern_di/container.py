@@ -195,7 +195,7 @@ class Container:
 
         Carries its own copy of `resolve_provider`'s body rather than calling it: the extra
         frame is ~19% of a by-type resolve. The duplication is deliberate and the two must be
-        edited together -- see planning/decisions/2026-08-03-resolve-provider-not-a-seam.md.
+        edited together -- see docs/adr/0026-resolve-provider-not-a-seam.md.
         """
         registry = self.providers_registry
         provider = registry._providers.get(dependency_type)  # noqa: SLF001
