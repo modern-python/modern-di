@@ -40,8 +40,8 @@ effect. State the numbers, not "benchmarked".
       `modern_di/` → don't write it; enforceable → a test; a user needs it →
       `docs/`; otherwise it does not get written.
 - [ ] **Rejected an alternative** with reasoning that would otherwise be
-      re-litigated? File it in [`planning/decisions/`](../planning/decisions/)
-      with a revisit trigger — not here.
+      re-litigated? File it as an ADR in [`docs/adr/`](../docs/adr/), numbered
+      `NNNN-slug.md`, with a revisit trigger — not here.
 - [ ] **Found real work you are not doing now?** File it in
       [`planning/deferred/`](../planning/deferred/), self-contained, with a
       revisit trigger — not here.

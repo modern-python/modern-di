@@ -124,6 +124,10 @@ theme:
 exclude_docs: |
   /agents/
 
+# ADRs are built (so their outgoing links are validated) but stay out of the site menu.
+not_in_nav: |
+  /adr/
+
 validation:
   omitted_files: warn
   absolute_links: warn

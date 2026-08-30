@@ -12,13 +12,12 @@ lint:
     uv run ruff check --fix
     uv run ty check
 
-# CI lint (no autofix) — same checks as `lint` plus the planning validator.
+# CI lint (no autofix) — same checks as `lint` plus the repo-wide link check.
 lint-ci:
     uv run eof-fixer . --check
     uv run ruff format --check
     uv run ruff check --no-fix
     uv run ty check
-    uv run python planning/index.py --check
     uv run python planning/links.py
 
 # Check every relative Markdown link and heading anchor. `mkdocs --strict` only sees
@@ -64,11 +63,3 @@ publish:
 # Build the docs site, failing on broken links / nav warnings; CI runs this on every PR.
 docs-build:
     uvx --with-requirements docs/requirements.txt mkdocs build --strict
-
-# Print the planning index (deferred, then decisions) to stdout.
-index:
-    uv run python planning/index.py
-
-# Validate planning/deferred/ + planning/decisions/ frontmatter and naming; CI runs this.
-check-planning:
-    uv run python planning/index.py --check
