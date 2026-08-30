@@ -25,25 +25,6 @@ jobs:
       - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v7
 
-      # Curated release notes are MANDATORY for a stable tag. This runs BEFORE
-      # `just publish` (which is irreversible) so a missing notes file aborts
-      # the release before anything reaches PyPI — rather than silently shipping
-      # with GitHub's auto-generated notes. Pre-release tags (a letter in the
-      # name, e.g. 2.0.0rc1) are exempt and keep the auto-generated fallback.
-      - name: Require curated release notes (stable tags)
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_REF_NAME" =~ [a-z] ]]; then
-            echo "Pre-release ${GITHUB_REF_NAME}: curated notes not required."
-            exit 0
-          fi
-          notes="planning/releases/${GITHUB_REF_NAME}.md"
-          if [ ! -f "$notes" ]; then
-            echo "::error::Stable tag ${GITHUB_REF_NAME} has no curated release notes at ${notes}. Write the notes, commit to main, and re-tag." >&2
-            exit 1
-          fi
-          echo "Found curated release notes: ${notes}"
-
       # PyPI is irreversible, so it runs FIRST: if it fails the job stops and no
       # GitHub Release is created advertising a version that never reached PyPI.
       # `just publish` derives the version from $GITHUB_REF_NAME (the tag name).
@@ -51,22 +32,15 @@ jobs:
       # Publisher on the modern-di PyPI project (env: pypi, workflow: release.yml).
       - run: just publish
 
-      # Description source: planning/releases/<tag>.md if present (verbatim, no
-      # auto-changelog appended); otherwise GitHub's generated notes. The guard
-      # above makes the file mandatory for stable tags, so the generated-notes
-      # fallback only ever fires for pre-releases. A tag with a letter (2.0.0rc1)
-      # is a pre-release -> flagged so GitHub won't mark it "Latest".
+      # The Release body is GitHub's generated notes, rendered from the squashed
+      # PR titles since the previous tag — so a conventional-commit title is what
+      # a reader gets. A release wanting prose is edited after the fact with
+      # `gh release edit <tag> --notes-file`. A tag with a letter (2.0.0rc1) is a
+      # pre-release -> flagged so GitHub won't mark it "Latest".
       - name: Resolve release metadata
         id: meta
         run: |
           set -euo pipefail
-          notes="planning/releases/${GITHUB_REF_NAME}.md"
-          if [ -f "$notes" ]; then
-            echo "body_path=$notes" >> "$GITHUB_OUTPUT"
-            echo "generate_notes=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "generate_notes=true" >> "$GITHUB_OUTPUT"
-          fi
           if [[ "$GITHUB_REF_NAME" =~ [a-z] ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
@@ -76,7 +50,6 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          body_path: ${{ steps.meta.outputs.body_path }}
-          generate_release_notes: ${{ steps.meta.outputs.generate_notes }}
+          generate_release_notes: true
           prerelease: ${{ steps.meta.outputs.prerelease }}
           draft: false

@@ -15,8 +15,9 @@ or read it for every recipe and its intent. The non-obvious essentials:
 - `just test [args]` — pytest, **no coverage**; targeted runs won't trip the
   gate. Passes args through: `just test tests/providers/test_factory.py -k <substring>`.
 - `just test-ci` — the **gated** full run (100% line coverage); this is what CI runs.
-- `just lint` (autofix) / `just lint-ci` (no autofix; also runs the repo-wide link check).
-- `just check-links` validates every relative Markdown link and heading anchor in the repo, including the trees `mkdocs --strict` never sees.
+- `just lint` (autofix) / `just lint-ci` (no autofix).
+- `just docs-build` builds the site with `mkdocs --strict`, which fails on a broken link or nav
+  entry within `docs/`. Nothing validates links in root Markdown, `.github/`, or `docs/agents/`.
 
 ## Architecture
 
@@ -25,7 +26,7 @@ or read it for every recipe and its intent. The non-obvious essentials:
 
 There is no separate capability-page home for behavior detail — it lives in the code and its
 `INVARIANT:`-marked tests. Before writing prose about a capability, run the admission check in
-[`planning/README.md`](planning/README.md#where-a-fact-goes).
+**Where a fact goes** below.
 
 ### Key files
 
@@ -75,26 +76,64 @@ scheduled** becomes a GitHub issue (see
 [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)). There is no
 third state. There is no separate truth-home directory either — the living truth
 about behaviour is the code and its `INVARIANT:`-marked tests, and a behaviour
-change is reviewed with the diff, not promoted to a page. See
-[`planning/README.md`](planning/README.md) for the admission check that decides
-where a given fact belongs.
+change is reviewed with the diff, not promoted to a page. **Where a fact goes**
+below is the admission check that decides where a given fact belongs.
 
-- **Cutting a release (maintainers)** is tag-driven via
-  [`.github/workflows/release.yml`](.github/workflows/release.yml): write the
-  notes at `planning/releases/<version>.md` from
-  [`planning/_templates/release.md`](planning/_templates/release.md) (used
-  verbatim as the GitHub Release body; `docs/changelog.md` links to the
-  directory rather than republishing it), then push a bare-semver-**named** tag
-  off green `main` —
-  `git tag -m "modern-di 2.19.2" 2.19.2 && git push origin 2.19.2`. Only the tag
-  *name* must be bare semver (that is what the workflow matches); the tag object
-  itself may be annotated or signed, and `-m` is required whenever
-  `tag.gpgsign`/`tag.forceSignAnnotated` is set — without it `git tag` aborts
-  with `fatal: no tag message?`. The workflow runs `just publish`
-  (the tag sets the version via `uv version`; no `pyproject.toml` bump) to PyPI,
-  then creates the GitHub Release — PyPI first, so a failed publish creates no
-  Release. Pre-releases use the PEP 440 form (`2.0.0rc1`, not `2.0.0-alpha.5`).
-  PyPI is irreversible; there is no CI gate (a tag is the commitment point).
+### Where a fact goes
+
+Four homes, one owner each:
+
+| Home | Holds |
+|---|---|
+| `modern_di/` | anything readable from the module — the default |
+| a named test | an **invariant**: must stay true, and a change could silently break it |
+| `docs/adr/` | a rejected alternative, with the reasoning that would otherwise be re-litigated |
+| `docs/` | anything a user needs |
+
+Before writing a line anywhere:
+
+> Can an agent get this by reading `modern_di/`? → **don't write it.**
+> Would a wrong change here fail a test? → it belongs **in the test**, not in prose.
+> Does a user need it? → **`docs/`**.
+> Otherwise it does not get written.
+
+**Prose about mechanism has no home. There is no file to add a paragraph to.**
+
+Both ADRs and `INVARIANT:` docstrings ratchet in the other direction: nothing
+prunes a record once its call is settled, or a docstring once its claim stops
+mattering. Keeping either lean is a standing habit, not a one-time fix.
+
+An invariant is written as a test whose name is the claim, with a docstring opening
+`INVARIANT:` and a second paragraph naming **what breaks it**. That second paragraph
+is where an anti-refactor warning lives — design rationale, not a report of what this
+one test happens to catch. It does not have to describe a regression that *this*
+test alone would fail on; a sibling test may be the one that actually trips. The unit
+of truth is the invariant plus the whole suite, not the docstring plus its single
+test — the accepted cost is that a reader cannot tell, from one docstring alone,
+whether that test or a sibling one catches a given regression.
+`tests/test_invariant_census.py` enforces that shape.
+
+### Cutting a release (maintainers)
+
+Tag-driven via [`.github/workflows/release.yml`](.github/workflows/release.yml):
+push a bare-semver-**named** tag off green `main` —
+`git tag -m "modern-di 3.4.0" 3.4.0 && git push origin 3.4.0`. Only the tag
+*name* must be bare semver (that is what the workflow matches); the tag object
+itself may be annotated or signed, and `-m` is required whenever
+`tag.gpgsign`/`tag.forceSignAnnotated` is set — without it `git tag` aborts
+with `fatal: no tag message?`. The workflow runs `just publish`
+(the tag sets the version via `uv version`; no `pyproject.toml` bump) to PyPI,
+then creates the GitHub Release — PyPI first, so a failed publish creates no
+Release. Pre-releases use the PEP 440 form (`2.0.0rc1`, not `2.0.0-alpha.5`).
+PyPI is irreversible; there is no CI gate (a tag is the commitment point).
+
+The Release body is GitHub's generated notes, built from the squashed PR titles
+since the previous tag. A conventional-commit PR title is therefore the changelog
+entry a reader gets, and that is where the care goes. A release wanting prose gets
+it after the fact with `gh release edit <tag> --notes-file <file>`. There is no
+committed notes file and no template. Releases 2.15.0 through 3.4.0 have curated
+bodies, which live on the
+[Releases page](https://github.com/modern-python/modern-di/releases) and nowhere else.
 
 ## Code Style
 

@@ -35,7 +35,7 @@ effect. State the numbers, not "benchmarked".
 - [ ] **Behaviour changed?** If a wrong change here could pass silently, pin it with
       a test whose name is the claim and whose docstring opens `INVARIANT:` and says
       what breaks it. Do **not** write prose about mechanism — there is no page for
-      it. See [`planning/README.md`](../planning/README.md#where-a-fact-goes).
+      it. See the "Where a fact goes" section of [`CLAUDE.md`](../CLAUDE.md).
 - [ ] **Adding a fact anywhere?** Run the admission check: derivable from
       `modern_di/` → don't write it; enforceable → a test; a user needs it →
       `docs/`; otherwise it does not get written.

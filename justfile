@@ -12,18 +12,12 @@ lint:
     uv run ruff check --fix
     uv run ty check
 
-# CI lint (no autofix) — same checks as `lint` plus the repo-wide link check.
+# CI lint (no autofix) — the same checks as `lint`.
 lint-ci:
     uv run eof-fixer . --check
     uv run ruff format --check
     uv run ruff check --no-fix
     uv run ty check
-    uv run python planning/links.py
-
-# Check every relative Markdown link and heading anchor. `mkdocs --strict` only sees
-# docs/; planning/ lives outside docs_dir and is read on GitHub.
-check-links:
-    uv run python planning/links.py
 
 # Run pytest with NO coverage (targeted runs won't trip the gate). Passes args through.
 test *args:
