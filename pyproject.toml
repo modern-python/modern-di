@@ -79,8 +79,9 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 [tool.ruff.lint.per-file-ignores]
 # The single resolve path compiles closures over provider internals: reading `Factory._creator`
 # and friends is the design, not an incident, and every compiled resolver returns `typing.Any`.
-# Suppressed per-file rather than on 31 individual lines. Growing this coupling is the revisit
-# trigger on https://github.com/modern-python/modern-di/issues/436.
+# Suppressed per-file rather than line by line. Handing the compiler a compile-spec instead was
+# declined in docs/adr/0014-per-provider-compile-seam-declined.md; its revisit trigger is a second
+# consumer of these privates, not a count of them.
 "modern_di/resolver_compiler.py" = ["SLF001", "ANN401"]
 # White-box tests assert on container and registry internals; that is what they are for.
 "tests/**" = ["SLF001"]

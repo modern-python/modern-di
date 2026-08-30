@@ -44,34 +44,16 @@ Strawberry, Quart, RQ, APScheduler, Jobify, Flet, ag2.
 - **Dependency-graph export** (Mermaid / Graphviz) for debugging and docs.
 
 ### Trust & observability
-- **Public, reproducible benchmark suite** with neutral methodology —
-  shipped; see [Performance](https://modern-di.modern-python.org/introduction/performance/).
 - **Optional OpenTelemetry instrumentation** of resolution and finalization.
-- **Trim the warm-singleton path (C2)** — the published scenario where modern-di
-  trails by the widest margin, now 2.94x dependency-injector and 2.13x
-  that-depends. Two Python method calls that were pure indirection on a warm hit
-  — `ProvidersRegistry.resolver_for` on every top-level resolve and
-  `CacheRegistry.fetch_cache_item` inside the compiled resolver — are inlined on
-  their dict-lookup hit paths, with the method called only on a miss, keeping the
-  cycle-safe compilation thunk and the shared-item guarantee intact;
-  **shipped in 3.1.2**. The guard tier measured a ~25% faster warm hit
-  (170 → 128 ns), and the published cell moved from 3.88x to 2.94x against
-  dependency-injector and 2.80x to 2.13x against that-depends, with both rivals'
-  absolutes unchanged — the check that the movement is modern-di's and not
-  measurement drift. The bound stated when this was planned held: it trimmed the
-  cell, it did not close it. dependency-injector's ~48 ns is a C-level slot read
-  on a Cython core, which pure Python does not reach.
-  A third step remains open and is tracked in
-  [issue #434](https://github.com/modern-python/modern-di/issues/434): an
-  APP-scoped resolver could close over its `CacheItem` and reach ~16 ns, but the
-  target is only invariant because one registry belongs to one root, so the
-  registry would have to reference its root — the container reference cycle
-  removed in 3.1.1. That needs a weakref and a proof, for ~30 ns.
+- **Warm-singleton resolve headroom (C2)** — the scenario where modern-di trails
+  the slot-memoized frameworks on by-reference resolution. One direction remains
+  open and is gated on a reported bottleneck:
+  [issue #434](https://github.com/modern-python/modern-di/issues/434). For where
+  the cell actually stands, read
+  [Performance](https://modern-di.modern-python.org/introduction/performance/),
+  the only place these figures live.
 
 ### Docs & ecosystem
-- **Canonical on-ramp per integration** — every official integration ships a
-  runnable `examples/` app plus a normalized README `Usage example:` link, so a
-  newcomer can adopt it in one sitting; **shipped**.
 - More recipes; comparison and migration guides.
 
 ## Explicitly not planned
