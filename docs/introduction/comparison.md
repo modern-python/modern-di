@@ -35,7 +35,7 @@ Flask, gRPC, Celery, arq, taskiq, and aiogram.**
 | Scopes | APP→…→STEP + any IntEnum | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
 | Resolution | sync (async finalizers supported) | sync + async | sync + async | sync | async |
 | First-party pytest plugin | ✅ | ✘ | ✘ | ✘ | n/a |
-| Integrations | 13 official (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer, pytest) | 13 official + ~10 community-maintained | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
+| Integrations | 12 official frameworks (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer) + a pytest plugin | 13 official frameworks + ~10 community-maintained | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
 | Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
 | License | MIT | Apache-2.0 | BSD-3 | BSD | — |
 | Adoption | newest, very active | established, large community | most popular, mature | mature | built into FastAPI |
@@ -57,15 +57,16 @@ type-checker plugin to hold — see the
 
 Dishka is the closest library to modern-di — also typed, also scopes-first, also
 integrating with FastAPI and Litestar — and it's more established, with a larger
-community and a wider integration surface: 13 official integrations, plus the
-~10 community-maintained ones it links from its own docs. Its FastStream support
-is one of those community packages,
-[`dishka-faststream`](https://github.com/faststream-community/dishka-faststream);
-the bundled `dishka.integrations.faststream` is deprecated in favour of it. If
-you need **arbitrary *named* scopes**, **async resolution**, or an integration
-modern-di doesn't have yet — official: aiogram-dialog, Click, Sanic, telebot;
-community: Pyramid, Quart, RQ, Strawberry, APScheduler, … — Dishka is an
-excellent choice.
+community and a wider integration surface: 13 official framework integrations,
+plus the ~10 community-maintained ones it links from its own docs. Its FastStream
+and Starlette support are two of those community packages
+([`dishka-faststream`](https://github.com/faststream-community/dishka-faststream)
+and [`starlette-dishka`](https://github.com/reagento/starlette-dishka)); the
+bundled `dishka.integrations` modules for both are deprecated in favor of them.
+If you need **arbitrary *named* scopes** or **async resolution**, Dishka is an
+excellent choice — as it is if you need an integration modern-di doesn't have
+yet: aiogram-dialog, Click, Sanic and telebot officially, or Pyramid, Quart, RQ,
+Strawberry and APScheduler from the community.
 
 modern-di's deliberate differences:
 
