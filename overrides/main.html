@@ -3,7 +3,8 @@
   {{ super() }}
   {% set base = config.site_url if config.site_url.endswith('/') else config.site_url ~ '/' %}
   {% set card = base ~ 'assets/social-card.png' %}
-  {% set title = (page.title ~ ' · ' ~ config.site_name) if (page.title and not page.is_homepage) else config.site_name %}
+  {%- set is_home = nav.homepage and page.url == nav.homepage.url %}
+  {% set title = (page.title ~ ' · ' ~ config.site_name) if (page.title and not is_home) else config.site_name %}
   {% set description = page.meta.description if page.meta and page.meta.description else config.site_description %}
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{ config.site_name }}">
