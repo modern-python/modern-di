@@ -8,7 +8,7 @@ It is the shallowest of the four registries — ~18 lines, a `dict[type, Any]` b
 and `set_context` — and the deletion test on the *code* passes: fold it, and `Container` gains a
 `self._context` dict plus a `find_context` method for the two touch points. What the deletion test
 misses is that the conceptual slot does not vanish. The four registries are organised by a real
-axis, stated in `CLAUDE.md`'s registries entry: shared tree-wide (`providers_registry`,
+axis, stated in `AGENTS.md`'s registries entry: shared tree-wide (`providers_registry`,
 `overrides_registry`) versus per-container (`cache_registry`, `context_registry`). `ContextRegistry`
 sits symmetric with `CacheRegistry`; its shallowness in line count reflects having less mechanism,
 not a broken abstraction. Folding trades a uniform 2×2 model for ~18 fewer lines and grows the
