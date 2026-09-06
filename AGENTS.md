@@ -56,12 +56,6 @@ mocks. Scope chains come from `build_child_container`.
 
 ## Workflow
 
-**The spec for a change is its PR body**, not a committed file.
-`.github/PULL_REQUEST_TEMPLATE.md` carries the shape (why, design, non-goals,
-verification); it is reviewed with the diff. There is no change file and no lane
-to choose. A trivial PR (typo, dep bump, formatter) deletes the template and
-ships a conventional-commit title.
-
 Two things outlive the PR, and there are exactly two places to put them: an
 alternative **rejected** with reasoning becomes an ADR in [`docs/adr/`](docs/adr/)
 (`NNNN-slug.md`, sequential), and real work **not scheduled** becomes a GitHub
