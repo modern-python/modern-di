@@ -35,7 +35,7 @@ Flask, gRPC, Celery, arq, taskiq, and aiogram.**
 | Scopes | APP→…→STEP + any IntEnum | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
 | Resolution | sync (async finalizers supported) | sync + async | sync + async | sync | async |
 | First-party pytest plugin | ✅ | ✘ | ✘ | ✘ | n/a |
-| Official integrations | 13 (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer, pytest) | ~20+ | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
+| Integrations | 13 official (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer, pytest) | 13 official + ~10 community-maintained | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
 | Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
 | License | MIT | Apache-2.0 | BSD-3 | BSD | — |
 | Adoption | newest, very active | established, large community | most popular, mature | mature | built into FastAPI |
@@ -56,15 +56,22 @@ type-checker plugin to hold — see the
 ### vs Dishka
 
 Dishka is the closest library to modern-di — also typed, also scopes-first, also
-integrating with FastAPI/Litestar/FastStream — and it's more established, with
-many more integrations and a larger community. If you need **arbitrary *named*
-scopes**, **async resolution**, or an integration modern-di doesn't have yet
-(aiogram, Taskiq, gRPC, …), Dishka is an excellent choice.
+integrating with FastAPI and Litestar — and it's more established, with a larger
+community and a wider integration surface: 13 official integrations, plus the
+~10 community-maintained ones it links from its own docs. Its FastStream support
+is one of those community packages,
+[`dishka-faststream`](https://github.com/faststream-community/dishka-faststream);
+the bundled `dishka.integrations.faststream` is deprecated in favour of it. If
+you need **arbitrary *named* scopes**, **async resolution**, or an integration
+modern-di doesn't have yet — official: aiogram-dialog, Click, Sanic, telebot;
+community: Pyramid, Quart, RQ, Strawberry, APScheduler, … — Dishka is an
+excellent choice.
 
 modern-di's deliberate differences:
 
 - **A first-party pytest plugin** (`modern-di-pytest`) that turns any dependency
-  into a fixture — Dishka has no built-in pytest integration yet.
+  into a fixture — Dishka ships no pytest *plugin*, documenting a hand-written
+  fixtures recipe instead.
 - **Sync-only *resolution* (async finalizers still supported) and a small,
   built-in scope chain you can still extend with any `IntEnum`** — a simpler
   model. Dishka's own docs note that custom scopes are "hardly ever needed,"
