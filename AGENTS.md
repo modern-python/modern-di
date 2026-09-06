@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -11,7 +11,7 @@ repository** and ships as a separate PyPI package, `modern-di-pytest` included.
 
 ## Commands
 
-`just` (task runner) and `uv` (package manager). The [`Justfile`](justfile) is the source of truth —
+`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
 `just --list`, or read it; every recipe carries its intent as a comment. The one thing it does not
 say: nothing validates Markdown links outside `docs/`. `just docs-build` runs `mkdocs --strict` over
 the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.

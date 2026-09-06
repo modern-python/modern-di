@@ -400,7 +400,7 @@ Each official integration is its own repository and PyPI package, mirroring the
   genuinely unreachable boot line (`if __name__ == "__main__"` / server-run).
   Link it from the README with a `Usage example: [examples/](./examples)` line
   directly under `Full guide:`.
-- **Mirror `modern-di`'s** `CLAUDE.md` and `Justfile`. Keep behavioural invariants
+- **Mirror `modern-di`'s** `AGENTS.md` and `justfile`. Keep behavioural invariants
   in named tests rather than in a prose truth home, and record rejected
   alternatives as ADRs under `docs/adr/`. Keep resolution sync-only and add no
   runtime dependency beyond the framework and `modern-di`. `ruff` is unpinned and
@@ -465,4 +465,4 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `examples/app.py` (+ smoke test asserting real injected output, 100%
       coverage, no `omit`) and a README `Usage example: [examples/](./examples)`
       line.
-- [ ] `CLAUDE.md` and `Justfile` mirrored; invariants pinned by named tests.
+- [ ] `AGENTS.md` and `justfile` mirrored; invariants pinned by named tests.
