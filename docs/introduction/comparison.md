@@ -35,9 +35,9 @@ Flask, gRPC, Celery, arq, taskiq, and aiogram.**
 | Scopes | APP→…→STEP + any IntEnum | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
 | Resolution | sync (async finalizers supported) | sync + async | sync + async | sync | async |
 | First-party pytest plugin | ✅ | ✘ | ✘ | ✘ | n/a |
-| Integrations | 12 official frameworks (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer) + a pytest plugin | 13 official frameworks + ~10 community-maintained | FastAPI, Flask, … | Flask (1st-party), FastAPI (3rd-party) | n/a |
+| Integrations | 12 official frameworks (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer) + a pytest plugin | 13 official frameworks + ~10 community-maintained | aiohttp, Flask, Starlette; FastAPI via wiring | Flask (1st-party), FastAPI (3rd-party) | n/a |
 | Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
-| License | MIT | Apache-2.0 | BSD-3 | BSD | — |
+| License | MIT | Apache-2.0 | BSD-3 | BSD-3 | — |
 | Adoption | newest, very active | established, large community | most popular, mature | mature | built into FastAPI |
 
 On the **typed-resolution** row: modern-di keeps the concrete static type end to
