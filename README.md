@@ -84,7 +84,7 @@ Usage examples:
 
 ## 📦 [PyPI](https://pypi.org/project/modern-di)
 
-## 📝 [License](LICENSE)
+## 📝 [License](https://github.com/modern-python/modern-di/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
