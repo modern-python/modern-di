@@ -66,7 +66,7 @@ review time.
   in 2.x), though **finalizers** may still be sync or async (`close_sync`/`close_async`); no global state
 - Docstrings: public API documents the contract; internal helpers get a one-line contract, plus at most
   1–2 lines for a genuinely non-obvious constraint. Never narrate implementation or justify code to a
-  reviewer — cross-file rationale lives in an `INVARIANT:` test docstring or an ADR under `docs/adr/`
+  reviewer — cross-file rationale lives in an `INVARIANT:` test docstring
 - `ruff` (`select = ["ALL"]`) and `ty` are configured in `pyproject.toml` and run by `just lint`
 
 ## Agent skills
