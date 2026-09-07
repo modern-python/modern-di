@@ -1,6 +1,8 @@
+import inspect
+
 import pytest
 
-from modern_di import Scope, exceptions, suggester
+from modern_di import Scope, exceptions, providers, suggester
 
 
 def _step(name: str, scope: Scope = Scope.APP, location: str | None = None) -> exceptions.ResolutionStep:
@@ -162,4 +164,37 @@ def test_context_value_not_set_error_message_and_hierarchy() -> None:
         "No context value is set for <class 'str'> (scope APP). "
         "Pass context={...} to the container or call set_context().\n"
         "See: https://modern-di.modern-python.org/troubleshooting/context-not-set/"
+    )
+
+
+class _RenderTerminal: ...
+
+
+class _RenderIface: ...
+
+
+class _RenderCaptor: ...
+
+
+def test_invalid_scope_dependency_error_draws_the_chain_that_reached_the_terminal() -> None:
+    terminal = providers.Factory(scope=Scope.REQUEST, creator=_RenderTerminal)
+    iface = providers.Alias(source_type=_RenderTerminal, bound_type=_RenderIface)
+    captor = providers.Factory(scope=Scope.APP, creator=_RenderCaptor)
+
+    error = exceptions.InvalidScopeDependencyError(provider=captor, parameter_name="dep", dep_chain=[iface, terminal])
+
+    captor_at = f"{__name__}:{inspect.getsourcelines(_RenderCaptor)[1]}"
+    terminal_at = f"{__name__}:{inspect.getsourcelines(_RenderTerminal)[1]}"
+    assert error.dep_provider is iface
+    assert error.dep_terminal is terminal
+    # The alias hop draws at REQUEST, the scope it resolves at, not the APP its own `.scope` reports.
+    assert iface.scope is Scope.APP
+    assert str(error) == (
+        "Provider at a deeper scope reached through this chain:\n"
+        f"  APP      _RenderCaptor ({captor_at})\n"
+        "  REQUEST  └─> _RenderIface\n"
+        f"  REQUEST      └─> _RenderTerminal ({terminal_at})\n"
+        "  caused by: _RenderCaptor (scope APP) declares parameter 'dep' typed as a provider of "
+        "_RenderTerminal at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/scope-chain/"
     )

@@ -181,3 +181,54 @@ def test_breadcrumb_line_carries_definition_site() -> None:
         container.resolve(_Anchored)
     lineno = inspect.getsourcelines(_Anchored)[1]
     assert f"({_Anchored.__module__}:{lineno})" in str(exc_info.value)
+
+
+class _Deep:
+    pass
+
+
+class _MidIface:
+    pass
+
+
+class _TopIface:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _Captor:
+    svc: _TopIface
+
+
+class _AliasScopeViolationGroup(Group):
+    deep = providers.Factory(scope=Scope.REQUEST, creator=_Deep)
+    mid = providers.Alias(source_type=_Deep, bound_type=_MidIface)
+    top = providers.Alias(source_type=_MidIface, bound_type=_TopIface)
+    captor = providers.Factory(scope=Scope.APP, creator=_Captor)
+
+
+def _validate_chain_names() -> list[str]:
+    container = Container(groups=[_AliasScopeViolationGroup])
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        container.validate()
+    (issue,) = [e for e in exc_info.value.errors if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    return [issue.provider.display_name, *(p.display_name for p in issue.dep_chain)]
+
+
+def _runtime_chain_names() -> list[str]:
+    container = Container(groups=[_AliasScopeViolationGroup])
+    container.open()
+    with pytest.raises(ScopeNotInitializedError) as exc_info:
+        container.resolve(_Captor)
+    return [step.name for step in exc_info.value.dependency_path]
+
+
+def test_validate_and_runtime_name_the_same_chain_for_one_scope_violation() -> None:
+    """INVARIANT: both detectors of a scope violation name the same provider chain.
+
+    Broken by any error that reports a redirect-mediated violation from only one end of the
+    chain: naming the bound type without its terminal, or the terminal without the hops that
+    reached it. The two paths share `_render_chain` precisely so a reader who hits one and
+    then the other is not told two different stories about the same graph.
+    """
+    assert _validate_chain_names() == _runtime_chain_names()

@@ -110,4 +110,6 @@ assert container.resolve(Repository) is mock_for_source
     depends — via an alias — on a deeper-scoped source is flagged with `InvalidScopeDependencyError`
     at validation time — the same [scope dependency rule](scopes.md#the-scope-dependency-rule)
     enforced everywhere else, applied through the alias's source chain instead of letting it surface
-    as `ScopeNotInitializedError` at runtime.
+    as `ScopeNotInitializedError` at runtime. The error names every hop of that chain and its
+    terminal source, since the alias's own type carries no scope to point at; see
+    [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md#when-the-dependency-is-reached-through-an-alias).

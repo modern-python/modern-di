@@ -33,9 +33,6 @@ class Alias(AbstractProvider[types.T_co]):
             raise exceptions.AliasSourceNotRegisteredError(source_type=self._source_type)
         return source
 
-    def _resolution_step(self) -> "exceptions.ResolutionStep":
-        return exceptions.ResolutionStep(scope=self.scope, name=self.display_name)
-
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         return {"source": self._find_source(container)}
 
