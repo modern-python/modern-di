@@ -24,9 +24,6 @@ the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.
   providers/overrides registries; cache and context are per-container. `container.validate()` (cycle +
   transitive-scope checks) is the only thing that validates.
 
-Behavior detail has no prose home — it lives in the code and its `INVARIANT:`-marked tests. Before
-writing prose about a capability, run the admission check in **Where a fact goes** below.
-
 ### Key files
 
 Every module under `modern_di/` is named for what it does; read it. What a single-file read will
@@ -56,39 +53,12 @@ mocks. Scope chains come from `build_child_container`.
 
 ## Workflow
 
-Two things outlive the PR, and there are exactly two places to put them: an
-alternative **rejected** with reasoning becomes an ADR in [`docs/adr/`](docs/adr/)
-(`NNNN-slug.md`, sequential), and real work **not scheduled** becomes a GitHub
-issue. There is no third state, and no separate truth-home directory — a
-behaviour change is reviewed with the diff, not promoted to a page.
-
-### Where a fact goes
-
-Four homes, one owner each:
-
-| Home | Holds |
-|---|---|
-| `modern_di/` | anything readable from the module — the default |
-| a named test | an **invariant**: must stay true, and a change could silently break it |
-| `docs/adr/` | a rejected alternative, with the reasoning that would otherwise be re-litigated |
-| `docs/` | anything a user needs |
-
-Before writing a line anywhere:
-
-> Can an agent get this by reading `modern_di/`? → **don't write it.**
-> Would a wrong change here fail a test? → it belongs **in the test**, not in prose.
-> Does a user need it? → **`docs/`**.
-> Otherwise it does not get written.
-
-**Prose about mechanism has no home. There is no file to add a paragraph to.** This file included:
-it is always loaded, so a line that restates a docstring, a justfile comment, or `pyproject.toml`
-costs every turn and rots in two places at once.
+Real work **not scheduled** becomes a GitHub issue.
 
 An invariant is a test whose name is the claim, with a docstring opening `INVARIANT:` and a second
 paragraph naming **what breaks it** — design rationale, not a report of what this one test catches;
 a sibling test may be the one that trips. Nothing enforces that docstring shape; it is read at
-review time. Both ADRs and `INVARIANT:` docstrings ratchet: nothing prunes a record once its call is
-settled. Keeping them lean is a standing habit.
+review time.
 
 ## Code Style
 
