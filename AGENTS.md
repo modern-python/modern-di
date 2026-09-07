@@ -86,8 +86,8 @@ costs every turn and rots in two places at once.
 
 An invariant is a test whose name is the claim, with a docstring opening `INVARIANT:` and a second
 paragraph naming **what breaks it** — design rationale, not a report of what this one test catches;
-a sibling test may be the one that trips. `tests/test_invariant_census.py` owns and enforces that
-shape. Both ADRs and `INVARIANT:` docstrings ratchet: nothing prunes a record once its call is
+a sibling test may be the one that trips. Nothing enforces that docstring shape; it is read at
+review time. Both ADRs and `INVARIANT:` docstrings ratchet: nothing prunes a record once its call is
 settled. Keeping them lean is a standing habit.
 
 ## Code Style
