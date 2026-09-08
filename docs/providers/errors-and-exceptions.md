@@ -160,7 +160,9 @@ Catch `RegistrationError` for declaration- and registration-time problems.
   [Troubleshooting: UnsupportedCreatorParameterError](../troubleshooting/unsupported-creator-parameter-error.md).
 - **`InvalidScopeDependencyError`** — raised when a provider depends on another provider bound to a
   *deeper* scope than its own (a longer-lived provider depending on a shorter-lived one). Surfaced by
-  `validate()`. See [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
+  `validate()`. Renders the chain from the depender to the provider that supplies the dependency;
+  `.dep_chain` carries that chain, with `.dep_provider` and `.dep_terminal` as its ends. See
+  [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
 
 ## Direct `ModernDIError` subclasses
 

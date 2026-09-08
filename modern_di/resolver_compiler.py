@@ -12,6 +12,7 @@ import functools
 import typing
 
 from modern_di import exceptions, types
+from modern_di.dependency_graph import redirect_step
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
@@ -387,7 +388,6 @@ def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typi
     """
     pid = a.provider_id
     source_type = a._source_type
-    resolution_step = a._resolution_step
     find_source = a._find_source
 
     def resolve(container: "Container") -> typing.Any:
@@ -406,7 +406,7 @@ def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typi
                 source_resolver = registry.resolver_for(source)
             return source_resolver(container)
         except _STEP_ERRORS as exc:
-            exc.prepend_step(resolution_step())
+            exc.prepend_step(redirect_step(a, container))
             raise
 
     return resolve

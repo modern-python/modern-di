@@ -8,6 +8,8 @@ from modern_di.dependency_graph import (
     Edge,
     NodeEntered,
     build_cycle_error,
+    effective_scope,
+    terminal_chain,
 )
 from modern_di.group import Group
 from modern_di.providers import Alias, Factory
@@ -136,7 +138,7 @@ def test_find_cycle_from_returns_loop() -> None:
     assert cycle == [G.a, G.b, G.a]
 
 
-def test_terminal_scope_follows_alias_chain() -> None:
+def test_terminal_chain_follows_every_alias_hop() -> None:
     class ChainTerminal: ...
 
     class ChainMid: ...
@@ -149,10 +151,11 @@ def test_terminal_scope_follows_alias_chain() -> None:
         top = Alias(source_type=ChainMid, bound_type=ChainTop)
 
     c = Container(scope=Scope.APP, groups=[G])
-    assert DependencyGraph().terminal_scope(G.top, c) == Scope.REQUEST
+    assert terminal_chain(G.top, c) == [G.top, G.mid, G.terminal]
+    assert effective_scope(G.top, c) == Scope.REQUEST
 
 
-def test_terminal_scope_alias_cycle_falls_back_to_self_scope() -> None:
+def test_terminal_chain_alias_cycle_falls_back_to_the_starting_provider() -> None:
     class MutualX: ...
 
     class MutualY: ...
@@ -162,7 +165,8 @@ def test_terminal_scope_alias_cycle_falls_back_to_self_scope() -> None:
         b = Alias(source_type=MutualX, bound_type=MutualY)
 
     c = Container(scope=Scope.APP, groups=[G])
-    assert DependencyGraph().terminal_scope(G.a, c) == G.a.scope
+    assert terminal_chain(G.a, c) == [G.a]
+    assert effective_scope(G.a, c) == G.a.scope
 
 
 def test_walk_dangling_dep_emits_dependencies_error() -> None:
@@ -225,7 +229,7 @@ def test_build_cycle_error_rotates_to_minimum_provider_id() -> None:
 
     # Seed the ring at the higher-id node, closing back to itself last -- the shape `Cycle.providers`
     # is in (first node repeated last), regardless of which provider the walk happened to start from.
-    error = build_cycle_error([second, first, second])
+    error = build_cycle_error([second, first, second], Container(scope=Scope.APP))
 
     # Rotated to the minimum-provider_id node (`first`), not left seeded at `second`.
     assert error.cycle_path == ["RingFirst", "RingSecond", "RingFirst"]

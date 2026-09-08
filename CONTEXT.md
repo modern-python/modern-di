@@ -22,6 +22,12 @@ _Avoid_: service, dependency
 One band in the container hierarchy.
 _Avoid_: lifetime, layer
 
+**Effective scope**:
+The band a provider actually resolves in, once any redirection to another provider is followed. The
+same as the provider's own scope unless it redirects, where the provider at the end of the chain
+governs.
+_Avoid_: terminal scope
+
 **Group**:
 A non-instantiable namespace class declaring providers.
 _Avoid_: module

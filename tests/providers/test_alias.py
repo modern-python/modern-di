@@ -4,7 +4,7 @@ import enum
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
-from modern_di.dependency_graph import DependencyGraph
+from modern_di.dependency_graph import terminal_chain
 from modern_di.exceptions import (
     AliasSourceNotRegisteredError,
     CircularDependencyError,
@@ -303,6 +303,24 @@ def test_validate_flags_shallow_caller_depending_through_alias_on_deeper_source(
     assert "REQUEST" in str(exc_info.value)
 
 
+def test_alias_scope_violation_names_the_source_behind_the_alias() -> None:
+    """INVARIANT: the provider owning the offending scope is recoverable without parsing the message.
+
+    Broken by reporting the edge in terms of the bound type alone. Through an alias the declared
+    type carries no scope of its own, so a consumer left with only `.dep_provider` would have to
+    read the source type back out of a repr to learn which declaration to change.
+    """
+    container = Container(scope=Scope.APP, groups=[_XfourGroup])
+    with pytest.raises(exceptions.ValidationFailedError) as exc_info:
+        container.validate()
+
+    (issue,) = [e for e in exc_info.value.errors if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    assert issue.dep_provider is _XfourGroup.iface
+    assert issue.dep_terminal is _XfourGroup.deep
+    assert issue.dep_chain == [_XfourGroup.iface, _XfourGroup.deep]
+    assert _XfourDeep.__name__ in str(issue)
+
+
 class _OkDeep: ...
 
 
@@ -365,10 +383,10 @@ class _MutualAliasGroup(Group):
     b = providers.Alias(source_type=_MutualA, bound_type=_MutualB)
 
 
-def test_terminal_scope_handles_mutual_alias_cycle() -> None:
-    # Mutual aliases: terminal_scope must terminate via the `seen` guard and fall back to `a`'s own scope.
+def test_terminal_chain_handles_mutual_alias_cycle() -> None:
+    # Mutual aliases: the walk must terminate via the `seen` guard and fall back to `a` itself.
     container = Container(scope=Scope.APP, groups=[_MutualAliasGroup])
-    assert DependencyGraph().terminal_scope(_MutualAliasGroup.a, container) is _MutualAliasGroup.a.scope
+    assert terminal_chain(_MutualAliasGroup.a, container) == [_MutualAliasGroup.a]
     # validate() also reports the cycle separately.
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()

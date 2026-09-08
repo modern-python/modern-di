@@ -56,8 +56,49 @@ class DependenciesError(NamedTuple):
 Event = NodeEntered | Edge | Cycle | DependenciesError
 
 
+def terminal_chain(
+    provider: "AbstractProvider[typing.Any]", container: "Container"
+) -> "list[AbstractProvider[typing.Any]]":
+    """Follow ``redirect_target`` hops from ``provider``, returning every provider passed through.
+
+    The single home of the redirect walk: ``validate()``, the compiled alias resolver and the cycle
+    renderer all read a redirect's terminal from here. Element 0 is always ``provider``; a provider
+    that redirects nowhere yields a one-element chain. A redirect cycle is broken via the ``seen``
+    guard, ending the chain on the starting provider rather than looping forever; ``walk()`` reports
+    that cycle separately.
+    """
+    chain = [provider]
+    seen: set[int] = set()
+    while (nxt := provider.redirect_target(container)) is not None:
+        if provider.provider_id in seen:
+            return [provider]
+        seen.add(provider.provider_id)
+        provider = nxt
+        chain.append(provider)
+    return chain
+
+
+def effective_scope(provider: "AbstractProvider[typing.Any]", container: "Container") -> enum.IntEnum:
+    """Return the scope a provider actually resolves at: its terminal's, once redirects are followed."""
+    return terminal_chain(provider, container)[-1].scope
+
+
+def redirect_step(provider: "AbstractProvider[typing.Any]", container: "Container") -> "exceptions.ResolutionStep":
+    """Draw a chain step for a provider that may redirect, at the scope it actually resolves at.
+
+    A redirect declares no scope of its own — ``Alias`` reports the ``Scope.APP`` default — so
+    rendering ``provider.scope`` would put a band on the chain that nothing in the graph chose.
+    """
+    return exceptions.ResolutionStep(
+        scope=effective_scope(provider, container),
+        name=provider.display_name,
+        location=provider.definition_site,
+    )
+
+
 def build_cycle_error(
     providers: "list[AbstractProvider[typing.Any]]",
+    container: "Container",
 ) -> "exceptions.CircularDependencyError":
     """Build a ``CircularDependencyError`` from a cycle's providers (first node repeated last).
 
@@ -72,7 +113,10 @@ def build_cycle_error(
     canonical = [*rotated, rotated[0]]  # re-close the ring on the lead node
     return exceptions.CircularDependencyError(
         steps=[
-            exceptions.ResolutionStep(scope=p.scope, name=p.display_name, location=p.definition_site) for p in canonical
+            exceptions.ResolutionStep(
+                scope=effective_scope(p, container), name=p.display_name, location=p.definition_site
+            )
+            for p in canonical
         ]
     )
 
@@ -110,20 +154,6 @@ class DependencyGraph:
             if isinstance(event, Cycle):
                 return event.providers
         return None
-
-    def terminal_scope(self, provider: "AbstractProvider[typing.Any]", container: "Container") -> enum.IntEnum:
-        """Follow ``redirect_target`` hops to the terminal provider and return its scope.
-
-        A redirect cycle is broken via the ``seen`` guard, falling back to the starting
-        provider's own scope instead of looping forever; ``walk()`` reports that cycle separately.
-        """
-        seen: set[int] = set()
-        while (nxt := provider.redirect_target(container)) is not None:
-            if provider.provider_id in seen:
-                break
-            seen.add(provider.provider_id)
-            provider = nxt
-        return provider.scope
 
     def _walk_from(
         self,

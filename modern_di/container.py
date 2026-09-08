@@ -15,6 +15,8 @@ from modern_di.dependency_graph import (
     Edge,
     NodeEntered,
     build_cycle_error,
+    effective_scope,
+    terminal_chain,
 )
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
@@ -44,7 +46,7 @@ def _handle_recursion_error(
     cycle = DependencyGraph().find_cycle_from(provider, container)
     if cycle is None:
         raise exc
-    raise build_cycle_error(cycle) from exc
+    raise build_cycle_error(cycle, container) from exc
 
 
 # Trailing separator included: without it the prefix test also swallows sibling packages
@@ -256,18 +258,17 @@ class Container:
                 case DependenciesError(_, error):
                     errors.append(error)
                 case Edge(parent, name, dep):
-                    dep_scope = graph.terminal_scope(dep, self)
-                    if dep_scope > graph.terminal_scope(parent, self):
+                    dep_chain = terminal_chain(dep, self)
+                    if dep_chain[-1].scope > effective_scope(parent, self):
                         errors.append(
                             exceptions.InvalidScopeDependencyError(
                                 provider=parent,
                                 parameter_name=name,
-                                dep_provider=dep,
-                                dep_scope=dep_scope,
+                                dep_chain=dep_chain,
                             )
                         )
                 case Cycle(providers):
-                    errors.append(build_cycle_error(providers))
+                    errors.append(build_cycle_error(providers, self))
         return errors
 
     def validate(self) -> None:
