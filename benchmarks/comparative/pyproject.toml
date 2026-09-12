@@ -7,7 +7,7 @@ dependencies = [
     "pytest",
     "pytest-benchmark",
     "dishka==1.10.1",
-    "that-depends==4.0.2",
+    "that-depends==4.1.0",
     "dependency-injector==4.49.1",
     "wireup==2.12.0",
 ]

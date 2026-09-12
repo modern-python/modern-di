@@ -142,7 +142,7 @@ timed as a batch of K=100 cycles per loop entry.
 |-----------------|--------------|--------------|----------------------------|------------|
 | modern-di | `Factory` (uncached) | `Factory(cache=True)` | REQUEST `Factory(cache=CacheSettings(finalizer=async))`, `await close_async()` | **sync** |
 | dishka 1.10.1 | `provide(cache=False)` | `provide` (cache default) | async-gen `@provide(REQUEST)`, `async with container()` | await |
-| that-depends 4.0.2 | `Factory` | `Singleton` | async-gen `ContextResource`, `container_context` | await |
+| that-depends 4.1.0 | `Factory` | `Singleton` | async-gen `ContextResource`, `container_context` | await |
 | dependency-injector 4.49.1 | `Factory` | `Singleton` | async-gen `Resource`, `init/shutdown_resources` | await |
 | wireup 2.12.0 | `injectable(transient)` + scope | `injectable` (singleton default) | async-gen `injectable(scoped)`, async container | await |
 
