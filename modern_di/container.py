@@ -109,7 +109,11 @@ class Container:
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
-        self._lock = threading.RLock() if use_lock else None
+        self._lock = (
+            parent_container._lock  # noqa: SLF001
+            if parent_container is not None
+            else (threading.RLock() if use_lock else None)
+        )
         self.closed = False
         self.scope = scope
         self.parent_container = parent_container
@@ -149,7 +153,7 @@ class Container:
             if scope is None:
                 raise exceptions.MaxScopeReachedError(parent_scope=self.scope)
 
-        return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self._lock is not None)
+        return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         if scope == self.scope:
