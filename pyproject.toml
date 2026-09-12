@@ -95,3 +95,4 @@ asyncio_default_fixture_loop_scope = "function"
 run.concurrency = ["thread"]
 run.omit = ["benchmarks/*"]
 report.exclude_also = ["if typing.TYPE_CHECKING:"]
+report.fail_under = 100
