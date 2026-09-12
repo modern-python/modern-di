@@ -13,10 +13,6 @@ codebase. This repo is **single-context**.
   only when the decision is hard to reverse, surprising without context, and a real trade-off;
   most internal choices are none of these and need no record.
 
-If either file is missing, **proceed silently**. Don't flag its absence; don't suggest creating
-it upfront. The `/domain-modeling` skill creates `CONTEXT.md` lazily when a term actually gets
-resolved.
-
 ## File structure
 
 ```
