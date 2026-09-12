@@ -39,15 +39,6 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
-## Rejected work: the design-decisions Non-goals, not `.out-of-scope/`
-
-Where a skill says `.out-of-scope/`, this repo means the **Non-goals** section of
-`docs/introduction/design-decisions.md`. A rejected enhancement is recorded there as a short
-user-facing entry (what is out, why, the alternative), and the prior-rejection check during triage
-reads that section. Do not create `.out-of-scope/`, and do not record a rejected request as an
-ADR: `docs/adr/` is for internal design decisions, and a second home for rejections would split
-the corpus the check depends on.
-
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
