@@ -35,10 +35,10 @@ Every module under `modern_di/` is named for what it does; read it. What a singl
   Nothing in the template calls a helper on the hot path: the per-node frame budget is the point, and
   `test_resolve_costs_exactly_one_resolver_frame_per_node` says why. Overrides are compiled in: an
   override change drops the compiled resolvers.
-- `exceptions.py` owns **every message and every glyph**. A raise site passes structured facts, never
+- `exceptions/` owns **every message and every glyph**. A raise site passes structured facts, never
   formatting; the class renders its own f-string and sets a `docs_slug` (its page under
   `docs/troubleshooting/`, enforced by `tests/test_docs_slug_census.py`). Add a message, a glyph, or a
-  class here — never at the raise site.
+  class here — never at the raise site. Submodules split by family; `__init__` re-exports every name.
 - `registries/` — `providers_registry` (type → provider, plus the shared plan/resolver memos) and
   `overrides_registry` are shared tree-wide; `cache_registry` and `context_registry` are per-container.
 - `dependency_graph.py` walks `WiringPlan.edges`, so what `validate()` traverses is exactly what

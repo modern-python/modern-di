@@ -24,7 +24,7 @@ _BASE_CLASSES = frozenset(
 
 
 def _concrete_error_classes() -> list[type[exceptions.ModernDIError]]:
-    # Walking modern_di/exceptions.py covers every error class by repo convention: all of them live there.
+    # Walking the exceptions package covers every error class by repo convention: all of them live there.
     return [
         obj
         for obj in vars(exceptions).values()
