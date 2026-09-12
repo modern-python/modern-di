@@ -183,14 +183,3 @@ class Factory(AbstractProvider[types.T_co]):
         plan = self._plan(container)
         for name, item in plan.unwireable:
             yield self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
-
-    def _call_creator(self, resolved_kwargs: dict[str, typing.Any]) -> types.T_co:
-        try:
-            return self._creator(**resolved_kwargs)
-        except TypeError as exc:
-            error = exceptions.CreatorCallError.from_type_error(
-                creator=self._creator, exc=exc, resolution_step=self._resolution_step
-            )
-            if error is None:
-                raise
-            raise error from exc

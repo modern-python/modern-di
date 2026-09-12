@@ -1,8 +1,9 @@
 import threading
 import typing
 
-from modern_di import exceptions, types
+from modern_di import exceptions, suggester, types
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.resolver_compiler import compile_resolver
 from modern_di.wiring import WiringPlan
 
@@ -14,13 +15,25 @@ if typing.TYPE_CHECKING:
 
 
 class ProvidersRegistry:
-    __slots__ = ("_building", "_generation", "_lock", "_plans", "_providers", "_resolvers", "_validated")
+    __slots__ = (
+        "_building",
+        "_generation",
+        "_lock",
+        "_plans",
+        "_providers",
+        "_resolvers",
+        "_resolvers_by_type",
+        "_validated",
+        "overrides",
+    )
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
         self._plans: dict[int, WiringPlan] = {}
         self._resolvers: dict[int, typing.Callable[[Container], typing.Any]] = {}
+        self._resolvers_by_type: dict[type, typing.Callable[[Container], typing.Any]] = {}
+        self.overrides = OverridesRegistry(on_change=self.drop_resolvers)
         self._building = threading.local()  # per-thread compile-in-flight set; the cycle guard is per-call-stack
         self._validated = False
         self._generation = 0
@@ -108,6 +121,33 @@ class ProvidersRegistry:
                 self._resolvers[pid] = resolver
         return resolver
 
+    def resolver_for_type(self, dependency_type: type) -> "typing.Callable[[Container], typing.Any]":
+        """Return the memoized resolver for the provider bound to `dependency_type`, compiling it on a miss.
+
+        Raises `ProviderNotRegisteredError` (with did-you-mean suggestions) when nothing is bound.
+        """
+        generation = self._generation
+        provider = self._providers.get(dependency_type)
+        if provider is None:
+            raise exceptions.ProviderNotRegisteredError(
+                provider_type=dependency_type, suggestions=suggester.suggest(dependency_type, self)
+            )
+        resolver = self.resolver_for(provider)
+        with self._lock:
+            if self._generation == generation:
+                self._resolvers_by_type[dependency_type] = resolver
+        return resolver
+
+    def drop_resolvers(self) -> None:
+        """Drop the compiled resolvers so the next resolve recompiles — the overrides changed.
+
+        Plans and the validation flag survive: overrides alter neither the wiring nor the static graph.
+        """
+        with self._lock:
+            self._resolvers.clear()
+            self._resolvers_by_type.clear()
+            self._generation += 1
+
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
         with self._lock:
             if provider_type in self._providers:
@@ -146,5 +186,6 @@ class ProvidersRegistry:
         """
         self._plans.clear()
         self._resolvers.clear()
+        self._resolvers_by_type.clear()
         self._validated = False
         self._generation += 1

@@ -1,5 +1,9 @@
 # Re-decline `exec` codegen on the resolve hot path
 
+> **Superseded by [ADR-0030](0030-exec-template-resolver.md).** The measurement below compared
+> `exec` against the closures as an optimisation; 0030 adopts it to remove the closures' duplication
+> and records that the warm path is not slower.
+
 **Decision:** the shipped closure-compiled resolver stays the single resolve path. No `exec`-based
 source-generation codegen, additive or otherwise.
 

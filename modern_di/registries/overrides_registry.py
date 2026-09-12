@@ -7,25 +7,30 @@ from modern_di import types
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class OverridesRegistry:
+    """Test-time replacement values by provider id.
+
+    Overrides are applied at compile time: every change calls ``on_change`` so the owning
+    providers registry drops its compiled resolvers, and the next resolve recompiles with the
+    override baked in. Nothing consults this registry on the resolve path.
+    """
+
+    on_change: typing.Callable[[], None]
     _overrides: dict[int, typing.Any] = dataclasses.field(init=False, default_factory=dict)
-    # default_factory (not default): a slots=True dataclass strips the class-level default of an
-    # init=False field, so a plain `default=False` never lands on the instance. `bool()` is False.
-    has_overrides: bool = dataclasses.field(init=False, default_factory=bool)
 
     def override(self, provider_id: int, override_object: object) -> None:
         self._overrides[provider_id] = override_object
-        self.has_overrides = True
+        self.on_change()
 
     def reset_override(self, provider_id: int | None = None) -> None:
         if provider_id is None:
+            if not self._overrides:
+                return
             self._overrides.clear()
-        else:
-            self._overrides.pop(provider_id, None)
-        self.has_overrides = bool(self._overrides)
+        elif self._overrides.pop(provider_id, types.UNSET) is types.UNSET:
+            return
+        self.on_change()
 
     def fetch_override(self, provider_id: int) -> object:
-        if not self._overrides:
-            return types.UNSET
         return self._overrides.get(provider_id, types.UNSET)
 
 

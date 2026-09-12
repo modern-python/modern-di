@@ -7,7 +7,7 @@ import typing
 import warnings
 from types import FrameType
 
-from modern_di import exceptions, suggester, types
+from modern_di import exceptions, types
 from modern_di.dependency_graph import (
     Cycle,
     DependenciesError,
@@ -140,7 +140,7 @@ class Container:
         else:
             self.providers_registry = ProvidersRegistry()
             self.providers_registry.register(Container, container_provider)
-            self.overrides_registry = OverridesRegistry()
+            self.overrides_registry = self.providers_registry.overrides
         if groups:
             all_providers: list[AbstractProvider[typing.Any]] = []
             for one_group in groups:
@@ -193,28 +193,17 @@ class Container:
         return self._lock
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
-        """Resolve a dependency by its type.
-
-        Carries its own copy of `resolve_provider`'s body rather than calling it: the extra
-        frame is ~19% of a by-type resolve. The duplication is deliberate and the two must be
-        edited together -- see docs/adr/0026-resolve-provider-not-a-seam.md.
-        """
+        """Resolve a dependency by its type."""
         registry = self.providers_registry
-        provider = registry._providers.get(dependency_type)  # noqa: SLF001
-        if provider is None:
-            raise exceptions.ProviderNotRegisteredError(
-                provider_type=dependency_type,
-                suggestions=suggester.suggest(dependency_type, registry),
-            )
-        if self.closed:
-            self._prepare()
         try:
-            resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
+            resolver = registry._resolvers_by_type.get(dependency_type)  # noqa: SLF001
             if resolver is None:
-                resolver = registry.resolver_for(provider)
+                resolver = registry.resolver_for_type(dependency_type)
+            if self.closed:
+                self._prepare()
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(provider, self, exc)
+            _handle_recursion_error(registry._providers[dependency_type], self, exc)  # noqa: SLF001
 
     def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
         """Resolve a provider reference or a type — the marker-dispatch entry point for integrations.
@@ -228,16 +217,10 @@ class Container:
         return self.resolve(dependency)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        """Resolve a specific provider by reference via its compiled resolver.
-
-        `resolve` holds a copy of this body; any change here belongs there too.
-        """
+        """Resolve a specific provider by reference via its compiled resolver."""
         if self.closed:
             self._prepare()
         try:
-            # Inlined memo hit; `resolver_for` is called only on a miss, where it owns the cycle
-            # guard and the memo write (see test_resolve_costs_exactly_one_resolver_frame_per_node).
-            # Inside the try so a RecursionError while compiling still becomes CircularDependencyError.
             registry = self.providers_registry
             resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
             if resolver is None:
@@ -320,9 +303,12 @@ class Container:
             self.closed = True
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
-        """Apply an override immediately.
+        """Apply an override immediately, tree-wide.
 
-        Use the returned handle as a context manager to auto-restore the prior state.
+        Use the returned handle as a context manager to auto-restore the prior state. An override
+        is compiled in: applying or resetting one drops the compiled resolvers, and the next
+        resolve recompiles. Overriding is a test-time operation, not coordinated with concurrent
+        resolves on other threads.
         """
         prior = self.overrides_registry.fetch_override(provider.provider_id)
         self.overrides_registry.override(provider.provider_id, override_object)

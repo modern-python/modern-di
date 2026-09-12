@@ -274,8 +274,8 @@ class OverrideChainGroup(Group):
 
 
 def test_g12_override_active_resolve(benchmark):
-    # Override front-guard tax: an UNRELATED override flips has_overrides True, so every node in the
-    # depth-6 chain pays a fetch_override lookup per resolve (the path a test suite with mocks hits).
+    # An UNRELATED override is active. Overrides are compiled in, so every node in the depth-6
+    # chain should cost exactly what it costs in G3; a gap between G12 and G3 is a regression.
     container = Container(scope=Scope.APP, groups=[OverrideChainGroup])
     container.open()
     container.override(OverrideChainGroup.sentinel, Sentinel())

@@ -85,8 +85,8 @@ def _cold_build_and_resolve_cached() -> C0:
 
 
 def test_g8b_cold_first_resolve_cached(benchmark):
-    # G8's `cache=True` sibling. G8 is all-transient, so it never reaches
-    # `_compile_cached_factory`'s cold-miss builders (`build_cold` / `create_cold`); the only
+    # G8's `cache=True` sibling. G8 is all-transient, so it never reaches the cached
+    # template's cold-miss `build` / `create` functions; the only
     # other coverage is incidental inside G15, which batches 50 misses into one timed call and
     # dilutes a single builder ~50x. This times six of them against G8 as the control, so a
     # regression confined to the cached cold path is readable as the G8b/G8 difference.
