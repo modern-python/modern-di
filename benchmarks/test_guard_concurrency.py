@@ -110,3 +110,40 @@ def test_g15_concurrent_first_resolve(benchmark, n_threads):
         _run_parallel(_worker, n_threads)
 
     benchmark.pedantic(_batch, setup=_setup, rounds=120, iterations=1)
+
+
+# --- G15b: concurrent first-resolve in sibling children ---------------------
+_REQUEST_TYPES = [type(f"ReqCold{i}", (), {}) for i in range(_K_COLD)]
+_REQUEST_GROUP = type(
+    "RequestColdGroup",
+    (Group,),
+    {f"r{i}": providers.Factory(creator=t, scope=Scope.REQUEST, cache=True) for i, t in enumerate(_REQUEST_TYPES)},
+)
+_REQUEST_PROVIDERS = [getattr(_REQUEST_GROUP, f"r{i}") for i in range(_K_COLD)]
+
+
+@pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
+def test_g15b_concurrent_first_resolve_sibling_children(benchmark, n_threads):
+    # Each thread builds its OWN REQUEST child and first-resolves K cached providers in it, so
+    # every creation is a cold miss in a container no other thread touches. With a lock per
+    # container these creations never contend; with one lock per tree they serialize. This is the
+    # scenario G15 does not cover -- G15 races on one root, whose lock is shared either way.
+    check = Container(scope=Scope.APP, groups=[_REQUEST_GROUP])
+    check.open()
+    probe = check.build_child_container(scope=Scope.REQUEST)
+    assert all(probe.resolve_provider(p) is not None for p in _REQUEST_PROVIDERS)
+
+    def _setup() -> "tuple[tuple[Container], dict[str, object]]":
+        container = Container(scope=Scope.APP, groups=[_REQUEST_GROUP])
+        container.open()
+        return (container,), {}
+
+    def _batch(container) -> None:
+        def _worker() -> None:
+            child = container.build_child_container(scope=Scope.REQUEST)
+            for provider in _REQUEST_PROVIDERS:
+                child.resolve_provider(provider)
+
+        _run_parallel(_worker, n_threads)
+
+    benchmark.pedantic(_batch, setup=_setup, rounds=120, iterations=1)
