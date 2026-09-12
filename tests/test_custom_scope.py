@@ -116,7 +116,7 @@ def test_scope_algebra_next_deeper_is_the_shallowest_deeper_member() -> None:
 
     Not `value + 1` -- a non-contiguous custom enum (`TENANT=6, JOB=10`) must derive `JOB` from
     `TENANT`. Returning `None` at the deepest member (rather than raising) is what keeps `scope.py`
-    from importing `exceptions.py`.
+    from importing `exceptions`.
     """
     assert _next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB
     assert _next_deeper(Scope.APP) is Scope.SESSION
@@ -219,8 +219,8 @@ def _module_level_imports(source: str) -> set[str]:
 def test_scope_module_imports_only_enum() -> None:
     """INVARIANT: `modern_di/scope.py` imports nothing but `enum`.
 
-    `exceptions.py` imports `_deeper_members` to derive `InvalidChildScopeError.allowed_scopes`, so
-    a `scope.py` that imported `exceptions` would cycle. That is why `_next_deeper` returns `None`
+    `exceptions/container.py` imports `_deeper_members` to derive `InvalidChildScopeError.allowed_scopes`,
+    so a `scope.py` that imported `exceptions` would cycle. That is why `_next_deeper` returns `None`
     at the deepest member instead of raising `MaxScopeReachedError` itself.
     """
     source = pathlib.Path(modern_di.scope.__file__).read_text(encoding="utf-8")

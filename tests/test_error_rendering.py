@@ -3,6 +3,7 @@ import inspect
 import pytest
 
 from modern_di import Scope, exceptions, providers, suggester
+from modern_di.exceptions import rendering
 
 
 def _step(name: str, scope: Scope = Scope.APP, location: str | None = None) -> exceptions.ResolutionStep:
@@ -20,7 +21,7 @@ def test_error_without_docs_slug_renders_body_unchanged() -> None:
 def test_render_chain_is_a_pure_function_of_its_steps() -> None:
     # The drawer is exercisable without a container, a cycle, or a raise — it is the
     # single home of the indent-and-arrow glyphs, shared by every chain-shaped error.
-    assert exceptions._render_chain([_step("A"), _step("B", location="app:31"), _step("A")]) == [
+    assert rendering._render_chain([_step("A"), _step("B", location="app:31"), _step("A")]) == [
         "  APP  A",
         "  APP  └─> B (app:31)",
         "  APP      └─> A",
@@ -28,7 +29,7 @@ def test_render_chain_is_a_pure_function_of_its_steps() -> None:
 
 
 def test_render_chain_aligns_the_scope_column_to_the_widest_name() -> None:
-    lines = exceptions._render_chain([_step("A"), _step("B", scope=Scope.REQUEST)])
+    lines = rendering._render_chain([_step("A"), _step("B", scope=Scope.REQUEST)])
     assert lines == ["  APP      A", "  REQUEST  └─> B"]
 
 
@@ -51,15 +52,13 @@ def test_render_chain_aligns_the_scope_column_to_the_widest_name() -> None:
 )
 def test_render_suggestion_lines_covers_every_format(suggestion: suggester.Suggestion, expected: str) -> None:
     # One bullet format for all three suggestion kinds — the registry no longer owns half of it.
-    assert exceptions._render_suggestion_lines([suggestion]) == [expected]
+    assert rendering._render_suggestion_lines([suggestion]) == [expected]
 
 
 def test_render_suggestions_prepends_the_header_and_is_empty_when_there_is_nothing_to_say() -> None:
-    assert exceptions._render_suggestions([]) == ""
+    assert rendering._render_suggestions([]) == ""
     assert (
-        exceptions._render_suggestions(
-            [suggester.Suggestion(name="Repository", reason="similar name", scope=Scope.APP)]
-        )
+        rendering._render_suggestions([suggester.Suggestion(name="Repository", reason="similar name", scope=Scope.APP)])
         == "Did you mean:\n  - Repository (similar name, scope=APP)"
     )
 
