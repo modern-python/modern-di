@@ -10,13 +10,11 @@ if typing.TYPE_CHECKING:
 
 
 class ContextProvider(AbstractProvider[types.T_co]):
-    """Provider for a runtime value supplied at container-build time.
+    """Provider for a runtime value passed as ``build_child_container(context={SomeType: value})``.
 
-    The value is passed via ``build_child_container(context={SomeType: value})``
-    and looked up from the context registry at this provider's bound scope.
-    Resolving it directly when no value is set raises ``ContextValueNotSetError``;
-    injecting it into a non-nullable, no-default ``Factory`` parameter instead
-    raises ``ArgumentResolutionError``.
+    The value is read from the context registry at this provider's scope. Resolving it with none
+    set raises ``ContextValueNotSetError``; injecting it into a non-nullable, no-default
+    ``Factory`` parameter raises ``ArgumentResolutionError`` instead.
     """
 
     __slots__ = ("context_type",)
@@ -37,9 +35,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
         return f"ContextProvider(context_type={self.context_type!r}, scope={self.scope!r})"
 
     def fetch_context_value(self, container: "Container") -> "types.T_co | types.UnsetType":
-        # Same-scope int compare before the hop, as the compiled Factory closures do: a request
-        # value read from the request container skips `find_container`'s frame. Not the compiler's
-        # `_navigate` — that prepends a resolution step, which the caller then prepends again.
+        """Read this provider's context value at its own scope, or UNSET when none is set."""
         if container.scope != self.scope:
             container = container.find_container(self.scope)
         if container.closed:  # guarded: `_prepare()` warns and reopens unconditionally

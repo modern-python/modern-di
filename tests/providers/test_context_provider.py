@@ -381,9 +381,8 @@ def test_context_provider_rejects_context_type_passed_twice() -> None:
 
 
 def test_context_provider_override_direct_short_circuits() -> None:
-    # Overriding a ContextProvider and resolving it DIRECTLY exercises the compiled context-provider
-    # resolver's own override front-guard: the override wins with no ContextValueNotSetError raised,
-    # even though no value is set in the context registry.
+    # An override of a ContextProvider compiles to a constant resolver, so resolving it directly
+    # returns the override with no ContextValueNotSetError, even with nothing in the registry.
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
     app_container = Container(groups=[MyGroup])
     app_container.open()
@@ -479,9 +478,10 @@ def test_kwargs_context_provider_without_parsed_signature_injects_present_value(
 def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step(cache: bool) -> None:
     """INVARIANT: a scope error through a context kwarg carries exactly one breadcrumb step.
 
-    The folded loops call `find_container`, never the compiler's `_navigate` -- that helper prepends
-    a step and the enclosing closure prepends the factory's own, so the caller would appear twice.
-    The cached and transient loops are separate copies, which is why this is parametrized.
+    The context fold calls `find_container`, never the compiler's `_navigate` -- that helper
+    prepends a step and the generated resolver prepends the factory's own, so the caller would
+    appear twice. The cached and transient templates carry separate copies of the fold, which is
+    why this is parametrized.
     """
 
     class Cfg: ...
@@ -506,7 +506,7 @@ def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step(cache: 
 def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest.MonkeyPatch) -> None:
     """INVARIANT: a same-scope context kwarg costs no navigation.
 
-    The compiled closure folds the scope compare inline. Replacing it with an unconditional
+    The generated resolver folds the scope compare inline. Replacing it with an unconditional
     `find_container` call adds a frame per context kwarg to the hottest path.
     """
 
@@ -531,8 +531,8 @@ def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest
     assert isinstance(request.resolve(Svc), Svc)
     assert calls == []
 
-    # The cross-scope hop must still route through find_container, which is the blessed
-    # extension point 2026-08-01-scope-map-inline-declined.md protects.
+    # The cross-scope hop must still route through find_container: a Container subclass may
+    # redirect navigation, which an inlined `_scope_map` read would bypass.
     class AppCfg: ...
 
     @dataclasses.dataclass(kw_only=True, slots=True)
@@ -552,8 +552,8 @@ def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest
     assert calls == [Scope.APP]
 
 
-# The context lookup is folded into both compiled closures, so the cached (singleton) copy
-# needs its own coverage of every disposition -- the transient copy's tests do not reach it.
+# The context fold is generated into both the cached and the transient template, so the cached
+# copy needs its own coverage of every disposition -- the transient copy's tests do not reach it.
 
 
 class _CachedCtx: ...
@@ -582,9 +582,9 @@ def test_cached_factory_context_kwarg_uses_override() -> None:
 
 
 def test_transient_factory_context_kwarg_uses_override() -> None:
-    # Twin of the cached test above: the transient closure holds its own copy of the fold, and
-    # its override branch must `continue`. The parameter is nullable with no default, so falling
-    # through to the live lookup would overwrite the override with None.
+    # Twin of the cached test above, against the transient template's own copy of the fold. An
+    # overridden context kwarg is compiled into `static`, not into the fold; the parameter is
+    # nullable with no default, so leaking it into the fold would overwrite the override with None.
     class G(Group):
         ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP)

@@ -1,13 +1,8 @@
 """Framework-agnostic primitives for building a modern-di integration.
 
-Layer 1 (`bind`, `classify_connection`) derives a child container's scope and
-context from one or more `ContextProvider`s. Neither wraps
-`build_child_container` — the caller's own call to it stays the single
-blessed way to open a child; these functions only decide what to pass it.
-Layer 2 (`Marker`, `from_di`, `parse_markers`, `resolve_markers`) is the
-`Annotated`-marker injector shared by every integration without a native
-per-handler injection seam. `is_injected`/`mark_injected` guard against
-double-wrapping a handler an auto-inject sweep visits more than once.
+`bind` and `classify_connection` decide what to pass `build_child_container`; they never open a
+child themselves. The rest is the `Annotated`-marker injector for integrations with no native
+per-handler seam.
 """
 
 import dataclasses
@@ -35,23 +30,14 @@ class ConnectionMatch:
 
 
 def bind(provider: "ContextProvider[typing.Any]", connection: object) -> ConnectionMatch:
-    """Derive a child's scope and context from one connection bound to one provider.
-
-    `context` is keyed by `provider.context_type` — the same convention
-    `build_child_container(context=...)` expects.
-    """
+    """Derive a child's scope and context, keyed as `build_child_container(context=...)` expects."""
     return ConnectionMatch(scope=provider.scope, context={provider.context_type: connection})
 
 
 def classify_connection(
     connection: object, providers: "tuple[ContextProvider[typing.Any], ...]"
 ) -> ConnectionMatch | None:
-    """Pick the first provider `connection` is an instance of and `bind` it.
-
-    Returns `None` on no match rather than raising — the caller decides the
-    fallback, matching every dispatch adapter's existing behavior of building
-    an auto-scoped, context-less child when nothing matches.
-    """
+    """Pick the first provider `connection` is an instance of and `bind` it; `None` when none matches."""
     for provider in providers:
         if isinstance(connection, provider.context_type):
             return bind(provider, connection)
@@ -70,21 +56,18 @@ class Marker(typing.Generic[types.T_co]):
 
 
 def from_di(dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
-    """Marker factory for dependency injection.
+    """Build the marker for one injected parameter.
 
-    Default factory: `Annotated[T, from_di(dep)]` type-checks as `T`.
-    Integrations with their own per-handler injection seam (native `Depends`)
-    define their own factory instead; the rest re-export this one.
+    `Annotated[T, from_di(dep)]` type-checks as `T`.
     """
     return typing.cast(types.T, Marker(dependency))
 
 
 def parse_markers(func: typing.Callable[..., typing.Any]) -> dict[str, Marker[typing.Any]]:
-    """Scan `func`'s `Annotated` parameter hints for `Marker`s.
+    """Scan `func`'s `Annotated` parameter hints for `Marker`s — at decoration time, not per call.
 
-    Call once at decoration time, not per call. The first `Marker` found in a
-    parameter's metadata wins; `return` is never scanned. Unresolvable forward
-    references propagate `get_type_hints`'s own error unchanged.
+    The first `Marker` in a parameter's metadata wins; `return` is never scanned. An unresolvable
+    forward reference propagates `get_type_hints`'s own error.
     """
     hints = typing.get_type_hints(func, include_extras=True)
     markers: dict[str, Marker[typing.Any]] = {}

@@ -876,11 +876,10 @@ def test_definition_site_pathological_creator_is_none() -> None:
 
 
 def test_definition_site_recursion_error_propagates_for_guard_retry() -> None:
-    # A fresh RecursionError must NOT be swallowed (unlike every other exception): the runtime
+    # A fresh RecursionError must NOT be swallowed, unlike every other exception: the runtime
     # cycle guard computes anchors inside its own `except RecursionError` handler with the stack
-    # still near-exhausted, and its retry ladder (resolve_provider re-converting one frame up)
-    # only works if the fresh RecursionError propagates. Swallowing it here would memoize None
-    # and permanently strip the anchors off runtime-detected cycles.
+    # still near-exhausted, and retries one frame up. Swallowing it here would memoize None and
+    # permanently strip the anchors off runtime-detected cycles.
     class _StackExhausted:
         __module__ = "mymod"
 
@@ -1122,8 +1121,8 @@ def test_cached_kwargs_dependency_step_error() -> None:
 
 
 def test_unwireable_factory_override_short_circuits() -> None:
-    # An unwireable factory (missing required `dep1: str`) can still be overridden with a mock: the
-    # compiled unwireable resolver's own override front-guard returns it instead of raising.
+    # An unwireable factory (missing required `dep1: str`) can still be overridden: the override
+    # compiles to a constant resolver, so the always-raising one is never built.
     class G(Group):
         thing = providers.Factory(creator=SimpleCreator, bound_type=None)
 
@@ -1162,8 +1161,8 @@ def test_cached_kwargs_body_typeerror_propagates_unchanged() -> None:
 
 def test_transient_positional_binding_typeerror_wraps() -> None:
     # Transient mirror of test_cached_positional_binding_typeerror_wraps: skip_creator_parsing -> 0
-    # parsed args -> positional-eligible, but the creator needs one. resolve_positional must wrap the
-    # binding TypeError. Fills the one matrix cell (transient positional, binding) left uncovered.
+    # parsed args -> positional-eligible, but the creator needs one. The transient template's
+    # creator call must wrap the binding TypeError.
     class G(Group):
         thing = providers.Factory(
             creator=_cov_needs_one_arg,

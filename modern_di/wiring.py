@@ -1,10 +1,4 @@
-"""Kwarg-wiring decision for Factory providers.
-
-``WiringPlan`` partitions a creator's parsed parameters into provider
-lookups, static values, and context lookups. It is a pure function of its
-inputs — no cache, no scope, no live context — so it is exercisable without
-a Container.
-"""
+"""Kwarg-wiring decision for Factory providers: a pure function of the signature and the registry."""
 
 import dataclasses
 import enum
@@ -28,10 +22,7 @@ class _Absent(enum.Enum):
 
 
 def absent_disposition(item: SignatureItem) -> _Absent:
-    """Decide the disposition for a parameter with no matching provider.
-
-    Precedence: default before nullable before unwirable.
-    """
+    """Disposition for a parameter with no matching provider: default, then nullable, then unwirable."""
     if item.default is not UNSET:
         return _Absent.OMIT
     if item.is_nullable:
@@ -44,11 +35,7 @@ def find_dep_provider(
     owner: "Factory[typing.Any]",
     item: SignatureItem,
 ) -> "AbstractProvider[typing.Any] | None":
-    """Look up a dependency provider for *item* in *registry*, excluding *owner* itself.
-
-    Prefers ``arg_type``; falls back to the first matching type in ``args``
-    (union members).
-    """
+    """Look up a dependency provider for *item*, excluding *owner*: ``arg_type``, else a union member."""
     if item.arg_type is not None:
         provider = registry.find_provider(item.arg_type)
         if provider is owner:
@@ -63,22 +50,11 @@ def find_dep_provider(
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class WiringPlan:
-    """Immutable result of partitioning a creator's parameters.
+    """Immutable result of partitioning a creator's parameters into wiring buckets.
 
-    Attributes:
-        provider_kwargs:  name → provider resolved live each resolve call.
-        static_kwargs:    name → literal value (including nullable-None).
-        context_kwargs:   name → (ContextProvider, SignatureItem) looked up live.
-        unwireable:       UNWIRABLE parameters as (param-name, SignatureItem)
-                          records rather than pre-built exceptions, so a fresh
-                          ``ArgumentResolutionError`` can be constructed at
-                          each raise/yield site without ``prepend_step``
-                          mutations compounding across resolves of the same
-                          memoized plan.
-        pure_provider:    True when the plan has no static and no context
-                          kwargs, so resolve can build the kwargs dict from
-                          provider_kwargs alone — the common fast path.
-
+    ``pure_provider`` means no static and no context kwargs, so the call can be built from
+    ``provider_kwargs`` alone. ``unwireable`` holds records rather than pre-built exceptions: a
+    plan is memoized, and ``prepend_step`` mutates the error it is called on.
     """
 
     provider_kwargs: dict[str, "AbstractProvider[typing.Any]"]
@@ -89,12 +65,7 @@ class WiringPlan:
 
     @property
     def edges(self) -> dict[str, "AbstractProvider[typing.Any]"]:
-        """Every provider this plan resolves — the graph ``validate()`` traverses.
-
-        Derived from the buckets ``resolve()`` reads, so the validated graph cannot
-        drift from the resolved one. Providers supplied via ``kwargs={...}`` are edges
-        like any other: only the *declaration* differs, not the dependency.
-        """
+        """Every provider this plan resolves — derived from the buckets ``resolve()`` reads."""
         return {
             **self.provider_kwargs,
             **{name: provider for name, (provider, _item) in self.context_kwargs.items()},
@@ -109,11 +80,7 @@ class WiringPlan:
         registry: "ProvidersRegistry",
         owner: "Factory[typing.Any]",
     ) -> "WiringPlan":
-        """Partition *parsed_kwargs* into wiring buckets. Never raises.
-
-        Two phases: a by-type pass over ``parsed_kwargs``, then an overlay pass for any
-        explicit ``kwargs={...}`` entries — each bucketing into the same four dicts.
-        """
+        """Partition *parsed_kwargs* by type, then overlay ``kwargs={...}``. Never raises."""
         provider_kwargs, static_kwargs, context_kwargs, unwireable = cls._wire_by_type(
             parsed_kwargs=parsed_kwargs,
             kwargs=kwargs,
@@ -151,11 +118,7 @@ class WiringPlan:
         dict[str, "tuple[ContextProvider[typing.Any], SignatureItem]"],
         "list[tuple[str, SignatureItem]]",
     ]:
-        """Bucket each parsed parameter by resolving its type; the overlay pass runs after.
-
-        Returns the four buckets ``(provider, static, context, unwireable)``. A name also present
-        in explicit ``kwargs={...}`` is skipped here — ``_apply_overlay`` owns it.
-        """
+        """Bucket each parsed parameter by type; a name in ``kwargs={...}`` is left to the overlay."""
         provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
         static_kwargs: dict[str, typing.Any] = {}
         context_kwargs: dict[str, tuple[ContextProvider[typing.Any], SignatureItem]] = {}
@@ -163,7 +126,7 @@ class WiringPlan:
 
         for name, item in parsed_kwargs.items():
             if kwargs and name in kwargs:
-                continue  # supplied as a static kwarg by the overlay pass
+                continue
 
             provider = find_dep_provider(registry, owner, item)
             if provider is not None:
@@ -179,7 +142,6 @@ class WiringPlan:
             if disposition is _Absent.NULL:
                 static_kwargs[name] = None
                 continue
-            # UNWIRABLE: record the (name, item) pair but do not raise
             unwireable.append((name, item))
 
         return provider_kwargs, static_kwargs, context_kwargs, unwireable
@@ -193,12 +155,10 @@ class WiringPlan:
         static_kwargs: dict[str, typing.Any],
         context_kwargs: dict[str, "tuple[ContextProvider[typing.Any], SignatureItem]"],
     ) -> None:
-        """Bucket each explicit ``kwargs={...}`` entry into the buckets built by the by-type pass.
+        """Bucket each explicit ``kwargs={...}`` entry into the buckets the by-type pass built.
 
-        A ``ContextProvider`` joins ``context_kwargs`` with its parameter's ``SignatureItem``, so an
-        unset value honors the default/nullable exactly as the by-type route does. With no parsed
-        item (a ``**kwargs`` creator, ``skip_creator_parsing=True``) there is no default to honor, so
-        it stays a plain provider and keeps the direct-resolve semantics.
+        A ``ContextProvider`` carries its ``SignatureItem`` so an unset value honors the default
+        or nullable; with no parsed item it stays a plain provider and resolves directly.
         """
         for name, value in kwargs.items():
             item = parsed_kwargs.get(name)

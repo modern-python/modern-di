@@ -126,11 +126,11 @@ class Factory(AbstractProvider[types.T_co]):
         return self._cached_definition_site
 
     def _compute_definition_site(self) -> str | None:
-        # The anchor machinery's contract is "never raise": even a pathological creator whose
-        # attribute access blows up must degrade to an anchor-less step, not mask the real error.
-        # Sole carve-out: a fresh RecursionError propagates (nothing memoized), because the runtime
-        # cycle guard computes anchors inside its own RecursionError handler with the stack still
-        # near-exhausted, and its retry ladder re-converts one frame up with more headroom.
+        """Compute the creator's ``module:line``, degrading to None rather than masking a real error.
+
+        A ``RecursionError`` is the carve-out: the runtime cycle guard computes anchors inside
+        its own handler and retries one frame up.
+        """
         try:
             module = getattr(self._creator, "__module__", None)
             if module is None:
@@ -151,7 +151,6 @@ class Factory(AbstractProvider[types.T_co]):
     def _argument_resolution_error(
         self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry | None" = None
     ) -> exceptions.ArgumentResolutionError:
-        # The context path passes no registry, so absent-context errors carry no suggestions.
         suggestions = (
             suggester.suggest(item.arg_type, registry) if registry is not None and item.arg_type is not None else []
         )
@@ -164,18 +163,11 @@ class Factory(AbstractProvider[types.T_co]):
         )
 
     def _plan(self, container: "Container") -> WiringPlan:
-        # Memoized on the shared providers registry, so a deeper-scope factory builds its plan once
-        # tree-wide (see test_resolve_costs_exactly_one_resolver_frame_per_node). Building runs
-        # outside the container lock — a deterministic function of the registry's contents, so a
-        # race at worst repeats the build (see tests/test_free_threading.py).
+        """Return this factory's wiring plan, memoized on the tree-wide providers registry."""
         return container.providers_registry.plan_for(self, self._parsed_kwargs, self._kwargs)
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
-        """Return parameter-name → dependency-provider mapping using only the providers registry.
-
-        Pure lookup: no scope check, no cache touch, no context-value lookup. Used by
-        Container.validate() to traverse the static graph.
-        """
+        """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
         return self._plan(container).edges
 
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:

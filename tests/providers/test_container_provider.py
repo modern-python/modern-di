@@ -28,8 +28,8 @@ def test_container_provider_sub_dependency() -> None:
 
 
 def test_container_provider_override_direct() -> None:
-    # Overriding the container provider and resolving it directly exercises the compiled
-    # container-provider resolver's own override front-guard (dispatch no longer checks centrally).
+    # An override of the container provider compiles to a constant resolver, so resolving it
+    # directly returns the override rather than the resolving container.
     app_container = Container()
     app_container.open()
     app_container.override(providers.container_provider, "mock-container")

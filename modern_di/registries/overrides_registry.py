@@ -7,11 +7,10 @@ from modern_di import types
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class OverridesRegistry:
-    """Test-time replacement values by provider id.
+    """Test-time replacement values by provider id, applied at compile time.
 
-    Overrides are applied at compile time: every change calls ``on_change`` so the owning
-    providers registry drops its compiled resolvers, and the next resolve recompiles with the
-    override baked in. Nothing consults this registry on the resolve path.
+    Every change calls ``on_change``, the owning registry drops its compiled resolvers, and the
+    next resolve recompiles with the override baked in. Nothing reads this on the resolve path.
     """
 
     on_change: typing.Callable[[], None]
@@ -35,11 +34,7 @@ class OverridesRegistry:
 
 
 class OverrideHandle(typing.Generic[types.T]):
-    """Context-manager handle returned by ``Container.override``.
-
-    The override is already active when the handle is created; ``__exit__`` restores the
-    snapshot taken at creation — the prior override, or no override. Single-use contract.
-    """
+    """Single-use context-manager handle from ``Container.override``; ``__exit__`` restores the prior state."""
 
     __slots__ = ("_prior", "_provider_id", "_registry", "override_object")
 

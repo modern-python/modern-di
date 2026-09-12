@@ -1,17 +1,8 @@
 """Iterative depth-first walk of the static provider graph, emitted as an event stream.
 
-``DependencyGraph.walk`` is the single traversal that other capabilities (validation,
-the runtime cycle guard) consume. It is deliberately *explicit-stack* — no recursion —
-because a later caller runs it inside a ``RecursionError`` handler near CPython's stack
-limit, where headroom for a recursive walk is not guaranteed.
-
-The graph it walks is ``WiringPlan.edges``: every provider a plan resolves, however that
-dependency was declared. Type-matched parameters and providers supplied via
-``kwargs={...}`` are edges alike — so what ``validate()`` traverses is exactly what
-``resolve()`` follows.
-
-Import discipline: this module must not import ``Container`` (nor any concrete provider)
-at runtime — ``container.py`` imports this module, so a runtime back-import would cycle.
+Explicit-stack, never recursive: a caller runs it inside a ``RecursionError`` handler near
+CPython's stack limit. Must not import ``Container`` or a concrete provider at runtime —
+``container.py`` imports this module, so a back-import would cycle.
 """
 
 import enum
@@ -59,13 +50,10 @@ Event = NodeEntered | Edge | Cycle | DependenciesError
 def terminal_chain(
     provider: "AbstractProvider[typing.Any]", container: "Container"
 ) -> "list[AbstractProvider[typing.Any]]":
-    """Follow ``redirect_target`` hops from ``provider``, returning every provider passed through.
+    """Follow ``redirect_target`` hops from ``provider``, ``provider`` first.
 
-    The single home of the redirect walk: ``validate()``, the compiled alias resolver and the cycle
-    renderer all read a redirect's terminal from here. Element 0 is always ``provider``; a provider
-    that redirects nowhere yields a one-element chain. A redirect cycle is broken via the ``seen``
-    guard, ending the chain on the starting provider rather than looping forever; ``walk()`` reports
-    that cycle separately.
+    A redirect cycle collapses the chain to the single provider the repeat was detected at, so
+    ``effective_scope`` reports that provider's own scope; ``walk()`` reports the cycle itself.
     """
     chain = [provider]
     seen: set[int] = set()
@@ -84,11 +72,7 @@ def effective_scope(provider: "AbstractProvider[typing.Any]", container: "Contai
 
 
 def redirect_step(provider: "AbstractProvider[typing.Any]", container: "Container") -> "exceptions.ResolutionStep":
-    """Draw a chain step for a provider that may redirect, at the scope it actually resolves at.
-
-    A redirect declares no scope of its own — ``Alias`` reports the ``Scope.APP`` default — so
-    rendering ``provider.scope`` would put a band on the chain that nothing in the graph chose.
-    """
+    """Draw a chain step at the scope a possibly-redirecting provider resolves at, not its own default."""
     return exceptions.ResolutionStep(
         scope=effective_scope(provider, container),
         name=provider.display_name,
@@ -102,15 +86,13 @@ def build_cycle_error(
 ) -> "exceptions.CircularDependencyError":
     """Build a ``CircularDependencyError`` from a cycle's providers (first node repeated last).
 
-    Rotated to start at the minimum-``provider_id`` node before rendering: the seed node the walk
-    starts from depends on which frame's ``resolve_provider`` caught the ``RecursionError``, but a
-    rotation of the same ring is the same cycle — anchoring on a stable per-process id makes the
-    rendered message path- and seed-independent.
+    Rotated to start at the lowest ``provider_id``, so the message does not depend on which
+    frame caught the ``RecursionError``.
     """
-    ring = providers[:-1]  # drop the repeated first node
-    lead = min(range(len(ring)), key=lambda i: ring[i].provider_id)  # lowest-id node becomes the canonical lead
+    ring = providers[:-1]
+    lead = min(range(len(ring)), key=lambda i: ring[i].provider_id)
     rotated = [*ring[lead:], *ring[:lead]]
-    canonical = [*rotated, rotated[0]]  # re-close the ring on the lead node
+    canonical = [*rotated, rotated[0]]
     return exceptions.CircularDependencyError(
         steps=[
             exceptions.ResolutionStep(
@@ -129,12 +111,7 @@ class DependencyGraph:
         roots: "typing.Iterable[AbstractProvider[typing.Any]]",
         container: "Container",
     ) -> "typing.Iterator[Event]":
-        """Pre-order DFS from each root, emitting the event stream.
-
-        ``visiting``/``visited`` are shared across all roots: a node reached under an
-        earlier root is neither re-entered nor re-descended when it reappears, and a root
-        already visited is skipped entirely. All bookkeeping is keyed on ``provider_id``.
-        """
+        """Pre-order DFS from each root; bookkeeping is shared across roots, keyed on ``provider_id``."""
         visiting: set[int] = set()
         visited: set[int] = set()
         for root in roots:
@@ -145,11 +122,7 @@ class DependencyGraph:
         start: "AbstractProvider[typing.Any]",
         container: "Container",
     ) -> "list[AbstractProvider[typing.Any]] | None":
-        """Return the first cycle reachable from ``start``, or None when that subgraph is acyclic.
-
-        Built on the iterative ``walk``, so it is safe to call from a ``RecursionError``
-        handler near CPython's stack limit.
-        """
+        """Return the first cycle reachable from ``start``, or None when that subgraph is acyclic."""
         for event in self.walk([start], container):
             if isinstance(event, Cycle):
                 return event.providers
@@ -197,11 +170,7 @@ class DependencyGraph:
         path: "list[AbstractProvider[typing.Any]]",
         stack: "list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]]",
     ) -> "typing.Iterator[Event]":
-        """Push ``provider`` onto the active path: emit NodeEntered, then read its deps.
-
-        A ``ResolutionError`` from ``get_dependencies`` is emitted as ``DependenciesError``
-        and the node is treated as having no dependencies (the walk continues).
-        """
+        """Push ``provider`` onto the active path; a ``ResolutionError`` from it becomes ``DependenciesError``."""
         visiting.add(provider.provider_id)
         path.append(provider)
         yield NodeEntered(provider)
