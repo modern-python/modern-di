@@ -3,8 +3,8 @@
 This page compares modern-di's resolution performance against four other Python
 DI frameworks, states the method, and gives a command to reproduce the numbers.
 modern-di has no runtime dependencies; each `Factory` resolver is generated from a
-source template (`docs/adr/0030-exec-template-resolver.md` in the repository records
-why and the measurements). The comparison set includes two other frameworks that use
+source template ([why, and the designs that were rejected](#why-the-results-look-this-way)).
+The comparison set includes two other frameworks that use
 `exec` codegen (dishka, wireup), one with a Cython-compiled core (dependency-injector),
 and one pure-Python framework (that-depends).
 
@@ -285,8 +285,21 @@ constants as globals, one code object per shape. Every arity is unrolled, so a w
 builds a list and star-calls its creator (the C3 and by-type movement above). The same change
 compiled overrides in, so no resolver checks the overrides registry on the hot path, and gave
 `Container.resolve` a direct type → resolver memo, which is what closed the by-type surcharge.
-The measurements and the rejected designs are recorded in `docs/adr/0030-exec-template-resolver.md`
-in the repository.
+Every all-Python single-copy design was measured before the template, on the guard tier:
+
+| Design | G1 transient | G3 chain (6) | G4 wide (10) |
+|---|---|---|---|
+| Arity ladder folded into one closure with branches | +31% | +26% | +35% |
+| Shared `build()` helper | +66% | +47% | +47% |
+| Shared `build()` and `call()` helpers | +79% | +62% | +58% |
+| Template, one code object per provider | −2% | −21% | −30% |
+| **Template, one code object per shape** (shipped) | −5% | +4% | −13% |
+
+The folded ladder lost a quarter with every added branch *untaken*: on CPython 3.12+ a closure's
+size costs on every call, not only its frames. The per-provider row is faster because a code
+object shared across providers turns its call sites polymorphic for the specialising interpreter;
+per shape shipped anyway, because `compile()` costs ~70 µs per provider and a test suite building
+a container per test would pay it per test.
 
 ## Reproduce it yourself
 

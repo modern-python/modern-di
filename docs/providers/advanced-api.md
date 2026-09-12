@@ -34,6 +34,12 @@ raising `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent
 It is the primitive the compiled resolvers use to locate the container at a provider's
 scope when it differs from the resolving container's.
 
+It is also the one method a `Container` subclass may meaningfully override: children are built
+through `self.__class__`, so an override travels down the tree, and the container it returns is
+the one whose cache receives a singleton and runs its finalizer. `resolve` and `resolve_provider`
+are entry points, not hooks: a compiled resolver calls its dependencies' resolvers directly, so an
+override of either sees only the top-level call.
+
 ## Container internals — no stability guarantee
 
 !!! warning "Internal surface"

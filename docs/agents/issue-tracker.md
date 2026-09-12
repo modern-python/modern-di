@@ -39,12 +39,13 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
-## Rejected work: read and write `docs/adr/`, not `.out-of-scope/`
+## Rejected work: the design-decisions Non-goals, not `.out-of-scope/`
 
-Where a skill says `.out-of-scope/`, this repo means `docs/adr/`. A rejected enhancement is recorded
-there as a decision record, and the prior-rejection check during triage reads that directory. Do not
-create `.out-of-scope/`: this repo keeps one home for a rejected alternative, and a second one would
-split the corpus that the check depends on.
+Where a skill says `.out-of-scope/`, this repo means the **Non-goals** section of
+`docs/introduction/design-decisions.md`. A rejected enhancement is recorded there as a short
+user-facing entry (what is out, why, the alternative), and the prior-rejection check during triage
+reads that section. Do not create `.out-of-scope/` or `docs/adr/`: one home for a rejected
+alternative, and a second one would split the corpus the check depends on.
 
 ## Wayfinding operations
 

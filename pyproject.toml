@@ -78,7 +78,7 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 
 [tool.ruff.lint.per-file-ignores]
 # The resolver compiler reads `Factory._creator` and friends by design (one compiler, closed provider
-# set: docs/adr/0014-per-provider-compile-seam-declined.md), and every resolver returns `typing.Any`.
+# set), and every resolver returns `typing.Any`.
 "modern_di/resolver_compiler.py" = ["SLF001", "ANN401"]
 # White-box tests assert on container and registry internals; that is what they are for.
 "tests/**" = ["SLF001"]

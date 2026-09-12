@@ -4,7 +4,8 @@ A ``Factory`` resolver is generated from a source template, specialised to the f
 :class:`_Shape`, and ``exec``'d with the factory's constants as its globals. Every other provider
 type compiles to a small closure. An overridden provider compiles to its override value, so the
 resolvers never consult the overrides registry; applying an override drops the compiled
-resolvers instead (see ``ProvidersRegistry.drop_resolvers``).
+resolvers instead (see ``ProvidersRegistry.drop_resolvers``). Why a template and not shared
+helpers: every all-Python single-copy design measured 25-80% slower (docs/introduction/performance.md).
 """
 
 import dataclasses
@@ -299,6 +300,7 @@ def _navigate(
     resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
 ) -> "Container":
     """Cross-scope target lookup; a scope error carries this provider's resolution step."""
+    # `find_container`, never an inlined `_scope_map` read: a Container subclass may redirect navigation.
     try:
         return container.find_container(scope)
     except _SCOPE_ERRORS as exc:

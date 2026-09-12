@@ -6,20 +6,19 @@ codebase. This repo is **single-context**.
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root: the domain glossary.
-- **`docs/adr/`**: read the decision records that touch the area you're about to work in.
+- **`docs/introduction/design-decisions.md`**: the deliberate design choices and the non-goals.
+  There is no `docs/adr/`; a decision worth recording goes on that page, in user-facing terms.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest
-creating them upfront. The `/domain-modeling` skill creates them lazily when terms or decisions
-actually get resolved.
+If either file is missing, **proceed silently**. Don't flag its absence; don't suggest creating
+it upfront. The `/domain-modeling` skill creates `CONTEXT.md` lazily when a term actually gets
+resolved.
 
 ## File structure
 
 ```
 /
 ├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-….md
-│   └── 0002-….md
+├── docs/introduction/design-decisions.md
 ├── modern_di/
 └── tests/
 ```
@@ -42,14 +41,14 @@ the project doesn't use (reconsider) or there's a real gap (note it for `/domain
 working in both renderings:
 
 - **Between files inside `docs/`, use a plain relative `.md` link.** MkDocs rewrites it to a site
-  URL and GitHub follows it as a file. From one ADR to another, that is `[ADR-NNNN](NNNN-slug.md)`.
+  URL and GitHub follows it as a file.
 - **Never link from a file inside `docs/` to a path outside it.** It cannot resolve in both
   renderings: MkDocs emits `links.not_found` and ships the link verbatim, so it 404s on the site.
   Cite `modern_di/...`, `tests/...`, and root files as inline code, never as links.
 
-## Flag ADR conflicts
+## Flag conflicts with a recorded decision
 
-If your output contradicts an existing decision record, surface it explicitly rather than silently
-overriding:
+If your output contradicts a choice on the design-decisions page, surface it explicitly rather than
+silently overriding:
 
-> _Contradicts ADR-NNNN (its title), but worth reopening because…_
+> _Contradicts design decision "…" (its heading), but worth reopening because…_

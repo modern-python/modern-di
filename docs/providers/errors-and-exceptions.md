@@ -5,6 +5,10 @@ root, `ModernDIError`. The hierarchy is grouped by *when* the failure happens â€
 providers, validating the graph, resolving a type, or closing a container â€” so you can catch a
 whole category with one `except`.
 
+The class hierarchy and each error's structured attributes (`.provider_type`, `.cycle_path`,
+`.suggestions`, `.dependency_path`, ...) are the contract. The rendered message text is diagnostic
+output and may change in any release; read an attribute, never parse the message.
+
 ```python
 from modern_di import exceptions
 ```
