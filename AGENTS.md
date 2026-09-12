@@ -33,8 +33,8 @@ Every module under `modern_di/` is named for what it does; read it. What a singl
   template per resolver shape and `exec`'d with the factory's constants as globals; the other provider
   types compile to closures. A new provider type must add a branch here or `compile_resolver` raises.
   Nothing in the template calls a helper on the hot path: the per-node frame budget is the point, and
-  `test_resolve_costs_exactly_one_resolver_frame_per_node` says why. Overrides are compiled in
-  (`docs/adr/0030-exec-template-resolver.md`): an override change drops the compiled resolvers.
+  `test_resolve_costs_exactly_one_resolver_frame_per_node` says why. Overrides are compiled in: an
+  override change drops the compiled resolvers.
 - `exceptions.py` owns **every message and every glyph**. A raise site passes structured facts, never
   formatting; the class renders its own f-string and sets a `docs_slug` (its page under
   `docs/troubleshooting/`, enforced by `tests/test_docs_slug_census.py`). Add a message, a glyph, or a
@@ -79,5 +79,5 @@ a sibling test may be the one that trips.
 - **Issues and specs** — GitHub Issues on `modern-python/modern-di`, via `gh`:
   [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)
 - **Triage labels** — the five canonical roles: [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md)
-- **Domain docs** — single-context, `CONTEXT.md` + `docs/adr/`: [`docs/agents/domain.md`](docs/agents/domain.md)
+- **Domain docs** — single-context, `CONTEXT.md`; public choices on the design-decisions page, internal ones in `docs/adr/`: [`docs/agents/domain.md`](docs/agents/domain.md)
 - **Cutting a release** (maintainers) — [`docs/agents/release.md`](docs/agents/release.md)

@@ -1,5 +1,8 @@
 # Usage with `Typer`
 
+A Typer application is a Click application, so this adapter is also the answer for Click; there is
+no separate `modern-di-click`.
+
 ## How to use
 
 ### 1. Install `modern-di-typer`

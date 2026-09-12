@@ -6,20 +6,20 @@ codebase. This repo is **single-context**.
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root: the domain glossary.
-- **`docs/adr/`**: read the decision records that touch the area you're about to work in.
-
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest
-creating them upfront. The `/domain-modeling` skill creates them lazily when terms or decisions
-actually get resolved.
+- **`docs/introduction/design-decisions.md`**: the deliberate choices behind the public API and
+  the non-goals. Anything a user can observe is decided there, in user-facing terms.
+- **`docs/adr/`**: decisions about internals only, the ones a maintainer would otherwise "fix":
+  the shape of the resolve path, registry memo invalidation, and the like. An ADR earns its place
+  only when the decision is hard to reverse, surprising without context, and a real trade-off;
+  most internal choices are none of these and need no record.
 
 ## File structure
 
 ```
 /
 ├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-….md
-│   └── 0002-….md
+├── docs/introduction/design-decisions.md   ← public API choices and non-goals
+├── docs/adr/                               ← internal design decisions
 ├── modern_di/
 └── tests/
 ```
@@ -42,14 +42,14 @@ the project doesn't use (reconsider) or there's a real gap (note it for `/domain
 working in both renderings:
 
 - **Between files inside `docs/`, use a plain relative `.md` link.** MkDocs rewrites it to a site
-  URL and GitHub follows it as a file. From one ADR to another, that is `[ADR-NNNN](NNNN-slug.md)`.
+  URL and GitHub follows it as a file.
 - **Never link from a file inside `docs/` to a path outside it.** It cannot resolve in both
   renderings: MkDocs emits `links.not_found` and ships the link verbatim, so it 404s on the site.
   Cite `modern_di/...`, `tests/...`, and root files as inline code, never as links.
 
-## Flag ADR conflicts
+## Flag conflicts with a recorded decision
 
-If your output contradicts an existing decision record, surface it explicitly rather than silently
-overriding:
+If your output contradicts a choice on the design-decisions page or an ADR, surface it explicitly
+rather than silently overriding:
 
-> _Contradicts ADR-NNNN (its title), but worth reopening because…_
+> _Contradicts design decision "…" (or ADR-NNNN), but worth reopening because…_

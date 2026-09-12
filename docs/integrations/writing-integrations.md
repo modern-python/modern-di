@@ -283,6 +283,11 @@ that calls your resolver with the request container. Some frameworks have none:
 a Typer/Click command, an argparse handler, or a plain task callable receives
 only what the framework's argument parser binds. There is nowhere to inject.
 
+The rule: an integration is decorator-free only where the framework evaluates a parameter
+default as a provider (FastAPI and FastStream `Depends`, Litestar `Provide`, taskiq
+`TaskiqDepends`). Flask, Starlette, aiohttp, Celery, arq, Typer and gRPC hand the handler a plain
+callable, and aiogram matches its `data` dict by parameter name, so those need `@inject`.
+
 For these, `FromDI` becomes an inert annotation marker and a **decorator** does
 the work native DI would have. [`modern-di-typer`](typer.md)'s `@inject` is the
 reference implementation — reach for this shape whenever the framework runs
@@ -402,7 +407,7 @@ Each official integration is its own repository and PyPI package, mirroring the
   directly under `Full guide:`.
 - **Mirror `modern-di`'s** `AGENTS.md` and `justfile`. Keep behavioural invariants
   in named tests rather than in a prose truth home, and record rejected
-  alternatives as ADRs under `docs/adr/`. Keep resolution sync-only and add no
+  alternatives on the [design decisions](../introduction/design-decisions.md#non-goals) page. Keep resolution sync-only and add no
   runtime dependency beyond the framework and `modern-di`. `ruff` is unpinned and
   CI floats it forward, so keep `CPY001` (no per-file copyright header) in the
   lint `ignore` and reflow any pre-existing Markdown-embedded code fences the
