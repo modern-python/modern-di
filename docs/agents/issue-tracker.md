@@ -44,8 +44,9 @@ Run `gh issue view <number> --comments`.
 Where a skill says `.out-of-scope/`, this repo means the **Non-goals** section of
 `docs/introduction/design-decisions.md`. A rejected enhancement is recorded there as a short
 user-facing entry (what is out, why, the alternative), and the prior-rejection check during triage
-reads that section. Do not create `.out-of-scope/` or `docs/adr/`: one home for a rejected
-alternative, and a second one would split the corpus the check depends on.
+reads that section. Do not create `.out-of-scope/`, and do not record a rejected request as an
+ADR: `docs/adr/` is for internal design decisions, and a second home for rejections would split
+the corpus the check depends on.
 
 ## Wayfinding operations
 

@@ -79,5 +79,5 @@ a sibling test may be the one that trips.
 - **Issues and specs** — GitHub Issues on `modern-python/modern-di`, via `gh`:
   [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)
 - **Triage labels** — the five canonical roles: [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md)
-- **Domain docs** — single-context, `CONTEXT.md`; decisions and rejected requests on the design-decisions page: [`docs/agents/domain.md`](docs/agents/domain.md)
+- **Domain docs** — single-context, `CONTEXT.md`; public choices on the design-decisions page, internal ones in `docs/adr/`: [`docs/agents/domain.md`](docs/agents/domain.md)
 - **Cutting a release** (maintainers) — [`docs/agents/release.md`](docs/agents/release.md)

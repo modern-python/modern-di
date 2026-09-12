@@ -6,8 +6,12 @@ codebase. This repo is **single-context**.
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root: the domain glossary.
-- **`docs/introduction/design-decisions.md`**: the deliberate design choices and the non-goals.
-  There is no `docs/adr/`; a decision worth recording goes on that page, in user-facing terms.
+- **`docs/introduction/design-decisions.md`**: the deliberate choices behind the public API and
+  the non-goals. Anything a user can observe is decided there, in user-facing terms.
+- **`docs/adr/`**: decisions about internals only, the ones a maintainer would otherwise "fix":
+  the shape of the resolve path, registry memo invalidation, and the like. An ADR earns its place
+  only when the decision is hard to reverse, surprising without context, and a real trade-off;
+  most internal choices are none of these and need no record.
 
 If either file is missing, **proceed silently**. Don't flag its absence; don't suggest creating
 it upfront. The `/domain-modeling` skill creates `CONTEXT.md` lazily when a term actually gets
@@ -18,7 +22,8 @@ resolved.
 ```
 /
 ├── CONTEXT.md
-├── docs/introduction/design-decisions.md
+├── docs/introduction/design-decisions.md   ← public API choices and non-goals
+├── docs/adr/                               ← internal design decisions
 ├── modern_di/
 └── tests/
 ```
@@ -48,7 +53,7 @@ working in both renderings:
 
 ## Flag conflicts with a recorded decision
 
-If your output contradicts a choice on the design-decisions page, surface it explicitly rather than
-silently overriding:
+If your output contradicts a choice on the design-decisions page or an ADR, surface it explicitly
+rather than silently overriding:
 
-> _Contradicts design decision "…" (its heading), but worth reopening because…_
+> _Contradicts design decision "…" (or ADR-NNNN), but worth reopening because…_
