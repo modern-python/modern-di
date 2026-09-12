@@ -15,7 +15,7 @@ inspect or iterate all providers declared on a group hierarchy.
     `Factory`, `Alias`, `ContextProvider`, and the pre-built `container_provider` are the
     only provider types. `AbstractProvider` is their shared base and the type that appears
     in public signatures (`resolve_dependency`, `kwargs=`), but it is **not** a hook for
-    adding your own: resolution compiles one closure per known provider type, so a subclass
+    adding your own: resolution compiles a resolver per known provider type, so a subclass
     of `AbstractProvider` — or of `Factory` — raises `TypeError` at its first resolve, and
     `validate()` does not catch it. Compose behavior in a creator function, or use `Alias`,
     instead of introducing a provider type.

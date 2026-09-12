@@ -252,6 +252,7 @@ def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") ->
 
 def _compile_alias(a: "Alias[typing.Any]") -> "Resolver":
     """Call the source's resolver directly; a source registered later is picked up on the next resolve."""
+    # Not bound to the source's resolver at compile time: the alias step in error chains needs this frame.
     source_type = a._source_type
     find_source = a._find_source
 
