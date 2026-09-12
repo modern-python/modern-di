@@ -1,14 +1,16 @@
-"""Compile one flat closure resolver per provider (the single resolve path).
+"""Compile one resolver per provider: the single resolve path.
 
-Each resolver front-guards its own override, navigates its target once (same-scope deps skip
-the navigation via an int compare), inlines the kwargs build and creator call, and calls its
-dependencies' resolvers by reference. Behavior-sensitive helpers (`_resolution_step`,
-`prepend_step`) are reused, not reimplemented. Context kwargs are folded at compile time --
-`ContextProvider.scope` and `.context_type` are fixed once registered, so the whole context
-lookup is inline here and owns its behaviour (see test_same_scope_context_hop_does_not_call_find_container).
+A ``Factory`` resolver is generated from a source template, specialised to the factory's
+:class:`_Shape`, and ``exec``'d with the factory's constants as its globals. Every other provider
+type compiles to a small closure. An overridden provider compiles to its override value, so the
+resolvers never consult the overrides registry; applying an override drops the compiled
+resolvers instead (see ``ProvidersRegistry.drop_resolvers``).
 """
 
+import dataclasses
 import functools
+import itertools
+import linecache
 import typing
 
 from modern_di import exceptions, types
@@ -22,353 +24,222 @@ from modern_di.wiring import _Absent, absent_disposition
 
 
 if typing.TYPE_CHECKING:
+    from types import CodeType
+
     from modern_di import Container
     from modern_di.registries.providers_registry import ProvidersRegistry
-    from modern_di.types_parser import SignatureItem
     from modern_di.wiring import WiringPlan
 
-    _ProvResolvers: typing.TypeAlias = tuple[tuple[str, typing.Callable[[Container], typing.Any]], ...]
-    #: name, ContextProvider.provider_id, its scope, its context_type, absent disposition, item.
-    #: Folded at compile time; the identity of a registered ContextProvider does not change.
-    _CtxBindings: typing.TypeAlias = tuple[tuple[str, int, typing.Any, type, _Absent, SignatureItem], ...]
+    Resolver: typing.TypeAlias = typing.Callable[[Container], typing.Any]
 
 _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError)
 _STEP_ERRORS = (exceptions.ResolutionError, *_SCOPE_ERRORS)
 
 
-def _can_call_positionally(f: "Factory[typing.Any]", plan: "WiringPlan") -> bool:
-    """Whether `f`'s creator can be called positionally instead of with `**kwargs`.
-
-    Eligible only when every parsed parameter is a positional-or-keyword provider dependency, in
-    signature order, with nothing omitted (no static, no context, no default-omitted, no
-    keyword-only, no kwargs-overlay extra). Exactly this graph gets the positional call; anything
-    else keeps `creator(**kwargs)`. When in doubt, exclude.
-    """
-    if not plan.pure_provider:  # pure_provider already means no static and no context kwargs
-        return False
-    names = tuple(f._parsed_kwargs)
-    if tuple(plan.provider_kwargs) != names:
-        return False  # a param was omitted/reordered, or a kwargs-overlay added an extra -> not a clean prefix
-    if any(item.is_keyword_only for item in f._parsed_kwargs.values()):
-        return False
-    # A positional-only param is dropped from _parsed_kwargs by the parser, so the remaining names
-    # can look like a clean prefix while a positional call would bind them to the wrong slots.
-    return not (names and f._has_positional_only_gap)
-
-
-def compile_resolver(
-    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
-) -> "typing.Callable[[Container], typing.Any]":
-    """Return `provider`'s compiled resolver. All provider types compile; no interpreted fallback ships."""
+def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
+    """Return `provider`'s compiled resolver; an overridden provider resolves to its override value."""
+    override = registry.overrides.fetch_override(provider.provider_id)
+    if override is not types.UNSET:
+        return _compile_constant(override)
     if type(provider) is Factory:
-        if provider.cache_settings is None:
-            return _compile_transient_factory(provider, registry)
-        return _compile_cached_factory(provider, registry)
+        return _compile_factory(provider, registry)
     if type(provider) is Alias:
         return _compile_alias(provider)
     if provider is container_provider:
-        return _compile_container_provider()
+        return _resolve_to_container
     if type(provider) is ContextProvider:
         return _compile_context_provider(provider)
     msg = f"no compiled resolver for provider type {type(provider).__name__}"
-    raise TypeError(msg)  # every provider type is compiled; a new type must add a branch here
+    raise TypeError(msg)
 
 
-def _compile_transient_factory(  # noqa: C901, PLR0915 (two hot-path closures: positional + kwargs, each flat to hold the per-node frame at 1)
-    f: "Factory[typing.Any]", registry: "ProvidersRegistry"
-) -> "typing.Callable[[Container], typing.Any]":
+def _can_call_positionally(f: "Factory[typing.Any]", plan: "WiringPlan") -> bool:
+    """Whether `f`'s creator can be called positionally.
+
+    True when every parsed parameter is a positional-or-keyword provider dependency, in signature
+    order, with nothing omitted, added, keyword-only or positional-only.
+    """
+    if not plan.pure_provider:
+        return False
+    names = tuple(f._parsed_kwargs)
+    if tuple(plan.provider_kwargs) != names:
+        return False
+    if any(item.is_keyword_only for item in f._parsed_kwargs.values()):
+        return False
+    return not (names and f._has_positional_only_gap)
+
+
+_TRANSIENT = """\
+def resolve(container):
+    target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+    if target.closed:
+        target._prepare()
+    try:
+{build}
+    except _STEP_ERRORS as exc:
+        exc.prepend_step(resolution_step())
+        raise
+    try:
+        return creator({args})
+    except TypeError as exc:
+        error = CreatorCallError.from_type_error(creator=creator, exc=exc, resolution_step=resolution_step)
+        if error is None:
+            raise
+        raise error from exc
+"""
+
+_CACHED = """\
+def build(target):
+    try:
+{build}
+    except _STEP_ERRORS as exc:
+        exc.prepend_step(resolution_step())
+        raise
+    return {built}
+
+def create(built):
+    try:
+        return creator({star}built)
+    except TypeError as exc:
+        error = CreatorCallError.from_type_error(creator=creator, exc=exc, resolution_step=resolution_step)
+        if error is None:
+            raise
+        raise error from exc
+
+def resolve(container):
+    target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+    if target.closed:
+        target._prepare()
+    cache_registry = target.cache_registry
+    cache_item = cache_registry._items.get(pid)
+    if cache_item is None:
+        cache_item = cache_registry.fetch_cache_item(provider)
+    cached = cache_item.cache
+    if cached is not UNSET:
+        return cached
+    value, created = cache_item.get_or_create(target._lock, resolve=partial(build, target), create=create)
+    if created:
+        cache_registry.mark_created(cache_item)
+    return value
+"""
+
+_CONTEXT_FOLD = """\
+        for name, context_scope, context_type, disposition, item in context:
+            holder = target if target.scope == context_scope else target.find_container(context_scope)
+            if holder.closed:
+                holder._prepare()
+            value = holder.context_registry.find_context(context_type)
+            if value is not UNSET:
+                kwargs[name] = value
+            elif disposition is NULL:
+                kwargs[name] = None
+            elif disposition is not OMIT:
+                raise build_arg_error(arg_name=name, item=item)
+"""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _Shape:
+    """The parts of a Factory that decide its generated source; factories of one shape share a code object."""
+
+    arity: int
+    names: tuple[str, ...] | None
+    static: bool
+    context: bool
+    cached: bool
+
+    def source(self) -> str:
+        if self.names is None:
+            build = "\n".join(f"        a{i} = r{i}(target)" for i in range(self.arity)) or "        pass"
+            args = ", ".join(f"a{i}" for i in range(self.arity))
+            built = "(" + "".join(f"a{i}, " for i in range(self.arity)) + ")"
+            star = "*"
+        else:
+            build = (
+                "        kwargs = {" + ", ".join(f"{name!r}: r{i}(target)" for i, name in enumerate(self.names)) + "}"
+            )
+            if self.static:
+                build += "\n        kwargs.update(static)"
+            if self.context:
+                build += "\n" + _CONTEXT_FOLD.rstrip("\n")
+            args, built, star = "**kwargs", "kwargs", "**"
+        if self.cached:
+            return _CACHED.format(build=build, built=built, star=star)
+        return _TRANSIENT.format(build=build, args=args)
+
+
+_shape_ids = itertools.count()
+
+
+@functools.cache
+def _code(shape: _Shape) -> "CodeType":
+    source = shape.source()
+    filename = f"<modern_di resolver shape {next(_shape_ids)}>"
+    linecache.cache[filename] = (len(source), None, source.splitlines(keepends=True), filename)
+    return compile(source, filename, "exec")
+
+
+def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
     plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
-    prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
-    static = plan.static_kwargs
-    ctx: _CtxBindings = tuple(
-        (name, cp.provider_id, cp.scope, cp.context_type, absent_disposition(item), item)
-        for name, (cp, item) in plan.context_kwargs.items()
-    )
-    pure = plan.pure_provider
-    scope = f.scope
-    pid = f.provider_id
-    resolution_step = f._resolution_step
-    build_arg_error = f._argument_resolution_error
-    creator = f._creator
-
-    if _can_call_positionally(f, plan):
-        # Positional fast path; `pure` is True here, so no static/context folding runs.
-        # Measured: creator(**kwargs) costs 4-6x this path -- do not simplify it away.
-        # See test_resolve_costs_exactly_one_resolver_frame_per_node.
-        pos = tuple(r for _name, r in prov)
-
-        # Arity ladder. `len(pos)` is fixed at compile time, so 0 and 1 deps get a closure that
-        # names its argument and calls the creator directly -- no list build, no
-        # CALL_FUNCTION_EX unpack, and below 3.12 no comprehension frame either. Each rung is a
-        # full copy for the same reason the rest of this module is: a shared helper would cost a
-        # frame per node -- which is also why the ladder stops at 1. Every measured win lives at
-        # arity 0 and 1 (leaves and chains); rungs beyond that duplicate the closure's whole
-        # branch set for a gain no scenario in `benchmarks/` shows. Arity 2+ falls through to the
-        # generic star-call below.
-        if len(pos) == 0:
-
-            def resolve_arity0(container: "Container") -> typing.Any:
-                overrides = container.overrides_registry
-                if overrides.has_overrides:
-                    override = overrides.fetch_override(pid)
-                    if override is not types.UNSET:
-                        return override
-                target = container if container.scope == scope else _navigate(container, scope, resolution_step)
-                if target.closed:
-                    target._prepare()
-                try:
-                    return creator()
-                except TypeError as exc:
-                    error = exceptions.CreatorCallError.from_type_error(
-                        creator=creator, exc=exc, resolution_step=resolution_step
-                    )
-                    if error is None:
-                        raise
-                    raise error from exc
-
-            return resolve_arity0
-
-        if len(pos) == 1:
-            (r0,) = pos
-
-            def resolve_arity1(container: "Container") -> typing.Any:
-                overrides = container.overrides_registry
-                if overrides.has_overrides:
-                    override = overrides.fetch_override(pid)
-                    if override is not types.UNSET:
-                        return override
-                target = container if container.scope == scope else _navigate(container, scope, resolution_step)
-                if target.closed:
-                    target._prepare()
-                try:
-                    a0 = r0(target)
-                except _STEP_ERRORS as exc:
-                    exc.prepend_step(resolution_step())
-                    raise
-                try:
-                    return creator(a0)
-                except TypeError as exc:
-                    error = exceptions.CreatorCallError.from_type_error(
-                        creator=creator, exc=exc, resolution_step=resolution_step
-                    )
-                    if error is None:
-                        raise
-                    raise error from exc
-
-            return resolve_arity1
-
-        def resolve_positional(container: "Container") -> typing.Any:
-            # Inlined per closure, not extracted: frame budget -- see
-            # test_resolve_costs_exactly_one_resolver_frame_per_node.
-            overrides = container.overrides_registry
-            if overrides.has_overrides:
-                override = overrides.fetch_override(pid)
-                if override is not types.UNSET:
-                    return override
-            target = container if container.scope == scope else _navigate(container, scope, resolution_step)
-            if target.closed:
-                target._prepare()
-            try:  # build the positional args from the dependency resolvers (a dependency can raise ResolutionError)
-                args = [r(target) for r in pos]
-            except _STEP_ERRORS as exc:
-                exc.prepend_step(resolution_step())
-                raise
-            try:  # inlined Factory._call_creator, positional
-                return creator(*args)
-            except TypeError as exc:
-                error = exceptions.CreatorCallError.from_type_error(
-                    creator=creator, exc=exc, resolution_step=resolution_step
-                )
-                if error is None:
-                    raise
-                raise error from exc
-
-        return resolve_positional
-
-    # The folded context lookup is inline by design: extracting it would cost a Python frame
-    # per context kwarg, which is the budget this module exists to hold.
-    def resolve(container: "Container") -> typing.Any:  # noqa: C901, PLR0912
-        overrides = container.overrides_registry
-        if overrides.has_overrides:
-            override = overrides.fetch_override(pid)
-            if override is not types.UNSET:
-                return override
-        target = container if container.scope == scope else _navigate(container, scope, resolution_step)
-        if target.closed:
-            target._prepare()
-        try:  # build the kwargs dict from provider/static/context bindings
-            kwargs = {name: r(target) for name, r in prov}
-            if not pure:
-                kwargs.update(static)
-                # `find_container`, never `_navigate`: that helper prepends a resolution step and
-                # the `except` below prepends this factory's own, rendering the caller twice.
-                for name, cpid, cscope, ctype, disp, item in ctx:
-                    if overrides.has_overrides:
-                        override = overrides.fetch_override(cpid)
-                        if override is not types.UNSET:
-                            kwargs[name] = override
-                            continue
-                    holder = target if target.scope == cscope else target.find_container(cscope)
-                    if holder.closed:
-                        holder._prepare()
-                    value = holder.context_registry.find_context(ctype)
-                    if value is not types.UNSET:
-                        kwargs[name] = value
-                    elif disp is _Absent.NULL:
-                        kwargs[name] = None
-                    elif disp is not _Absent.OMIT:
-                        raise build_arg_error(arg_name=name, item=item)
-        except _STEP_ERRORS as exc:
-            exc.prepend_step(resolution_step())
-            raise
-        try:  # inlined Factory._call_creator
-            return creator(**kwargs)
-        except TypeError as exc:
-            error = exceptions.CreatorCallError.from_type_error(
-                creator=creator, exc=exc, resolution_step=resolution_step
+    static = dict(plan.static_kwargs)
+    context: list[tuple[typing.Any, ...]] = []
+    for name, (context_provider, item) in plan.context_kwargs.items():
+        override = registry.overrides.fetch_override(context_provider.provider_id)
+        if override is not types.UNSET:
+            static[name] = override
+        else:
+            context.append(
+                (name, context_provider.scope, context_provider.context_type, absent_disposition(item), item)
             )
-            if error is None:
-                raise
-            raise error from exc
-
+    positional = _can_call_positionally(f, plan)
+    shape = _Shape(
+        arity=len(plan.provider_kwargs),
+        names=None if positional else tuple(plan.provider_kwargs),
+        static=bool(static),
+        context=bool(context),
+        cached=f.cache_settings is not None,
+    )
+    namespace: dict[str, typing.Any] = {
+        "provider": f,
+        "pid": f.provider_id,
+        "scope": f.scope,
+        "creator": f._creator,
+        "resolution_step": f._resolution_step,
+        "build_arg_error": f._argument_resolution_error,
+        "static": static,
+        "context": tuple(context),
+        "UNSET": types.UNSET,
+        "NULL": _Absent.NULL,
+        "OMIT": _Absent.OMIT,
+        "partial": functools.partial,
+        "_navigate": _navigate,
+        "_STEP_ERRORS": _STEP_ERRORS,
+        "CreatorCallError": exceptions.CreatorCallError,
+        **{f"r{i}": registry.resolver_for(p) for i, p in enumerate(plan.provider_kwargs.values())},
+    }
+    exec(_code(shape), namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
+    resolve = namespace["resolve"]
+    resolve.__qualname__ = f"resolve[{f.display_name}]"
     return resolve
 
 
-def _compile_cached_factory(  # noqa: C901, PLR0915 (cold-miss builder pair: positional + kwargs, plus the warm-hit resolve closure)
-    f: "Factory[typing.Any]", registry: "ProvidersRegistry"
-) -> "typing.Callable[[Container], typing.Any]":
-    plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)
-    if plan.unwireable:
-        return _compile_unwireable_factory(f, plan)
-    prov: _ProvResolvers = tuple((name, registry.resolver_for(p)) for name, p in plan.provider_kwargs.items())
-    static = plan.static_kwargs
-    ctx: _CtxBindings = tuple(
-        (name, cp.provider_id, cp.scope, cp.context_type, absent_disposition(item), item)
-        for name, (cp, item) in plan.context_kwargs.items()
-    )
-    pure = plan.pure_provider
-    scope = f.scope
-    pid = f.provider_id
-    resolution_step = f._resolution_step
-    build_arg_error = f._argument_resolution_error
-    creator = f._creator  # cold-miss only (not hot)
-    call_creator = f._call_creator  # cold-miss only; reused (not hot)
-
-    # Cold-miss builder + creator call, positional or kwargs. Both share the two-phase error handling.
-    if _can_call_positionally(f, plan):
-        pos = tuple(r for _name, r in prov)
-
-        def build_args(target: "Container") -> list[typing.Any]:
-            try:
-                return [r(target) for r in pos]
-            except _STEP_ERRORS as exc:
-                exc.prepend_step(resolution_step())
-                raise
-
-        def create_positional(args: list[typing.Any]) -> typing.Any:
-            try:
-                return creator(*args)
-            except TypeError as exc:
-                error = exceptions.CreatorCallError.from_type_error(
-                    creator=creator, exc=exc, resolution_step=resolution_step
-                )
-                if error is None:
-                    raise
-                raise error from exc
-
-        build_cold = build_args
-        create_cold = create_positional
-    else:
-
-        def build_kwargs(target: "Container") -> dict[str, typing.Any]:
-            try:
-                kwargs = {name: r(target) for name, r in prov}
-                if not pure:
-                    kwargs.update(static)
-                    overrides = target.overrides_registry
-                    # `find_container`, never `_navigate` -- see the transient copy above.
-                    for name, cpid, cscope, ctype, disp, item in ctx:
-                        if overrides.has_overrides:
-                            override = overrides.fetch_override(cpid)
-                            if override is not types.UNSET:
-                                kwargs[name] = override
-                                continue
-                        holder = target if target.scope == cscope else target.find_container(cscope)
-                        if holder.closed:
-                            holder._prepare()
-                        value = holder.context_registry.find_context(ctype)
-                        if value is not types.UNSET:
-                            kwargs[name] = value
-                        elif disp is _Absent.NULL:
-                            kwargs[name] = None
-                        elif disp is not _Absent.OMIT:
-                            raise build_arg_error(arg_name=name, item=item)
-            except _STEP_ERRORS as exc:
-                exc.prepend_step(resolution_step())
-                raise
-            return kwargs
-
-        build_cold = build_kwargs
-        create_cold = call_creator
-
-    def resolve(container: "Container") -> typing.Any:
-        overrides = container.overrides_registry
-        if overrides.has_overrides:
-            override = overrides.fetch_override(pid)
-            if override is not types.UNSET:
-                return override
-        target = container if container.scope == scope else _navigate(container, scope, resolution_step)
-        if target.closed:
-            target._prepare()
-        # Inlined memo hit; the method is called only on a miss, where its `setdefault` makes
-        # concurrent first-resolvers share one CacheItem. See test_cached_resolver_has_no_cell_on_the_warm_path.
-        cache_registry = target.cache_registry
-        cache_item = cache_registry._items.get(pid)
-        if cache_item is None:
-            cache_item = cache_registry.fetch_cache_item(f)
-        cached = cache_item.cache
-        if cached is not types.UNSET:
-            return cached
-        value, created = cache_item.get_or_create(
-            target._lock,
-            # `partial`, never a lambda closing over `target`: a closure promotes `target` to a cell,
-            # so MAKE_CELL runs in this resolver's prologue on every warm hit too. See
-            # test_cached_resolver_has_no_cell_on_the_warm_path.
-            resolve=functools.partial(build_cold, target),
-            # positional/kwargs builders have distinct arg types; get_or_create feeds each its own.
-            create=typing.cast("typing.Callable[[typing.Any], typing.Any]", create_cold),
-        )
-        if created:
-            target.cache_registry.mark_created(cache_item)
+def _compile_constant(value: typing.Any) -> "Resolver":
+    def resolve(_: "Container") -> typing.Any:
         return value
 
     return resolve
 
 
-def _compile_unwireable_factory(
-    f: "Factory[typing.Any]", plan: "WiringPlan"
-) -> "typing.Callable[[Container], typing.Any]":
-    """Compile the always-raising resolver for a Factory with an unwireable parameter.
-
-    Front-guard the override (an unwireable factory can still be overridden with a mock), navigate
-    to the scope-correct target (a scope error there wins, with its step prepended), then raise the
-    freshly built error with this factory's own resolution step. The error is built on every call
-    (never memoized) so `prepend_step`'s mutation cannot leak a breadcrumb across repeated resolves.
-    """
-    pid = f.provider_id
+def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") -> "Resolver":
+    """Compile a resolver that always raises for the factory's first unwireable parameter, freshly built per call."""
     scope = f.scope
     resolution_step = f._resolution_step
     build_error = f._argument_resolution_error
     arg_name, item = plan.unwireable[0]
 
     def resolve(container: "Container") -> typing.Any:
-        overrides = container.overrides_registry
-        if overrides.has_overrides:
-            override = overrides.fetch_override(pid)
-            if override is not types.UNSET:
-                return override
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
             target._prepare()
@@ -379,28 +250,17 @@ def _compile_unwireable_factory(
     return resolve
 
 
-def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
-    """Call the source's compiled resolver directly, wrapping scope/resolution errors with its own step.
-
-    The source lookup and its resolver memo read are inlined, and nothing is cached: a source
-    registered later is picked up on the next resolve. A single try/except covers the
-    dangling-source lookup and the forwarded resolve, so both carry this alias's resolution step.
-    """
-    pid = a.provider_id
+def _compile_alias(a: "Alias[typing.Any]") -> "Resolver":
+    """Call the source's resolver directly; a source registered later is picked up on the next resolve."""
     source_type = a._source_type
     find_source = a._find_source
 
     def resolve(container: "Container") -> typing.Any:
-        overrides = container.overrides_registry
-        if overrides.has_overrides:
-            override = overrides.fetch_override(pid)
-            if override is not types.UNSET:
-                return override
         try:
             registry = container.providers_registry
             source = registry._providers.get(source_type)
             if source is None:
-                source = find_source(container)  # raises AliasSourceNotRegisteredError
+                source = find_source(container)
             source_resolver = registry._resolvers.get(source.provider_id)
             if source_resolver is None:
                 source_resolver = registry.resolver_for(source)
@@ -412,38 +272,15 @@ def _compile_alias(a: "Alias[typing.Any]") -> "typing.Callable[[Container], typi
     return resolve
 
 
-def _compile_container_provider() -> "typing.Callable[[Container], typing.Any]":
-    """Resolve to the resolving container itself — no scope navigation."""
-    pid = container_provider.provider_id
-
-    def resolve(container: "Container") -> typing.Any:
-        overrides = container.overrides_registry
-        if overrides.has_overrides:
-            override = overrides.fetch_override(pid)
-            if override is not types.UNSET:
-                return override
-        return container
-
-    return resolve
+def _resolve_to_container(container: "Container") -> typing.Any:
+    return container
 
 
-def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
-    """Front-guard the override, then inline the context lookup at this provider's fixed scope.
-
-    The same inline lookup the folded context kwargs use, with the scope read once here rather than
-    per resolve (see test_direct_context_resolve_reads_the_scope_only_at_compile_time).
-    `find_container`, never `_navigate`: nothing prepends a resolution step on the direct path.
-    """
-    pid = cp.provider_id
+def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
     scope = cp.scope
     context_type = cp.context_type
 
     def resolve(container: "Container") -> typing.Any:
-        overrides = container.overrides_registry
-        if overrides.has_overrides:
-            override = overrides.fetch_override(pid)
-            if override is not types.UNSET:
-                return override
         target = container if container.scope == scope else container.find_container(scope)
         if target.closed:
             target._prepare()
@@ -460,7 +297,7 @@ def _navigate(
     scope: typing.Any,
     resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
 ) -> "Container":
-    """Cross-scope target lookup; prepends the resolution step to a scope error, as the interpreted path does."""
+    """Cross-scope target lookup; a scope error carries this provider's resolution step."""
     try:
         return container.find_container(scope)
     except _SCOPE_ERRORS as exc:

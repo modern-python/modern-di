@@ -29,10 +29,12 @@ the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.
 Every module under `modern_di/` is named for what it does; read it. What a single-file read will
 **not** tell you:
 
-- `resolver_compiler.py` is the **single resolve path**, one flat closure compiled per provider. A new
-  provider type must add a branch here or `compile_resolver` raises. Never extract a helper from those
-  closures — the per-node frame budget is the point, and
-  `test_resolve_costs_exactly_one_resolver_frame_per_node` says why.
+- `resolver_compiler.py` is the **single resolve path**. A `Factory` resolver is generated from a source
+  template per resolver shape and `exec`'d with the factory's constants as globals; the other provider
+  types compile to closures. A new provider type must add a branch here or `compile_resolver` raises.
+  Nothing in the template calls a helper on the hot path: the per-node frame budget is the point, and
+  `test_resolve_costs_exactly_one_resolver_frame_per_node` says why. Overrides are compiled in
+  (`docs/adr/0030-exec-template-resolver.md`): an override change drops the compiled resolvers.
 - `exceptions.py` owns **every message and every glyph**. A raise site passes structured facts, never
   formatting; the class renders its own f-string and sets a `docs_slug` (its page under
   `docs/troubleshooting/`, enforced by `tests/test_docs_slug_census.py`). Add a message, a glyph, or a

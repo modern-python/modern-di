@@ -1,15 +1,16 @@
-"""Direct tests for compiled-resolver path selection.
+"""Direct tests for the resolver compiler.
 
 The differential-harness suite in ``tests/providers/test_factory.py`` characterizes each
-compiled path black-box through ``resolve_provider``. These pin the three things it leaves
-unguarded: the argument-ordering invariant the positional fast path silently depends on,
-``_can_call_positionally``'s full contract (four exclusion rules plus the positive case)
-called directly, and the per-node frame budget the compiled path exists to hold.
+compiled path black-box through ``resolve_provider``. These pin what it leaves unguarded: the
+argument-ordering invariant the positional path depends on, ``_can_call_positionally``'s full
+contract, the per-node frame budget, and the contracts of the generated source (shape sharing,
+source lines in tracebacks, non-identifier kwarg names, overrides compiled as constants).
 """
 
 import dataclasses
 import inspect
 import sys
+import traceback
 import types as _pytypes
 import typing
 
@@ -113,16 +114,12 @@ class _L5:
 
 _CHAIN: tuple[type, ...] = (_L0, _L1, _L2, _L3, _L4, _L5)
 
-#: Python calls one extra chain node costs: its resolver closure, plus its creator.
+#: Python calls one extra chain node costs: its generated resolver, plus its creator.
 #: The creator is the user's own object construction and is irreducible; the **1**
 #: resolver frame is the budget this module exists to hold. Pinned below by
-#: ``test_resolve_costs_exactly_one_resolver_frame_per_node``.
-#:
-#: Version-independent because these chain nodes have arity 1, which the positional
-#: path compiles to a closure that names its argument and calls the creator directly
-#: -- no comprehension, so nothing for PEP 709 to inline or not inline. A comprehension
-#: frame survives on the arity-2+ generic star-call and on the kwargs path, where below
-#: 3.12 it still costs a third frame per node.
+#: ``test_resolve_costs_exactly_one_resolver_frame_per_node``. Version-independent: the
+#: generated source names every argument and calls the creator directly, so no
+#: comprehension frame exists to inline or not inline.
 _CALLS_PER_NODE = 2
 
 
@@ -231,20 +228,19 @@ def _arity_group(
     return _pytypes.new_class(f"_AG{arity}_{scope.name}", (Group,), exec_body=lambda ns2: ns2.update(members))
 
 
-# Each arity rung is a full copy of the closure, so every branch in it -- the override
-# front-guard, the scope hop, the closed-target reopen, and both error handlers -- exists once
-# per rung and regresses independently. These parametrize over the rungs the ladder compiles.
+# Arity 0, 1 and 2 generate different source (no argument, one, several), so each branch of
+# the template -- the scope hop, the closed-target reopen, and both error handlers -- is
+# exercised at every arity.
 
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_front_guards_the_override(arity: int) -> None:
-    """INVARIANT: every compiled resolver checks the override registry before anything else.
+    """INVARIANT: an override wins over the compiled resolver at every arity.
 
-    The guard runs before scope navigation, before the cache and before the creator. Each arity rung
-    is a full copy of the closure, so a rung added without the guard regresses only that rung. That
-    the same guard still short-circuits an otherwise-unwireable factory is proven separately by
-    `test_unwireable_factory_override_short_circuits` in `tests/providers/test_factory.py` -- this
-    test's dependencies are all ordinarily wireable.
+    An overridden provider compiles to its override value, before scope navigation, the cache
+    and the creator. That the same rule short-circuits an otherwise-unwireable factory is proven
+    separately by `test_unwireable_factory_override_short_circuits` in
+    `tests/providers/test_factory.py` -- this test's dependencies are all ordinarily wireable.
     """
     group = _arity_group(arity)
     container = Container(scope=Scope.APP, groups=[group])
@@ -258,10 +254,10 @@ def test_arity_rung_front_guards_the_override(arity: int) -> None:
 def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
     """INVARIANT: a resolver walks to its declared scope exactly once per resolve.
 
-    The same-scope case is an int compare, not a `find_container` call. This test pins that the rung
-    navigates at all; the wrong target is not observable here (dependencies navigate themselves), so
-    the skip-navigation mutant is killed by `test_arity_rung_reopens_a_closed_target` and
-    `test_arity_rung_prepends_its_step_to_a_dependency_error`.
+    The same-scope case is an int compare, not a `find_container` call. This test pins that the
+    resolver navigates at all; the wrong target is not observable here (dependencies navigate
+    themselves), so the skip-navigation mutant is killed by `test_arity_rung_reopens_a_closed_target`
+    and `test_arity_rung_prepends_its_step_to_a_dependency_error`.
     """
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
@@ -273,7 +269,7 @@ def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_reopens_a_closed_target(arity: int) -> None:
     # The closed target must be an ANCESTOR, not the container the call enters on: the entry
-    # `resolve_provider` reopens itself first, so only a cross-scope hop reaches the closure's
+    # `resolve_provider` reopens itself first, so only a cross-scope hop reaches the resolver's
     # own `if target.closed` guard.
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
@@ -287,7 +283,7 @@ def test_arity_rung_reopens_a_closed_target(arity: int) -> None:
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
     # A creator whose real signature needs one more argument than the parser reports: the
-    # positional call then raises TypeError, which the rung must convert to CreatorCallError.
+    # positional call then raises TypeError, which the resolver must convert to CreatorCallError.
     def _needs_one_more(*args: object, extra: object) -> _Bag:  # noqa: ARG001  # pragma: no cover
         msg = "unreachable - binding fails before the body runs; that is the point"
         raise AssertionError(msg)
@@ -312,7 +308,7 @@ def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
 @pytest.mark.parametrize("arity", [0, 1, 2])
 def test_arity_rung_reraises_a_type_error_from_inside_the_creator(arity: int) -> None:
     # A TypeError with an inner traceback frame is the creator's own failure, not a binding one:
-    # every rung must let it through unwrapped.
+    # every arity must let it through unwrapped.
     params = ", ".join(f"p{i}: _P{i}" for i in range(arity))
     ns: dict[str, typing.Any] = {"_P0": _P0, "_P1": _P1, "_P2": _P2, "_Bag": _Bag}
     exec(f"def _c({params}) -> _Bag:\n    raise TypeError('from inside')", ns)  # noqa: S102
@@ -327,8 +323,8 @@ def test_arity_rung_reraises_a_type_error_from_inside_the_creator(arity: int) ->
 
 @pytest.mark.parametrize("arity", [1, 2])
 def test_arity_rung_prepends_its_step_to_a_dependency_error(arity: int) -> None:
-    # Arity 0 builds no arguments, so it has no argument-build `try`; 1 is the rung and 2 is the
-    # generic star-call, and each carries its own copy of the handler.
+    # Arity 0 builds no arguments, so its `try` body is empty; 1 and 2 generate one and two
+    # argument lines under the same handler.
     deps = [f"_D{i}" for i in range(arity)]
     ns: dict[str, typing.Any] = {}
     for name in deps:
@@ -504,9 +500,9 @@ def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyP
 
 
 def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
-    """INVARIANT: resolving one node costs exactly one Python frame -- its own compiled resolver.
+    """INVARIANT: resolving one node costs exactly one Python frame -- its own generated resolver.
 
-    Extracting the override guard, the scope hop, the kwargs build or the creator call into a shared
+    Moving the scope hop, the argument build or the creator call out of the template into a shared
     helper costs one frame *per resolved node* and moves the slope from 2 to 3. Measured as a
     difference between two chain depths, so the harness's fixed cost cancels.
     """
@@ -558,8 +554,8 @@ def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
 def test_overridden_alias_compiles_nothing_of_its_source() -> None:
     """INVARIANT: an override short-circuits before its provider's subtree is compiled.
 
-    The front-guard runs before the alias source is looked up, so the mock pattern never pays to
-    compile a subtree it will not touch. Moving the guard below the source lookup breaks that.
+    `compile_resolver` checks the override before dispatching on the provider type, so the mock
+    pattern never pays to compile a subtree it will not touch.
     """
 
     class _Source: ...
@@ -582,7 +578,7 @@ def test_no_compiled_resolver_closes_over_its_registry() -> None:
     """INVARIANT: no compiled resolver captures its registry in a closure cell.
 
     A resolver that captures the registry forms a cycle with the memo holding it, so the registry
-    becomes reclaimable only by cyclic GC. Every closure reads its registries off the container arg.
+    becomes reclaimable only by cyclic GC. Every resolver reads its registries off the container arg.
     """
 
     class _Src: ...
@@ -607,20 +603,145 @@ def test_no_compiled_resolver_closes_over_its_registry() -> None:
     assert capturing == []
 
 
-@pytest.mark.parametrize(
-    ("arity", "expected"), [(0, "resolve_arity0"), (1, "resolve_arity1"), (2, "resolve_positional")]
-)
-def test_positional_path_selects_the_arity_specialised_closure(arity: int, expected: str) -> None:
-    """INVARIANT: arity 0 and 1 compile to their own specialised closures.
+def _shape_group(*, arity: int, positional: bool, context: bool, cached: bool) -> typing.Any:  # noqa: ANN401
+    """Group whose `target` factory has the given resolver shape; every shape is buildable."""
+    dep_types = [_P0, _P1, _P2][:arity]
+    params = [f"p{i}: _P{i}" for i in range(arity)]
+    if not positional:
+        params.append("*, req: _Req | None = None")
+    ns: dict[str, typing.Any] = {"_P0": _P0, "_P1": _P1, "_P2": _P2, "_Req": _Req, "_Bag": _Bag}
+    args = "".join(f"p{i}, " for i in range(arity)) + ("req," if not positional else "")
+    exec(f"def _c({', '.join(params)}) -> _Bag:\n    return _Bag(values=({args}))", ns)  # noqa: S102
+    members: dict[str, typing.Any] = {
+        f"p{i}": providers.Factory(creator=t, scope=Scope.APP) for i, t in enumerate(dep_types)
+    }
+    if context:
+        members["req"] = providers.ContextProvider(_Req, scope=Scope.APP)
+    members["target"] = providers.Factory(creator=ns["_c"], scope=Scope.APP, bound_type=_Bag, cache=cached)
+    return _pytypes.new_class("_ShapeGroup", (Group,), exec_body=lambda body: body.update(members))
 
-    Below 3.12 a comprehension is a separate code object, so a generic star-call costs a third frame
-    per node. Deleting a rung fails here on every interpreter; without this test only the 3.10 and
-    3.11 jobs would notice, and they would misreport it as an extracted helper.
+
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("context", [False, True])
+@pytest.mark.parametrize("positional", [True, False])
+@pytest.mark.parametrize("arity", [0, 1, 2, 3])
+def test_every_resolver_shape_compiles_and_resolves(arity: int, positional: bool, context: bool, cached: bool) -> None:
+    """INVARIANT: every resolver shape generates source that compiles and resolves correctly.
+
+    The template and the namespace it runs in are coupled by name only, so a name used in one and
+    missing from the other is a `NameError` at resolve time for exactly that shape. Enumerating the
+    shapes turns that into a test failure.
     """
-    group = _arity_group(arity)
-    container = Container(scope=Scope.APP, groups=[group])
-    resolver = container.providers_registry.resolver_for(group.target)
-    assert typing.cast("_pytypes.FunctionType", resolver).__code__.co_name == expected
+    if positional and context:
+        pytest.skip("a context kwarg makes the creator call keyword-based")
+    group = _shape_group(arity=arity, positional=positional, context=context, cached=cached)
+    container = Container(scope=Scope.APP, groups=[group], context={_Req: _Req()} if context else None)
+
+    bag = container.resolve_provider(group.target)
+
+    assert [type(v) for v in bag.values[:arity]] == [_P0, _P1, _P2][:arity]
+    if not positional:
+        assert isinstance(bag.values[arity], _Req) if context else bag.values[arity] is None
+    again = container.resolve_provider(group.target)
+    assert (again is bag) is cached
+
+
+def test_factories_of_one_shape_share_a_code_object() -> None:
+    """INVARIANT: resolvers of the same shape share one code object; only their globals differ.
+
+    The shape is the cache key for `compile()`, which costs ~70 us per call. Keying on anything
+    provider-specific would pay that per provider instead of per shape.
+    """
+
+    class _G(Group):
+        left = providers.Factory(creator=_L1, scope=Scope.APP)
+        right = providers.Factory(creator=_L2, scope=Scope.APP)
+        leaf = providers.Factory(creator=_L0, scope=Scope.APP)
+
+    container = Container(scope=Scope.APP, groups=[_G])
+    left = typing.cast("_pytypes.FunctionType", container.providers_registry.resolver_for(_G.left))
+    right = typing.cast("_pytypes.FunctionType", container.providers_registry.resolver_for(_G.right))
+    leaf = typing.cast("_pytypes.FunctionType", container.providers_registry.resolver_for(_G.leaf))
+
+    assert left.__code__ is right.__code__
+    assert leaf.__code__ is not left.__code__
+    assert left.__qualname__ == "resolve[_L1]"
+
+
+def test_generated_resolver_frames_carry_source_lines() -> None:
+    """INVARIANT: a traceback through a generated resolver shows its source line.
+
+    Generated source is registered in `linecache` under the code object's filename; without that a
+    creator's exception renders the resolver frame as a bare filename with no code.
+    """
+
+    def _boom() -> _A:
+        msg = "from the creator"
+        raise ValueError(msg)
+
+    class _G(Group):
+        target = providers.Factory(creator=_boom, scope=Scope.APP)
+
+    container = Container(scope=Scope.APP, groups=[_G])
+    with pytest.raises(ValueError, match="from the creator") as exc:
+        container.resolve_provider(_G.target)
+
+    frames = traceback.extract_tb(exc.value.__traceback__)
+    generated = [f for f in frames if f.filename.startswith("<modern_di resolver")]
+    assert generated, "no generated frame in the traceback"
+    assert generated[0].line == "return creator()"
+
+
+def test_kwarg_names_that_are_not_identifiers_are_quoted_into_the_source() -> None:
+    """INVARIANT: an explicit ``kwargs={...}`` key reaches the generated source only as a string literal.
+
+    A ``**kwargs`` creator accepts any key, so a key such as ``"it's x-y"`` must be emitted with
+    `repr`, never spliced in as an identifier.
+    """
+
+    def _creator(**kwargs: object) -> _Bag:
+        return _Bag(values=tuple(kwargs.items()))
+
+    class _G(Group):
+        dep = providers.Factory(creator=_P0, scope=Scope.APP)
+        target = providers.Factory(creator=_creator, scope=Scope.APP, bound_type=_Bag, kwargs={"it's x-y": dep})
+
+    container = Container(scope=Scope.APP, groups=[_G])
+    bag = container.resolve_provider(_G.target)
+    assert bag.values[0][0] == "it's x-y"
+    assert isinstance(bag.values[0][1], _P0)
+
+
+def test_override_change_drops_compiled_resolvers_and_recompiles_to_the_constant() -> None:
+    """INVARIANT: applying or resetting an override drops every compiled resolver.
+
+    Overrides are compiled in, not checked at resolve time: a parent resolver holds its
+    dependencies' resolvers by reference, so the only way a new override reaches it is a recompile.
+    Dropping nothing on a no-op reset keeps `close()` on a root from churning the memo.
+    """
+
+    class _G(Group):
+        leaf = providers.Factory(creator=_L0, scope=Scope.APP)
+        node = providers.Factory(creator=_L1, scope=Scope.APP)
+
+    container = Container(scope=Scope.APP, groups=[_G])
+    container.resolve_provider(_G.node)
+    registry = container.providers_registry
+    assert registry._resolvers
+
+    sentinel = _L0()
+    container.override(_G.leaf, sentinel)
+    assert registry._resolvers == {}
+    assert container.resolve_provider(_G.node).dep is sentinel
+
+    container.reset_override(_G.leaf)
+    assert registry._resolvers == {}
+    assert container.resolve_provider(_G.node).dep is not sentinel
+
+    compiled = dict(registry._resolvers)
+    container.reset_override(_G.node)  # never overridden
+    container.reset_override()  # nothing overridden
+    assert registry._resolvers == compiled
 
 
 def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:

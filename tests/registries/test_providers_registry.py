@@ -5,7 +5,7 @@ import typing
 import pytest
 
 from modern_di import Container, Group, providers, suggester
-from modern_di.exceptions import DuplicateProviderTypeError
+from modern_di.exceptions import DuplicateProviderTypeError, ProviderNotRegisteredError
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries import providers_registry as pr_mod
 from modern_di.registries.providers_registry import ProvidersRegistry
@@ -61,6 +61,31 @@ def test_mutation_clears_the_resolver_and_plan_memos() -> None:
     registry.add_providers(providers.Factory(scope=Scope.APP, creator=_Other, bound_type=_Other))
     assert registry._resolvers == {}  # mutation cleared the memos
     assert registry._plans == {}
+
+
+def test_by_type_memo_is_filled_on_a_miss_and_cleared_by_mutation() -> None:
+    """INVARIANT: every registry mutation clears the by-type resolver memo.
+
+    `Container.resolve` reads `_resolvers_by_type` before anything else; a stale entry would keep
+    resolving a provider the registry no longer holds that way.
+    """
+
+    class _Dep: ...
+
+    registry = ProvidersRegistry()
+    dep_factory = providers.Factory(scope=Scope.APP, creator=_Dep, bound_type=_Dep)
+    registry.add_providers(dep_factory)
+    resolver = registry.resolver_for_type(_Dep)
+    assert registry._resolvers_by_type == {_Dep: resolver}
+    assert registry._resolvers[dep_factory.provider_id] is resolver
+
+    class _Other: ...
+
+    registry.add_providers(providers.Factory(scope=Scope.APP, creator=_Other, bound_type=_Other))
+    assert registry._resolvers_by_type == {}
+
+    with pytest.raises(ProviderNotRegisteredError):
+        registry.resolver_for_type(int)
 
 
 def test_providers_registry_add_provider_duplicates() -> None:

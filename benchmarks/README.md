@@ -19,11 +19,11 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G7 | Full lifecycle batch: K=100 x (build REQUEST -> sync-init cached resolve -> `await close_async()`) | real per-request cost incl. async teardown |
 | G7c | Control: K=100 empty awaits in one loop entry | residual event-loop floor inside G7 |
 | G8 | Cold first-resolve: build root container + compile + resolve, depth 6 | construction + first-compile cost |
-| G8b | G8 with every provider `cache=True` | `_compile_cached_factory`'s cold-miss builders, read against G8 |
+| G8b | G8 with every provider `cache=True` | the cached template's cold-miss `build`/`create`, read against G8 |
 | G9 | Context resolve: request value by type + APP dep, warm child | non-pure context-folding path |
 | G10 | `validate()` on a depth-6 chain (isolated via `pedantic`) | graph-validation traversal, deep |
 | G11 | `validate()` on a wide 10-sibling graph (isolated via `pedantic`) | graph-validation traversal, fan-out |
-| G12 | Resolve a depth-6 chain with one unrelated override active | override front-guard (`fetch_override`) tax |
+| G12 | Resolve a depth-6 chain with one unrelated override active | that an active override costs the unrelated chain nothing |
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 | G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
 | G15 | Concurrent first-resolve, N threads (double-checked creation lock) | free-threaded creation-lock contention |

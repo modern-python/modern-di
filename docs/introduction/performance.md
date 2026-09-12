@@ -2,10 +2,11 @@
 
 This page compares modern-di's resolution performance against four other Python
 DI frameworks, states the method, and gives a command to reproduce the numbers.
-modern-di has no runtime dependencies and generates no code. The comparison set
-includes two frameworks that use `exec` codegen (dishka, wireup), one with a
-Cython-compiled core (dependency-injector), and one pure-Python framework
-(that-depends).
+modern-di has no runtime dependencies; each `Factory` resolver is generated from a
+source template (`docs/adr/0030-exec-template-resolver.md` in the repository records
+why and the measurements). The comparison set includes two other frameworks that use
+`exec` codegen (dishka, wireup), one with a Cython-compiled core (dependency-injector),
+and one pure-Python framework (that-depends).
 
 > Absolute timings depend on the machine and CPython build and will differ on
 > yours. The ratios between frameworks are more portable across machines, so the
@@ -303,5 +304,4 @@ across machines than the absolute times.
 ## See also
 
 - [Comparison](comparison.md) — how modern-di compares on features.
-- [Design decisions](design-decisions.md) — why resolution is sync-only and why
-  `exec` codegen is a non-goal.
+- [Design decisions](design-decisions.md) — why resolution is sync-only.
