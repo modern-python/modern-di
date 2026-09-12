@@ -57,21 +57,19 @@ exclude = ["benchmarks/comparative"]
 fix = true
 unsafe-fixes = true
 line-length = 120
-target-version = "py310"
 extend-exclude = ["docs", "benchmarks/comparative"]
 
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D1",     # allow missing docstrings
-    "S101",   # allow asserts
-    "TCH",    # ignore flake8-type-checking
-    "FBT",    # allow boolean args
-    "D203",   # "one-blank-line-before-class" conflicting with D211
-    "D213",   # "multi-line-summary-second-line" conflicting with D212
-    "COM812", # flake8-commas "Trailing comma missing"
-    "ISC001", # flake8-implicit-str-concat
+    "D1",     # docstrings are not forced; a docstring exists when it says something
+    "D203",   # conflicts with D211
+    "D213",   # conflicts with D212
+    "COM812", # conflicts with the formatter
+    "ISC001", # conflicts with the formatter
     "CPY001", # no per-file copyright header
+    "FBT",    # boolean positional arguments are fine
+    "TCH",    # imports stay real; TYPE_CHECKING-only imports break runtime introspection
 ]
 isort.lines-after-imports = 2
 isort.no-lines-before = ["standard-library", "local-folder"]
@@ -81,7 +79,9 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 # set), and every resolver returns `typing.Any`.
 "modern_di/resolver_compiler.py" = ["SLF001", "ANN401"]
 # White-box tests assert on container and registry internals; that is what they are for.
-"tests/**" = ["SLF001"]
+"tests/**" = ["S101", "SLF001"]
+# Guard-tier benchmarks are pytest tests too: they assert on the measured ratios.
+"benchmarks/**" = ["S101"]
 
 [tool.pytest.ini_options]
 addopts = ""
