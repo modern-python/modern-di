@@ -41,10 +41,9 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         return Scope.APP
 
     def _stamp_group_scope(self, scope: enum.IntEnum, group_name: str) -> None:
-        """Record a Group-level default scope; no-op unless this provider's scope is still an unclaimed default.
+        """Record a Group-level default scope; a no-op unless the scope is still an unclaimed default.
 
-        Frozen once registered: a compiled resolver captures `scope`, so a later change would apply
-        only to resolvers compiled after it.
+        Frozen once registered: a compiled resolver captures `scope`.
         """
         if not self._takes_group_scope or self._explicit_scope is not None:
             return
@@ -70,11 +69,7 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
 
     @property
     def display_name(self) -> str:
-        """Human-readable name for error messages and resolution steps.
-
-        The bound type's name when known, else the provider's repr. ``Factory`` overrides
-        this to fall back to the creator's name.
-        """
+        """Human-readable name for error messages and resolution steps: the bound type's, else the repr."""
         return self.bound_type.__name__ if self.bound_type else repr(self)
 
     @property

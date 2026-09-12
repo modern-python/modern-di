@@ -34,7 +34,7 @@ class ProvidersRegistry:
         self._resolvers: dict[int, typing.Callable[[Container], typing.Any]] = {}
         self._resolvers_by_type: dict[type, typing.Callable[[Container], typing.Any]] = {}
         self.overrides = OverridesRegistry(on_change=self.drop_resolvers)
-        self._building = threading.local()  # per-thread compile-in-flight set; the cycle guard is per-call-stack
+        self._building = threading.local()
         self._validated = False
         self._generation = 0
 
@@ -63,17 +63,13 @@ class ProvidersRegistry:
     ) -> "WiringPlan":
         """Return `provider`'s memoized wiring plan, building it on a miss.
 
-        A plan is a pure function of the provider and this registry's contents, memoized per
-        `provider_id` and cleared whenever the registry mutates (`register` / `add_providers`).
-        Shared tree-wide: a container and every child share one registry, so a
-        deeper-scope provider builds its plan once, not once per child. Build inputs are passed
-        by value (not a closure) so the hot cache-hit path allocates nothing.
+        The memo is tree-wide and dropped on every registry mutation.
         """
         provider_id = provider.provider_id
         cached = self._plans.get(provider_id)
         if cached is not None:
             return cached
-        generation = self._generation  # read before building; a mutation during it bumps this
+        generation = self._generation
         plan = WiringPlan.build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=self, owner=provider)
         with self._lock:
             if self._generation == generation:
@@ -81,11 +77,7 @@ class ProvidersRegistry:
         return plan
 
     def _building_set(self) -> set[int]:
-        """Return the current thread's in-flight-compile set (the cycle guard).
-
-        Per-call-stack: a concurrent first-resolve of the same provider on another thread compiles it
-        independently (an idempotent duplicate) instead of being misread as a dependency cycle.
-        """
+        """Return this thread's in-flight-compile set; per-thread, so a concurrent compile is not a cycle."""
         building: set[int] | None = getattr(self._building, "value", None)
         if building is None:
             building = set()
@@ -93,12 +85,10 @@ class ProvidersRegistry:
         return building
 
     def resolver_for(self, provider: "AbstractProvider[typing.Any]") -> "typing.Callable[[Container], typing.Any]":
-        """Return `provider`'s memoized compiled resolver, building it cycle-safely on a miss.
+        """Return `provider`'s memoized compiled resolver, building it on a miss.
 
-        Memoized per `provider_id` and cleared on registry mutation, exactly like `plan_for`. A
-        back-edge to a provider whose resolver is still being built (a cycle) captures a thunk that
-        routes through the runtime `resolve_provider`, so a genuine cycle still raises
-        `RecursionError` -> `CircularDependencyError`.
+        A back-edge to a provider still being compiled captures a thunk routed through the
+        runtime `resolve_provider`, so a genuine cycle still raises `CircularDependencyError`.
         """
         pid = provider.provider_id
         cached = self._resolvers.get(pid)
@@ -106,26 +96,22 @@ class ProvidersRegistry:
             return cached
         building = self._building_set()
         if pid in building:
-            return lambda c: c.resolve_provider(provider)  # back-edge: route the cycle through runtime
+            return lambda c: c.resolve_provider(provider)
         building.add(pid)
-        generation = self._generation  # read before compiling; a mutation during it bumps this
+        generation = self._generation
         try:
             resolver = compile_resolver(provider, self)
         finally:
             building.discard(pid)
         with self._lock:
-            # Publish only if no mutation landed while we compiled. Otherwise this resolver was
-            # built against a registry that no longer exists, and memoizing it would strand it
-            # past the `_invalidate()` that was supposed to drop it.
+            # Publish only if no mutation landed while we compiled; memoizing a resolver built
+            # against the old registry would strand it past the `_invalidate()` meant to drop it.
             if self._generation == generation:
                 self._resolvers[pid] = resolver
         return resolver
 
     def resolver_for_type(self, dependency_type: type) -> "typing.Callable[[Container], typing.Any]":
-        """Return the memoized resolver for the provider bound to `dependency_type`, compiling it on a miss.
-
-        Raises `ProviderNotRegisteredError` (with did-you-mean suggestions) when nothing is bound.
-        """
+        """Return the resolver bound to `dependency_type`; raises `ProviderNotRegisteredError` when unbound."""
         generation = self._generation
         provider = self._providers.get(dependency_type)
         if provider is None:
@@ -139,10 +125,7 @@ class ProvidersRegistry:
         return resolver
 
     def drop_resolvers(self) -> None:
-        """Drop the compiled resolvers so the next resolve recompiles — the overrides changed.
-
-        Plans and the validation flag survive: overrides alter neither the wiring nor the static graph.
-        """
+        """Drop the compiled resolvers — the overrides changed. Plans and the validation flag survive."""
         with self._lock:
             self._resolvers.clear()
             self._resolvers_by_type.clear()
@@ -170,20 +153,14 @@ class ProvidersRegistry:
                 if provider_type in self._providers:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
-            # Only once the registration has actually succeeded, and over `args` rather than
-            # `new_providers`: a reference-only provider never enters `_providers`, but its
-            # resolver is still compiled and still captures its scope.
+            # Over `args`, not `new_providers`: a reference-only provider never enters
+            # `_providers`, but its resolver is still compiled and still captures its scope.
             for provider in args:
                 provider._registered = True  # noqa: SLF001
             self._invalidate()
 
     def _invalidate(self) -> None:
-        """Drop the memoized plans/resolvers and the validation flag — the registry changed.
-
-        Called under `self._lock` by every mutation. Clearing has the same breadth the old version
-        bump did (a bump invalidated every memo anyway) and frees stale entries eagerly. Sound
-        because mutation is a single-threaded configure-phase operation (see tests/test_free_threading.py).
-        """
+        """Drop every memo and the validation flag — the registry changed. Called under `self._lock`."""
         self._plans.clear()
         self._resolvers.clear()
         self._resolvers_by_type.clear()

@@ -37,8 +37,8 @@ def _handle_recursion_error(
 ) -> typing.NoReturn:
     """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
 
-    Split out of `resolve_provider` into its own call so the coverage tracer gets a fresh call
-    boundary to re-arm on before raising.
+    A separate call, not inlined into `resolve_provider`: the coverage tracer re-arms on the
+    fresh call boundary before this raises.
     """
     reg = container.providers_registry
     if reg.is_validated():
@@ -49,8 +49,7 @@ def _handle_recursion_error(
     raise build_cycle_error(cycle, container) from exc
 
 
-# Trailing separator included: without it the prefix test also swallows sibling packages
-# (`modern_di_fastapi/`, `modern_di_pytest/`, ...), attributing a warning past the integration.
+# Trailing separator: without it the prefix test also swallows `modern_di_fastapi/` and friends.
 _PACKAGE_DIR = str(pathlib.Path(__file__).parent) + os.sep
 
 
@@ -67,10 +66,9 @@ def _caller_stacklevel() -> int:
 class Container:
     """DI container — the central object that resolves providers within a scope.
 
-    A root container is created with ``Container(scope=Scope.APP, groups=[...])``;
-    child containers come from :meth:`build_child_container`. A child shares the
-    parent's ``providers_registry`` and ``overrides_registry`` but owns its own
-    ``cache_registry`` and ``context_registry``.
+    A root is built as ``Container(scope=Scope.APP, groups=[...])``; children come from
+    :meth:`build_child_container` and share the parent's providers and overrides registries
+    while owning their own cache and context.
     """
 
     __slots__ = (
@@ -94,20 +92,16 @@ class Container:
         use_lock: bool = True,
         validate: bool | None = None,
     ) -> None:
-        """Build a container at ``scope``.
+        """Build a container at ``scope``, open and ready to :meth:`resolve`.
 
-        A container is open from construction — no separate startup step is required
-        before the first :meth:`resolve`. :meth:`open` and ``with`` / ``async with``
-        stay available for reopening a closed container deliberately and for running
-        finalizers on the way out.
-
-        ``validate`` is ignored and deprecated: passing it (either value) emits
+        ``context`` seeds the context registry. A root binds :class:`Container` itself, so
+        ``resolve(Container)`` returns the resolving container. ``validate`` is deprecated and
+        ignored: passing it emits
         :class:`~modern_di.exceptions.ValidateArgumentWarning` and changes nothing.
-        Graph validation (cycles, scope ordering, missing dependencies) runs only
-        when :meth:`validate` is called explicitly — construction, ``open()``, and
-        ``resolve()`` never trigger it. ``context`` seeds this container's context
-        registry. A root container owns fresh registries; a child shares the
-        parent's providers/overrides registries and inherits its scope map.
+
+        Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
+        ``IntEnum``, and :class:`~modern_di.exceptions.InvalidChildScopeError` when it is not
+        deeper than ``parent_container``'s.
         """
         if validate is not None:
             warnings.warn(exceptions.ValidateArgumentWarning(), stacklevel=2)
@@ -119,9 +113,8 @@ class Container:
         self.closed = False
         self.scope = scope
         self.parent_container = parent_container
-        # Ancestors only, never self: a `scope: self` entry would make every container a reference
-        # cycle, so none could be freed by refcounting. `find_container` short-circuits on its own
-        # scope before consulting this map, so the self-entry was never read anyway.
+        # Ancestors only, never self: a `scope: self` entry is a reference cycle, so no container
+        # would ever be freed by refcounting.
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
             {**parent_container._scope_map, parent_container.scope: parent_container}  # noqa: SLF001
             if parent_container
@@ -131,9 +124,7 @@ class Container:
         self.context_registry = ContextRegistry(context=context or {})
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
-        # Inlined, not a helper: __init__ is on the per-request child-build path
-        # (see test_resolve_costs_exactly_one_resolver_frame_per_node). A root seeds
-        # container_provider so `Container` resolves to the resolving container.
+        # Inlined rather than a helper: this runs per child build (benchmark `test_g6_build_child_container`).
         if parent_container:
             self.providers_registry = parent_container.providers_registry
             self.overrides_registry = parent_container.overrides_registry
@@ -154,14 +145,10 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> "typing_extensions.Self":
         if scope is None:
-            # `_next_deeper` is the smallest member deeper than this one, so non-contiguous
-            # custom enums (e.g. TENANT=6, JOB=10) work, not just `value + 1`.
             scope = _next_deeper(self.scope)
             if scope is None:
                 raise exceptions.MaxScopeReachedError(parent_scope=self.scope)
 
-        # An explicitly-passed scope is not checked here: __init__ rejects a scope that is not
-        # deeper than its parent's, raising an identical InvalidChildScopeError.
         return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self._lock is not None)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
@@ -206,12 +193,7 @@ class Container:
             _handle_recursion_error(registry._providers[dependency_type], self, exc)  # noqa: SLF001
 
     def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
-        """Resolve a provider reference or a type — the marker-dispatch entry point for integrations.
-
-        A provider argument goes to :meth:`resolve_provider`; a type argument goes to
-        :meth:`resolve`. Overrides, caching, and did-you-mean suggestions are inherited
-        from whichever of the two it dispatches to.
-        """
+        """Resolve a provider reference via :meth:`resolve_provider`, or a type via :meth:`resolve`."""
         if isinstance(dependency, AbstractProvider):
             return self.resolve_provider(dependency)
         return self.resolve(dependency)
@@ -234,7 +216,6 @@ class Container:
         errors: list[Exception] = []
         graph = DependencyGraph()
         for event in graph.walk(self.providers_registry, self):
-            # Event is a closed 4-variant union — every variant handled below.
             match event:
                 case NodeEntered(provider):
                     errors.extend(provider.iter_validation_issues(self))
@@ -257,14 +238,14 @@ class Container:
     def validate(self) -> None:
         """Walk the static provider graph and raise on any wiring error.
 
-        Checks cycles, transitive scope ordering, and missing/unresolvable dependencies;
-        every error found is aggregated into a single :class:`~modern_di.exceptions.ValidationFailedError`
-        rather than raising on the first one. This is the only thing that validates —
-        construction, :meth:`open`, ``add_providers``, and ``resolve`` never do.
+        Checks cycles, transitive scope ordering and unresolvable dependencies, aggregating every
+        error into one :class:`~modern_di.exceptions.ValidationFailedError`. The only thing that
+        validates — construction, :meth:`open`, :meth:`add_providers` and :meth:`resolve` never
+        do. A clean walk is memoized until the registry changes.
         """
         reg = self.providers_registry
         if reg.is_validated():
-            return  # already validated at this registry state — no re-walk
+            return
 
         validation_errors = self._walk_errors()
         if validation_errors:
@@ -272,15 +253,13 @@ class Container:
         reg.mark_validated()
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
-        """Register providers on this (root) container after construction.
+        """Register providers on this root container after construction.
 
-        The blessed seam for framework integrations that discover providers after the
-        container is built. Root-only: on a child this raises
-        :class:`~modern_di.exceptions.ChildContainerRegistrationError`, since the registry
-        it mutates is shared tree-wide. Registration does not validate; the mutation clears
-        the registry's validated flag, so a later :meth:`validate` re-walks the new graph.
-        Registration is a startup-time operation: concurrent calls on the same root are not
-        coordinated beyond the registry's internal lock.
+        Root-only: on a child this raises
+        :class:`~modern_di.exceptions.ChildContainerRegistrationError`, because the registry is
+        shared tree-wide. Does not validate, but clears the validated flag so a later
+        :meth:`validate` re-walks. A startup-time operation, not coordinated with concurrent
+        resolves.
         """
         if self.parent_container is not None:
             raise exceptions.ChildContainerRegistrationError(scope=self.scope)
@@ -305,10 +284,8 @@ class Container:
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
         """Apply an override immediately, tree-wide.
 
-        Use the returned handle as a context manager to auto-restore the prior state. An override
-        is compiled in: applying or resetting one drops the compiled resolvers, and the next
-        resolve recompiles. Overriding is a test-time operation, not coordinated with concurrent
-        resolves on other threads.
+        Use the returned handle as a context manager to restore the prior state. A test-time
+        operation, not coordinated with concurrent resolves on other threads.
         """
         prior = self.overrides_registry.fetch_override(provider.provider_id)
         self.overrides_registry.override(provider.provider_id, override_object)
@@ -325,11 +302,9 @@ class Container:
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
         """Register a runtime context value on *this* container.
 
-        Context never propagates between parent and child containers — set it
-        on the container whose scope matches the ``ContextProvider``. A
-        **cached** provider (``Factory(cache=...)``) is built once and its
-        instance is *not* rebuilt by a later ``set_context``; set the context
-        before its first resolve.
+        Context never propagates between parent and child — set it on the container whose scope
+        matches the ``ContextProvider``. A cached provider is built once and is not rebuilt by a
+        later ``set_context``; set the context before its first resolve.
         """
         self.context_registry.set_context(context_type, obj)
 
@@ -340,20 +315,15 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def open(self) -> None:
-        """Open the container, silently.
+        """Reopen a closed container silently; a no-op on an open one, and never validates.
 
-        Optional: a constructed container is already open. Use it to reopen a closed
-        container deliberately — an implicit reuse reopens too, but warns. Opening an
-        open container is a no-op. Validation is not run here; call :meth:`validate`.
+        Optional: a constructed container is already open, and an implicit reuse reopens too,
+        with a warning.
         """
         self.closed = False
 
     def _prepare(self) -> None:
-        """Reopen a closed container on implicit reuse, warning the caller.
-
-        Callers guard with ``if closed``. Unlocked: threads racing a closed container
-        may each warn, but every one of them writes the same ``closed = False``.
-        """
+        """Reopen a closed container on implicit reuse, warning the caller. Callers guard on ``closed``."""
         warnings.warn(
             exceptions.ContainerClosedWarning(container_scope=self.scope),
             stacklevel=_caller_stacklevel(),

@@ -20,9 +20,8 @@ class SignatureItem:
     @classmethod
     def from_type(cls, type_: type, default: object = UNSET) -> "SignatureItem":
         if type_ is types.NoneType:
-            # The degenerate nullable — a union with zero non-None members. Handled here
-            # rather than by the union branch below, which would take it for a plain type
-            # and try to resolve `NoneType` from the registry.
+            # The degenerate nullable: the union branch below would take it for a plain type and
+            # try to resolve `NoneType` from the registry.
             return cls(default=default, is_nullable=True)
 
         # typing.Annotated
@@ -33,9 +32,8 @@ class SignatureItem:
 
         # union type
         if isinstance(type_, types.UnionType) or typing.get_origin(type_) is typing.Union:
-            # A parameterized generic member degrades to its origin (list[str] -> list); the
-            # element type is not enforced. Intentional asymmetry, not a wiring guarantee --
-            # see test_union_member_degrades_to_bare_origin.
+            # A parameterized generic member degrades to its origin (list[str] -> list); see
+            # test_union_member_degrades_to_bare_origin.
             union_members = [typing.get_origin(x) or x for x in typing.get_args(type_)]
             non_none_members = [member for member in union_members if member is not types.NoneType]
             if len(non_none_members) != len(union_members):
@@ -64,8 +62,7 @@ def _parse_parameter(
 ) -> SignatureItem | None:
     if param.kind is inspect.Parameter.POSITIONAL_ONLY:
         if param.default is not param.empty:
-            # None is a signal, not "no item": parse_creator reads it as a positional-only gap
-            # (drops the param and sets has_positional_only_gap); the creator's own default fills it.
+            # None is a signal, not "no item": parse_creator reads it as a positional-only gap.
             return None
         raise exceptions.UnsupportedCreatorParameterError(
             creator=creator,
@@ -85,8 +82,6 @@ def _parse_parameter(
     else:
         item = SignatureItem(default=default)
     if param.kind is inspect.Parameter.KEYWORD_ONLY:
-        # The one param-kind signal the compiled positional fast path consults: a keyword-only
-        # parameter can never be passed positionally, so its provider must stay on the kwargs call.
         return dataclasses.replace(item, is_keyword_only=True)
     return item
 
@@ -126,8 +121,8 @@ def parse_creator(
             continue
         item = _parse_parameter(creator, param_name, param, type_hints)
         if item is None:
-            # positional-only-with-default: dropped from param_hints, so a positional creator()
-            # call would bind a later dependency into this slot -> fast path must keep **kwargs.
+            # Dropped from param_hints, so a positional creator() call would bind a later
+            # dependency into this slot; the fast path must keep **kwargs.
             has_positional_only_gap = True
             continue
         param_hints[param_name] = item

@@ -14,12 +14,10 @@ _MAX_SUGGESTIONS = 3
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Suggestion:
-    """A candidate the caller probably meant, as data.
+    """A candidate the caller probably meant, as data; ``exceptions`` owns the rendering.
 
-    Carries no formatting: rendering a suggestion to a bullet is ``exceptions``' job, so
-    one module owns the glyphs. ``scope`` is None when the suggestion names something with
-    no provider behind it (a creator's keyword argument); ``reason`` is None when there is
-    nothing to say beyond the name.
+    ``scope`` is None when the name has no provider behind it, ``reason`` when there is nothing
+    to say beyond the name.
     """
 
     name: str
@@ -28,12 +26,10 @@ class Suggestion:
 
 
 def suggest(requested_type: type, providers: "typing.Iterable[AbstractProvider[typing.Any]]") -> list[Suggestion]:
-    """Candidates the caller may have meant for ``requested_type``, best first, as data.
+    """Candidates the caller may have meant for ``requested_type``, best first, capped at three.
 
-    Class hierarchy hints (a registered subclass or base class of the requested type) come
-    first, then fuzzy name matches, capped at ``_MAX_SUGGESTIONS``. Rendering belongs to
-    ``exceptions``; this returns records, never bullets. ``providers`` is read by duck typing
-    on ``bound_type``/``scope`` (annotated under ``TYPE_CHECKING`` to avoid an import cycle).
+    A registered subclass or base class first, then fuzzy name matches. ``providers`` is read by
+    duck typing on ``bound_type``/``scope`` to avoid an import cycle.
     """
     requested_is_class = inspect.isclass(requested_type)
     requested_name = getattr(requested_type, "__name__", str(requested_type))
@@ -83,9 +79,5 @@ def _hierarchy_hint(requested_type: type, provider: "AbstractProvider[typing.Any
 
 
 def close_matches(target: str, candidates: typing.Iterable[str], *, n: int, cutoff: float = 0.6) -> list[str]:
-    """Fuzzy-match ``target`` against ``candidates``; best ``n`` at/above ``cutoff``.
-
-    Thin wrapper over ``difflib.get_close_matches``. Shared by ``suggest`` (provider name
-    typos) and ``UnknownFactoryKwargError`` (kwarg-key typos).
-    """
+    """Fuzzy-match ``target`` against ``candidates``; the best ``n`` at or above ``cutoff``."""
     return difflib.get_close_matches(target, list(candidates), n=n, cutoff=cutoff)

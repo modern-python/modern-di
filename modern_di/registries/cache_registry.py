@@ -33,11 +33,8 @@ class CacheItem:
     ) -> tuple[_V, bool]:
         """Return the memoized singleton, or resolve-and-create it once under `lock`.
 
-        Two phases: `resolve()` runs unlocked (recursive dependency resolution must not
-        hold the lock); creation and the store run under `lock`, double-checked so at
-        most one caller creates. `lock` is the resolving container's `RLock` (or None
-        when the container was built with `use_lock=False`). Returns `(value, created)`;
-        `created` is True only when this call ran `create`.
+        `resolve()` runs unlocked — recursive resolution must not hold the lock; creation and
+        the store are double-checked under it. `created` is True only for the caller that built.
         """
         if self.cache is not types.UNSET:
             return self.cache, False
@@ -86,11 +83,7 @@ class CacheRegistry:
         return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
 
     def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
-        # Get before setdefault: a plain setdefault eagerly builds a throwaway CacheItem on every
-        # hit (see test_cached_resolver_has_no_cell_on_the_warm_path). The creation path keeps
-        # setdefault, whose atomicity is what makes concurrent first-resolvers share one CacheItem
-        # — and it runs outside the container lock, because the singleton cache and its
-        # double-checked lock live on that object.
+        # Get before setdefault: a bare setdefault builds a throwaway CacheItem on every hit.
         item = self._items.get(provider.provider_id)
         if item is not None:
             return item

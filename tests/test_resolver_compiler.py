@@ -185,10 +185,8 @@ def test_positional_path_binds_args_in_signature_order() -> None:
 
 @pytest.mark.parametrize("arity", [0, 1, 2, 3, 4])
 def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int) -> None:
-    # The positional path compiles a separate closure at arity 0 and 1, plus the generic
-    # star-call for 2+; each binds its own arguments and can regress alone. Arities 2, 3 and 4
-    # all exercise that one generic closure -- kept because binding order at higher arity is
-    # worth asserting, not because they are separate rungs. The types are distinct, so a
+    # Each arity is its own generated source: the template unrolls one `a{i} = r{i}(target)` line
+    # per dependency and calls the creator with them in that order. The types are distinct, so a
     # misordered binding lands a _P1 in .p0 and the assertion fails.
     types_ = [_P0, _P1, _P2, _P3][:arity]
     params = ", ".join(f"p{i}: _P{i}" for i in range(arity))

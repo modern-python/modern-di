@@ -7,10 +7,9 @@ P = typing.ParamSpec("P")
 
 
 class UnsetType:
-    """Sentinel type for parameters that distinguish 'not passed' from 'explicitly None'.
+    """Sentinel type separating 'not passed' from 'explicitly None'.
 
-    The :data:`UNSET` module-level instance is the canonical sentinel. Use
-    ``isinstance(value, UnsetType)`` or ``value is UNSET`` to detect it.
+    :data:`UNSET` is the canonical instance; detect it with ``value is UNSET``.
     """
 
     def __repr__(self) -> str:

@@ -997,7 +997,7 @@ def test_construction_never_validates() -> None:
 
     Constructing a container from a cyclic group raises nothing; only the later `validate()` call
     surfaces `ValidationFailedError`. An `__init__` that walked eagerly is the split-validation
-    machinery `2026-07-26-explicit-only-validation.md` built and discarded.
+    machinery "Validation is explicit" (docs/introduction/design-decisions.md) discarded.
     """
     container = Container(scope=Scope.APP, groups=[CycleGroup])  # a cycle: no raise here any more
     with pytest.raises(ValidationFailedError):
@@ -1010,7 +1010,7 @@ def test_add_providers_never_validates_and_does_not_roll_back() -> None:
     `add_providers` registers `Broken` quietly -- no raise, no rollback -- even onto a registry
     already marked validated; only the next explicit `validate()` call surfaces
     `ValidationFailedError`. An `add_providers` that walked eagerly is the rollback path
-    `2026-07-26-explicit-only-validation.md` built and discarded.
+    "Validation is explicit" (docs/introduction/design-decisions.md) discarded.
     """
 
     @dataclasses.dataclass(kw_only=True, slots=True)
@@ -1035,9 +1035,9 @@ def test_open_never_validates() -> None:
     """INVARIANT: `validate()` is the only thing that walks the graph.
 
     `open()` on a cyclic graph raises nothing, neither called directly nor entered via the context
-    manager. Binding validation to `open()` was 3.0's design, discarded per
-    `2026-07-26-explicit-only-validation.md` after the root's open hook not firing in some execution
-    contexts caused six production defects.
+    manager. Binding validation to `open()` was 3.0's design, discarded per "Validation is
+    explicit" (docs/introduction/design-decisions.md) after the root's open hook not firing in
+    some execution contexts caused six production defects.
     """
     container = Container(scope=Scope.APP, groups=[CycleGroup])
     container.open()  # no raise
@@ -1050,8 +1050,8 @@ def test_resolve_never_validates() -> None:
 
     Resolving `_DeferBrokenService` on an unvalidated broken graph raises `ArgumentResolutionError`
     for the one missing dependency, not `ValidationFailedError` for the whole graph -- proving
-    `resolve()` never walks looking for other errors. Making it validate first is the per-resolve tax
-    `2026-07-26-explicit-only-validation.md` rejected.
+    `resolve()` never walks looking for other errors. Making it validate first is the per-resolve
+    tax "Validation is explicit" (docs/introduction/design-decisions.md) rejected.
     """
     container = Container(scope=Scope.APP, groups=[_DeferBrokenGroup])
     with pytest.raises(ArgumentResolutionError):
