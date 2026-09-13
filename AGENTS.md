@@ -12,7 +12,7 @@ repository** and ships as a separate PyPI package, `modern-di-pytest` included.
 ## Commands
 
 `just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
-`just --list`, or read it; every recipe carries its intent as a comment. The one thing it does not
+`just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
 say: nothing validates Markdown links outside `docs/`. `just docs-build` runs `mkdocs --strict` over
 the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.
 
@@ -55,15 +55,9 @@ mocks. Scope chains come from `build_child_container`.
 
 ## Workflow
 
-Real work **not scheduled** becomes a GitHub issue.
-
 Every link in `README.md` must be absolute: `https://github.com/modern-python/<repo>/blob/main/<path>`,
 or `.../tree/main/<path>` for a directory. Never a relative path: `README.md` is also the PyPI long
 description, and PyPI does not rewrite relative links, so a relative one 404s on the package page.
-
-An invariant is a test whose name is the claim, with a docstring opening `INVARIANT:` and a second
-paragraph naming **what breaks it** — design rationale, not a report of what this one test catches;
-a sibling test may be the one that trips.
 
 ## Code Style
 
@@ -71,7 +65,7 @@ a sibling test may be the one that trips.
   in 2.x), though **finalizers** may still be sync or async (`close_sync`/`close_async`); no global state
 - Docstrings: public API documents the contract; internal helpers get a one-line contract, plus at most
   1–2 lines for a genuinely non-obvious constraint. Never narrate implementation or justify code to a
-  reviewer — cross-file rationale lives in an `INVARIANT:` test docstring
+  reviewer — cross-file rationale lives in an invariant test's docstring
 - `ruff` (`select = ["ALL"]`) and `ty` are configured in `pyproject.toml` and run by `just lint`
 
 ## Agent skills
