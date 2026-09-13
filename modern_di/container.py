@@ -115,6 +115,7 @@ class Container:
         self.parent_container = parent_container
         # Ancestors only, never self: a `scope: self` entry is a reference cycle, so no container
         # would ever be freed by refcounting.
+        # SLF001 exempts `self`/`cls` only, so it flags this same-class read; no boundary is crossed.
         self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
             {**parent_container._scope_map, parent_container.scope: parent_container}  # noqa: SLF001
             if parent_container
