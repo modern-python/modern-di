@@ -145,7 +145,7 @@ class Factory(AbstractProvider[types.T_co]):
             return None
         return f"{module}:{lineno}"
 
-    def _resolution_step(self) -> exceptions.ResolutionStep:
+    def resolution_step(self) -> exceptions.ResolutionStep:
         return exceptions.ResolutionStep(scope=self.scope, name=self.display_name, location=self.definition_site)
 
     def _argument_resolution_error(
@@ -162,16 +162,31 @@ class Factory(AbstractProvider[types.T_co]):
             member_types=item.args,
         )
 
-    def _plan(self, container: "Container") -> WiringPlan:
+    def wiring_plan(self, registry: "ProvidersRegistry") -> WiringPlan:
         """Return this factory's wiring plan, memoized on the tree-wide providers registry."""
-        return container.providers_registry.plan_for(self, self._parsed_kwargs, self._kwargs)
+        return registry.plan_for(self, self._parsed_kwargs, self._kwargs)
+
+    def can_call_positionally(self, plan: WiringPlan) -> bool:
+        """Whether this creator can be called positionally under `plan`.
+
+        True when every parsed parameter is a positional-or-keyword provider dependency, in signature
+        order, with nothing omitted, added, keyword-only or positional-only.
+        """
+        if not plan.pure_provider:
+            return False
+        names = tuple(self._parsed_kwargs)
+        if tuple(plan.provider_kwargs) != names:
+            return False
+        if any(item.is_keyword_only for item in self._parsed_kwargs.values()):
+            return False
+        return not (names and self._has_positional_only_gap)
 
     def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
-        return self._plan(container).edges
+        return self.wiring_plan(container.providers_registry).edges
 
     def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        plan = self._plan(container)
+        plan = self.wiring_plan(container.providers_registry)
         for name, item in plan.unwireable:
             yield self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)

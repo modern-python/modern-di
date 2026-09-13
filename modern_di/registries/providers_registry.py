@@ -15,6 +15,12 @@ if typing.TYPE_CHECKING:
 
 
 class ProvidersRegistry:
+    """Type → provider, plus the tree-wide plan and resolver memos.
+
+    The memo dicts stay underscored: every mutation drops them (`_invalidate`), so a reference held
+    across one is stale. The resolve path reads them directly to skip a frame; nothing else should.
+    """
+
     __slots__ = (
         "_building",
         "_generation",
@@ -136,7 +142,7 @@ class ProvidersRegistry:
             if provider_type in self._providers:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers[provider_type] = provider
-            provider._registered = True  # noqa: SLF001
+            provider.mark_registered()
             self._invalidate()
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
@@ -156,7 +162,7 @@ class ProvidersRegistry:
             # Over `args`, not `new_providers`: a reference-only provider never enters
             # `_providers`, but its resolver is still compiled and still captures its scope.
             for provider in args:
-                provider._registered = True  # noqa: SLF001
+                provider.mark_registered()
             self._invalidate()
 
     def _invalidate(self) -> None:

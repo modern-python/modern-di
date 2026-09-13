@@ -2,7 +2,7 @@
 
 The differential-harness suite in ``tests/providers/test_factory.py`` characterizes each
 compiled path black-box through ``resolve_provider``. These pin what it leaves unguarded: the
-argument-ordering invariant the positional path depends on, ``_can_call_positionally``'s full
+argument-ordering invariant the positional path depends on, ``Factory.can_call_positionally``'s full
 contract, the per-node frame budget, and the contracts of the generated source (shape sharing,
 source lines in tracebacks, non-identifier kwarg names, overrides compiled as constants).
 """
@@ -20,7 +20,7 @@ from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.resolver_compiler import _can_call_positionally, compile_resolver
+from modern_di.resolver_compiler import compile_resolver
 from modern_di.wiring import WiringPlan
 
 
@@ -79,7 +79,7 @@ def _make(a: _A, b: _B, c: _C) -> _Ordered:
 
 def _plan(registry: ProvidersRegistry, owner: "providers.Factory[object]") -> WiringPlan:
     """Build ``owner``'s wiring plan the way production does (via the registry memo)."""
-    return registry.plan_for(owner, owner._parsed_kwargs, owner._kwargs)
+    return owner.wiring_plan(registry)
 
 
 @dataclasses.dataclass(slots=True)
@@ -175,7 +175,7 @@ def test_positional_path_binds_args_in_signature_order() -> None:
     container = Container(groups=[G])
     container.open()
     plan = _plan(container.providers_registry, G.ordered)
-    assert _can_call_positionally(G.ordered, plan)  # self-guard: positional path selected
+    assert G.ordered.can_call_positionally(plan)  # self-guard: positional path selected
 
     result = container.resolve(_Ordered)
     assert isinstance(result.a, _A)
@@ -202,7 +202,7 @@ def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int
     container = Container(scope=Scope.APP, groups=[group])
     container.open()
     plan = _plan(container.providers_registry, members["bag"])
-    assert _can_call_positionally(members["bag"], plan)  # self-guard: positional path selected
+    assert members["bag"].can_call_positionally(plan)  # self-guard: positional path selected
 
     bag = container.resolve_provider(members["bag"])
     assert len(bag.values) == arity
@@ -342,7 +342,7 @@ def test_arity_rung_prepends_its_step_to_a_dependency_error(arity: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# _can_call_positionally — the full predicate contract, called directly
+# Factory.can_call_positionally — the full predicate contract, called directly
 # ---------------------------------------------------------------------------
 
 
@@ -357,7 +357,7 @@ def test_can_call_positionally_accepts_ordered_provider_signature() -> None:
     owner = providers.Factory(creator=_make, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _can_call_positionally(owner, _plan(registry, owner)) is True
+    assert owner.can_call_positionally(_plan(registry, owner)) is True
 
 
 def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
@@ -365,7 +365,7 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
 
     A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
     path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
-    them trades correctness for speed. The other reject-case tests for `_can_call_positionally`
+    them trades correctness for speed. The other reject-case tests for `Factory.can_call_positionally`
     below share this rationale rather than repeating it.
     """
 
@@ -381,7 +381,7 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _can_call_positionally(owner, _plan(registry, owner)) is False
+    assert owner.can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
@@ -401,7 +401,7 @@ def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _can_call_positionally(owner, _plan(registry, owner)) is False
+    assert owner.can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
@@ -424,7 +424,7 @@ def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
 
     plan = _plan(registry, owner)
     assert tuple(plan.provider_kwargs) == ("b", "a")  # overlay put `a` last
-    assert _can_call_positionally(owner, plan) is False
+    assert owner.can_call_positionally(plan) is False
 
 
 def test_can_call_positionally_rejects_keyword_only_param() -> None:
@@ -443,7 +443,7 @@ def test_can_call_positionally_rejects_keyword_only_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _can_call_positionally(owner, _plan(registry, owner)) is False
+    assert owner.can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_can_call_positionally_rejects_positional_only_param() -> None:
@@ -464,7 +464,7 @@ def test_can_call_positionally_rejects_positional_only_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert _can_call_positionally(owner, _plan(registry, owner)) is False
+    assert owner.can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -521,7 +521,7 @@ def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
     """INVARIANT: an alias hop costs one Python frame, like any Factory dependency.
 
     The alias resolver inlines the source lookup and the source's resolver-memo read. Routing
-    through `_find_source` + `find_provider` + `resolve_provider` instead costs four frames per hop.
+    through `find_source` + `find_provider` + `resolve_provider` instead costs four frames per hop.
     """
 
     class _Source: ...

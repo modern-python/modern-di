@@ -292,7 +292,7 @@ def test_mutation_during_plan_build_does_not_strand_a_stale_plan(monkeypatch: py
         return plan
 
     monkeypatch.setattr(pr_mod.WiringPlan, "build", staticmethod(hold_open))
-    worker = threading.Thread(target=lambda: registry.plan_for(svc, svc._parsed_kwargs, svc._kwargs))
+    worker = threading.Thread(target=lambda: svc.wiring_plan(registry))
     worker.start()
     try:
         assert built.wait(5), "plan build never reached the publication window"  # pragma: no cover

@@ -6,6 +6,9 @@ type compiles to a small closure. An overridden provider compiles to its overrid
 resolvers never consult the overrides registry; applying an override drops the compiled
 resolvers instead (see ``ProvidersRegistry.drop_resolvers``). Why a template and not shared
 helpers: every all-Python single-copy design measured 25-80% slower (docs/introduction/performance.md).
+
+The template reaches into `Container._prepare`/`_lock` and `CacheRegistry._items` to stay within that
+frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
 import dataclasses
@@ -52,22 +55,6 @@ def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "Provid
         return _compile_context_provider(provider)
     msg = f"no compiled resolver for provider type {type(provider).__name__}"
     raise TypeError(msg)
-
-
-def _can_call_positionally(f: "Factory[typing.Any]", plan: "WiringPlan") -> bool:
-    """Whether `f`'s creator can be called positionally.
-
-    True when every parsed parameter is a positional-or-keyword provider dependency, in signature
-    order, with nothing omitted, added, keyword-only or positional-only.
-    """
-    if not plan.pure_provider:
-        return False
-    names = tuple(f._parsed_kwargs)
-    if tuple(plan.provider_kwargs) != names:
-        return False
-    if any(item.is_keyword_only for item in f._parsed_kwargs.values()):
-        return False
-    return not (names and f._has_positional_only_gap)
 
 
 _TRANSIENT = """\
@@ -181,7 +168,7 @@ def _code(shape: _Shape) -> "CodeType":
 
 
 def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
-    plan = registry.plan_for(f, f._parsed_kwargs, f._kwargs)
+    plan = f.wiring_plan(registry)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
     static = dict(plan.static_kwargs)
@@ -194,7 +181,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
             context.append(
                 (name, context_provider.scope, context_provider.context_type, absent_disposition(item), item)
             )
-    positional = _can_call_positionally(f, plan)
+    positional = f.can_call_positionally(plan)
     shape = _Shape(
         arity=len(plan.provider_kwargs),
         names=None if positional else tuple(plan.provider_kwargs),
@@ -207,7 +194,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "pid": f.provider_id,
         "scope": f.scope,
         "creator": f._creator,
-        "resolution_step": f._resolution_step,
+        "resolution_step": f.resolution_step,
         "build_arg_error": f._argument_resolution_error,
         "static": static,
         "context": tuple(context),
@@ -236,7 +223,7 @@ def _compile_constant(value: typing.Any) -> "Resolver":
 def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") -> "Resolver":
     """Compile a resolver that always raises for the factory's first unwireable parameter, freshly built per call."""
     scope = f.scope
-    resolution_step = f._resolution_step
+    resolution_step = f.resolution_step
     build_error = f._argument_resolution_error
     arg_name, item = plan.unwireable[0]
 
@@ -255,7 +242,7 @@ def _compile_alias(a: "Alias[typing.Any]") -> "Resolver":
     """Call the source's resolver directly; a source registered later is picked up on the next resolve."""
     # Not bound to the source's resolver at compile time: the alias step in error chains needs this frame.
     source_type = a._source_type
-    find_source = a._find_source
+    find_source = a.find_source
 
     def resolve(container: "Container") -> typing.Any:
         try:
