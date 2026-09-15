@@ -135,9 +135,8 @@ class EchoEndpoint(WebSocketEndpoint):
 app = Starlette(routes=[Route("/report", ReportEndpoint), WebSocketRoute("/echo", EchoEndpoint)])
 ```
 
-Requires a `modern-di-starlette` release newer than 3.1.1
-([modern-di-starlette#28](https://github.com/modern-python/modern-di-starlette/pull/28)).
-Earlier versions raise a `TypeError` on the first request to a decorated method.
+Requires `modern-di-starlette` 3.2.0 or later. Earlier versions raise a
+`TypeError` on the first request to a decorated method.
 
 ## Websockets
 
