@@ -120,6 +120,38 @@ async def ws_handler(
     return ws
 ```
 
+## Class-based views
+
+`@inject` works the same on the methods of a `web.View` subclass. Decorate the
+handler method, not the class. aiohttp calls the method with no arguments and
+keeps the request on `self.request`, which is where the decorator reads it from:
+
+```python
+import typing
+
+from aiohttp import web
+from modern_di_aiohttp import FromDI, inject
+
+
+class ReportView(web.View):
+    @inject
+    async def get(
+        self,
+        report: typing.Annotated[Report, FromDI(Report)],
+    ) -> web.Response:
+        return web.json_response(report.as_dict())
+
+
+app.router.add_view("/report", ReportView)
+```
+
+A view whose `get` upgrades to a WebSocket opens a `Scope.SESSION` container the
+same way a function handler does; read the connection with
+`FromDI(aiohttp_websocket_provider)` or `self.request`.
+
+Requires `modern-di-aiohttp` 3.2.0 or later. Earlier versions raise a `TypeError`
+on the first request to a decorated method.
+
 ## See also
 
 - [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
@@ -133,7 +165,7 @@ async def ws_handler(
 |---|---|
 | `setup_di(app, container)` | Opens the root container on startup, closes it on cleanup, and installs the middleware that builds a per-connection child container; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
-| `inject` | Decorator for an `async def handler(request: web.Request, ...)`; resolves its `FromDI`-annotated parameters. Raises `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
+| `inject` | Decorator for an `async def handler(request: web.Request, ...)`, a function handler or a method of a `web.View` subclass; resolves its `FromDI`-annotated parameters. Raises `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on the app. |
 | `fetch_request_container(request)` | Returns the per-connection child container the middleware built (REQUEST for HTTP, SESSION for a WebSocket). Raises `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `aiohttp_request_provider` | `ContextProvider` for `web.Request` (REQUEST scope), auto-registered by type. |
