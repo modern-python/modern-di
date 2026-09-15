@@ -121,4 +121,4 @@ def run_job(
 | `setup_di(app, container)` | Register the app-scoped container with a Typer app |
 | `@inject` | Decorator that resolves `FromDI`-annotated parameters before the command runs |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]`; accepts a provider instance or a plain type |
-| `fetch_di_container(ctx)` | Returns the app-scoped container from `ctx.obj` |
+| `fetch_di_container(ctx)` | Returns the app-scoped container registered by `setup_di`, from any command including those of nested `add_typer` sub-apps; does not read `ctx.obj` |
