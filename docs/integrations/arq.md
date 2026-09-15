@@ -157,5 +157,5 @@ parameter is untouched and may use `*args`/`**kwargs` freely.)
 |---|---|
 | `setup_di(worker_settings, container)` | Seed the root container into arq's `ctx` and wire root + per-job lifecycle onto arq's `on_startup`/`on_shutdown`/`on_job_start`/`on_job_end` hooks. Accepts a `WorkerSettings` class/object or a settings `dict`; composes with existing hooks; returns the container. Raises `TypeError` if called twice on the same `worker_settings`. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. |
-| `@inject` | Decorator that resolves `FromDI`-annotated parameters from the per-job `Scope.REQUEST` child container. Order-insensitive; passthrough for tasks with no `FromDI`; raises `TypeError` at decoration if the task also declares `*args`/`**kwargs`. |
+| `@inject` | Decorator that resolves `FromDI`-annotated parameters from the per-job `Scope.REQUEST` child container. Order-insensitive; passthrough for tasks with no `FromDI`; raises `TypeError` at decoration if the task also declares `*args`/`**kwargs`; raises `RuntimeError` naming `setup_di` when a job reaches it without the modern-di hooks installed. |
 | `fetch_di_container(ctx)` | Returns the root container from an arq `ctx` dict. |

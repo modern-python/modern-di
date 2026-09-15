@@ -194,6 +194,6 @@ signals.worker_process_shutdown.send(sender=None)    # a real worker fires this 
 |---|---|
 | `setup_di(app, container)` | Wire the APP-scope container into Celery — stores it on `app.conf` and opens/closes it on `worker_process_init`/`worker_process_shutdown`. Returns the container. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. |
-| `@inject` | Decorator that builds a `Scope.REQUEST` child container per call, resolves `FromDI`-annotated parameters from it, and closes the child container with `close_sync()` afterwards. |
+| `@inject` | Decorator that builds a `Scope.REQUEST` child container per call, resolves `FromDI`-annotated parameters from it, and closes the child container with `close_sync()` afterwards. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called. |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` method automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)`. |
-| `fetch_di_container(app)` | Returns the APP-scope container registered with the Celery app. |
+| `fetch_di_container(app)` | Returns the APP-scope container registered with the Celery app. Raises `RuntimeError` naming `setup_di` when called on an app without `setup_di` called. |
