@@ -360,6 +360,17 @@ strips **only** the marked ones; everything else still reaches the parser.
 - **Keep nested scopes caller-driven.** Expose a helper (`action_scope(ctx)`)
   that yields a fresh deeper-scope child of the per-call container per `with`
   block, rather than auto-injecting one.
+- **Name the fix when the container is missing.** A handler decorated with
+  `@inject` but reached on an app that never had `setup_di` called must not die
+  on the private key (`KeyError: 'modern_di_container'`). Catch the lookup
+  failure and raise a plain `RuntimeError` that names the cause and the call —
+  "No modern-di container found for this request. Call setup_di(app, container)
+  so requests pass through the modern-di middleware before using @inject." —
+  with `from None`, so the `KeyError` does not trail it. A package-local
+  `RuntimeError`, not a `ModernDIError` subclass: the fault is framework wiring,
+  not resolution, and `modern_di.integrations` stays exception-free.
+  [`modern-di-aiohttp`](aiohttp.md), [`modern-di-starlette`](starlette.md) and
+  [`modern-di-aiogram`](aiogram.md) are the reference; pin it with a test.
 
 ## Repo scaffolding
 
@@ -464,6 +475,8 @@ Each official integration is its own repository and PyPI package, mirroring the
       `wrapper.__signature__`), resolves at call time, and closes the per-call
       container in `finally`. See the [decorator
       path](#frameworks-without-native-di-the-decorator-path).
+- [ ] `@inject` reached without `setup_di` raises a `RuntimeError` naming
+      `setup_di`, never a `KeyError` on a private key; a test pins it.
 - [ ] Tests cover lifespan (incl. restart), resolution through `FromDI`, and
       context injection from the connection object; coverage gate green.
 - [ ] Usage page + `mkdocs.yml` nav entry added in the `modern-di` repo.
