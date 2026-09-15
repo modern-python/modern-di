@@ -78,6 +78,24 @@ modern_di_faststream.setup_di(app, container)
 app.add_broker(kafka_broker)  # also gets the DI middleware at startup
 ```
 
+A broker created inside an `on_startup` hook is covered as well, since `setup_di` no longer
+needs a broker at call time. Hooks run in registration order, so register that hook **before**
+calling `setup_di`; otherwise the install step runs first and does not see the broker. If the
+app still has no broker when the install step runs, it raises a `RuntimeError` naming both
+remedies.
+
+```python
+app = faststream.FastStream()
+
+
+@app.on_startup
+async def attach_broker() -> None:
+    app.add_broker(NatsBroker(settings.nats_url))
+
+
+modern_di_faststream.setup_di(app, container)  # after the hook, so startup sees the broker
+```
+
 Between `setup_di` and startup no broker carries the middleware yet; see
 [Testing](#testing) for the one place that shows.
 
@@ -165,7 +183,7 @@ class AppGroup(Group):
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Wire the APP-scope container into FastStream — at startup, installs the middleware that creates a REQUEST child container per message on every broker of the app; closes the APP container at shutdown. |
+| `setup_di(app, container)` | Wire the APP-scope container into FastStream — at startup, installs the middleware that creates a REQUEST child container per message on every broker of the app, and raises `RuntimeError` if there is none by then; closes the APP container at shutdown. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in subscriber signatures; accepts a provider instance or a plain type. Raises `RuntimeError` naming `setup_di` when a message reaches it without the middleware installed. |
 | `fetch_di_container(app)` | Returns the APP-scope container registered with the FastStream app. |
 | `faststream_message_provider` | `ContextProvider` for the current `faststream.StreamMessage`. |
