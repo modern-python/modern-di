@@ -90,6 +90,55 @@ an HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
 opens a `Scope.SESSION` one, built by the middleware before your handler runs
 and kept open for the whole life of the connection.
 
+## Class-based endpoints
+
+`@inject` works the same on the methods of an `HTTPEndpoint` or `WebSocketEndpoint`
+subclass. Decorate the handler method, not the class. `self` and any arguments
+Starlette passes after the connection are forwarded unchanged, so
+`WebSocketEndpoint.on_receive` and `on_disconnect` inject too:
+
+```python
+import typing
+
+from modern_di_starlette import FromDI, inject
+from starlette.applications import Starlette
+from starlette.endpoints import HTTPEndpoint, WebSocketEndpoint
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route, WebSocketRoute
+from starlette.websockets import WebSocket
+
+
+class ReportEndpoint(HTTPEndpoint):
+    @inject
+    async def get(
+        self,
+        request: Request,
+        report: typing.Annotated[Report, FromDI(Report)],
+    ) -> JSONResponse:
+        return JSONResponse(report.as_dict())
+
+
+class EchoEndpoint(WebSocketEndpoint):
+    encoding = "text"
+
+    @inject
+    async def on_receive(
+        self,
+        websocket: WebSocket,
+        data: str,
+        settings: typing.Annotated[Settings, FromDI(Settings)],
+    ) -> None:
+        await websocket.send_text(f"{settings.service_name}: {data}")
+
+
+app = Starlette(routes=[Route("/report", ReportEndpoint), WebSocketRoute("/echo", EchoEndpoint)])
+```
+
+Requires a `modern-di-starlette` release newer than 3.1.1
+([modern-di-starlette#28](https://github.com/modern-python/modern-di-starlette/pull/28)).
+Earlier versions raise a `TypeError` on the first request to a decorated method.
+
 ## Websockets
 
 For per-message work within a websocket's `Scope.SESSION` container, open a
@@ -175,7 +224,7 @@ class AppGroup(Group):
 |---|---|
 | `setup_di(app, container)` | Registers the container on `app.state`, composes the lifespan (opens/closes the container), and installs the middleware that builds a per-connection child container; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
-| `inject` | Decorator for an `async def handler(connection: Request | WebSocket, ...)`; resolves its `FromDI`-annotated parameters. Raises `RuntimeError` naming `setup_di` when the connection did not pass through the middleware. |
+| `inject` | Decorator for an `async def handler(connection: Request | WebSocket, ...)`, a function endpoint or a method of an `HTTPEndpoint` / `WebSocketEndpoint` subclass; resolves its `FromDI`-annotated parameters. Raises `RuntimeError` naming `setup_di` when the connection did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.state`. |
 | `starlette_request_provider` | `ContextProvider` for `starlette.requests.Request` (REQUEST scope), auto-registered. |
 | `starlette_websocket_provider` | `ContextProvider` for `starlette.websockets.WebSocket` (SESSION scope), auto-registered. |
