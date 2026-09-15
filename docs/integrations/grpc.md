@@ -172,7 +172,7 @@ Inside a servicer method (or anything it calls during the RPC),
 ```python
 from modern_di_grpc import fetch_di_container
 
-container = fetch_di_container()   # raises LookupError outside an intercepted RPC
+container = fetch_di_container()   # raises RuntimeError outside an intercepted RPC
 ```
 
 ## `*args` / `**kwargs`
@@ -194,6 +194,6 @@ imposes no restriction on the method signature beyond the injected parameters.
 | `DIInterceptor(container)` | `grpc.ServerInterceptor` for the sync thread-pool server. Opens a `Scope.REQUEST` child per RPC (`close_sync`); auto-registers `grpc_context_provider`. |
 | `DIAioInterceptor(container)` | `grpc.aio.ServerInterceptor` for the async server. Same, with `close_async`. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in servicer-method signatures; accepts a provider instance or a plain type. |
-| `@inject` | Decorates a servicer method to resolve its `FromDI` parameters from the current RPC's child container; adapts to sync / async / async-generator methods. |
-| `fetch_di_container()` | Returns the current RPC's child container (raises `LookupError` outside an RPC). |
+| `@inject` | Decorates a servicer method to resolve its `FromDI` parameters from the current RPC's child container; adapts to sync / async / async-generator methods. Raises `RuntimeError` naming `DIInterceptor` when the RPC did not pass through the interceptor. |
+| `fetch_di_container()` | Returns the current RPC's child container (raises `RuntimeError` naming `DIInterceptor` outside an intercepted RPC). |
 | `grpc_context_provider` | `ContextProvider` exposing `grpc.ServicerContext` at `Scope.REQUEST`; auto-registered by the interceptor. |

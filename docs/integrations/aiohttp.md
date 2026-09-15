@@ -133,8 +133,8 @@ async def ws_handler(
 |---|---|
 | `setup_di(app, container)` | Opens the root container on startup, closes it on cleanup, and installs the middleware that builds a per-connection child container; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
-| `inject` | Decorator for an `async def handler(request: web.Request, ...)`; resolves its `FromDI`-annotated parameters. |
+| `inject` | Decorator for an `async def handler(request: web.Request, ...)`; resolves its `FromDI`-annotated parameters. Raises `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on the app. |
-| `fetch_request_container(request)` | Returns the per-connection child container the middleware built (REQUEST for HTTP, SESSION for a WebSocket). |
+| `fetch_request_container(request)` | Returns the per-connection child container the middleware built (REQUEST for HTTP, SESSION for a WebSocket). Raises `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `aiohttp_request_provider` | `ContextProvider` for `web.Request` (REQUEST scope), auto-registered by type. |
 | `aiohttp_websocket_provider` | `ContextProvider` for the WebSocket connection's `web.Request` (SESSION scope), `bound_type=None` — resolve via `FromDI(aiohttp_websocket_provider)`. |

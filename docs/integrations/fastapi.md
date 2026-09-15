@@ -179,7 +179,7 @@ class AppGroup(Group):
 | Symbol | Description |
 |---|---|
 | `setup_di(app, container)` | Registers the container on the FastAPI app and appends a lifespan that closes it on shutdown (merges with any existing `lifespan=`); returns the container. |
-| `FromDI(dependency, *, use_cache=True)` | A `fastapi.Depends` wrapper that resolves a provider (or type) from the per-request child container. |
+| `FromDI(dependency, *, use_cache=True)` | A `fastapi.Depends` wrapper that resolves a provider (or type) from the per-request child container. Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
 | `build_di_container(connection)` | A `fastapi.Depends` callable that yields the per-request child container — REQUEST scope for an HTTP request, SESSION scope for a WebSocket. |
 | `fastapi_request_provider` | `ContextProvider` for `fastapi.Request` (REQUEST scope), auto-registered. |
 | `fastapi_websocket_provider` | `ContextProvider` for `fastapi.WebSocket` (SESSION scope), auto-registered. |

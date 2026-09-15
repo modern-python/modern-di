@@ -146,6 +146,6 @@ class AppGroup(Group):
 | Symbol | Description |
 |---|---|
 | `setup_di(broker, container)` | Wire the APP-scope container into taskiq — creates a REQUEST child container per task and opens/closes the APP container on worker startup/shutdown. |
-| `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. |
+| `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called. |
 | `fetch_di_container(broker)` | Returns the APP-scope container registered with the taskiq broker. |
 | `taskiq_message_provider` | `ContextProvider` for the current `taskiq.TaskiqMessage`. |
