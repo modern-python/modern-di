@@ -66,6 +66,21 @@ async def handle_order(
     return report.as_dict()
 ```
 
+### Several brokers
+
+`setup_di` covers every broker of the app, not only the first. The DI middleware is installed
+by an `on_startup` hook that walks `app.brokers`, so a broker passed to `FastStream(...)` and
+one added with `app.add_broker` after `setup_di` are treated the same:
+
+```python
+app = faststream.FastStream(nats_broker)
+modern_di_faststream.setup_di(app, container)
+app.add_broker(kafka_broker)  # also gets the DI middleware at startup
+```
+
+Between `setup_di` and startup no broker carries the middleware yet; see
+[Testing](#testing) for the one place that shows.
+
 ## Scopes
 
 The integration creates a `Scope.REQUEST` child container **for each message** the subscriber receives. REQUEST-scoped providers (and their finalizers) live for the duration of that one message; APP-scoped providers persist for the whole process. At app shutdown, the integration runs `await container.close_async()` on the APP container.
@@ -129,9 +144,15 @@ class AppGroup(Group):
     etc.) with `TestApp` in the **same** `with` / `async with` statement.
     FastStream's `TestBroker` decides whether to run app `on_startup` hooks by
     inspecting that statement; `async with TestNatsBroker(broker):` alone
-    starts the broker without running `on_startup` — published messages still
-    get handled (the container is already open from construction), but
-    nothing ever closes it, so its finalizers never run.
+    starts the broker without running `on_startup`. The integration installs
+    its middleware and reopens the container in those hooks, so a `FromDI`
+    subscriber reached this way has no request container and raises a
+    `RuntimeError` that names `setup_di` and `TestApp` as the fix.
+
+    ```python
+    async with TestNatsBroker(broker) as br, TestApp(app):
+        await br.publish(...)
+    ```
 
 ## See also
 
@@ -144,7 +165,7 @@ class AppGroup(Group):
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Wire the APP-scope container into FastStream — creates a REQUEST child container per message and closes the APP container at shutdown. |
-| `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in subscriber signatures; accepts a provider instance or a plain type. |
+| `setup_di(app, container)` | Wire the APP-scope container into FastStream — at startup, installs the middleware that creates a REQUEST child container per message on every broker of the app; closes the APP container at shutdown. |
+| `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in subscriber signatures; accepts a provider instance or a plain type. Raises `RuntimeError` naming `setup_di` when a message reaches it without the middleware installed. |
 | `fetch_di_container(app)` | Returns the APP-scope container registered with the FastStream app. |
 | `faststream_message_provider` | `ContextProvider` for the current `faststream.StreamMessage`. |
