@@ -451,7 +451,7 @@ def test_provider_instances_have_no_dict() -> None:
     factory: providers.Factory[object] = providers.Factory(creator=object, scope=Scope.APP)
     assert not hasattr(factory, "__dict__")
     with pytest.raises(AttributeError):
-        factory.some_unexpected_attr = 1
+        factory.some_unexpected_attr = 1  # ty: ignore[invalid-assignment]
 
 
 def test_wiring_plan_is_memoized_across_child_containers() -> None:
