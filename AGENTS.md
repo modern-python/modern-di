@@ -70,8 +70,18 @@ description, and PyPI does not rewrite relative links, so a relative one 404s on
 
 ## Agent skills
 
-- **Issues and specs** — GitHub Issues on `modern-python/modern-di`, via `gh`:
-  [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)
-- **Triage labels** — the five canonical roles: [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md)
-- **Domain docs** — single-context, `CONTEXT.md`; public choices on the design-decisions page, internal ones in `docs/adr/`: [`docs/agents/domain.md`](docs/agents/domain.md)
-- **Cutting a release** (maintainers) — [`docs/agents/release.md`](docs/agents/release.md)
+### Issue tracker
+
+GitHub issues on `modern-python/modern-di`, via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Cutting a release
+
+Maintainers only. See `docs/agents/release.md`.

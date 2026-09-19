@@ -1,7 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues on `modern-python/modern-di`. Use the `gh` CLI
-for all operations.
+Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
 ## Conventions
 
@@ -21,12 +20,7 @@ Infer the repo from `git remote -v`; `gh` does this automatically when run insid
 When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
 
 - **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
-- **List external PRs for triage**: `gh pr list --json` has no `authorAssociation` field, so the association has to come from the REST API, where it is `author_association` (snake_case):
-  ```
-  gh api "repos/{owner}/{repo}/pulls?state=open&per_page=100" \
-    --jq '.[] | select(.author_association | IN("CONTRIBUTOR","FIRST_TIME_CONTRIBUTOR","NONE")) | {number, title, author: .user.login}'
-  ```
-  That keeps only external authors; `OWNER`, `MEMBER` and `COLLABORATOR` are dropped. `gh api` substitutes `{owner}`/`{repo}` from the current clone.
+- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
 - **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either: resolve with `gh pr view 42` and fall back to `gh issue view 42`.
@@ -49,5 +43,3 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
-
-The `wayfinder:*` labels do not exist in this repo yet. Create them the first time `/wayfinder` runs.
