@@ -8,8 +8,8 @@ container at all.
 
 If you're building a single FastAPI or Litestar service and everything you
 inject is request-scoped (a database session, the current user, settings), the
-framework's own DI — FastAPI's `Depends`, Litestar's `Provide` — is enough, and
-a standalone container is overkill.
+framework's own DI (FastAPI's `Depends`, Litestar's `Provide`) is enough, and a
+standalone container is overkill.
 
 Reach for a container when one of these is true:
 
@@ -42,20 +42,20 @@ gRPC, Celery, arq, taskiq, and aiogram.
 
 On the **typed-resolution** row: modern-di keeps the concrete static type end to
 end. `resolve(SomeType)` is typed `SomeType` (not `Any`), and the injection
-marker for integrations, `Annotated[T, from_di(dep)]`, type-checks as `T` — the
+marker for integrations, `Annotated[T, from_di(dep)]`, type-checks as `T` (the
 same clean shape as Dishka's `FromDishka[T]` and FastAPI's
-`Annotated[T, Depends(...)]`. That is deliberate: the older marker spellings
-erase the type — `dependency-injector`'s `Provider[Animal]` annotation infers
+`Annotated[T, Depends(...)]`). That is deliberate: the older marker spellings
+erase the type. `dependency-injector`'s `Provider[Animal]` annotation infers
 the base `Animal` rather than a concrete subtype, and a bare `x = Depends(fn)`
-is typed `Any`. It also needs no type-checker plugin to hold — see the
+is typed `Any`. It also needs no type-checker plugin to hold; see the
 [non-goal on static wiring verification](design-decisions.md#non-goals).
 
 ## Library by library
 
 ### vs Dishka
 
-Dishka is the closest library to modern-di — also typed, also scopes-first, also
-integrating with FastAPI and Litestar — and it's more established, with a larger
+Dishka is the closest library to modern-di (also typed, also scopes-first, also
+integrating with FastAPI and Litestar), and it's more established, with a larger
 community and a wider integration surface: 13 official framework integrations,
 plus the ~10 community-maintained ones it links from its own docs. Its FastStream
 and Starlette support are two of those community packages
@@ -63,14 +63,14 @@ and Starlette support are two of those community packages
 and [`starlette-dishka`](https://github.com/reagento/starlette-dishka)); the
 bundled `dishka.integrations` modules for both are deprecated in favor of them.
 If you need **arbitrary *named* scopes** or **async resolution**, Dishka is an
-excellent choice — as it is if you need an integration modern-di doesn't have
+excellent choice, as it is if you need an integration modern-di doesn't have
 yet: aiogram-dialog, Click, Sanic and telebot officially, or Pyramid, Quart, RQ,
 Strawberry and APScheduler from the community.
 
 modern-di's deliberate differences:
 
 - **A first-party pytest plugin** (`modern-di-pytest`) that turns any dependency
-  into a fixture — Dishka ships no pytest *plugin*, documenting a hand-written
+  into a fixture. Dishka ships no pytest *plugin*, documenting a hand-written
   fixtures recipe instead.
 - **Sync-only *resolution* (async finalizers still supported) and a small,
   built-in scope chain you can still extend with any `IntEnum`** — a simpler
@@ -86,7 +86,7 @@ modern-di's deliberate differences:
 `dependency-injector` is the most popular Python DI library, with a mature,
 Cython-accelerated core and a declarative style using `Provide[...]` markers and
 `@inject`. It is actively maintained again after an earlier hiatus. modern-di
-differs in style — **type-based autowiring instead of explicit markers** — and
+differs in style (**type-based autowiring instead of explicit markers**) and
 adds **nested request scopes** and a **first-party pytest plugin**. If you prefer
 explicit declarative wiring and the largest ecosystem, dependency-injector is a
 solid, proven choice. Migrating an existing codebase? See the
@@ -102,7 +102,7 @@ built-in scopes, official framework integrations, and resource finalization.
 
 ### vs framework-native (`Depends` / `Provide`)
 
-For a single web service, native DI is simpler and a container is overkill — see
+For a single web service, native DI is simpler and a container is overkill; see
 [Do you even need a DI container?](#do-you-even-need-a-di-container) above.
 Reach for modern-di once you have a second entrypoint, or need typed, scoped,
 app-wide singletons with overrides that work everywhere, not just on the HTTP
@@ -112,15 +112,15 @@ path.
 
 [`that-depends`](https://github.com/modern-python/that-depends) is a sibling
 project from the same author, in the same
-[modern-python](https://github.com/modern-python) family — it isn't in the
-table above because the choice between the two isn't about features so much
-as which generation of the same design you want.
+[modern-python](https://github.com/modern-python) family. It isn't in the table
+above because the choice between the two isn't about features so much as which
+generation of the same design you want.
 
 - **Starting a new project?** Use **modern-di**. It has explicit scopes, no
-  global state, a small strictly-typed core, and separate framework adapters —
+  global state, a small strictly-typed core, and separate framework adapters;
   see [Design decisions](design-decisions.md).
 - **Already using that-depends?** It remains **actively maintained and
-  production-proven** — you don't need to migrate. Move when you want explicit
+  production-proven**, so you don't need to migrate. Move when you want explicit
   scopes or a no-global-state architecture; the
   [migration guide](../migration/from-that-depends.md) maps every concept across.
 
@@ -133,7 +133,7 @@ as which generation of the same design you want.
 | Integrations | bundled | separate adapter packages (install only what you need) |
 
 Choose **that-depends** if you specifically want async resolution
-(`await container.resolve(...)` — modern-di is sync-only by design and won't
+(`await container.resolve(...)`; modern-di is sync-only by design and won't
 add it), want the simplest setup for a single service without an explicit
 scope chain, or already run it in production with no reason to change.
 
@@ -144,7 +144,7 @@ explicit scopes.
 
 ## Where is Singleton? Cross-framework vocabulary
 
-modern-di deliberately has no `Singleton` class — "create once and reuse" is spelled via a scope
+modern-di deliberately has no `Singleton` class: "create once and reuse" is spelled via a scope
 plus `cache=True` on an ordinary `Factory`. Every arriving user speaks a different framework's
 lifetime dialect, so here is how the same six concepts translate:
 
