@@ -1,16 +1,17 @@
 # Usage with `pytest`
 
 `modern-di-pytest` turns any DI dependency into a pytest fixture. Two
-callables cover the entire surface — `modern_di_fixture` for a single
+callables cover the entire surface: `modern_di_fixture` for a single
 dependency and `expose` for bulk-generating one fixture per provider across
 one or more `Group` subclasses.
 
-Don't want the extra dependency? You don't need it: define `di_container` as
-a session-scoped pytest fixture around `Container(...)` used as a context
-manager, build a request-scoped child-container fixture from it, and resolve
-dependencies inside tests with `container.resolve(...)` directly. See the
+You don't need the extra dependency to test with modern-di. Define
+`di_container` as a session-scoped pytest fixture around `Container(...)`
+used as a context manager, build a request-scoped child-container fixture
+from it, and resolve dependencies inside tests with `container.resolve(...)`
+directly. See the
 [testing-with-overrides recipe](../recipes/testing-overrides.md) for a worked
-example of that approach — the rest of this page assumes the plugin.
+example of that approach. The rest of this page assumes the plugin.
 
 ## How to use
 
@@ -37,7 +38,7 @@ example of that approach — the rest of this page assumes the plugin.
 ### 2. Define a `di_container` fixture
 
 Define it at the highest pytest scope you want. The plugin never builds the
-container — you own it:
+container; you own it:
 
 ```python
 import typing
@@ -128,7 +129,7 @@ one or more `Group` subclasses can be exposed against the request container.
 ## Overrides
 
 `modern-di-pytest` deliberately does **not** ship override sugar. Use
-`Container.override()` directly — it is already backed by a tree-shared
+`Container.override()` directly; it is already backed by a tree-shared
 `OverridesRegistry`:
 
 ```python

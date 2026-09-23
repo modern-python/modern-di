@@ -69,7 +69,7 @@ setup_di(WorkerSettings, container)
 container.validate()  # fails fast on a broken graph before the worker runs
 ```
 
-Run the worker as usual — `arq mymodule.WorkerSettings` — and enqueue jobs from
+Run the worker as usual (`arq mymodule.WorkerSettings`) and enqueue jobs from
 anywhere:
 
 ```python
@@ -86,7 +86,7 @@ async def main() -> None:
 (arq's per-worker state store) and wraps four of arq's lifecycle hooks:
 `on_startup`/`on_shutdown` open and close the root container, and
 `on_job_start`/`on_job_end` build and close a `Scope.REQUEST` child container
-around each job. Any hook you already defined still runs — yours runs *after*
+around each job. Any hook you already defined still runs: yours runs *after*
 ours on startup/job-start and *before* ours on shutdown/job-end, so your code
 always sees a live container. It accepts a `WorkerSettings` class (the common
 case) or a plain settings `dict`, and returns the container.
@@ -94,44 +94,44 @@ case) or a plain settings `dict`, and returns the container.
 `@inject` resolves each `FromDI`-annotated parameter from the per-job child
 container and forwards it to your task. Your task **must** declare arq's `ctx`
 dict as its first parameter (arq calls every task as `task(ctx, *args)`).
-Injection is parameter-order-insensitive — a `FromDI` parameter may sit anywhere
-in the signature — and a task with no `FromDI` parameter is returned unchanged.
+Injection is parameter-order-insensitive, so a `FromDI` parameter may sit
+anywhere in the signature, and a task with no `FromDI` parameter is returned
+unchanged.
 
 ## Scopes
 
 The integration builds one `Scope.REQUEST` child container **per job**. It is
 created in `on_job_start` and closed with `close_async()` in `on_job_end`, which
-arq runs whether the job succeeded or raised — so REQUEST-scoped providers (and
+arq runs whether the job succeeded or raised, so REQUEST-scoped providers (and
 their finalizers) live exactly for the duration of one job and never leak on the
 error path. APP-scoped providers persist for the whole worker: `setup_di` opens
 the root container on `on_startup` and closes it on `on_shutdown`, running
 APP-scoped finalizers once when the worker stops.
 
-There is no `Scope.SESSION` for arq — a job queue has no session concept
+There is no `Scope.SESSION` for arq: a job queue has no session concept
 comparable to a websocket connection.
 
 ## Async resolution, no connection object
 
 `FromDI` resolves its dependency with `Container.resolve_dependency(...)`, which
-is synchronous — modern-di's resolution is always sync, regardless of the
+is synchronous: modern-di's resolution is always sync, regardless of the
 framework. Container *lifecycle* here is async, matching arq: the root and each
 per-job child are closed with `close_async()`, so REQUEST- and APP-scoped
 finalizers may be async (or sync).
 
 arq's per-job `ctx` is a plain `dict` (`job_id`, `job_try`, `redis`, ...), not a
-dedicated request/message type, so — like Celery and Typer — `modern_di_arq`
-registers no context provider. A task that needs job metadata reads it from the
+dedicated request/message type, so `modern_di_arq` registers no context
+provider, as with Celery and Typer. A task that needs job metadata reads it from the
 `ctx` argument arq already passes. If you need the root container elsewhere (for
 example in your own `on_job_start`), `fetch_di_container(ctx)` returns it.
 
 ## Restart safety
 
 `setup_di` wires `container.open()` onto `on_startup`, and calling `open()` again
-on an already-open container is a no-op — it unconditionally clears `closed` and
+on an already-open container is a no-op: it unconditionally clears `closed` and
 runs no validation, so it costs nothing regardless of graph state. A worker that
-starts, stops (closing the container), and starts again
-— a restart, or a test that runs the worker twice — reopens the same container
-cleanly. Calling `setup_di` twice on the same `worker_settings` is rejected with
+starts, stops (closing the container), and starts again (a restart, or a test
+that runs the worker twice) reopens the same container cleanly. Calling `setup_di` twice on the same `worker_settings` is rejected with
 a `TypeError`, since stacking the hook wrappers would leak a per-job child
 container.
 

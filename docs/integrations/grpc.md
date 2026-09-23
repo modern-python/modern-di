@@ -83,13 +83,13 @@ server.wait_for_termination()
 ```
 
 Constructing `DIInterceptor(container)` registers the `ServicerContext` context
-provider on the container automatically — no separate setup call. Call
+provider on the container automatically, with no separate setup call. Call
 `container.validate()` after that construction, not before, for the same reason
 described in [Writing an integration](writing-integrations.md#lifecycle-rules).
 
 ### 3. Async server (`grpc.aio`)
 
-`DIAioInterceptor` is the async twin — pass it to `grpc.aio.server(...)` and write
+`DIAioInterceptor` is the async twin: pass it to `grpc.aio.server(...)` and write
 `async def` servicer methods (server-streaming methods as `async` generators):
 
 ```python
@@ -111,26 +111,26 @@ class GreeterService(greeter_pb2_grpc.GreeterServicer):
 server = grpc.aio.server(interceptors=[DIAioInterceptor(container)])
 ```
 
-`@inject` adapts to the method it decorates — sync method, `async def`, or async
-generator (server-streaming) — so the same decorator works on any of the four RPC
-types on either server.
+`@inject` adapts to the method it decorates, whether a sync method, `async def`,
+or async generator (server-streaming), so the same decorator works on any of the
+four RPC types on either server.
 
 ## Scopes
 
 The integration opens one `Scope.REQUEST` child container **per RPC call**, for
 all four RPC types (unary-unary, server-streaming, client-streaming, bidi). The
-child is created when the RPC starts and closed when it ends — for a streaming
+child is created when the RPC starts and closed when it ends. For a streaming
 RPC it stays open for the whole stream and closes after the last message,
 including on the error and client-cancellation paths. REQUEST-scoped providers
 (and their finalizers) live for exactly one RPC. APP-scoped providers persist for
 the life of the container.
 
-There is no `Scope.SESSION` for gRPC — a streaming RPC is one method invocation,
+There is no `Scope.SESSION` for gRPC: a streaming RPC is one method invocation,
 modelled as a single REQUEST-scoped unit of work.
 
 ## Injecting the `ServicerContext`
 
-The `ServicerContext` is injectable at `Scope.REQUEST` — the interceptor
+The `ServicerContext` is injectable at `Scope.REQUEST`: the interceptor
 registers `grpc_context_provider` on the container when constructed, and seeds the
 live context per RPC. A factory can depend on it to read RPC metadata, the
 deadline, or the peer:

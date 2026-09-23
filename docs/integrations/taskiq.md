@@ -64,11 +64,11 @@ async def get_report(
     return report.as_dict()
 ```
 
-`setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it — those fire when the broker's worker process starts and stops, so a script that just calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.
+`setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it. Those fire when the broker's worker process starts and stops, so a script that just calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.
 
 !!! warning "Deployment: `run_receiver_task` skips startup by default"
     `taskiq.api.run_receiver_task(...)` defaults `run_startup=False`, which
-    skips the worker startup that opens the root container — tasks still run
+    skips the worker startup that opens the root container. Tasks still run
     (the container is already open from construction), but nothing ever
     closes it, so its finalizers never run at shutdown. Pass
     `run_startup=True` (or close the root yourself around consuming) when
@@ -76,17 +76,17 @@ async def get_report(
 
 ## Scopes
 
-The integration creates a `Scope.REQUEST` child container **for each task** the worker executes. REQUEST-scoped providers (and their finalizers) live for the duration of that one task — the child container is closed after the task returns, including when it raises. APP-scoped providers persist for the whole worker process; `setup_di` opens the APP container on `WORKER_STARTUP` and runs `await container.close_async()` on `WORKER_SHUTDOWN`.
+The integration creates a `Scope.REQUEST` child container **for each task** the worker executes. REQUEST-scoped providers (and their finalizers) live for the duration of that one task: the child container is closed after the task returns, including when it raises. APP-scoped providers persist for the whole worker process; `setup_di` opens the APP container on `WORKER_STARTUP` and runs `await container.close_async()` on `WORKER_SHUTDOWN`.
 
-There is no `Scope.SESSION` for taskiq — a task queue doesn't have a session concept comparable to websockets.
+There is no `Scope.SESSION` for taskiq: a task queue doesn't have a session concept comparable to websockets.
 
 ## Sync resolution, async cleanup
 
-`FromDI` resolves its dependency with `Container.resolve_dependency(...)`, which is synchronous — modern-di's resolution is always sync, regardless of the framework. The per-task `Scope.REQUEST` child container that resolution runs against is nevertheless torn down asynchronously: after the task handler finishes (or raises), the integration awaits `container.close_async()` on it. So async finalizers on REQUEST-scoped providers run correctly, while the factories themselves must build synchronously.
+`FromDI` resolves its dependency with `Container.resolve_dependency(...)`, which is synchronous; modern-di's resolution is always sync, regardless of the framework. The per-task `Scope.REQUEST` child container that resolution runs against is nevertheless torn down asynchronously: after the task handler finishes (or raises), the integration awaits `container.close_async()` on it. So async finalizers on REQUEST-scoped providers run correctly, while the factories themselves must build synchronously.
 
 ## Framework context objects
 
-`taskiq.TaskiqMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the message that triggered the current task — see [Framework Context Objects](../providers/context.md#framework-context-objects) for how implicit and explicit resolution work.
+`taskiq.TaskiqMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the message that triggered the current task. See [Framework context objects](../providers/context.md#framework-context-objects) for how implicit and explicit resolution work.
 
 The following context provider is also available for explicit import:
 

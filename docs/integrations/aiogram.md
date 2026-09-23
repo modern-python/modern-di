@@ -122,7 +122,7 @@ container.validate()  # after setup_di — its connection providers are now regi
 
 !!! warning "Register handlers before startup"
     `auto_inject` wraps handlers on `dispatcher.startup`, which fires from
-    `dispatcher.emit_startup()` — the call `start_polling()`/`start_webhook()`
+    `dispatcher.emit_startup()`, the call `start_polling()`/`start_webhook()`
     makes before serving updates. Only handlers registered (via
     `dispatcher.include_router()` or the decorators directly) **before**
     `emit_startup()` runs are wrapped; a handler added afterward is invoked
@@ -134,17 +134,17 @@ The integration creates one `Scope.REQUEST` child container **per update**.
 The middleware is installed on `dispatcher.update` as an
 [outer middleware](https://docs.aiogram.dev/en/latest/dispatcher/middlewares.html),
 so it wraps every update regardless of which router or handler ultimately
-processes it. The child container is closed after the handler runs —
+processes it. The child container is closed after the handler runs,
 including when it raises.
 
-There is no `Scope.SESSION` for aiogram — each Telegram update is handled
+There is no `Scope.SESSION` for aiogram: each Telegram update is handled
 independently; there's no persistent per-chat/per-user connection comparable
 to a WebSocket. See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule).
 
 ## Sync resolution, async cleanup
 
 `FromDI` resolves its dependency with `Container.resolve_dependency(...)`,
-which is synchronous — modern-di's resolution is always sync, regardless of
+which is synchronous; modern-di's resolution is always sync, regardless of
 the framework. The per-update `Scope.REQUEST` child container that resolution
 runs against is nevertheless torn down asynchronously: after the handler
 finishes (or raises), the integration awaits `child_container.close_async()`.
@@ -155,8 +155,8 @@ factories themselves must build synchronously.
 
 `aiogram.types.Update` and the concrete event it carries (`Message`,
 `CallbackQuery`, etc.) are automatically made available by the integration,
-so factories can declare them as parameters — see
-[Framework Context Objects](../providers/context.md#framework-context-objects)
+so factories can declare them as parameters. See
+[Framework context objects](../providers/context.md#framework-context-objects)
 for how implicit and explicit resolution work.
 
 The following context providers are also available for explicit import:
@@ -232,7 +232,7 @@ async def log_message(
 aiogram's dispatch, so the per-update child container that `setup_di`'s
 middleware already builds is reachable from dialog code. `modern_di_aiogram.dialog`
 adds a dialog-aware `inject` for **getters** and **callbacks** (`on_click`,
-`on_start`/`on_close`, `on_process_result`) — install it with the normal
+`on_start`/`on_close`, `on_process_result`). Install it with the normal
 `setup_di(...)` and decorate your dialog functions:
 
 ```python
@@ -274,12 +274,12 @@ async def on_click(
 The container is found by call shape: a getter receives it via
 `**manager.middleware_data` (aiogram-dialog calls `getter(**middleware_data)`),
 and a callback via the positional `DialogManager`'s `.middleware_data`. Dialog DI
-requires the normal `setup_di(dispatcher, container)` — its middleware provides
+requires the normal `setup_di(dispatcher, container)`, whose middleware provides
 the per-update container.
 
 - `modern_di_aiogram.dialog` has **no runtime dependency** on `aiogram-dialog`;
   install `aiogram-dialog` yourself.
-- The `FromDI` marker is the same one used for handlers — it is re-exported from
+- The `FromDI` marker is the same one used for handlers; it is re-exported from
   `modern_di_aiogram.dialog` for convenience.
 - An `@inject` getter must still declare `**kwargs` (aiogram-dialog always calls
   getters with the full `middleware_data`), and a `FromDI` getter parameter must
