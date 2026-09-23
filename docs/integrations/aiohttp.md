@@ -73,8 +73,8 @@ container.validate()  # after setup_di — its connection providers are now regi
 
 ### 3. Scopes
 
-See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule) —
-an HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
+See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule).
+An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
 opens a `Scope.SESSION` one.
 
 Which scope gets opened is decided per-connection: the middleware checks the
@@ -87,12 +87,12 @@ child regardless of which handler ultimately serves it.
 A WebSocket handler runs for the whole life of the socket, so its `Scope.SESSION`
 container does too. Read the connection with `FromDI(aiohttp_websocket_provider)`.
 
-Unlike FastAPI, Litestar, and Starlette, aiohttp has no separate WebSocket object — a
-WebSocket is an upgraded `web.Request`. So `aiohttp_websocket_provider` binds
-`web.Request` too, and is declared `bound_type=None` (not resolvable by type,
-because `aiohttp_request_provider` already owns `web.Request`). That is why you
-wire it **explicitly** with `FromDI(aiohttp_websocket_provider)` rather than by
-type annotation.
+Unlike FastAPI, Litestar, and Starlette, aiohttp has no separate WebSocket
+object. A WebSocket is an upgraded `web.Request`, so `aiohttp_websocket_provider`
+binds `web.Request` too, and is declared `bound_type=None` (not resolvable by
+type, because `aiohttp_request_provider` already owns `web.Request`). That is why
+you wire it **explicitly** with `FromDI(aiohttp_websocket_provider)` rather than
+by type annotation.
 
 For per-message work, open a nested `Scope.REQUEST` child of the session
 container, fetched via `fetch_request_container`:
