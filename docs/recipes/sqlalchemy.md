@@ -6,9 +6,9 @@
 
 Three providers, three scopes:
 
-- **Engine** at `Scope.APP` — one per process, cached, disposed at shutdown.
-- **Session** at `Scope.REQUEST` — one per request, cached inside that request, closed at the end of the request.
-- **Repositories** at `Scope.REQUEST` — depend on the session by type; one per request.
+- **Engine** at `Scope.APP`: one per process, cached, disposed at shutdown.
+- **Session** at `Scope.REQUEST`: one per request, cached inside that request, closed at the end of the request.
+- **Repositories** at `Scope.REQUEST`: depend on the session by type; one per request.
 
 ```python
 import sqlalchemy.ext.asyncio as sa_async
@@ -56,7 +56,7 @@ class Dependencies(Group):
     )
 ```
 
-The session factory consumes `engine: sa_async.AsyncEngine` via type-based wiring — no `kwargs={}` needed. `UserRepository` consumes `session: sa_async.AsyncSession` the same way.
+The session factory consumes `engine: sa_async.AsyncEngine` via type-based wiring, with no `kwargs={}` needed. `UserRepository` consumes `session: sa_async.AsyncSession` the same way.
 
 Wire to your framework as usual:
 
@@ -76,15 +76,15 @@ The integration creates a REQUEST child container per request, so the session an
 
 ## Pitfalls
 
-- **`CacheSettings.finalizer` accepts sync or async functions** — it auto-detects. Don't wrap with `asyncio.run` or `asyncio.ensure_future`.
-- **`expire_on_commit=False`** on `AsyncSession` avoids expensive refreshes after commit. If you rely on `expire_on_commit=True`, leave it — but it's a common source of "session is closed" errors in async code.
-- **Don't share the engine across REQUEST containers manually.** The provider already does it: REQUEST containers walk up to the APP container to resolve the engine.
-- **Repositories must be REQUEST-scoped**, not APP-scoped — they hold a session which is REQUEST-scoped, and `container.validate()` will reject the inverse.
+- `CacheSettings.finalizer` accepts sync or async functions; it auto-detects. Don't wrap with `asyncio.run` or `asyncio.ensure_future`.
+- `expire_on_commit=False` on `AsyncSession` avoids expensive refreshes after commit. If you rely on `expire_on_commit=True`, leave it, though it's a common source of "session is closed" errors in async code.
+- Don't share the engine across REQUEST containers manually. The provider already does it: REQUEST containers walk up to the APP container to resolve the engine.
+- Repositories must be REQUEST-scoped, not APP-scoped: they hold a session which is REQUEST-scoped, and `container.validate()` will reject the inverse.
 
 ## Variations
 
-- **Multiple databases.** Declare two engine factories, two session factories, and give the second set distinct return types or `bound_type=` arguments so type-based resolution can tell them apart.
-- **Test connections.** Tests typically override the engine with an `AsyncConnection` inside a transaction — see [Testing with overrides](testing-overrides.md).
+- For multiple databases, declare two engine factories, two session factories, and give the second set distinct return types or `bound_type=` arguments so type-based resolution can tell them apart.
+- Tests typically override the engine with an `AsyncConnection` inside a transaction. See [Testing with overrides](testing-overrides.md).
 
 ## See also
 

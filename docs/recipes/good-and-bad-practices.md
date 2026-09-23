@@ -1,12 +1,12 @@
 # Good and bad practices
 
-modern-di's docs mostly show the happy path. This page collects the footguns instead — real
+modern-di's docs mostly show the happy path. This page collects the footguns instead: real
 mistakes the framework lets you make, each paired with the mechanism that catches or prevents it.
 
 ## 1. Captive dependency: a wide-scoped provider holding a narrow-scoped one
 
 A *captive dependency* is a wide-scoped provider holding a narrow-scoped one it cannot actually
-outlive — see [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why.
+outlive. See [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why.
 
 ```python
 class Dependencies(Group):
@@ -20,17 +20,17 @@ class Dependencies(Group):
 ```
 
 **Caught by:** an explicit `container.validate()` call, which raises `ValidationFailedError`
-carrying an `InvalidScopeDependencyError` for this exact graph before anything is ever resolved
-— see [Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
+carrying an `InvalidScopeDependencyError` for this exact graph before anything is ever resolved.
+See [Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
 the graph is never validated, the runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError`
 that (since the scope-error breadcrumb work) now names both the provider that captured the
-dependency and the one that actually failed — but it fires on the first request that hits it, not at
-startup. Prefer catching it statically with an explicit `validate()` call.
+dependency and the one that actually failed, and it fires on the first request that hits it rather
+than at startup. Prefer catching it statically with an explicit `validate()` call.
 
 ## 2. Shipping a never-validated graph
 
-`validate()` is the only thing that checks the *whole* graph — cycles, inverted scopes, and missing
-dependencies. Nothing calls it for you: not construction, not `open()`, not `add_providers`, not
+`validate()` is the only thing that checks the *whole* graph (cycles, inverted scopes, and missing
+dependencies). Nothing calls it for you: not construction, not `open()`, not `add_providers`, not
 `resolve()`. Skipping it doesn't remove the bugs, it just delays finding them to whichever resolve
 happens to hit one first.
 
@@ -43,17 +43,17 @@ container = Container(groups=[Dependencies])
 container.validate()  # raises ValidationFailedError here if the graph is broken
 ```
 
-**Caught by:** an explicit `container.validate()` call — it is the only thing that finds every issue
+**Caught by:** an explicit `container.validate()` call. It is the only thing that finds every issue
 in the graph up front; without it, each wiring bug surfaces individually, at whichever resolve first
 reaches it. `Container(validate=...)` is deprecated and does nothing (see [Migration: To
 3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default)). An unvalidated cyclic
-graph still isn't a silent hang — see
+graph still isn't a silent hang; see
 [the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 
 ## 3. A cached factory resolved before `set_context`
 
-Context values are read live on every resolve of a **non-cached** factory — but a **cached**
-factory is built once, and a later `set_context` does not rebuild it.
+Context values are read live on every resolve of a **non-cached** factory. A **cached** factory is
+built once, and a later `set_context` does not rebuild it.
 
 ```python
 class Dependencies(Group):
@@ -70,7 +70,7 @@ If a request container resolves `tenant_config` before the real tenant ID is kno
 setup), the cached version keeps serving that first value for the rest of the request even after
 `request.set_context(str, real_tenant_id)` runs. Either drop `cache=True` for anything whose
 correctness depends on context set later, or make sure `set_context` runs before the first resolve.
-**Caught by:** nothing automatic — this is a timing bug, not a wiring bug, so `validate()` cannot
+**Caught by:** nothing automatic. This is a timing bug, not a wiring bug, so `validate()` cannot
 see it. See [Context propagation](../providers/context.md#context-propagation) for how `set_context`
 timing interacts with a provider's scope, and [Lifecycle](../providers/lifecycle.md) for caching.
 
@@ -92,7 +92,7 @@ def create_api_key(settings: Settings) -> str:
     return settings.api_key
 ```
 
-**Caught by:** nothing enforces this — it's a style discipline, not a validation rule. Reserve
+**Caught by:** nothing enforces this; it's a style discipline, not a validation rule. Reserve
 `container_provider` for cases that are actually about the container (building a child container,
 introspecting the current scope), and declare everything else as a typed parameter so
 `validate()` and [Resolving dependencies](../introduction/resolving.md) can see it.
@@ -100,9 +100,9 @@ introspecting the current scope), and declare everything else as a typed paramet
 ## 5. Override leaks across tests
 
 `container.override(provider, replacement)` replacements are shared across the *whole* container
-tree — see [Testing with overrides](testing-overrides.md) for the mechanics. Forgetting to reset
-it doesn't just affect the test that set it — every later test that shares the container inherits
-the replacement.
+tree. See [Testing with overrides](testing-overrides.md) for the mechanics. Forgetting to reset it
+affects more than the test that set it: every later test that shares the container inherits the
+replacement.
 
 ```python
 # ❌ no reset: the next test that resolves Clock silently gets the fake
@@ -119,15 +119,15 @@ def frozen_clock() -> Mock:
     container.reset_override(Dependencies.clock)
 ```
 
-**Caught by:** nothing automatic mid-suite — `reset_override(provider)` (or `reset_override()` with no
+**Caught by:** nothing automatic mid-suite. `reset_override(provider)` (or `reset_override()` with no
 arguments, to clear everything) is the fix, and closing the **root** container clears every override
 in the shared registry as a last resort. See
 [Testing with overrides](testing-overrides.md#pitfalls).
 
 ## 6. `skip_creator_parsing=True` with no `bound_type`
 
-`skip_creator_parsing=True` turns off signature introspection — useful for callables that can't be
-reflected (C extensions, `functools.partial`). But skipping introspection also means modern-di has
+`skip_creator_parsing=True` turns off signature introspection, which helps with callables that can't
+be reflected (C extensions, `functools.partial`). But skipping introspection also means modern-di has
 no idea what type the provider produces, so type-based resolution silently can't find it.
 
 ```python
@@ -143,8 +143,8 @@ providers.Factory(
 )
 ```
 
-**Caught by:** a `UserWarning` at declaration time. It's easy to miss in test output — treat it as a
-signal to add `bound_type=`, not to ignore.
+**Caught by:** a `UserWarning` at declaration time. It's easy to miss in test output, so treat it as
+a signal to add `bound_type=`, not as noise to ignore.
 
 ## See also
 
