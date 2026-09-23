@@ -1,8 +1,8 @@
 # modern-di vs other libraries
 
-modern-di isn't the only way to do dependency injection in Python. This is an
-honest look at where it fits — including when you don't need a DI container at
-all.
+modern-di isn't the only way to do dependency injection in Python. This page
+covers where it fits among the alternatives, including when you don't need a DI
+container at all.
 
 ## Do you even need a DI container?
 
@@ -23,18 +23,18 @@ Reach for a container when one of these is true:
   (HTTP, worker, CLI, direct unit tests) see it, not just code reached through
   the HTTP layer.
 
-modern-di's core promise is exactly that: **one typed wiring shared across a
-dozen frameworks — aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer,
-Flask, gRPC, Celery, arq, taskiq, and aiogram.**
+modern-di covers those cases with one typed wiring shared across twelve
+frameworks: aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer, Flask,
+gRPC, Celery, arq, taskiq, and aiogram.
 
-## The landscape
+## Feature comparison
 
 | | modern-di | Dishka | dependency-injector | injector | FastAPI `Depends` |
 |---|---|---|---|---|---|
 | Style | type-based autowiring | type-based autowiring (provider classes) | declarative containers + markers | Guice-style `@inject` | callable-based |
 | Scopes | APP→…→STEP + any IntEnum | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
 | Resolution | sync (async finalizers supported) | sync + async | sync + async | sync | async |
-| First-party pytest plugin | ✅ | ✘ | ✘ | ✘ | n/a |
+| First-party pytest plugin | ✅ | ❌ | ❌ | ❌ | n/a |
 | Integrations | 12 official frameworks (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer) + a pytest plugin | 13 official frameworks + ~10 community-maintained | aiohttp, Flask, Starlette; FastAPI via wiring | Flask (1st-party), FastAPI (3rd-party) | n/a |
 | Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
 | License | MIT | Apache-2.0 | BSD-3 | BSD-3 | — |
@@ -44,14 +44,13 @@ On the **typed-resolution** row: modern-di keeps the concrete static type end to
 end. `resolve(SomeType)` is typed `SomeType` (not `Any`), and the injection
 marker for integrations, `Annotated[T, from_di(dep)]`, type-checks as `T` — the
 same clean shape as Dishka's `FromDishka[T]` and FastAPI's
-`Annotated[T, Depends(...)]`. That is a deliberate design point, not an accident:
-the older marker spellings erase the type — `dependency-injector`'s
-`Provider[Animal]` annotation infers the base `Animal` rather than a concrete
-subtype, and a bare `x = Depends(fn)` is typed `Any`. It also needs no
-type-checker plugin to hold — see the
+`Annotated[T, Depends(...)]`. That is deliberate: the older marker spellings
+erase the type — `dependency-injector`'s `Provider[Animal]` annotation infers
+the base `Animal` rather than a concrete subtype, and a bare `x = Depends(fn)`
+is typed `Any`. It also needs no type-checker plugin to hold — see the
 [non-goal on static wiring verification](design-decisions.md#non-goals).
 
-## Honest comparison
+## Library by library
 
 ### vs Dishka
 
@@ -76,7 +75,7 @@ modern-di's deliberate differences:
 - **Sync-only *resolution* (async finalizers still supported) and a small,
   built-in scope chain you can still extend with any `IntEnum`** — a simpler
   model. Dishka's own docs note that custom scopes are "hardly ever needed,"
-  which is the honest case for modern-di's simpler design. See
+  which is the case for modern-di's simpler design. See
   [Custom scopes](../providers/scopes.md#custom-scopes).
 - **All-official, uniformly-maintained integrations** under a single MIT-licensed
   project, as part of the broader [modern-python](https://github.com/modern-python)
@@ -98,17 +97,16 @@ provider-by-provider mapping.
 
 `injector` is a Guice-inspired, mature library with `@inject` and `Module`-based
 configuration. Its core has **no async support** and **no nested request scope**
-(request scoping comes from third-party FastAPI adapters). modern-di offers
-built-in scopes, official framework integrations, and resource finalization out
-of the box.
+(request scoping comes from third-party FastAPI adapters). modern-di has
+built-in scopes, official framework integrations, and resource finalization.
 
 ### vs framework-native (`Depends` / `Provide`)
 
 For a single web service, native DI is simpler and a container is overkill — see
 [Do you even need a DI container?](#do-you-even-need-a-di-container) above.
-modern-di earns its place once you have a second entrypoint, or need typed,
-scoped, app-wide singletons with overrides that work everywhere, not just on the
-HTTP path.
+Reach for modern-di once you have a second entrypoint, or need typed, scoped,
+app-wide singletons with overrides that work everywhere, not just on the HTTP
+path.
 
 ## that-depends or modern-di?
 
