@@ -1,79 +1,72 @@
-# What is Dependency Injection?
+# What dependency injection is
 
-Dependency Injection (DI) is a design pattern where dependencies are provided (injected) from outside rather than created inside a class.
+Dependency injection (DI) is a design pattern where a class takes the things it depends on as
+arguments, and whoever constructs the class decides what those are.
 
-## The Problem
-
-Without DI, classes create their own dependencies, leading to tight coupling:
+## Building dependencies inside the class
 
 ```python
-class UserService:
+class Registration:
     def __init__(self) -> None:
-        self.email = EmailService()  # ❌ Tight coupling
+        self.email = SmtpEmailSender()
 
     def register_user(self, email: str) -> None:
         self.email.send_email(email, "Welcome!")
 ```
 
-**Issues:** Hard to test, can't swap implementations, hidden dependencies.
+The constructor takes no arguments, so nothing outside the class can change what it sends mail with.
+A test of `register_user` reaches the real sender, and a caller reading the signature gets no hint
+that mail is involved.
 
-## The Solution
-
-With DI, dependencies are injected from outside:
+## Taking them as arguments
 
 ```python
-class UserService:
-    def __init__(self, email: EmailSender) -> None:  # ✅ Injected
+class Registration:
+    def __init__(self, email: EmailSender) -> None:
         self.email = email
 
     def register_user(self, email: str) -> None:
         self.email.send_email(email, "Welcome!")
 ```
 
-**Benefits:** Easy testing, loose coupling, explicit dependencies.
-
-## Why Use Dependency Injection?
-
-### 1. Testability
-
-Inject mocks for testing:
+`Registration` names an abstraction now, and the caller supplies the implementation. A test supplies
+a double:
 
 ```python
-def test_user_service() -> None:
+def test_registration() -> None:
     mock_email = Mock(spec=EmailSender)
-    service = UserService(email=mock_email)
+    registration = Registration(email=mock_email)
 
-    service.register_user("test@example.com")
+    registration.register_user("test@example.com")
 
     mock_email.send_email.assert_called_once()
 ```
 
-### 2. Loose coupling
+The same holds for any abstraction. A class written against a cache interface keeps working unchanged
+when you swap `RedisCache` for `DictCache` in development, or `MockCache` in tests.
 
-Depend on abstractions, not concrete implementations, so the class using them never changes when
-you swap `RedisCache` for `DictCache` in development or `MockCache` in tests.
+## Wiring by hand
 
-## Manual wiring doesn't scale
-
-As an app grows, someone has to build every object by hand, in the right order:
+Every object now has to be constructed somewhere, in an order that satisfies its arguments:
 
 ```python
 config = AppConfig()
-db = DatabaseConnection(config)
-email = EmailService(config)
-user_service = UserService(db, email)
+email = SmtpEmailSender(config)
+registration = Registration(email)
 ```
 
-This is unwieldy at scale, has no lifetime management, and scatters construction logic wherever a
-dependency is needed. A DI container takes over that construction: `modern-di` reads your classes'
-type hints and builds the graph for you — see the [Quickstart](../index.md#2-first-success).
+This grows unwieldy as the application does: nothing manages how long each object lives, and
+construction logic ends up wherever a dependency is needed. A Container takes the construction over.
+`modern-di` reads your classes' type annotations and builds the graph for you, which the
+[Quickstart](../index.md#2-first-success) walks through.
 
-## Lifetime management
+## Scope and caching
 
-Objects can have different lifetimes — singleton, per-request, or a fresh instance every call.
-`modern-di` expresses this with [Scopes](../providers/scopes.md): a provider's scope decides how
-long its instances live, and `cache=True` decides whether an instance is shared or rebuilt on each
-resolve — see [Cached factories](../providers/factories.md#cached-factories).
+One graph usually holds objects that need to live for different spans: one instance per process, one
+per request, or a fresh one on every call. `modern-di` expresses this with
+[Scopes](../providers/scopes.md). A provider's Scope decides how long its instances live, and
+`cache=True` decides whether an instance is shared or rebuilt on each resolve. See
+[Cached factories](../providers/factories.md#cached-factories).
 
 ## See also
 
