@@ -50,29 +50,29 @@ nav:
       - Request-scoped engine selection: recipes/request-scoped-engine.md
       - Good and bad practices: recipes/good-and-bad-practices.md
   - Troubleshooting:
-      - Invalid Child Scope: troubleshooting/invalid-child-scope-error.md
-      - Max Scope Reached: troubleshooting/max-scope-reached-error.md
-      - Scope Not Initialized: troubleshooting/scope-not-initialized-error.md
-      - Scope Skipped: troubleshooting/scope-skipped-error.md
-      - Invalid Scope Type: troubleshooting/invalid-scope-type-error.md
-      - Container Closed: troubleshooting/container-closed-error.md
-      - Validation Failed: troubleshooting/validation-failed-error.md
-      - Missing Provider For Type: troubleshooting/missing-provider.md
-      - Alias Source Not Registered: troubleshooting/alias-source-not-registered-error.md
-      - Argument Resolution Error: troubleshooting/argument-resolution-error.md
-      - Circular Dependency: troubleshooting/circular-dependency.md
-      - Creator Call Error: troubleshooting/creator-call-error.md
-      - ContextProvider Has No Value: troubleshooting/context-not-set.md
-      - Duplicate Type Error: troubleshooting/duplicate-type-error.md
-      - Child Container Registration: troubleshooting/child-container-registration-error.md
-      - Group Scope Conflict: troubleshooting/group-scope-conflict-error.md
-      - Provider Scope Frozen: troubleshooting/provider-scope-frozen-error.md
-      - Unknown Factory Kwarg: troubleshooting/unknown-factory-kwarg-error.md
-      - Unsupported Creator Parameter: troubleshooting/unsupported-creator-parameter-error.md
-      - Scope Chain Violation: troubleshooting/scope-chain.md
-      - Finalizer Error: troubleshooting/finalizer-error.md
-      - Async Finalizer In Sync Close: troubleshooting/async-finalizer-in-sync-close-error.md
-      - Group Instantiation Error: troubleshooting/group-instantiation-error.md
+      - Invalid child scope: troubleshooting/invalid-child-scope-error.md
+      - Max scope reached: troubleshooting/max-scope-reached-error.md
+      - Scope not initialized: troubleshooting/scope-not-initialized-error.md
+      - Scope skipped: troubleshooting/scope-skipped-error.md
+      - Invalid scope type: troubleshooting/invalid-scope-type-error.md
+      - Container closed: troubleshooting/container-closed-error.md
+      - Validation failed: troubleshooting/validation-failed-error.md
+      - Missing provider for type: troubleshooting/missing-provider.md
+      - Alias source not registered: troubleshooting/alias-source-not-registered-error.md
+      - Argument resolution error: troubleshooting/argument-resolution-error.md
+      - Circular dependency: troubleshooting/circular-dependency.md
+      - Creator call error: troubleshooting/creator-call-error.md
+      - ContextProvider has no value: troubleshooting/context-not-set.md
+      - Duplicate type error: troubleshooting/duplicate-type-error.md
+      - Child container registration: troubleshooting/child-container-registration-error.md
+      - Group scope conflict: troubleshooting/group-scope-conflict-error.md
+      - Provider scope frozen: troubleshooting/provider-scope-frozen-error.md
+      - Unknown factory kwarg: troubleshooting/unknown-factory-kwarg-error.md
+      - Unsupported creator parameter: troubleshooting/unsupported-creator-parameter-error.md
+      - Scope chain violation: troubleshooting/scope-chain.md
+      - Finalizer error: troubleshooting/finalizer-error.md
+      - Async finalizer in sync close: troubleshooting/async-finalizer-in-sync-close-error.md
+      - Group instantiation error: troubleshooting/group-instantiation-error.md
   - Migration:
       - To 1.x: migration/to-1.x.md
       - To 2.x: migration/to-2.x.md

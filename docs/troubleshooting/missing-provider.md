@@ -52,7 +52,7 @@ Fix: add the return annotation, or set `bound_type=SomeType` on the provider exp
 
 ### 3. `bound_type=None` was set on the provider you want to resolve
 
-`bound_type=None` makes the provider unresolvable by type. It's a deliberate opt-out for cases where two providers return the same type (see [Duplicate Type Error](duplicate-type-error.md)). If you set it on the wrong provider, the type lookup misses.
+`bound_type=None` makes the provider unresolvable by type. It's a deliberate opt-out for cases where two providers return the same type (see [Duplicate provider type](duplicate-type-error.md)). If you set it on the wrong provider, the type lookup misses.
 
 Fix: leave `bound_type` at its default on the provider you want resolvable by type. If both providers really do produce the same type, resolve the unresolvable one by reference (`container.resolve_provider(...)`).
 
@@ -65,5 +65,5 @@ Fix: register a provider for one of the union types, or annotate the parameter w
 ## See also
 
 - [Resolving](../introduction/resolving.md) — the by-type lookup algorithm.
-- [Duplicate Type Error](duplicate-type-error.md) — the inverse problem, where two providers compete for the same type.
+- [Duplicate provider type](duplicate-type-error.md) — the inverse problem, where two providers compete for the same type.
 - [Factories: `bound_type`](../providers/factories.md) — how the bound type is inferred and how to override it.
