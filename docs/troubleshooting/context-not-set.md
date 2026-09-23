@@ -2,7 +2,7 @@
 
 A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly raises `ContextValueNotSetError`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError` — **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
 
-## Understanding the error
+## Symptom
 
 ```
 Cannot resolve dependency chain:
@@ -12,7 +12,7 @@ Cannot resolve dependency chain:
 
 The error is an `ArgumentResolutionError` rendered as a chain: the top frame shows which provider failed, and the `caused by` line names the specific parameter that could not be wired. The parameter cannot be resolved because the `ContextProvider` for `TenantId` has no value in this container's context registry — nothing was set for that type on this container.
 
-## Common causes
+## Cause
 
 ### 1. `set_context` was called on the wrong container (scope mismatch)
 

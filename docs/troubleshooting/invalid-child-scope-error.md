@@ -1,17 +1,17 @@
 # InvalidChildScopeError
 
-**Symptom**
+## Symptom
 
 Raised from `Container(...)` or `build_child_container(scope=...)`, naming the parent scope, the
 requested child scope, and the list of scopes that would have been accepted.
 
-**Cause**
+## Cause
 
 A child's scope must be strictly deeper (a higher `IntEnum` value) than the parent's. Passing an
 explicit `scope=` that is equal to the parent's (e.g. `Scope.SESSION` from a `SESSION` parent) or
 shallower (e.g. `Scope.APP` from a `SESSION` parent) raises this error.
 
-**Fix**
+## Fix
 
 Pass a scope whose value is strictly greater than the parent's:
 
@@ -28,7 +28,7 @@ bad = mid.build_child_container(scope=Scope.SESSION)  # raises InvalidChildScope
 good = mid.build_child_container(scope=Scope.REQUEST)
 ```
 
-**Escape hatches**
+## Escape hatches
 
 Omit `scope=` entirely — `build_child_container()` derives the next deeper scope automatically, so
 this error can only occur when you explicitly pin a scope value. Inspect `.allowed_scopes` on the

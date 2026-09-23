@@ -1,18 +1,18 @@
 # UnsupportedCreatorParameterError
 
-**Symptom**
+## Symptom
 
 Raised at `Factory(...)` declaration time, naming the creator, the parameter, and the reason it can't
 be wired automatically.
 
-**Cause**
+## Cause
 
 The creator has a parameter shape `modern-di` cannot resolve by type: a positional-only parameter with
 no default (`def f(x, /)`), or a parameterized generic annotation (`list[X]`, `dict[str, Y]`, etc.)
 with no default and no matching `kwargs` entry. Both are declaration-time checks, not resolve-time
 ones.
 
-**Fix**
+## Fix
 
 Pick one of three escape routes, in order of preference:
 
@@ -33,7 +33,7 @@ class Dependencies(Group):
     )
 ```
 
-**Escape hatches**
+## Escape hatches
 
 `skip_creator_parsing=True` bypasses signature parsing altogether (option 3 above) — use it when a
 creator has several unsupported parameter shapes rather than fixing each one individually.

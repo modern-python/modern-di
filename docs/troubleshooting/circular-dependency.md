@@ -2,7 +2,7 @@
 
 This error occurs when providers form a dependency cycle, meaning A depends on B which depends back on A (directly or through intermediate providers).
 
-## Understanding the Error
+## Symptom
 
 When you see this error:
 
@@ -19,7 +19,7 @@ CircularDependencyError (1):
 
 It means the listed providers form a cycle that cannot be resolved. Each hop in the arrow chain may also end with a pointer to where that provider was declared (module and line number), making it easier to locate the offending provider in a large codebase.
 
-## How to Detect
+## How to detect
 
 ### The runtime cycle guard (without `validate()`)
 
@@ -43,7 +43,7 @@ container = Container(groups=[MyGroup])
 container.validate()  # raises ValidationFailedError (wraps CircularDependencyError) if a cycle exists
 ```
 
-## How to Resolve
+## Fix
 
 1. **Break the cycle with an interface/protocol** - introduce an abstraction that one side depends on instead of the concrete type
 2. **Use `kwargs` to inject one dependency manually** - pass a factory or value via `kwargs` instead of relying on automatic resolution

@@ -1,11 +1,11 @@
 # ValidationFailedError
 
-**Symptom**
+## Symptom
 
 Raised by `Container.validate()`, rendering a report grouped by
 error class name, with the count of each kind and every individual issue indented underneath.
 
-**Cause**
+## Cause
 
 The provider graph has one or more problems: a circular dependency, a provider depending on a
 deeper-scoped one, a creator parameter with no way to be resolved, or an alias whose source type has
@@ -13,7 +13,7 @@ no registered provider. `validate()` collects **every**
 issue across the whole graph in one pass rather than stopping at the first one, so `.errors` (a
 `list[Exception]`) may hold several distinct exception types at once.
 
-**Fix**
+## Fix
 
 Inspect `.errors` to see every underlying issue, or read the grouped `str()` report directly — each
 group is one of `CircularDependencyError`, `InvalidScopeDependencyError`, `ArgumentResolutionError`,

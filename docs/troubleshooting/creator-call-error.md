@@ -1,11 +1,11 @@
 # CreatorCallError
 
-**Symptom**
+## Symptom
 
 Raised naming the creator that could not be called and the underlying `TypeError`, with a pointer to
 check `kwargs` and `skip_creator_parsing` usage.
 
-**Cause**
+## Cause
 
 Argument binding failed when calling the creator: the set of arguments `modern-di` assembled (static
 `kwargs` plus resolved dependencies) doesn't match the creator's signature — a required argument is
@@ -15,7 +15,7 @@ signature. This is a **wiring problem, not a bug inside your constructor** — a
 inside the creator's body (even a `TypeError`) propagates unchanged as itself, never wrapped in this
 error.
 
-**Fix**
+## Fix
 
 Make `kwargs` cover exactly what the signature requires. `.original_error` (also the `__cause__`)
 holds the binding `TypeError` naming the mismatched argument:

@@ -1,17 +1,17 @@
 # MaxScopeReachedError
 
-**Symptom**
+## Symptom
 
 Raised from `build_child_container()` called with no explicit `scope=` argument, naming the parent
 scope that has no deeper scope to advance to.
 
-**Cause**
+## Cause
 
 `build_child_container()` without an explicit `scope=` auto-derives the next deeper scope by picking
 the smallest enum member greater than the parent's. The built-in `Scope` enum ends at `STEP`; calling
 `build_child_container()` on a `STEP`-scope container has nowhere further to go.
 
-**Fix**
+## Fix
 
 Define a custom `IntEnum` scope with a member deeper than `STEP` and build the child with that scope
 explicitly:

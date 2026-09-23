@@ -1,20 +1,20 @@
 # ScopeNotInitializedError
 
-**Symptom**
+## Symptom
 
 A resolution fails naming a provider's scope and the current container's scope, optionally with a
 dependency-path breadcrumb when the failing provider was captured by a shallower one. Each
 breadcrumb line may end with a pointer to where that provider was declared (module and line
 number), so you can jump straight to the declaration.
 
-**Cause**
+## Cause
 
 A provider's scope is deeper than any container currently in the chain — you resolved (directly or
 transitively) a provider whose scope has no matching container built yet. For example, a
 `REQUEST`-scoped provider resolved straight from the `APP` container, with no `REQUEST` child ever
 built.
 
-**Fix**
+## Fix
 
 Build the deeper-scoped container before resolving from it:
 

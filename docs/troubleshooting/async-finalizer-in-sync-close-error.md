@@ -1,18 +1,18 @@
 # AsyncFinalizerInSyncCloseError
 
-**Symptom**
+## Symptom
 
 Arrives wrapped inside a `FinalizerError` (as one entry in `.finalizer_errors`), naming the type whose
 cached instance has an async finalizer.
 
-**Cause**
+## Cause
 
 `close_sync()` cannot `await` anything. When it reaches a cached resource whose `CacheSettings`
 finalizer is an async function, it can't run it synchronously, so it records this error for that entry
 instead — and, unlike a normal finalizer failure, keeps the resource's cache entry intact rather than
 discarding it.
 
-**Fix**
+## Fix
 
 Use `close_async()` (or `async with container:`) for containers that hold any resource with an async
 finalizer — it's the only path that can actually run that cleanup:

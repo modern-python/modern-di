@@ -2,7 +2,7 @@
 
 This error occurs when two or more providers are registered with the same `bound_type`. Modern-DI uses the `bound_type` to resolve dependencies by type, so each type must be unique in the providers registry.
 
-## Understanding the Error
+## Symptom
 
 When you see this error:
 
@@ -19,7 +19,7 @@ This typically happens when:
 1. You have multiple factories that return the same type
 2. You're using the same class in different contexts with different configurations
 
-## How to Resolve
+## Fix
 
 To fix this error, you need to:
 
