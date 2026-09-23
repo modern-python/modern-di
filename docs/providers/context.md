@@ -1,19 +1,19 @@
-# Context Providers
+# Context providers
 
 Often, scopes are connected with external events: HTTP requests, messages from a queue, callbacks from a framework.
 These events can be represented by objects which can be used for dependency creation.
 
-`ContextProvider` is a provider type that injects runtime context values — framework objects like
-requests or websockets, or your own custom context — into dependencies, extracting them from the
-container's context registry at resolve time.
+`ContextProvider` is a provider type that injects runtime context values into dependencies
+(framework objects like requests or websockets, or your own custom context), extracting them from
+the container's context registry at resolve time.
 
 In integrations, some context objects (like `fastapi.Request`, `litestar.WebSocket`, etc.) are
-automatically provided — see [Framework Context Objects](#framework-context-objects) below.
+automatically provided; see [Framework context objects](#framework-context-objects) below.
 
-`ContextProvider(context_type, *, scope=Scope.APP, bound_type=UNSET)` — `context_type` may also be
-passed as a keyword (`context_type=`).
+`ContextProvider(context_type, *, scope=Scope.APP, bound_type=UNSET)`. The `context_type` may also
+be passed as a keyword (`context_type=`).
 
-## Basic Usage
+## Basic usage
 
 Declare a `ContextProvider` for your context type, supply the value when you build the child container, and any [`Factory`](factories.md) that takes that type as a parameter receives it automatically:
 
@@ -73,7 +73,7 @@ Annotate the consuming parameter as `X | None` (or give it a default) if the val
 
 ## Context propagation
 
-Context never propagates between containers. A `ContextProvider` reads the context registry of the container **at the provider's own scope** — build order is irrelevant.
+Context never propagates between containers. A `ContextProvider` reads the context registry of the container **at the provider's own scope**; build order is irrelevant.
 
 !!! warning "Scope determines which container is read, not timing"
     Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:
@@ -101,16 +101,16 @@ Context never propagates between containers. A `ContextProvider` reads the conte
 
     Setting context on the parent only works when the `ContextProvider`'s scope matches the parent's scope.
 
-## Framework Context Objects
+## Framework context objects
 
 Every framework integration auto-registers `ContextProvider`s for its own request/websocket-like
-objects — you never declare a `ContextProvider` for these yourself. Each integration builds a
+objects, so you never declare a `ContextProvider` for these yourself. Each integration builds a
 per-request (or per-message, or per-connection) child container and sets the framework object as
 context on it before your code resolves anything from it. There are two ways to consume that value:
 
 **Implicit usage (type-based resolution).** Annotate a factory parameter with the framework's
 type; because the integration already registered a matching `ContextProvider`, modern-di resolves
-it automatically — the same mechanism as [Basic Usage](#basic-usage) above, just with the
+it automatically. It is the same mechanism as [Basic usage](#basic-usage) above, just with the
 `ContextProvider` declared by the integration instead of by you. With
 [FastAPI](../integrations/fastapi.md), the `fastapi.Request` is injected into each per-request
 child container automatically:
@@ -148,15 +148,15 @@ container.validate()
 Nothing validates automatically, so the ordering above is what matters: `fastapi.Request`'s
 `ContextProvider` only exists once `setup_di()` has registered it, so calling
 `container.validate()` **before** that line would raise
-[`ValidationFailedError`](../troubleshooting/validation-failed-error.md) — its `.errors` would
+[`ValidationFailedError`](../troubleshooting/validation-failed-error.md), and its `.errors` would
 carry an [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) for the
 required `request` parameter, since the provider isn't there yet. Call `validate()` after
 `setup_di()`, as above, and a required parameter validates cleanly. See [Writing an
 integration](../integrations/writing-integrations.md#lifecycle-rules) for the same rule from the
 integration author's side.
 
-If you need to validate the rest of the graph before `setup_di()` runs — e.g. as part of a
-narrower, construction-time check — make the parameter optional instead
+If you need to validate the rest of the graph before `setup_di()` runs (e.g. as part of a
+narrower, construction-time check), make the parameter optional instead
 (`request: fastapi.Request | None = None`), so `validate()` skips it regardless of whether the
 connection provider is registered yet; at runtime the integration still injects the real
 `Request`, since it always sets the per-request context before resolving. A defaulted `Factory`
@@ -167,8 +167,8 @@ a defaulted parameter, which still falls back to its default when no context is 
 **Explicit usage (provider-based resolution).** Every integration also exports the underlying
 `ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,
 `aiohttp_request_provider`, `faststream_message_provider`) so you can wire it through `kwargs`
-instead of relying on type-based resolution — useful with `skip_creator_parsing=True`, or when the
-parameter name doesn't match the type:
+instead of relying on type-based resolution. This is useful with `skip_creator_parsing=True`, or
+when the parameter name doesn't match the type:
 
 ```python
 kwargs={"request": fastapi_request_provider}  # explicit wiring, see Factories: kwargs

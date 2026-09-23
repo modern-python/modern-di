@@ -6,7 +6,7 @@ Resolving the alias calls the source's resolver directly, so overrides and cachi
 
 ## Parameters
 
-`Alias(source_type, *, bound_type=UNSET)` — `source_type` may also be passed as a keyword
+`Alias(source_type, *, bound_type=UNSET)`. The `source_type` may also be passed as a keyword
 (`source_type=`).
 
 ### source_type
@@ -15,11 +15,11 @@ The type whose registered provider should answer the call. At resolution time, t
 
 ### bound_type
 
-The type the alias is registered under in the providers registry — i.e. the type you pass to `container.resolve(...)`. Defaults to `source_type` (which makes the alias a no-op); set it to the abstract or `Protocol` type you want resolvable.
+The type the alias is registered under in the providers registry, i.e. the type you pass to `container.resolve(...)`. Defaults to `source_type` (which makes the alias a no-op); set it to the abstract or `Protocol` type you want resolvable.
 
 An alias holds no instance and applies no caching; its effective scope is derived from its source provider.
 
-## Basic Usage
+## Basic usage
 
 ```python
 import dataclasses
@@ -63,7 +63,7 @@ assert concrete is abstract
 
 ## Sharing the source's cache
 
-Because `Alias` does not cache anything itself, callers automatically share whatever instance the source provider returns. With a cached `Factory`, every resolution path — by the concrete type, by the abstract type, or via a downstream factory parameter typed as the abstract — returns the same singleton.
+Because `Alias` does not cache anything itself, callers automatically share whatever instance the source provider returns. With a cached `Factory`, every resolution path returns the same singleton: by the concrete type, by the abstract type, or via a downstream factory parameter typed as the abstract.
 
 With an uncached source `Factory`, each resolution still goes through the source factory, so each call produces a new instance (matching the source factory's own behavior).
 
@@ -102,13 +102,13 @@ assert container.resolve(Repository) is mock_for_source
 
 - If `source_type` is not registered, `AliasSourceNotRegisteredError` is raised eagerly.
 - The alias reports the source provider as a dependency, so cycles that pass through an alias are
-  detected and reported via `CircularDependencyError` — see
+  detected and reported via `CircularDependencyError`; see
   [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md).
 
 !!! note "Scope is checked transitively through `validate()`"
     `Container.validate()` checks scope transitively through aliases. A shallow-scoped caller that
-    depends — via an alias — on a deeper-scoped source is flagged with `InvalidScopeDependencyError`
-    at validation time — the same [scope dependency rule](scopes.md#the-scope-dependency-rule)
+    depends, via an alias, on a deeper-scoped source is flagged with `InvalidScopeDependencyError`
+    at validation time. It is the same [scope dependency rule](scopes.md#the-scope-dependency-rule)
     enforced everywhere else, applied through the alias's source chain instead of letting it surface
     as `ScopeNotInitializedError` at runtime. The error names every hop of that chain and its
     terminal source, since the alias's own type carries no scope to point at; see

@@ -1,13 +1,13 @@
-# Container Provider
+# Container provider
 
-The Container Provider is a special provider that you should not initialize.
+The container provider is a special provider that you should not initialize.
 It is automatically registered with each container, so you can resolve the container itself directly.
 
-## Injecting the Container Itself
+## Injecting the container itself
 
 You can inject the container into your dependencies in two ways:
 
-### Automatic Injection (Type-Based)
+### Automatic injection (type-based)
 
 If your creator function has a parameter annotated with `Container`, it will be automatically resolved:
 
@@ -26,7 +26,7 @@ result = container.resolve(str)
 # result: "Container scope: APP"
 ```
 
-### Explicit Injection
+### Explicit injection
 
 You can also explicitly inject the container using `providers.container_provider`. Reach for this when the parameter is **not** annotated as `Container` (so type-based injection can't find it), or when you want an explicit binding instead of relying on the type:
 
@@ -51,7 +51,7 @@ result = container.resolve(str)
 
 ## Which container you get
 
-Resolving `Container` returns the **calling container** — the deepest, most-specific container in
+Resolving `Container` returns the **calling container**: the deepest, most-specific container in
 the active chain, not the `APP` root. The `container_provider` simply hands back whichever container
 ran the resolve, so a `REQUEST` child resolves `Container` to *itself*:
 
@@ -70,7 +70,7 @@ context/cache), while app-scoped code reaches the app container.
 ## Registering providers after construction
 
 `container.add_providers(*providers)` registers additional providers on a **root** container after
-it's built — the blessed seam framework integrations use instead of reaching into
+it's built. It is the blessed seam framework integrations use instead of reaching into
 `providers_registry` directly. Raises `ChildContainerRegistrationError` if called on a child
 container. See [Writing an integration](../integrations/writing-integrations.md#the-contract) for
 the full contract.
@@ -78,8 +78,8 @@ the full contract.
 ## Resolving a provider or type
 
 `container.resolve_dependency(dep)` accepts either a provider reference or a type and dispatches to
-`resolve_provider` or `resolve` accordingly — the single entry point integrations use to resolve a
-`FromDI`-style marker. See [Writing an integration](../integrations/writing-integrations.md#the-contract).
+`resolve_provider` or `resolve` accordingly. It is the single entry point integrations use to
+resolve a `FromDI`-style marker. See [Writing an integration](../integrations/writing-integrations.md#the-contract).
 
 ## See also
 

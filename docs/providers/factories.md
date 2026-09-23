@@ -6,9 +6,9 @@ Factories are providers that create instances of dependencies.
 
 There are two types of factories: **regular** and **cached**.
 
-### Regular Factories
+### Regular factories
 
-Regular factories create a new instance on every call — nothing is cached.
+Regular factories create a new instance on every call; nothing is cached.
 
 ```python
 import dataclasses
@@ -40,18 +40,18 @@ instance2 = container.resolve(IndependentFactory)
 assert isinstance(instance2, IndependentFactory)
 ```
 
-### Cached Factories
+### Cached factories
 
 Cached factories resolve the dependency only once and cache the resolved instance for future injections.
 
-**This is modern-di's Singleton.** There is no separate `Singleton` provider class — `Factory(cache=True)`
+**This is modern-di's Singleton.** There is no separate `Singleton` provider class: `Factory(cache=True)`
 *is* the singleton idiom, at whatever scope you declare it (`Scope.APP` for one-per-process,
 `Scope.REQUEST` for one-per-request, etc.). Other DI frameworks name this concept `Singleton`,
 `provide(..., scope=...)`, `@injectable(lifetime="singleton")`, or `@lru_cache`; see
 [Where is Singleton?](../introduction/comparison.md#where-is-singleton-cross-framework-vocabulary)
 for the full cross-framework mapping.
 
-The caching mechanism is thread-safe by default, ensuring that even when multiple threads attempt to resolve the same cached factory simultaneously, only one instance will be created.
+The caching mechanism is thread-safe by default: when multiple threads resolve the same cached factory simultaneously, only one instance is created.
 
 If your application is single-threaded, you can disable the lock for a small performance gain:
 
@@ -59,7 +59,7 @@ If your application is single-threaded, you can disable the lock for a small per
 container = Container(groups=[Dependencies], use_lock=False)
 ```
 
-Do not set `use_lock=False` in multi-threaded applications — it removes the guarantee that only one instance is created per cached factory.
+Do not set `use_lock=False` in multi-threaded applications; it removes the guarantee that only one instance is created per cached factory.
 
 ```python
 import random
@@ -120,8 +120,8 @@ class Dependencies(Group):
 
 ## Parameters
 
-`Factory(creator, *, scope=Scope.APP, bound_type=UNSET, kwargs=None, cache=None, skip_creator_parsing=False)`
-— `creator` may also be passed as a keyword (`creator=`).
+`Factory(creator, *, scope=Scope.APP, bound_type=UNSET, kwargs=None, cache=None, skip_creator_parsing=False)`.
+The `creator` may also be passed as a keyword (`creator=`).
 
 When creating a Factory provider, you can configure several parameters:
 
@@ -129,7 +129,7 @@ When creating a Factory provider, you can configure several parameters:
 
 Defines the lifetime (scope) of the dependency. Defaults to `Scope.APP`. The available scopes are `APP → SESSION → REQUEST → ACTION → STEP`; see [Scopes](scopes.md) for the full mental model and the dependency rule.
 
-Groups can declare a default scope for all their members — see [Group-level default scope](scopes.md#group-level-default-scope).
+Groups can declare a default scope for all their members; see [Group-level default scope](scopes.md#group-level-default-scope).
 
 ### creator
 
@@ -172,12 +172,12 @@ When a parameter is annotated with a union type (e.g. `dep: A | B`), Modern-DI r
 When a parameter is annotated as `X | None` (or `Optional[X]`), the parameter is treated as optional:
 
 - If a provider for `X` is registered, that provider is resolved and injected as usual.
-- If no provider for `X` is registered and the parameter has no default, `None` is injected — no error is raised, and `container.validate()` will not flag the parameter.
+- If no provider for `X` is registered and the parameter has no default, `None` is injected: no error is raised, and `container.validate()` will not flag the parameter.
 
 This also applies to multi-member optional unions (`A | B | None`): the first registered member is injected, otherwise `None`.
 
 !!! note "Trade-off"
-    This is a convenience, but it removes a safety net: if you *intended* to register a provider for an optional dependency and forgot, neither `resolve()` nor `validate()` will report it — the parameter silently receives `None`. For dependencies that must always be present, prefer a non-optional annotation (`dep: X`), which raises `ArgumentResolutionError` when unregistered and is flagged by `validate()`.
+    This is a convenience, but it removes a safety net: if you *intended* to register a provider for an optional dependency and forgot, neither `resolve()` nor `validate()` will report it; the parameter silently receives `None`. For dependencies that must always be present, prefer a non-optional annotation (`dep: X`), which raises `ArgumentResolutionError` when unregistered and is flagged by `validate()`.
 
 ```python
 import dataclasses
@@ -214,16 +214,16 @@ The table below summarises how Modern-DI handles each parameter shape during **d
 | `param: list[X]` / any parameterized generic, **outside a union** | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default value or is covered by `kwargs`. | Raised at `Factory(...)` call time. |
 | Positional-only param (`def f(x: T, /)`) | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default (in which case it is silently skipped). | Raised at `Factory(...)` call time. |
 | Unannotated param (`def f(x)`) | Parsed but unresolvable by type. | `ArgumentResolutionError` at resolve unless covered by `kwargs`. |
-| Signature whose hints `get_type_hints` cannot resolve (e.g. a forward reference to an undefined name, or — on Python < 3.14 — `functools.partial`) | `UserWarning` is emitted and type-based wiring is skipped; parameters are still parsed (as unannotated). Silence by passing `skip_creator_parsing=True` and an explicit `bound_type`. | A required unannotated param with no provider/default raises `ArgumentResolutionError` at resolve unless covered by `kwargs` (a parameterized-generic or positional-only param still raises `UnsupportedCreatorParameterError` at declaration). |
+| Signature whose hints `get_type_hints` cannot resolve (e.g. a forward reference to an undefined name, or `functools.partial` on Python < 3.14) | `UserWarning` is emitted and type-based wiring is skipped; parameters are still parsed (as unannotated). Silence by passing `skip_creator_parsing=True` and an explicit `bound_type`. | A required unannotated param with no provider/default raises `ArgumentResolutionError` at resolve unless covered by `kwargs` (a parameterized-generic or positional-only param still raises `UnsupportedCreatorParameterError` at declaration). |
 | `skip_creator_parsing=True` | No wiring at all — every required argument must be supplied via `kwargs`. | `CreatorCallError` at resolve for any missing required argument. |
 
 A parameterized generic used *inside* a union (`param: int | list[X]`) is the one exception to
 the "parameterized generic raises at declaration" row above: the member degrades to its bare
 origin type like any other union member, so it can match a provider registered for `list`. The
-element type `X` is not checked in that case — this is intentional, not a wiring guarantee, so
-don't rely on it to route only correctly-typed collections.
+element type `X` is not checked in that case. That is deliberate, and it is not a wiring
+guarantee, so don't rely on it to route only correctly-typed collections.
 
-**Escaping problem shapes** — if a parameter shape would raise at declaration, there are three escape routes, in order of preference:
+Escaping problem shapes: if a parameter shape would raise at declaration, there are three escape routes, in order of preference:
 
 1. Give the parameter a default value (`def f(items: list[X] | None = None)`).
 2. Supply the value via `kwargs={"items": []}` at `Factory` declaration time.
@@ -231,7 +231,7 @@ don't rely on it to route only correctly-typed collections.
 
 ### Provider passed as a kwargs value
 
-Passing an `AbstractProvider` instance directly as a value in the `kwargs` dict is treated as **explicit wiring**: Modern-DI resolves the provider and injects the resolved value — the provider object itself is never seen by the creator.
+Passing an `AbstractProvider` instance directly as a value in the `kwargs` dict is treated as **explicit wiring**: Modern-DI resolves the provider and injects the resolved value; the provider object itself is never seen by the creator.
 
 ```python
 from modern_di import Container, Group, Scope, providers
@@ -266,9 +266,9 @@ This is useful when `skip_creator_parsing=True` is in effect but you still want 
 
 If a creator raises an exception during resolution:
 
-- **Nothing is cached.** The failed instance is never stored in the cache registry, even if `cache` is set.
-- **The next `resolve` call retries.** Subsequent resolves call the creator again from scratch, so a transiently-failing creator will eventually succeed once the underlying condition is fixed.
-- **Already-resolved dependencies are not rolled back.** Dependencies that were successfully resolved before the creator raised are still held in their respective containers and will be finalized normally when those containers are closed.
+- Nothing is cached: the failed instance is never stored in the cache registry, even if `cache` is set.
+- The next `resolve` call retries. Subsequent resolves call the creator again from scratch, so a transiently-failing creator will eventually succeed once the underlying condition is fixed.
+- Already-resolved dependencies are not rolled back. Dependencies that were successfully resolved before the creator raised are still held in their respective containers and will be finalized normally when those containers are closed.
 
 ```python
 import dataclasses
