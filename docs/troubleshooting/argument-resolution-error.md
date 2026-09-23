@@ -37,7 +37,7 @@ integration provides at runtime (`fastapi.Request`, `taskiq.TaskiqMessage`, …)
 `validate()` **after** `setup_di()` (the provider is registered by then), or make the
 parameter optional (`request: fastapi.Request | None = None`) so validation skips it
 regardless of ordering; the integration still injects the real value at runtime either
-way. See [Framework Context Objects](../providers/context.md#framework-context-objects).
+way. See [Framework context objects](../providers/context.md#framework-context-objects).
 
 Check `.suggestions` on the caught exception for a "did you mean" hint when a similarly-named type is
 registered instead.
