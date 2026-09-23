@@ -1,4 +1,4 @@
-# Migration Guide: Upgrading to modern-di 1.x
+# Migration guide: upgrading to modern-di 1.x
 
 !!! warning "Historical guide"
     This guide covers migrating from 0.x to 1.x. The APIs shown here (`AsyncContainer`, `SyncContainer`, `providers.Singleton`, `.cast`) were **removed in 2.x**.
@@ -33,9 +33,9 @@ modern-di 1.x inverts where resolution methods live and replaces a handful of pr
     instance = await container.resolve(SomeType)
     ```
 
-    Manual provider overrides and the way dependencies are declared in web-framework applications changed accordingly — both now go through the container and integration APIs.
+    Manual provider overrides and the way dependencies are declared in web-framework applications changed accordingly. Both now go through the container and integration APIs.
 
-3. **`Selector` and `ContextAdapter` removed** — replace both with `Factory` + `ContextProvider`:
+3. **`Selector` and `ContextAdapter` removed.** Replace both with `Factory` + `ContextProvider`:
 
     ```python
     # Before (0.x)
@@ -46,8 +46,8 @@ modern-di 1.x inverts where resolution methods live and replaces a handful of pr
     dynamic_engine = providers.Factory(Scope.REQUEST, choose_engine, context=mode.cast, write=w.cast, read=r.cast)
     ```
 
-4. **`AttrGetter` removed** — reference the provider directly, or write a small factory function that extracts the attribute.
-5. **Factory attribute access removed** (`.async_provider`/`.sync_provider`) — inject the container itself and resolve dependencies manually instead of injecting a factory function.
+4. **`AttrGetter` removed.** Reference the provider directly, or write a small factory function that extracts the attribute.
+5. **Factory attribute access removed** (`.async_provider`/`.sync_provider`). Inject the container itself and resolve dependencies manually instead of injecting a factory function.
 6. **`async_enter()` → `enter()`.**
 
 ## More

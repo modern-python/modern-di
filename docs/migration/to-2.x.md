@@ -1,4 +1,4 @@
-# Migration Guide: Upgrading to modern-di 2.x
+# Migration guide: upgrading to modern-di 2.x
 
 modern-di 2.x merges the container classes, moves providers to keyword-only arguments, removes four provider types in favor of `Factory`, and drops async resolution. Breaking changes, once:
 
@@ -30,7 +30,7 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
 
     Since 2.27, the subject argument (`creator` / `context_type` / `source_type`) is accepted positionally again; all other parameters remain keyword-only.
 
-3. **`Singleton`, `Resource`, `Dict`, `List` removed** — all four map onto `Factory`:
+3. **`Singleton`, `Resource`, `Dict`, `List` removed.** All four map onto `Factory`:
 
     ```python
     # Before (1.x)
@@ -46,12 +46,12 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
     )
     ```
 
-    `Dict`/`List` have no provider equivalent — write a plain creator function that returns the
+    `Dict`/`List` have no provider equivalent. Write a plain creator function that returns the
     collection and wrap it in a `Factory`. `clear_cache` defaults to `True` (old `Resource`
     semantics: finalizer runs on close, instance rebuilt on next resolve); set `clear_cache=False`
     only when the same object must survive a close→reopen cycle.
 
-4. **Resolution is sync-only** — no more `sync_` prefix, no `await` on resolution (async *finalizers* are still supported via `CacheSettings(finalizer=async_fn)` and `await container.close_async()`):
+4. **Resolution is sync-only.** No more `sync_` prefix, no `await` on resolution (async *finalizers* are still supported via `CacheSettings(finalizer=async_fn)` and `await container.close_async()`):
 
     ```python
     # Before (1.x)
@@ -61,7 +61,7 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
     instance = container.resolve_provider(provider)
     ```
 
-5. **`.cast` removed** — wiring is by type instead:
+5. **`.cast` removed.** Wiring is by type instead:
 
     | 1.x | 2.x |
     |---|---|
