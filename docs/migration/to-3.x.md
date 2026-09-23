@@ -1,21 +1,21 @@
-# Migration Guide: Upgrading to modern-di 3.x
+# Migration guide: upgrading to modern-di 3.x
 
 This document describes the changes required to migrate from modern-di 2.x to modern-di 3.0.
 
 ## Overview
 
 modern-di 3.0 flips five switches from warn-then-continue to raise/validate-by-default, and adds
-one more that has no 2.x precedent to warn from. Each of the five already has a 2.x signal — a
+one more that has no 2.x precedent to warn from. Each of the five already has a 2.x signal, a
 warning that fires today wherever the 3.0 behavior would differ. If your 2.x test suite is green
 with the [readiness recipe](#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings)
 below escalating those five warnings to errors, **those five switches** are a no-op for you.
 
 3.0 **additionally** requires a container to be opened (`with`/`async with`/`open()`) before it can
-`resolve` or `build_child_container` — switch 6 below — and changes `validate`'s constructor
+`resolve` or `build_child_container` (switch 6 below), and changes `validate`'s constructor
 signature from `bool | None` to a plain `bool`. Neither has a 2.x warning to escalate: 2.x has no
 "unopened" state to signal on, and an explicit `validate=True` in 2.x validates eagerly at
-construction, a timing 3.0 changes without ever warning about it. These are genuine hard breaks —
-a green suite under the recipe does not, by itself, get you past them. See
+construction, a timing 3.0 changes without ever warning about it. These are genuine hard breaks,
+and a green suite under the recipe does not, by itself, get you past them. See
 [switch 4](#4-validate-runs-at-container-entry-on-by-default) and
 [switch 6](#6-a-container-must-be-opened-before-use) below.
 
@@ -30,7 +30,7 @@ a green suite under the recipe does not, by itself, get you past them. See
 | Direct resolve of an unset `ContextProvider` raises `ContextValueNotSetError` | `ContextValueNoneWarning` |
 | A container must be opened before `resolve`/`build_child_container` | **none** — inherent hard break, no 2.x state to warn from |
 
-## Key Changes
+## Key changes
 
 ### 1. Closed containers raise instead of self-healing
 
@@ -65,7 +65,7 @@ Re-enter the container with `with`/`async with`, or call `container.open()`, bef
 This is one half of a single rule: **a container must be open to be used.** This switch is the
 *closed-after-use* half (a container that was open, then closed); [switch 6](#6-a-container-must-be-opened-before-use)
 below is the *never-opened* half (a fresh container that was never entered at all). Both raise the
-same `ContainerClosedError`, and both are fixed the same way — enter the container with
+same `ContainerClosedError`, and both are fixed the same way: enter the container with
 `with`/`async with`, or call `open()`, before resolving or building children.
 
 ### 2. `Alias(scope=)` parameter removed
@@ -123,24 +123,24 @@ The final 3.0 form differs from what 2.x signals in two ways, so read this one c
 
 **The signature.** In 2.x, `Container`'s `validate` argument is `bool | None = None`: unset (`None`)
 skips validation but emits `UnvalidatedContainerWarning`; `False` skips it silently; `True` enables
-it. In 3.0, the parameter is a plain `validate: bool = True` — the `None` sentinel is gone.
+it. In 3.0, the parameter is a plain `validate: bool = True`, and the `None` sentinel is gone.
 Passing `validate=False` still means "off"; there is no other spelling to adopt for the unset case,
 because unset now *is* the default-on case.
 
-**The timing.** In 2.x, `validate=True` validates **eagerly at construction** — `Container(...)`
+**The timing.** In 2.x, `validate=True` validates **eagerly at construction**: `Container(...)`
 itself raises `ValidationFailedError` if the graph is broken. In 3.0, validation never runs in
-`__init__`. It runs once, at container **entry** — `open()`, or `with`/`async with` (which call
-`open()`) — so an invalid graph raises there instead. This lets a framework integration register
+`__init__`. It runs once, at container **entry** (`open()`, or `with`/`async with`, which call
+`open()`), so an invalid graph raises there instead. This lets a framework integration register
 its own providers (e.g. via `add_providers`) after construction and still have the complete graph
 validated before first use. `validate=True` is **not eager**: if you need a construction-time
 check, call `container.validate()` explicitly right after building it.
 
 This timing change has no 2.x warning: an explicit `validate=True` caller in 2.x sees no
 deprecation notice, because from 2.x's perspective that call already validates and already
-succeeds — 2.x has nothing to warn about a timing it doesn't yet have. `UnvalidatedContainerWarning`
+succeeds. 2.x has nothing to warn about a timing it doesn't yet have. `UnvalidatedContainerWarning`
 only ever covered the *unset* case (2.x's "no explicit `validate=` argument" state); it says nothing
 about when validation happens once enabled. Escalating it to an error still gets you a 2.x-clean
-signal for switching the *default* to on — it does not, and cannot, warn you about the *timing*
+signal for switching the *default* to on. It does not, and cannot, warn you about the *timing*
 move for callers who already pass `validate=True`.
 
 **Before (2.x):**
@@ -172,10 +172,10 @@ container = Container(scope=Scope.APP, groups=[MyGroup])
 container.validate()  # raises ValidationFailedError here if the graph is broken
 ```
 
-Child containers (built via `build_child_container`) never validate, in either version — this
+Child containers (built via `build_child_container`) never validate, in either version; this
 switch only affects root containers.
 
-**Changed again in 3.1** — validation is explicit-only; `open()` no longer runs it either. See
+**Changed again in 3.1.** Validation is explicit-only; `open()` no longer runs it either. See
 the [3.1 note under switch 6](#6-a-container-must-be-opened-before-use) below for the full
 correction.
 
@@ -206,10 +206,10 @@ resolving.
 
 ### 6. A container must be opened before use
 
-New in 3.0, added mid-development, with **no 2.x deprecation signal at all** — 2.x has no
+New in 3.0, added mid-development, with **no 2.x deprecation signal at all**: 2.x has no
 "unopened" state, so there was never anything for it to warn about. A freshly constructed
-container now starts unopened; using it before entering it — `resolve`, `resolve_provider`,
-`build_child_container` — raises `ContainerClosedError`. Enter it with `with`/`async with`, or call
+container now starts unopened; using it before entering it (`resolve`, `resolve_provider`,
+`build_child_container`) raises `ContainerClosedError`. Enter it with `with`/`async with`, or call
 `open()` directly (for a callback-style lifecycle that cannot use a `with` block), before the first
 use. Child containers (from `build_child_container`) also start unopened and must be entered
 themselves before they can be used.
@@ -248,20 +248,20 @@ service = container.resolve(MyService)  # works
 ```
 
 Because there is no 2.x signal for this one, the [readiness recipe](#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings)
-below cannot surface it in advance — a green 2.x suite under that recipe still needs every
+below cannot surface it in advance. A green 2.x suite under that recipe still needs every
 construct-then-use call site audited for a matching `with`/`open()` before it can run against 3.0.
 
 **Changed again in 3.1.** This requirement is relaxed, not reversed: see the
 [3.1 release notes](https://github.com/modern-python/modern-di/releases) for the full
-change. A container is **open from construction** again — `closed = False` the moment
-`Container(...)` returns, no `open()` step required — and reusing a container after an
+change. A container is **open from construction** again (`closed = False` the moment
+`Container(...)` returns, no `open()` step required), and reusing a container after an
 explicit close warns (`ContainerClosedWarning`) and reopens instead of raising
 `ContainerClosedError`.
 
 An earlier version of this note said every pattern shown above under "After (3.0)" kept
 working unchanged, including that `with`/`open()` "still validates, still fails fast." That
 part was wrong and has been corrected here: **validation is explicit-only as of 3.1.**
-`open()` (and `with`/`async with`, which call it) no longer runs `validate()` — it only
+`open()` (and `with`/`async with`, which call it) no longer runs `validate()`. It only
 clears `closed`, unconditionally. Nothing validates automatically: not construction,
 not `open()`, not `add_providers`, not `resolve()`.
 
@@ -270,24 +270,24 @@ not `open()`, not `add_providers`, not `resolve()`.
     Two 3.0-era assertions break, and both were found in the wild across the official
     integrations:
 
-    - `assert container.closed is True` on a freshly built container — it is `False` in
+    - `assert container.closed is True` on a freshly built container. It is `False` in
       3.1, because construction leaves it open.
-    - `with pytest.raises(ValidationFailedError): container.open()` — `open()` validates
-      nothing in 3.1, so it does not raise.
+    - `with pytest.raises(ValidationFailedError): container.open()`, since `open()`
+      validates nothing in 3.1 and so does not raise.
 
     Both are mechanical to fix, but the second needs care: if a test's *subject* is the
     lifecycle transition ("this signal opens the root"), flipping the assertion makes it
     pass without proving anything. Close the container first, so the transition stays
     observable. If the subject is the validation-ordering rule, point it at
-    `container.validate()` — the rule still holds, it just binds a different call.
+    `container.validate()`. The rule still holds, it just binds a different call.
 `container.validate()` is the only thing that walks the graph, and `Container(validate=...)`
-is deprecated — passing `True` or `False` is ignored and emits `ValidateArgumentWarning`
+is deprecated: passing `True` or `False` is ignored and emits `ValidateArgumentWarning`
 (a `DeprecationWarning`), removed in 4.0. So in the "After (3.0)" example above, the comment
-`# validate() already ran here` no longer holds in 3.1 — call `container.validate()`
+`# validate() already ran here` no longer holds in 3.1. Call `container.validate()`
 explicitly, right after construction (or after an integration's `setup_di` registers its own
 providers via `add_providers`, if you want the complete graph checked), for the same
 fail-fast check. `with`/`open()` still open the container and still guarantee `close_*` runs
-finalizers on the way out — that part of "After (3.0)" is unaffected — this switch (mandatory
+finalizers on the way out, so that part of "After (3.0)" is unaffected. This switch (mandatory
 open) just stops being mandatory for code that skips it, and validation timing is fully
 decoupled from it.
 
@@ -297,7 +297,7 @@ This is the one place in the docs that lists the full `filterwarnings` escalatio
 other page that mentions escalating a specific warning links back here.
 
 This recipe covers switches 1, 2, 3, and 5 fully, and switch 4 only for the *unset-`validate`*
-case — the case `UnvalidatedContainerWarning` actually warns about. It has **nothing** to say about
+case, the case `UnvalidatedContainerWarning` actually warns about. It has **nothing** to say about
 switch 6 (mandatory-open) or about switch 4's timing move for callers who already pass
 `validate=True` explicitly: both are hard breaks with no 2.x warning to escalate. A green suite
 under this recipe rules out five-and-a-half of the six switches; you still need to audit
@@ -306,9 +306,9 @@ explicitly today, re-check any code that depends on validation happening at cons
 than at `open()` (switch 4).
 
 `ContainerClosedWarning` was a `DeprecationWarning` in 2.x. As of 3.1 it is a `RuntimeWarning`
-instead — deliberately, since CPython hides `DeprecationWarning` outside `__main__`, which would
-hide exactly the diagnostic this warning exists for — so the blanket categories below no longer
-catch it; add its dedicated-class filter alongside them. `ContextValueNoneWarning` subclasses
+instead, deliberately, since CPython hides `DeprecationWarning` outside `__main__`, which would
+hide exactly the diagnostic this warning exists for. The blanket categories below therefore no
+longer catch it; add its dedicated-class filter alongside them. `ContextValueNoneWarning` subclasses
 `DeprecationWarning`; `UnvalidatedContainerWarning` subclasses `FutureWarning`; the `Alias(scope=)`
 and `Factory(cache_settings=)` warnings are plain `DeprecationWarning` (they have no dedicated
 subclass). Escalating both categories to errors, plus `ContainerClosedWarning`'s own class,
@@ -341,21 +341,21 @@ filterwarnings = [
     frame at the warning's `stacklevel`, not the module that owns the warning class. Three of the
     five signals (`UnvalidatedContainerWarning`, and the `Alias(scope=)` / `Factory(cache_settings=)`
     warnings) are raised directly inside the constructor call with `stacklevel=2`, which attributes
-    them to *your* calling module — not `modern_di` — so a `module=r"modern_di(\..*)?"` filter
+    them to *your* calling module, not `modern_di`, so a `module=r"modern_di(\..*)?"` filter
     silently fails to escalate them. The other two (`ContainerClosedWarning`,
     `ContextValueNoneWarning`) fire deep inside a resolve call, where the `stacklevel=2` frame
-    happens to still be inside `modern_di`, so they *would* match — the inconsistency is exactly
+    happens to still be inside `modern_di`, so they *would* match. That inconsistency is exactly
     why `module=` isn't part of the recipe above.
 
     **Changed again in 3.1.** `ContainerClosedWarning` now computes its `stacklevel` (via
     `_caller_stacklevel`) so it attributes *outside* `modern_di`, and `ContextValueNoneWarning`
-    has no raise sites left at all — so on 3.1 a `module=r"modern_di(\..*)?"` filter escalates
+    has no raise sites left at all, so on 3.1 a `module=r"modern_di(\..*)?"` filter escalates
     none of the five. The paragraph above describes 2.x, which is what this page's recipe runs
     against.
 
 If the broad category filter is too wide for your process (e.g. another dependency's
 `DeprecationWarning`s should stay warnings), escalate the three dedicated subclasses individually
-instead — this covers switches 1, 4, and 5 precisely, but not 2 and 3, since those two have no
+instead. This covers switches 1, 4, and 5 precisely, but not 2 and 3, since those two have no
 dedicated class in 2.x:
 
 ```python
@@ -374,7 +374,7 @@ the five warnings above under the readiness recipe, those five switches require 
 your part.
 
 That policy has a boundary: it only covers changes 2.x has a state to warn from. Mandatory-open
-(switch 6) is a new requirement with no 2.x precedent — a 2.x container has no "unopened" state, so
+(switch 6) is a new requirement with no 2.x precedent: a 2.x container has no "unopened" state, so
 there was never a warning to add. Likewise, switch 4's timing move (construction to `open()`) only
 affects callers who already pass `validate=True`, a code path 2.x treats as already-correct and so
 never warns about. Neither omission is an oversight in this guide; there is no signal to point to.

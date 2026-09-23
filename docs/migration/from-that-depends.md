@@ -24,7 +24,7 @@ Core package:
       poetry add modern-di
       ```
 
-Framework integrations and the pytest helper live in separate packages — install only what you need:
+Framework integrations and the pytest helper live in separate packages. Install only what you need:
 
 === "uv"
 
@@ -50,9 +50,9 @@ Framework integrations and the pytest helper live in separate packages — insta
 
 Three things change in how you think about the framework. Most migration confusion comes from these:
 
-- **`Group` is a schema, `Container` is the runtime.** In `that-depends`, a `BaseContainer` subclass is *both* the schema and the runtime — you resolve directly from the class. In `modern-di`, `Group` is a namespace-only class (you cannot instantiate it) and you create the runtime `Container(groups=[MyGroup])` separately, typically once at app start. All resolution, overrides, and lifecycle calls go through that `Container` instance.
-- **Resolution is sync-only.** `modern-di` does not have `AsyncFactory`, `AsyncSingleton`, or `await container.resolve(...)`. Async work happens in the framework's lifespan — see [§6](#6-async-resources). There is no plan to add async resolution back.
-- **Scopes are explicit.** `Scope.APP → SESSION → REQUEST → ACTION → STEP`, with [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) enforced at validation time. Framework integrations create the per-request child container automatically.
+- `Group` is a schema and `Container` is the runtime. In `that-depends`, a `BaseContainer` subclass is *both* the schema and the runtime: you resolve directly from the class. In `modern-di`, `Group` is a namespace-only class (you cannot instantiate it) and you create the runtime `Container(groups=[MyGroup])` separately, typically once at app start. All resolution, overrides, and lifecycle calls go through that `Container` instance.
+- Resolution is sync-only. `modern-di` does not have `AsyncFactory`, `AsyncSingleton`, or `await container.resolve(...)`. Async work happens in the framework's lifespan (see [§6](#6-async-resources)). There is no plan to add async resolution back.
+- Scopes are explicit. `Scope.APP → SESSION → REQUEST → ACTION → STEP`, with [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) enforced at validation time. Framework integrations create the per-request child container automatically.
 
 ## 3. Provider mapping
 
@@ -89,9 +89,9 @@ Use this table as the index for the rest of the guide.
 
 1. Replace `BaseContainer` with `Group`.
 2. Add an explicit `scope=` to each provider (defaults to `Scope.APP`).
-3. Create the runtime container with `Container(groups=[MyGroup])`. In `modern-di`, the `Group` class is a schema only — you cannot resolve from it directly.
+3. Create the runtime container with `Container(groups=[MyGroup])`. In `modern-di`, the `Group` class is a schema only; you cannot resolve from it directly.
 
-When a provider is passed inside `kwargs={...}`, `modern-di` detects it and resolves it like any other dependency. There is no `.cast` indirection — drop those calls.
+When a provider is passed inside `kwargs={...}`, `modern-di` detects it and resolves it like any other dependency. There is no `.cast` indirection, so drop those calls.
 
 === "that-depends"
 
@@ -162,7 +162,7 @@ some_singleton = providers.Factory(
 )
 ```
 
-**`Resource`** (sync generator or context manager) → cached `Factory` with a `finalizer`, splitting the generator into a creator and a finalizer function — see `database_engine` in the worked example above.
+**`Resource`** (sync generator or context manager) → cached `Factory` with a `finalizer`, splitting the generator into a creator and a finalizer function. See `database_engine` in the worked example above.
 
 **`Object`** → `Factory` whose creator returns the value. Define a small typed function (lambdas have no return annotation, which prevents resolution by type):
 
@@ -211,7 +211,7 @@ The `that-depends` `ContextResource` / `container_context()` / `State` / `fetch_
 
 ### Injecting custom context (replaces `State`, `fetch_context_item`, `fetch_context_item_by_type`)
 
-Declare a `ContextProvider` for the type you want injected, then supply the instance when you build the child container — or via `set_context` before resolving:
+Declare a `ContextProvider` for the type you want injected, then supply the instance when you build the child container, or via `set_context` before resolving:
 
 ```python
 from modern_di import Container, Group, Scope, providers
@@ -238,7 +238,7 @@ with container.build_child_container(
     repo = request_container.resolve(TenantScopedRepository)
 ```
 
-`ContextProvider` returns the value registered for that type on the container **at the provider's own scope** — there is no global lookup like `fetch_context_item`, and [context never propagates between containers](../providers/context.md#context-propagation). For a REQUEST-scoped `ContextProvider`, pass the value to the request container via `build_child_container(context={TenantId: tenant})` or `request_container.set_context(TenantId, tenant)`.
+`ContextProvider` returns the value registered for that type on the container **at the provider's own scope**. There is no global lookup like `fetch_context_item`, and [context never propagates between containers](../providers/context.md#context-propagation). For a REQUEST-scoped `ContextProvider`, pass the value to the request container via `build_child_container(context={TenantId: tenant})` or `request_container.set_context(TenantId, tenant)`.
 
 ## 6. Async resources
 
@@ -278,14 +278,14 @@ sync creator with an async finalizer instead.
 
 ### Per-request async construction
 
-If a per-request resource genuinely needs `await` at construction time, the simplest path is to make the *creator* sync but have it return a pre-acquired object that you placed into the request container's context. Most cases (SQLAlchemy `AsyncSession`, `httpx.AsyncClient`) can be expressed as sync creator + async finalizer instead — that path is preferred.
+If a per-request resource genuinely needs `await` at construction time, the simplest path is to make the *creator* sync but have it return a pre-acquired object that you placed into the request container's context. Most cases (SQLAlchemy `AsyncSession`, `httpx.AsyncClient`) can be expressed as sync creator + async finalizer instead, and that path is preferred.
 
 ## 7. Lifecycle and testing
 
 ### Lifecycle
 
-- **No `init_resources()` equivalent** — providers initialize lazily on first resolve; see [Lazy initialization](../providers/lifecycle.md#lazy-initialization) for eager-warmup at startup.
-- **`tear_down()` / `tear_down_sync()` → `await container.close_async()` / `container.close_sync()`** (also usable as (async) context managers). The framework integrations call `close_async()` automatically at app shutdown.
+- There is no `init_resources()` equivalent: providers initialize lazily on first resolve; see [Lazy initialization](../providers/lifecycle.md#lazy-initialization) for eager-warmup at startup.
+- `tear_down()` / `tear_down_sync()` → `await container.close_async()` / `container.close_sync()`, also usable as (async) context managers. The framework integrations call `close_async()` automatically at app shutdown.
 
 ### Overrides
 
@@ -301,24 +301,24 @@ container.override(Dependencies.decks_service, fake_decks_service)
 container.reset_override(Dependencies.decks_service)  # or reset_override() to clear all
 ```
 
-See [Testing with overrides](../recipes/testing-overrides.md) for override mechanics (tree-wide sharing, reset). `modern-di-pytest` gives fixture-based wiring in place of hand-written overrides — see [the pytest integration](../integrations/pytest.md).
+See [Testing with overrides](../recipes/testing-overrides.md) for override mechanics (tree-wide sharing, reset). `modern-di-pytest` gives fixture-based wiring in place of hand-written overrides; see [the pytest integration](../integrations/pytest.md).
 
 ### Validation
 
-`container.validate()` runs cycle detection and scope-chain checks. Call it explicitly at startup during migration — it catches missed scope changes and broken dependencies before the first request.
+`container.validate()` runs cycle detection and scope-chain checks. Call it explicitly at startup during migration: it catches missed scope changes and broken dependencies before the first request.
 
 ## 8. Framework integration and routes
 
-Replace `DIContextMiddleware` with the integration package's setup call ([FastAPI](../integrations/fastapi.md), [Litestar](../integrations/litestar.md), [FastStream](../integrations/faststream.md), [Typer](../integrations/typer.md)) — it creates per-request child containers, tears them down automatically, and calls `container.close_async()` at shutdown. On routes, `FromDI(T)` replaces both `fastapi.Depends(Provide[T]())` and `litestar.di.Provide`, resolving by type instead of by marker; see the integration pages for the full route examples.
+Replace `DIContextMiddleware` with the integration package's setup call ([FastAPI](../integrations/fastapi.md), [Litestar](../integrations/litestar.md), [FastStream](../integrations/faststream.md), [Typer](../integrations/typer.md)). That call creates per-request child containers, tears them down automatically, and calls `container.close_async()` at shutdown. On routes, `FromDI(T)` replaces both `fastapi.Depends(Provide[T]())` and `litestar.di.Provide`, resolving by type instead of by marker; see the integration pages for the full route examples.
 
 ## 9. No direct equivalent
 
 A handful of `that-depends` features have no direct port. Workarounds:
 
-- **`Selector`** — write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
-- **`AttrGetter` (`provider.attr` syntax)** — resolve the parent inside the consuming creator and access the attribute there, or expose a dedicated `Factory` whose creator returns the attribute.
-- **`ThreadLocalSingleton`** — use `threading.local()` inside a cached `Factory`'s creator and store the per-thread object there.
-- **`@inject` + `Provide[T]()` for non-framework functions** — `modern-di` has no general-purpose injection decorator. Call `container.resolve(T)` explicitly at the call site, or expose the function through a framework integration and use `FromDI(T)`.
+- **`Selector`**: write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
+- **`AttrGetter` (`provider.attr` syntax)**: resolve the parent inside the consuming creator and access the attribute there, or expose a dedicated `Factory` whose creator returns the attribute.
+- **`ThreadLocalSingleton`**: use `threading.local()` inside a cached `Factory`'s creator and store the per-thread object there.
+- **`@inject` + `Provide[T]()` for non-framework functions**: `modern-di` has no general-purpose injection decorator. Call `container.resolve(T)` explicitly at the call site, or expose the function through a framework integration and use `FromDI(T)`.
 
 ## More
 
