@@ -82,6 +82,12 @@ The five canonical roles, each label string equal to its name. See `docs/agents/
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Prose
+
+Docs pages, PR and issue bodies, and commit messages run through the
+[humanizer](https://github.com/blader/humanizer) skill when it is installed
+(`npx skills add blader/humanizer`).
+
 ### Cutting a release
 
 Maintainers only. See `docs/agents/release.md`.
