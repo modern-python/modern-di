@@ -6,21 +6,21 @@
 
 === "uv"
 
-      ```bash
-      uv add modern-di-taskiq
-      ```
+    ```bash
+    uv add modern-di-taskiq
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-taskiq
-      ```
+    ```bash
+    pip install modern-di-taskiq
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-taskiq
-      ```
+    ```bash
+    poetry add modern-di-taskiq
+    ```
 
 ### 2. Apply to your application
 

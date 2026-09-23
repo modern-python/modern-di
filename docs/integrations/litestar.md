@@ -8,21 +8,21 @@
 
 === "uv"
 
-      ```bash
-      uv add modern-di-litestar
-      ```
+    ```bash
+    uv add modern-di-litestar
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-litestar
-      ```
+    ```bash
+    pip install modern-di-litestar
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-litestar
-      ```
+    ```bash
+    poetry add modern-di-litestar
+    ```
 
 ### 2. Apply to your application
 ```python
@@ -144,7 +144,7 @@ app.register(websocket_handler)
 
 `di_container` is injected by name — the plugin registers it as a Litestar dependency, so you don't need a `FromDI` marker for the container itself.
 
-## Framework Context Objects
+## Framework context objects
 
 Framework-specific context objects like `litestar.Request` and `litestar.WebSocket`
 are automatically made available by the integration — see [Framework Context
@@ -156,7 +156,7 @@ The following context providers are available for import:
 - `litestar_request_provider` - Provides the current `litestar.Request` object
 - `litestar_websocket_provider` - Provides the current `litestar.WebSocket` object
 
-### Implicit Usage (Type-based Resolution)
+### Implicit (type-based) usage
 
 ```python
 import litestar
@@ -179,7 +179,7 @@ class AppGroup(Group):
     )
 ```
 
-### Explicit Usage (Provider-based Resolution)
+### Explicit (provider-based) usage
 
 ```python
 import litestar

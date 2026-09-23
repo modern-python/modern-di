@@ -11,21 +11,21 @@ opens a per-connection child container automatically.
 
 === "uv"
 
-      ```bash
-      uv add modern-di-aiohttp
-      ```
+    ```bash
+    uv add modern-di-aiohttp
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-aiohttp
-      ```
+    ```bash
+    pip install modern-di-aiohttp
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-aiohttp
-      ```
+    ```bash
+    poetry add modern-di-aiohttp
+    ```
 
 ### 2. Apply to your application
 

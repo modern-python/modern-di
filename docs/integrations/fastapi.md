@@ -7,22 +7,22 @@
 ### 1. Install `modern-di-fastapi`
 
 === "uv"
- 
-      ```bash
-      uv add modern-di-fastapi
-      ```
- 
+
+    ```bash
+    uv add modern-di-fastapi
+    ```
+
 === "pip"
 
-      ```bash
-      pip install modern-di-fastapi
-      ```
+    ```bash
+    pip install modern-di-fastapi
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-fastapi
-      ```
+    ```bash
+    poetry add modern-di-fastapi
+    ```
 
 ### 2. Apply to your application
 ```python
@@ -107,7 +107,7 @@ async def websocket_endpoint(
     await websocket.close()
 ```
 
-## Framework Context Objects
+## Framework context objects
 
 Framework-specific context objects like `fastapi.Request` and `fastapi.WebSocket`
 are automatically made available by the integration — see [Framework Context
@@ -119,7 +119,7 @@ The following context providers are available for import:
 - `fastapi_request_provider` - Provides the current `fastapi.Request` object
 - `fastapi_websocket_provider` - Provides the current `fastapi.WebSocket` object
 
-### Implicit Usage (Type-based Resolution)
+### Implicit (type-based) usage
 
 ```python
 import fastapi
@@ -142,7 +142,7 @@ class AppGroup(Group):
     )
 ```
 
-### Explicit Usage (Provider-based Resolution)
+### Explicit (provider-based) usage
 
 ```python
 import fastapi

@@ -12,21 +12,21 @@ Resolution is **sync-only** — the child container is closed with `close_sync()
 
 === "uv"
 
-      ```bash
-      uv add modern-di-flask
-      ```
+    ```bash
+    uv add modern-di-flask
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-flask
-      ```
+    ```bash
+    pip install modern-di-flask
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-flask
-      ```
+    ```bash
+    poetry add modern-di-flask
+    ```
 
 ### 2. Apply to your application
 
@@ -148,7 +148,7 @@ setup_di(app, Container(groups=[Dependencies]))
 fetch_di_container(app).close_sync()
 ```
 
-## Framework Context Objects
+## Framework context objects
 
 `flask.Request` is automatically made available by the integration — see
 [Framework Context Objects](../providers/context.md#framework-context-objects)
@@ -158,7 +158,7 @@ The following context provider is available for import:
 
 - `flask_request_provider` — `ContextProvider` for the current `flask.Request` (REQUEST scope), auto-registered by type.
 
-### Implicit Usage (Type-based Resolution)
+### Implicit (type-based) usage
 
 ```python
 from flask import Request
@@ -173,7 +173,7 @@ class AppGroup(Group):
     request_info = providers.Factory(create_request_info, scope=Scope.REQUEST)
 ```
 
-### Explicit Usage (Provider-based Resolution)
+### Explicit (provider-based) usage
 
 ```python
 from flask import Request

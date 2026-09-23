@@ -6,21 +6,21 @@
 
 === "uv"
 
-      ```bash
-      uv add modern-di-grpc
-      ```
+    ```bash
+    uv add modern-di-grpc
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-grpc
-      ```
+    ```bash
+    pip install modern-di-grpc
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-grpc
-      ```
+    ```bash
+    poetry add modern-di-grpc
+    ```
 
 ### 2. Apply to your application (sync server)
 

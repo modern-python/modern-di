@@ -9,21 +9,21 @@ no separate `modern-di-click`.
 
 === "uv"
 
-      ```bash
-      uv add modern-di-typer
-      ```
+    ```bash
+    uv add modern-di-typer
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-typer
-      ```
+    ```bash
+    pip install modern-di-typer
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-typer
-      ```
+    ```bash
+    poetry add modern-di-typer
+    ```
 
 ### 2. Apply to your application
 
