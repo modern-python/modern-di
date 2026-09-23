@@ -12,10 +12,10 @@ outlive. See [the scope dependency rule](../providers/scopes.md#the-scope-depend
 class Dependencies(Group):
     session = providers.Factory(Session, scope=Scope.REQUEST)
 
-    # ❌ forgot scope=Scope.REQUEST — defaults to Scope.APP, which cannot hold `session`
+    # Broken: forgot scope=Scope.REQUEST, so it defaults to Scope.APP, which cannot hold `session`
     user_cache = providers.Factory(UserCache)
 
-    # ✅ matches the lifetime of what it consumes
+    # Works: matches the lifetime of what it consumes
     user_cache = providers.Factory(UserCache, scope=Scope.REQUEST)
 ```
 
@@ -35,10 +35,10 @@ dependencies). Nothing calls it for you: not construction, not `open()`, not `ad
 happens to hit one first.
 
 ```python
-# ❌ never validated: wiring bugs surface one at a time, in production, on whatever request trips them
+# Broken: never validated, so wiring bugs surface one at a time, in production, on whatever request trips them
 container = Container(groups=[Dependencies])
 
-# ✅ validated explicitly: every wiring bug is reported at once, at startup
+# Works: validated explicitly, so every wiring bug is reported at once, at startup
 container = Container(groups=[Dependencies])
 container.validate()  # raises ValidationFailedError here if the graph is broken
 ```
@@ -59,10 +59,10 @@ built once, and a later `set_context` does not rebuild it.
 class Dependencies(Group):
     tenant_id = providers.ContextProvider(str, scope=Scope.REQUEST)
 
-    # ❌ cached: built on first resolve and frozen from then on
+    # Broken: cached, so it is built on first resolve and frozen from then on
     tenant_config = providers.Factory(create_tenant_config, scope=Scope.REQUEST, cache=True)
 
-    # ✅ uncached: re-reads the live context on every resolve
+    # Works: uncached, so it re-reads the live context on every resolve
     tenant_config = providers.Factory(create_tenant_config, scope=Scope.REQUEST)
 ```
 
@@ -83,11 +83,11 @@ parameters, it turns type-driven DI into a service locator: the dependency is hi
 `validate()`, from readers, and from anyone trying to see the graph.
 
 ```python
-# ❌ the real dependency (Settings) is invisible to validate() and to the signature
+# Broken: the real dependency (Settings) is invisible to validate() and to the signature
 def create_api_key(container: Container) -> str:
     return container.resolve(Settings).api_key
 
-# ✅ declared as an ordinary parameter — visible, validated, and testable via override
+# Works: declared as an ordinary parameter, so it is visible, validated, and testable via override
 def create_api_key(settings: Settings) -> str:
     return settings.api_key
 ```
@@ -105,12 +105,12 @@ affects more than the test that set it: every later test that shares the contain
 replacement.
 
 ```python
-# ❌ no reset: the next test that resolves Clock silently gets the fake
+# Broken: no reset, so the next test that resolves Clock silently gets the fake
 def test_one() -> None:
     container.override(Dependencies.clock, fake_clock)
     ...
 
-# ✅ always reset, even if the test fails — a fixture teardown is the reliable place for this
+# Works: always reset, even if the test fails; a fixture teardown is the reliable place for this
 @pytest.fixture
 def frozen_clock() -> Mock:
     fake = Mock(spec=Clock)
@@ -131,10 +131,10 @@ be reflected (C extensions, `functools.partial`). But skipping introspection als
 no idea what type the provider produces, so type-based resolution silently can't find it.
 
 ```python
-# ❌ nothing else can resolve this provider by type — UserWarning at declaration time
+# Broken: nothing else can resolve this provider by type, and a UserWarning fires at declaration time
 providers.Factory(opaque_creator, scope=Scope.APP, skip_creator_parsing=True)
 
-# ✅ tell modern-di the type explicitly
+# Works: the type is declared explicitly
 providers.Factory(
     opaque_creator,
     scope=Scope.APP,
