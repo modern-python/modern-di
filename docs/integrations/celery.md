@@ -63,21 +63,21 @@ def run_report(report: typing.Annotated[Report, FromDI(Report)]) -> str:
     return report.render()
 ```
 
-`setup_di(app, container)` stores the container on `app.conf` and registers `worker_process_init`/`worker_process_shutdown` signal handlers that open/close it — those fire when a real `celery worker` process starts and stops, so a script or test that calls tasks without spinning one up (e.g. with `task_always_eager = True`) must drive the container lifecycle itself; see [Worker-process lifecycle](#worker-process-lifecycle) below.
+`setup_di(app, container)` stores the container on `app.conf` and registers `worker_process_init`/`worker_process_shutdown` signal handlers that open/close it. Those fire when a real `celery worker` process starts and stops, so a script or test that calls tasks without spinning one up (e.g. with `task_always_eager = True`) must drive the container lifecycle itself; see [Worker-process lifecycle](#worker-process-lifecycle) below.
 
-`@inject` builds a `Scope.REQUEST` child container per call and resolves `FromDI`-annotated parameters from it — it looks the container up through Celery's `current_app` proxy at call time, not the `app` object captured at decoration time, so it always resolves against whichever app is currently active.
+`@inject` builds a `Scope.REQUEST` child container per call and resolves `FromDI`-annotated parameters from it. It looks the container up through Celery's `current_app` proxy at call time, not the `app` object captured at decoration time, so it always resolves against whichever app is currently active.
 
 ## Scopes
 
-The integration creates a `Scope.REQUEST` child container **for each task invocation**, whether wired via `@inject` or [`DITask`](#the-ditask-base-class). REQUEST-scoped providers (and their finalizers) live for the duration of that one call; the child container is closed with `close_sync()` once the task returns, including when it raises. APP-scoped providers persist for the whole worker process — `setup_di` opens the APP container on `worker_process_init` and closes it with `close_sync()` on `worker_process_shutdown`.
+The integration creates a `Scope.REQUEST` child container **for each task invocation**, whether wired via `@inject` or [`DITask`](#the-ditask-base-class). REQUEST-scoped providers (and their finalizers) live for the duration of that one call; the child container is closed with `close_sync()` once the task returns, including when it raises. APP-scoped providers persist for the whole worker process: `setup_di` opens the APP container on `worker_process_init` and closes it with `close_sync()` on `worker_process_shutdown`.
 
-There is no `Scope.SESSION` for Celery — a task queue doesn't have a session concept comparable to websockets.
+There is no `Scope.SESSION` for Celery: a task queue doesn't have a session concept comparable to websockets.
 
 ## Sync resolution, no connection object
 
-`FromDI` resolves its dependency with `Container.resolve_dependency(...)`, which is synchronous — modern-di's resolution is always sync, regardless of the framework. Celery tasks are themselves sync callables, so the per-task `Scope.REQUEST` container is torn down the same way it's built: `@inject` calls `close_sync()` in a `finally` block after the task returns. There is no async counterpart — REQUEST-scoped finalizers must be sync (or `close_sync`-compatible) for Celery tasks.
+`FromDI` resolves its dependency with `Container.resolve_dependency(...)`, which is synchronous; modern-di's resolution is always sync, regardless of the framework. Celery tasks are themselves sync callables, so the per-task `Scope.REQUEST` container is torn down the same way it's built: `@inject` calls `close_sync()` in a `finally` block after the task returns. There is no async counterpart. REQUEST-scoped finalizers must be sync (or `close_sync`-compatible) for Celery tasks.
 
-Unlike aiohttp, FastAPI, or taskiq, a Celery task has no framework request or message object comparable to an HTTP request or a broker message — `modern_di_celery` does not register a context provider, and there is no implicit/explicit "framework context object" for this integration. Pass whatever per-call data a task needs through its own arguments (or `self.request` on a bound task, which is Celery's own mechanism, unrelated to modern-di).
+Unlike aiohttp, FastAPI, or taskiq, a Celery task has no framework request or message object comparable to an HTTP request or a broker message. `modern_di_celery` does not register a context provider, and there is no implicit/explicit "framework context object" for this integration. Pass whatever per-call data a task needs through its own arguments (or `self.request` on a bound task, which is Celery's own mechanism, unrelated to modern-di).
 
 ## The `DITask` base class
 
@@ -145,9 +145,9 @@ def greet(name: str, settings: typing.Annotated[Settings, FromDI(Settings)]) -> 
 
 ## Worker-process lifecycle
 
-`setup_di` connects to Celery's `worker_process_init` and `worker_process_shutdown` signals with `weak=False` — Celery signals default to weak references, which would otherwise let the handlers be garbage-collected before a worker process ever fires them. Both signals fire once per **worker process**, not per task: `container.open()` runs on `worker_process_init`, `container.close_sync()` runs on `worker_process_shutdown`. APP-scoped providers are therefore built once per worker process and torn down when it exits.
+`setup_di` connects to Celery's `worker_process_init` and `worker_process_shutdown` signals with `weak=False`. Celery signals default to weak references, which would otherwise let the handlers be garbage-collected before a worker process ever fires them. Both signals fire once per **worker process**, not per task: `container.open()` runs on `worker_process_init`, `container.close_sync()` runs on `worker_process_shutdown`. APP-scoped providers are therefore built once per worker process and torn down when it exits.
 
-A real `celery worker` invocation fires both signals automatically. Code that calls tasks without a running worker — a script, or a test using `task_always_eager` — must trigger the same signals (or drive the container directly) itself:
+A real `celery worker` invocation fires both signals automatically. Code that calls tasks without a running worker (a script, or a test using `task_always_eager`) must trigger the same signals (or drive the container directly) itself:
 
 ```python
 from celery import Celery, signals

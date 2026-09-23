@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
 ## Action scope
 
-To resolve `Scope.ACTION` dependencies, inject `modern_di.Container` — `@inject` supplies the
+To resolve `Scope.ACTION` dependencies, inject `modern_di.Container`: `@inject` supplies the
 `REQUEST`-scoped container it creates per invocation. Call `build_child_container()` on it to enter
 `ACTION` scope:
 

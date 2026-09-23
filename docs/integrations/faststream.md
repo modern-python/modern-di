@@ -103,11 +103,11 @@ Between `setup_di` and startup no broker carries the middleware yet; see
 
 The integration creates a `Scope.REQUEST` child container **for each message** the subscriber receives. REQUEST-scoped providers (and their finalizers) live for the duration of that one message; APP-scoped providers persist for the whole process. At app shutdown, the integration runs `await container.close_async()` on the APP container.
 
-There is no `Scope.SESSION` for FastStream — message brokers don't have a session concept comparable to websockets.
+There is no `Scope.SESSION` for FastStream: message brokers don't have a session concept comparable to websockets.
 
 ## Framework context objects
 
-`faststream.StreamMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the current message — see [Framework Context Objects](../providers/context.md#framework-context-objects) for how implicit and explicit resolution work.
+`faststream.StreamMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the current message. See [Framework context objects](../providers/context.md#framework-context-objects) for how implicit and explicit resolution work.
 
 The following context provider is also available for explicit import:
 
