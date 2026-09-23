@@ -1,7 +1,8 @@
 # Docs style
 
 How to write and edit the pages MkDocs builds from `docs/`. `exclude_docs` drops `/agents/` and
-`/adr/`, so this file and its siblings are outside what it governs. Link style between files is in
+`/adr/`, so this file and its siblings are outside what it governs. The em-dash rule below also
+covers `README.md` and `AGENTS.md`; nothing else here reaches them. Link style between files is in
 [`domain.md`](domain.md); this file is everything else.
 
 ## Headings and nav
