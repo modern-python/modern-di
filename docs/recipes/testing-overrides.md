@@ -4,16 +4,16 @@
 
 ## Solution
 
-`container.override(provider, replacement)` replaces what the provider resolves to, immediately, and returns an `OverrideHandle`. Used as a context manager, it auto-resets on exit — this is the primary spelling for tests:
+`container.override(provider, replacement)` replaces what the provider resolves to, immediately, and returns an `OverrideHandle`. Used as a context manager, it auto-resets on exit, and that is the primary spelling for tests:
 
 ```python
 with container.override(MyGroup.api_client, mock_client) as client:
     ...  # resolution returns mock_client; prior state restored on exit
 ```
 
-The override applies at the `override()` call, not at `__enter__`. `__exit__` restores the snapshot taken at that call — a previously stacked override if there was one, otherwise no override — even on exception, and even if `reset_override()` — or a root `close_sync()`/`close_async()`, which clears all overrides — ran inside the block; exit still restores the snapshot. Nested overrides of the same provider unwind in order: each handle restores whatever was active before it. Handles are expected to exit in reverse order of creation — `with`-block nesting does this naturally; manually exiting handles out of order can restore stale state.
+The override applies at the `override()` call, not at `__enter__`. `__exit__` restores the snapshot taken at that call: a previously stacked override if there was one, otherwise no override. It does so even on exception, and even if `reset_override()` ran inside the block, or a root `close_sync()`/`close_async()` (which clears all overrides) did. Exit still restores the snapshot. Nested overrides of the same provider unwind in order: each handle restores whatever was active before it. Handles are expected to exit in reverse order of creation, which `with`-block nesting does naturally; manually exiting handles out of order can restore stale state.
 
-`container.override(provider, replacement)` also works as a plain imperative call: reset with `container.reset_override(provider)` (or `container.reset_override()` to clear all). This pair remains fully supported — see the patterns below — and `close_sync`/`close_async` on the root container also clear all overrides automatically. Either way, the replacement is keyed by **provider reference** (not name) and is shared across the container tree, so an override on the root APP container applies to all child REQUEST containers too.
+`container.override(provider, replacement)` also works as a plain imperative call: reset with `container.reset_override(provider)` (or `container.reset_override()` to clear all). This pair remains fully supported (see the patterns below), and `close_sync`/`close_async` on the root container also clear all overrides automatically. Either way, the replacement is keyed by **provider reference** (not name) and is shared across the container tree, so an override on the root APP container applies to all child REQUEST containers too.
 
 ## Pattern 1: Simple mock override
 
@@ -95,15 +95,15 @@ async def test_user_repo(user_repository: UserRepository) -> None:
     assert await user_repository.count() == 0
 ```
 
-Combine with `container.override(...)` in a setup fixture to swap underlying providers — `modern_di_fixture` resolves through the override.
+Combine with `container.override(...)` in a setup fixture to swap underlying providers; `modern_di_fixture` resolves through the override.
 
 ## Pitfalls
 
-- **Overrides are global.** Override the root APP container and every child REQUEST container sees the replacement. Fine in tests; remember it if you also override in production code.
-- **`override` is keyed by provider reference.** Pass `Dependencies.user_repository` (the provider object), not the string `"user_repository"`.
-- **Always `reset_override` in the fixture teardown.** Leaking overrides between tests is a class of bug that doesn't fail loudly.
-- **Wrap session-scoped containers in a function-scoped override fixture.** If the `Container` fixture itself is session-scoped (built once for the whole test run), don't call `override`/`reset_override` directly in a test — wrap the pair in their own function-scoped fixture so the override is guaranteed to reset after each test, even on failure.
-- **Override the right level.** If you override the engine but tests resolve the session, the session's creator still runs — make sure the engine override produces something the creator can use. If the test relies on a specific session, override the session directly.
+- Overrides are global. Override the root APP container and every child REQUEST container sees the replacement. Fine in tests; remember it if you also override in production code.
+- `override` is keyed by provider reference. Pass `Dependencies.user_repository` (the provider object), not the string `"user_repository"`.
+- Always `reset_override` in the fixture teardown. Leaking overrides between tests is a class of bug that doesn't fail loudly.
+- Wrap session-scoped containers in a function-scoped override fixture. If the `Container` fixture itself is session-scoped (built once for the whole test run), don't call `override`/`reset_override` directly in a test. Wrap the pair in their own function-scoped fixture so the override is guaranteed to reset after each test, even on failure.
+- Override the right level. If you override the engine but tests resolve the session, the session's creator still runs, so make sure the engine override produces something the creator can use. If the test relies on a specific session, override the session directly.
 
 ## See also
 

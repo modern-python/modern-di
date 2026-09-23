@@ -1,10 +1,10 @@
 # Organize a large container with multiple Groups
 
-**Problem.** Your service has 30+ providers and stuffing them all into one `Group` is unreadable.
+**Problem.** Your application has 30+ providers and stuffing them all into one `Group` is unreadable.
 
 ## Solution
 
-Split providers into multiple `Group` subclasses by domain — database, cache, messaging, use cases — and pass them all to `Container(groups=[...])`. Cross-group dependencies wire by type, with no explicit references between groups.
+Split providers into multiple `Group` subclasses by domain (database, cache, messaging, use cases) and pass them all to `Container(groups=[...])`. Cross-group dependencies wire by type, with no explicit references between groups.
 
 ```python
 import redis.asyncio as aioredis
@@ -78,17 +78,17 @@ ALL_GROUPS = [Database, Cache, Repositories, UseCases]
 container = Container(groups=ALL_GROUPS)
 ```
 
-`PlaceOrder` depends on providers from three different groups — `Repositories`, `Cache`, `Database` (transitively via the repositories). Nothing in `UseCases` references the other groups directly; type-based wiring sorts it out.
+`PlaceOrder` depends on providers from three different groups: `Repositories`, `Cache`, and `Database` (transitively via the repositories). Nothing in `UseCases` references the other groups directly; type-based wiring sorts it out.
 
 ## Pitfalls
 
-- **Duplicate `bound_type` raises at container creation.** If two groups register providers for the same type (e.g. both bind to `AsyncSession`), `Container(groups=[...])` raises `DuplicateProviderTypeError` immediately. Fix by assigning distinct types — e.g. declare thin subclasses (`class WriteSession(AsyncSession): ...`) — or set `bound_type=None` on one provider and wire it explicitly via `kwargs`. See [Duplicate provider type](../troubleshooting/duplicate-type-error.md).
-- **Attribute-name collisions do not affect `Container`.** `Container` keys providers on their `bound_type`, not on the attribute name. Two groups can both have an attribute named `session` as long as their `bound_type`s differ — `Container` sees no conflict. The duplicate-name `ValueError` belongs to `modern-di-pytest`'s `expose(*groups)` helper (a separate package), which generates one pytest fixture per attribute name and does raise `ValueError` on duplicates. If you use `expose()`, ensure attribute names are unique across the groups you pass to it.
-- **Order in `groups=[...]` does not matter for resolution.** Validate at startup by calling `container.validate()` explicitly — nothing runs the check for you.
+- Duplicate `bound_type` raises at container creation. If two groups register providers for the same type (e.g. both bind to `AsyncSession`), `Container(groups=[...])` raises `DuplicateProviderTypeError` immediately. Fix by assigning distinct types, for instance by declaring thin subclasses (`class WriteSession(AsyncSession): ...`), or set `bound_type=None` on one provider and wire it explicitly via `kwargs`. See [Duplicate provider type](../troubleshooting/duplicate-type-error.md).
+- Attribute-name collisions do not affect `Container`. `Container` keys providers on their `bound_type`, not on the attribute name. Two groups can both have an attribute named `session` as long as their `bound_type`s differ, and `Container` sees no conflict. The duplicate-name `ValueError` belongs to `modern-di-pytest`'s `expose(*groups)` helper (a separate package), which generates one pytest fixture per attribute name and does raise `ValueError` on duplicates. If you use `expose()`, ensure attribute names are unique across the groups you pass to it.
+- Order in `groups=[...]` does not matter for resolution. Validate at startup by calling `container.validate()` explicitly, since nothing runs the check for you.
 
 ## Auto-wiring with Litestar
 
-If you're on Litestar, pass `autowired_groups=ALL_GROUPS` to `ModernDIPlugin` and every provider in those groups is automatically registered as a Litestar dependency by attribute name. Handlers can then declare `place_order: PlaceOrder` as a plain parameter — no per-route `FromDI`.
+If you're on Litestar, pass `autowired_groups=ALL_GROUPS` to `ModernDIPlugin` and every provider in those groups is automatically registered as a Litestar dependency by attribute name. Handlers can then declare `place_order: PlaceOrder` as a plain parameter, with no per-route `FromDI`.
 
 ```python
 from modern_di_litestar import ModernDIPlugin
