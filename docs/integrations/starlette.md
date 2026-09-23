@@ -78,15 +78,15 @@ container.validate()  # after setup_di — its connection providers are now regi
     A `setup_di`-wired app **mounted as a sub-application**
     (`app.mount("/sub", subapp)`) never receives that event from its parent,
     and deployments that disable lifespan (e.g. Mangum `lifespan="off"`) skip
-    it too — requests still succeed (the container is already open from
+    it too. Requests still succeed (the container is already open from
     construction), but nothing ever closes it, so its finalizers never run at
     shutdown. Call `setup_di` on the **top-level served app**, or close the
     root yourself (`await container.close_async()`) at shutdown.
 
 ### 3. Scopes
 
-See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule) —
-an HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
+See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule).
+An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
 opens a `Scope.SESSION` one, built by the middleware before your handler runs
 and kept open for the whole life of the connection.
 
@@ -167,7 +167,7 @@ async def ws_handler(
 
 Framework-specific context objects like `starlette.requests.Request` and
 `starlette.websockets.WebSocket` are automatically made available by the
-integration — see [Framework Context Objects](../providers/context.md#framework-context-objects)
+integration. See [Framework context objects](../providers/context.md#framework-context-objects)
 for how implicit and explicit resolution work.
 
 The following context providers are available for import:

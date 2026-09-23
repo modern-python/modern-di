@@ -102,7 +102,7 @@ If the same attribute name appears in multiple groups, a `UserWarning` is emitte
 
 ## Websockets
 
-Websockets add `SESSION` scope between `APP` and `REQUEST` — see [the scope
+Websockets add `SESSION` scope between `APP` and `REQUEST`; see [the scope
 hierarchy](../providers/scopes.md#the-scope-dependency-rule). `SESSION` covers
 the lifetime of the websocket connection and is entered automatically;
 `REQUEST` covers one message and must be entered manually:
@@ -142,13 +142,13 @@ async def websocket_handler(
 app.register(websocket_handler)
 ```
 
-`di_container` is injected by name — the plugin registers it as a Litestar dependency, so you don't need a `FromDI` marker for the container itself.
+The plugin registers `di_container` as a Litestar dependency and injects it by name, so you don't need a `FromDI` marker for the container itself.
 
 ## Framework context objects
 
 Framework-specific context objects like `litestar.Request` and `litestar.WebSocket`
-are automatically made available by the integration — see [Framework Context
-Objects](../providers/context.md#framework-context-objects) for how implicit
+are automatically made available by the integration. See [Framework context
+objects](../providers/context.md#framework-context-objects) for how implicit
 and explicit resolution work.
 
 The following context providers are available for import:

@@ -69,7 +69,7 @@ async def get_report(
     FastAPI only opens the root container from the ASGI **lifespan** event. A
     `setup_di`-wired app **mounted as a sub-application** (`app.mount("/sub",
     subapp)`) never receives that event from its parent, and deployments that
-    disable lifespan (e.g. Mangum `lifespan="off"`) skip it too — requests
+    disable lifespan (e.g. Mangum `lifespan="off"`) skip it too. Requests
     still succeed (the container is already open from construction), but
     nothing ever closes it, so its finalizers never run at shutdown. Call
     `setup_di` on the **top-level served app**, or close the root yourself
@@ -77,7 +77,7 @@ async def get_report(
 
 ## Websockets
 
-Websockets add `SESSION` scope between `APP` and `REQUEST` — see [the scope
+Websockets add `SESSION` scope between `APP` and `REQUEST`; see [the scope
 hierarchy](../providers/scopes.md#the-scope-dependency-rule). `SESSION` covers
 the lifetime of the websocket connection and is entered automatically;
 `REQUEST` covers one message and must be entered manually:
@@ -110,8 +110,8 @@ async def websocket_endpoint(
 ## Framework context objects
 
 Framework-specific context objects like `fastapi.Request` and `fastapi.WebSocket`
-are automatically made available by the integration — see [Framework Context
-Objects](../providers/context.md#framework-context-objects) for how implicit
+are automatically made available by the integration. See [Framework context
+objects](../providers/context.md#framework-context-objects) for how implicit
 and explicit resolution work.
 
 The following context providers are available for import:

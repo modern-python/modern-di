@@ -4,7 +4,7 @@ Flask has no dependency-injection system of its own, so `modern-di-flask` uses
 the `@inject` decorator with `FromDI` markers (there is no `Depends`). `setup_di`
 installs a `before_request`/`teardown_appcontext` pair that opens a per-request
 `Scope.REQUEST` child container and closes it once the request finishes.
-Resolution is **sync-only** — the child container is closed with `close_sync()`.
+Resolution is **sync-only**, and the child container is closed with `close_sync()`.
 
 ## How to use
 
@@ -79,8 +79,8 @@ type, resolved from the per-request child container the middleware built.
 
 Pass `auto_inject=True` to `setup_di` to wire every registered view (app routes
 and blueprint routes alike) without a per-view `@inject`. Because it walks
-`app.view_functions` at call time, `setup_di` must run **after** all routes —
-including blueprint routes — have been registered:
+`app.view_functions` at call time, `setup_di` must run **after** all routes,
+including blueprint routes, have been registered:
 
 ```python
 import typing
@@ -113,8 +113,8 @@ setup_di(app, container, auto_inject=True)
 container.validate()  # after setup_di — its connection providers are now registered
 ```
 
-A view that already carries `@inject` is left alone — `auto_inject` only wraps
-views that weren't injected yet.
+A view that already carries `@inject` is left alone, because `auto_inject` only
+wraps views that weren't injected yet.
 
 ### 4. Scopes and request lifecycle
 
@@ -126,7 +126,7 @@ once the request (including error handling) is done.
 
 ### 5. Root container teardown
 
-`setup_di` does not close the root container for you — Flask has no
+`setup_di` does not close the root container for you, because Flask has no
 application-shutdown hook to run it from. You own root teardown, typically at
 your own process-shutdown point:
 
@@ -150,8 +150,8 @@ fetch_di_container(app).close_sync()
 
 ## Framework context objects
 
-`flask.Request` is automatically made available by the integration — see
-[Framework Context Objects](../providers/context.md#framework-context-objects)
+`flask.Request` is automatically made available by the integration. See
+[Framework context objects](../providers/context.md#framework-context-objects)
 for how implicit and explicit resolution work.
 
 The following context provider is available for import:
