@@ -86,7 +86,9 @@ Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/
 
 Docs pages, PR and issue bodies, and commit messages run through the
 [humanizer](https://github.com/blader/humanizer) skill when it is installed
-(`npx skills add blader/humanizer`).
+(`npx skills add blader/humanizer`). Repo conventions it does not cover (heading and nav
+casing, the em-dash carve-outs, contrast markers in code samples) are in
+`docs/agents/docs-style.md`.
 
 ### Cutting a release
 
