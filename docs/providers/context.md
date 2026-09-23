@@ -79,7 +79,7 @@ Context never propagates between containers. A `ContextProvider` reads the conte
     Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:
 
     ```python
-    # ❌ Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
+    # Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
     # Setting it on the APP parent has no effect.
     app_container = Container()
     app_container.set_context(CustomContext, value)  # ignored for REQUEST-scoped providers
