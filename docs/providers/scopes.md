@@ -6,7 +6,7 @@ A scope is the lifetime band that a provider lives in. `modern-di` has five buil
 APP → SESSION → REQUEST → ACTION → STEP
 ```
 
-`Scope` is an `IntEnum` — `APP=1`, `SESSION=2`, `REQUEST=3`, `ACTION=4`, `STEP=5`. The higher the int, the shorter the lifetime.
+`Scope` is an `IntEnum`: `APP=1`, `SESSION=2`, `REQUEST=3`, `ACTION=4`, `STEP=5`. The higher the int, the shorter the lifetime.
 
 ## What each scope is for
 
@@ -34,15 +34,15 @@ with app_container.build_child_container(scope=Scope.REQUEST) as request_contain
     ...
 ```
 
-`Dependencies` here is a `Group` subclass holding the provider definitions — see the [Quick Start](../index.md) or [Resolving dependencies](../introduction/resolving.md) for how it's declared.
+`Dependencies` here is a `Group` subclass holding the provider definitions. See the [Quick Start](../index.md) or [Resolving dependencies](../introduction/resolving.md) for how it's declared.
 
-Children share their parent's `providers_registry` (provider definitions) and `overrides_registry` (test overrides) but have their own `cache_registry` (resolved instances) and `context_registry` (runtime context values). That's why a REQUEST-scoped factory produces one instance per request — the cache lives on the request container, not the app container.
+Children share their parent's `providers_registry` (provider definitions) and `overrides_registry` (test overrides) but have their own `cache_registry` (resolved instances) and `context_registry` (runtime context values). That's why a REQUEST-scoped factory produces one instance per request: the cache lives on the request container, not the app container.
 
 ## The scope dependency rule
 
 **A provider can only depend on providers at the same scope or a broader (lower int) scope.** A REQUEST-scoped session can consume the APP-scoped engine. The engine cannot consume the session.
 
-Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state — this is called a **captive dependency**: a wide-scoped (long-lived) provider "captive" to a narrower-scoped (shorter-lived) one it cannot actually hold onto. `container.validate()` enforces this — call it at startup. See [Good and bad practices](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one) for a worked example of the mistake and the fix.
+Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state. This is called a **captive dependency**: a wide-scoped (long-lived) provider "captive" to a narrower-scoped (shorter-lived) one it cannot actually hold onto. `container.validate()` enforces this, so call it at startup. See [Good and bad practices](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one) for a worked example of the mistake and the fix.
 
 ### How to choose a scope
 
@@ -76,7 +76,7 @@ Use `async with` only when the scope holds providers with async finalizers; othe
 
 ## Resolving across scopes
 
-Resolution looks up each parameter's type in the providers registry, finds the container at that provider's declared scope, and resolves from there. If you resolve an APP-scoped provider from a REQUEST container, you transparently walk up to the APP container — the cached APP instance is returned.
+Resolution looks up each parameter's type in the providers registry, finds the container at that provider's declared scope, and resolves from there. If you resolve an APP-scoped provider from a REQUEST container, you transparently walk up to the APP container, and the cached APP instance is returned.
 
 ```python
 # REQUEST container can resolve APP-scoped providers
@@ -84,7 +84,7 @@ engine: AsyncEngine = request_container.resolve(AsyncEngine)  # walks up to APP
 session: AsyncSession = request_container.resolve(AsyncSession)  # local to REQUEST
 ```
 
-Trying to resolve a REQUEST-scoped provider from an APP container raises [`ScopeNotInitializedError`](errors-and-exceptions.md) — the request container hasn't been built yet, so there's nothing to resolve into.
+Trying to resolve a REQUEST-scoped provider from an APP container raises [`ScopeNotInitializedError`](errors-and-exceptions.md): the request container hasn't been built yet, so there's nothing to resolve into.
 
 ## Custom scopes
 
@@ -113,7 +113,7 @@ with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
     tenant = tenant_container.resolve(TenantContext)
 ```
 
-The child scope's integer value must be strictly greater than its parent's. When `scope=` is omitted from `build_child_container`, the auto-derived next scope only advances within the parent's own enum class — to cross enum boundaries (e.g. jump from a built-in `Scope` to `MyScope.TENANT`), pass `scope=` explicitly.
+The child scope's integer value must be strictly greater than its parent's. When `scope=` is omitted from `build_child_container`, the auto-derived next scope only advances within the parent's own enum class. To cross enum boundaries (e.g. jump from a built-in `Scope` to `MyScope.TENANT`), pass `scope=` explicitly.
 
 ## Group-level default scope
 
@@ -143,15 +143,15 @@ with app_container.build_child_container(scope=Scope.REQUEST) as request_contain
 
 Scope resolution follows a priority order:
 
-1. **Explicit `scope=` on the provider** — always wins
-2. **The group's `scope=` kwarg** — inherited via MRO by subclasses; subclasses may override with their own `scope=` kwarg. A subclass's `scope=` applies to providers declared in its own body; inherited providers keep the scope their declaring class gave them.
-3. **`Scope.APP`** — the final default
+1. An explicit `scope=` on the provider always wins.
+2. Then the group's `scope=` kwarg, inherited via MRO by subclasses. A subclass may override it with its own `scope=` kwarg, which applies to the providers declared in its own body; inherited providers keep the scope their declaring class gave them.
+3. Otherwise `Scope.APP`, the final default.
 
-`Alias` providers do not participate in group-level scope defaults — an alias's scope always derives from its source.
+`Alias` providers do not participate in group-level scope defaults; an alias's scope always derives from its source.
 
 A scope-defaulted provider instance that is shared between two `Group` subclasses with different defaults raises [`GroupScopeConflictError`](../troubleshooting/group-scope-conflict-error.md) at class-creation time. Sharing the same provider instance with the same default scope across multiple groups is allowed.
 
-A group declared without a `scope=` kwarg stamps nothing, so a provider listed only in such a group keeps the `Scope.APP` default and can still be stamped by a later group — but only until it is registered with a container. After that, a group that would *change* its scope raises [`ProviderScopeFrozenError`](../troubleshooting/provider-scope-frozen-error.md), because resolvers compiled before the change already captured the old scope. Declare every group that lists a provider before building the container, or set `scope=` on the provider explicitly.
+A group declared without a `scope=` kwarg stamps nothing, so a provider listed only in such a group keeps the `Scope.APP` default and can still be stamped by a later group, but only until it is registered with a container. After that, a group that would *change* its scope raises [`ProviderScopeFrozenError`](../troubleshooting/provider-scope-frozen-error.md), because resolvers compiled before the change already captured the old scope. Declare every group that lists a provider before building the container, or set `scope=` on the provider explicitly.
 
 ## See also
 

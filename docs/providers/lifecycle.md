@@ -10,7 +10,7 @@ from modern_di import Container, Scope, providers, exceptions
 
 ## Lazy initialization
 
-`modern-di` creates instances on first resolve. There is no `init_resources()` or "eager startup" call — if a provider is never resolved, its creator never runs.
+`modern-di` creates instances on first resolve. There is no `init_resources()` or "eager startup" call: if a provider is never resolved, its creator never runs.
 
 If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook.
 
@@ -34,8 +34,8 @@ session = providers.Factory(
 )
 ```
 
-- **Caching.** With `cache=True`, the provider returns the same instance for every resolve inside that scope's container — this is the singleton idiom, see [Cached factories](factories.md#cached-factories). Without `cache`, the provider creates a fresh instance every call.
-- **Finalizer.** A callable that runs on the cached instance when the container is closed. Sync or async — `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance.
+- **Caching.** With `cache=True`, the provider returns the same instance for every resolve inside that scope's container. That is the singleton idiom; see [Cached factories](factories.md#cached-factories). Without `cache`, the provider creates a fresh instance every call.
+- **Finalizer.** A callable that runs on the cached instance when the container is closed. It can be sync or async; `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance.
 
 ```python
 def close_engine_sync(engine: Engine) -> None:
@@ -46,7 +46,7 @@ async def close_engine_async(engine: AsyncEngine) -> None:
     await engine.dispose()
 ```
 
-Both work — pick whichever matches the resource.
+Both work; pick whichever matches the resource.
 
 ## Closing the container
 
@@ -71,18 +71,16 @@ Closing a container runs its finalizers in reverse-creation order (creation orde
 
 ## Close-failure semantics
 
-Closing keeps going when a finalizer fails — it never stops at the first error.
+Closing keeps going when a finalizer fails: one that raises does not abort the others. Every
+finalizer runs; the exceptions are collected and re-raised together as a single `FinalizerError`
+once cleanup finishes. Its `.finalizer_errors` attribute holds the list of underlying exceptions,
+and `.is_async` records whether `close_sync()` or `close_async()` raised it. So a broken finalizer
+can't leak a resource that a later finalizer would have closed.
 
-**A finalizer that raises does not abort the others.** Every finalizer runs; the exceptions are
-collected and re-raised together as a single `FinalizerError` once cleanup finishes. Its
-`.finalizer_errors` attribute holds the list of underlying exceptions, and `.is_async` records
-whether `close_sync()` or `close_async()` raised it. So a broken finalizer can't leak a resource
-that a later finalizer would have closed.
-
-**Calling `close_sync()` on a cached resource with an async finalizer is recoverable.** `close_sync()`
-cannot await, so when it reaches such a resource it produces an `AsyncFinalizerInSyncCloseError` —
+Calling `close_sync()` on a cached resource with an async finalizer is recoverable. `close_sync()`
+cannot await, so when it reaches such a resource it produces an `AsyncFinalizerInSyncCloseError`,
 delivered *wrapped inside* the aggregated `FinalizerError` (as an entry in `.finalizer_errors`), since
-sync close aggregates like any other failure. Crucially, the resource's cache entry is **retained**
+sync close aggregates like any other failure. The resource's cache entry is **retained**
 rather than discarded, so the resource is not lost: a later `await container.close_async()` finalizes
 it correctly and completes the cleanup.
 
@@ -105,20 +103,20 @@ finalizer; the sync path is only a safety net.
 
 ## Closing and reopening
 
-A constructed container is **open from construction** — `closed = False` the moment `Container(...)`
+A constructed container is **open from construction**: `closed = False` the moment `Container(...)`
 returns, with no `open()` step required before the first `resolve()` / `resolve_provider()` call.
-`build_child_container()` never checks or touches any container's open/closed state — it only reads
-the parent's shared registries and scope map — and the returned child starts open too, same as any
+`build_child_container()` never checks or touches any container's open/closed state (it only reads
+the parent's shared registries and scope map), and the returned child starts open too, same as any
 fresh container. `close_sync()` / `close_async()` run the finalizers (in reverse-creation order, as
 above) and mark the container closed; entering `with container:` (or `async with`) is the idiomatic
 way to guarantee that close runs, even on an exception.
 
-Resolving from a container **that was explicitly closed** — directly, or through a child whose
-resolve reaches back into that container's scope — reopens it and emits `ContainerClosedWarning` — a
-signal that a reference to the container is being held past its lifetime, unless the reuse is
-deliberate. Building a child of a closed container does not, by itself, trigger any of this. Re-entering
-`with container:` (or calling `open()` directly) reopens it silently instead, since a deliberate
-reopen isn't diagnostic-worthy:
+Resolving from a container **that was explicitly closed**, directly or through a child whose
+resolve reaches back into that container's scope, reopens it and emits `ContainerClosedWarning`.
+The warning signals that a reference to the container is being held past its lifetime, unless the
+reuse is deliberate. Building a child of a closed container does not, by itself, trigger any of
+this. Re-entering `with container:` (or calling `open()` directly) reopens it silently instead,
+since a deliberate reopen isn't diagnostic-worthy:
 
 ```python
 container = Container(groups=[Dependencies])
@@ -143,10 +141,10 @@ How a cached instance survives this cycle depends on its `CacheSettings`:
 - With the default `clear_cache=True`, the instance is finalized at close and rebuilt on
   the next resolve after reopen.
 - With `clear_cache=False`, the cached instance survives close→reopen and is returned
-  again — the *same object* (its finalizer runs once, at the first close, and is not
+  again, the *same object* (its finalizer runs once, at the first close, and is not
   re-run on later closes). Use this for a shared resource whose identity must stay stable
   across restarts.
-- Overrides are not part of this survival — closing a root container resets its
+- Overrides are not part of this survival: closing a root container resets its
   overrides registry, and reopening (via `with`/`open()`) does not restore overrides set
   beforehand; only cached instances (with `clear_cache=False`) survive close→reopen.
 
@@ -157,7 +155,7 @@ How a cached instance survives this cycle depends on its `CacheSettings`:
 
 ## Per-scope finalization
 
-Each container has its own finalizers — the ones for the providers it cached. When a child container exits its `with` block, only the child's finalizers run; the parent's stay alive for as long as the parent does.
+Each container has its own finalizers, the ones for the providers it cached. When a child container exits its `with` block, only the child's finalizers run; the parent's stay alive for as long as the parent does.
 
 ```python
 app_container = Container(groups=[Dependencies])
@@ -177,12 +175,12 @@ Framework integrations handle this automatically: they build the REQUEST child c
 
 ## Validation
 
-`container.validate()` is the only thing that walks the graph. Nothing validates automatically —
+`container.validate()` is the only thing that walks the graph. Nothing validates automatically:
 not construction, not `open()`, not `add_providers`, not `resolve()`. A container is fully usable,
 and stays usable, without ever calling `validate()`; a broken graph nobody validates simply surfaces
 at whichever resolve first hits the problem, as an ordinary resolution error.
 
-Call it explicitly, whenever you want the whole graph checked at once — cycles, inverted scope
+Call it explicitly, whenever you want the whole graph checked at once: cycles, inverted scope
 dependencies, and missing required dependencies, all in a single pass:
 
 ```python
@@ -191,22 +189,22 @@ container.validate()  # walks now; raises ValidationFailedError if any issue is 
 ```
 
 It aggregates every issue it finds into one `exceptions.ValidationFailedError` rather than stopping
-at the first — see [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
-Call it right after building the container for a construction-time check, or later — e.g. a framework
+at the first; see [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
+Call it right after building the container for a construction-time check, or later. A framework
 integration that registers its own providers after construction (via `add_providers`) should call it
 **after** that registration, so the complete graph is what gets checked; see [Writing an
 integration](../integrations/writing-integrations.md#lifecycle-rules).
 
-A repeat `validate()` after a clean walk is free — it memoizes against the registry's contents and
+A repeat `validate()` after a clean walk is free: it memoizes against the registry's contents and
 only re-walks once something has changed it (`register`/`add_providers`). Validation has no
-runtime cost after that. Turn it on in a startup path or a single test — it catches the bugs you
-don't want to discover under load.
+runtime cost after that. Turn it on in a startup path or a single test, where it catches the bugs
+you don't want to discover under load.
 
 ### The deprecated `validate` constructor argument
 
 `Container(validate=...)` still exists for backward compatibility. Passing `True` or `False` is
 ignored and emits `exceptions.ValidateArgumentWarning` (a `DeprecationWarning`); omitting it (the
-default) is silent either way. It changes nothing about the container built — there is no longer a
+default) is silent either way. It changes nothing about the container built: there is no longer a
 spelling of the constructor that validates for you. The argument is removed in 4.0; call
 `container.validate()` instead. See [Migration: To
 3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default) for how this used to

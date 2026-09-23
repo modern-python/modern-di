@@ -11,12 +11,12 @@ Lower-level public surface for library authors and advanced use-cases.
 MRO override order (subclass attribute shadows parent attribute of the same name). Use it to
 inspect or iterate all providers declared on a group hierarchy.
 
-!!! note "The provider set is closed — `AbstractProvider` is not an extension point"
+!!! note "The provider set is closed: `AbstractProvider` is not an extension point"
     `Factory`, `Alias`, `ContextProvider`, and the pre-built `container_provider` are the
     only provider types. `AbstractProvider` is their shared base and the type that appears
     in public signatures (`resolve_dependency`, `kwargs=`), but it is **not** a hook for
     adding your own: resolution compiles a resolver per known provider type, so a subclass
-    of `AbstractProvider` — or of `Factory` — raises `TypeError` at its first resolve, and
+    of `AbstractProvider` (or of `Factory`) raises `TypeError` at its first resolve, and
     `validate()` does not catch it. Compose behavior in a creator function, or use `Alias`,
     instead of introducing a provider type.
 
@@ -40,21 +40,21 @@ the one whose cache receives a singleton and runs its finalizer. `resolve` and `
 are entry points, not hooks: a compiled resolver calls its dependencies' resolvers directly, so an
 override of either sees only the top-level call.
 
-## Container internals — no stability guarantee
+## Container internals: no stability guarantee
 
 !!! warning "Internal surface"
     These attributes back the container's own machinery. They are documented
     for debugging and deep integration work only, and may change without a
     deprecation cycle. Do not build on them.
 
-- **`parent_container`** — constructor kwarg and slot; the direct parent of a child container,
+- **`parent_container`** is a constructor kwarg and slot: the direct parent of a child container,
   or `None` for a root. Passing a `scope ≤ parent.scope` raises `InvalidChildScopeError`.
-- **`_scope_map`** — `dict[IntEnum, Container]` mapping each **ancestor's** scope to its container;
-  built at construction time, a child inheriting its parent's map plus the parent itself. A root's
-  map is empty. The container is never in its own map — that self-reference would make every
-  container a reference cycle — and `find_container` never needs it, since it short-circuits on
-  its own scope first.
-- **`_lock`** — a `threading.RLock` instance, or `None` when the container was created with
+- **`_scope_map`** is a `dict[IntEnum, Container]` mapping each **ancestor's** scope to its
+  container, built at construction time, with a child inheriting its parent's map plus the parent
+  itself. A root's map is empty. The container is never in its own map, since that self-reference
+  would make every container a reference cycle, and `find_container` never needs it: it
+  short-circuits on its own scope first.
+- **`_lock`** is a `threading.RLock` instance, or `None` when the container was created with
   `use_lock=False`. A cached `Factory`'s compiled resolver hands it to `CacheItem.get_or_create`,
   which gates the cold-miss build so one instance is created per cache key.
 
