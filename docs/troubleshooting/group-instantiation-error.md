@@ -1,17 +1,17 @@
 # GroupInstantiationError
 
-**Symptom**
+## Symptom
 
 Raised naming the `Group` subclass someone tried to instantiate, saying it cannot be created as an
 object.
 
-**Cause**
+## Cause
 
 A `Group` subclass was called like a constructor (`MyGroup()`). Groups are namespaces for declaring
 providers as class attributes — they're never meant to be instantiated, only passed by class
 reference to `Container(groups=[MyGroup])` or read via `MyGroup.some_provider`.
 
-**Fix**
+## Fix
 
 Use the class itself, not an instance:
 

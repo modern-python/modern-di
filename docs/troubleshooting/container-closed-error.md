@@ -5,7 +5,7 @@ there is no unopened state that raises. This page stays (every concrete `modern-
 troubleshooting page) to document the class's back-compat status and the warning that replaced its
 failure mode.
 
-**What changed**
+## Cause
 
 Through 3.0, resolving from (or building a child of) a container that had never been opened, or one
 closed after use, raised `ContainerClosedError`. As of 3.1:
@@ -28,7 +28,7 @@ closed after use, raised `ContainerClosedError`. As of 3.1:
 exceptions.ContainerClosedError` clause does not break at import time — but nothing in the library
 raises it anymore. It is removed in 4.0.
 
-**What `ContainerClosedWarning` means**
+## Fix
 
 Seeing it means a reference to an already-closed container was resolved from — directly, or through
 a child container whose resolve reached back into the closed container's scope — without going back

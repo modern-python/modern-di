@@ -1,12 +1,12 @@
 # ProviderScopeFrozenError
 
-**Symptom**
+## Symptom
 
 Defining a `Group` subclass raises at class-creation (import) time. The error names a provider, the
 group that tried to change its scope, and the two scopes involved — and says the provider is
 already registered with a container.
 
-**Cause**
+## Cause
 
 A provider created without an explicit `scope=` takes its scope from whichever
 `class ...(Group, scope=...)` body stamps it first. A group declared **without** a `scope=` kwarg
@@ -31,7 +31,7 @@ class ScopedGroup(Group, scope=Scope.REQUEST):    # ProviderScopeFrozenError
     svc = shared
 ```
 
-**Fix**
+## Fix
 
 ```python
 # 1. Set scope= explicitly on the provider — explicit always wins over a group default,

@@ -2,7 +2,7 @@
 
 This error fires when a creator parameter is typed `Foo` and the container has no registered provider for `Foo`.
 
-## Understanding the error
+## Symptom
 
 **Direct miss** — resolving an unregistered type directly:
 
@@ -20,7 +20,7 @@ ArgumentResolutionError: Cannot resolve dependency chain:
 
 The resolver walked the creator's signature, found a parameter typed `MissingDep`, and looked it up in the providers registry — nothing was there. The "dependency chain" header shows where in the resolution graph the miss occurred.
 
-## Common causes
+## Cause
 
 ### 1. The group containing the provider was not passed to `Container`
 

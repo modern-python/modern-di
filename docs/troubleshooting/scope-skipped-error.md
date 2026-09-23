@@ -1,6 +1,6 @@
 # ScopeSkippedError
 
-**Symptom**
+## Symptom
 
 A resolution fails naming a provider's scope and the current container's scope, optionally with a
 dependency-path breadcrumb — the requested scope is shallower than the current container, but no
@@ -8,13 +8,13 @@ container at that scope exists anywhere in this chain. Each breadcrumb line may 
 to where that provider was declared (module and line number), so you can jump straight to the
 declaration.
 
-**Cause**
+## Cause
 
 The container chain skipped an intermediate scope when it was built. For example, a chain built
 `APP → ACTION` (skipping `SESSION` and `REQUEST` entirely) has no `REQUEST` container to satisfy a
 `REQUEST`-scoped provider, even though `REQUEST` is shallower than the current `ACTION` container.
 
-**Fix**
+## Fix
 
 Build child containers through every intermediate scope your providers need, rather than jumping
 straight to a deep one:

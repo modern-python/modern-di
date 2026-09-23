@@ -1,17 +1,17 @@
 # ChildContainerRegistrationError
 
-**Symptom**
+## Symptom
 
 Raised from `Container.add_providers()`, naming the scope of the child container it was called on.
 
-**Cause**
+## Cause
 
 `add_providers()` was called on a child container rather than the root. The providers registry is
 shared tree-wide (every container in the chain points at the same registry), so registering from a
 child would silently mutate every container in the tree — this is disallowed rather than done
 implicitly.
 
-**Fix**
+## Fix
 
 Call `add_providers()` on the root container instead:
 

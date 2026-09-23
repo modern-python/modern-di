@@ -1,19 +1,19 @@
 # ArgumentResolutionError
 
-**Symptom**
+## Symptom
 
 Raised naming a creator's parameter and the type it's annotated with, saying the argument couldn't be
 resolved while building a given dependency — often rendered as a dependency-chain trace with a
 `caused by:` line naming the specific parameter.
 
-**Cause**
+## Cause
 
 A creator parameter has no registered provider for its annotated type, no default value, and no
 matching `kwargs` entry — so `modern-di` has nothing to inject. This also covers an unannotated
 parameter with none of those escape routes, and a `ContextProvider`-backed parameter whose context
 value is unset and required (not optional, no default).
 
-**Fix**
+## Fix
 
 Pick whichever applies: register a provider for the missing type, give the parameter a default, or
 pass it explicitly via `kwargs`:

@@ -1,10 +1,10 @@
 # InvalidScopeTypeError
 
-**Symptom**
+## Symptom
 
 Raised when constructing a `Container` or when defining a `Group` subclass with a `scope=` class kwarg, naming the value that was passed as `scope=` and its type.
 
-**Cause**
+## Cause
 
 `scope=` must be an `enum.IntEnum` member. This fires in two contexts:
 
@@ -13,7 +13,7 @@ Raised when constructing a `Container` or when defining a `Group` subclass with 
 
 Example invalid uses: `Container(scope=1)`, `Container(scope="APP")`, `class MyGroup(Group, scope=1)`, `class MyGroup(Group, scope="REQUEST")`.
 
-**Fix**
+## Fix
 
 Use the built-in `Scope` enum, or your own `IntEnum` subclass:
 

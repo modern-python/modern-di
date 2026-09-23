@@ -1,18 +1,18 @@
 # UnknownFactoryKwargError
 
-**Symptom**
+## Symptom
 
 Raised at `Factory(...)` declaration time, listing the `kwargs` key(s) that don't match the creator's
 signature, the known parameter names, and a "did you mean" suggestion when a close match exists.
 
-**Cause**
+## Cause
 
 A key in `kwargs={...}` doesn't correspond to any parameter of the creator — usually a typo, or a key
 left over after the creator's signature was renamed/refactored. The creator has no `**kwargs`
 catch-all, so `modern-di` can validate the keys eagerly at declaration time rather than only failing
 at call time.
 
-**Fix**
+## Fix
 
 Match the `kwargs` keys to the creator's actual parameter names:
 
