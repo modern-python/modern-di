@@ -35,7 +35,7 @@ class Dependencies(Group):
 
 ## Escape hatches
 
-`skip_creator_parsing=True` bypasses signature parsing altogether (option 3 above) — use it when a
+`skip_creator_parsing=True` bypasses signature parsing altogether (option 3 above). Use it when a
 creator has several unsupported parameter shapes rather than fixing each one individually.
 
 ## See also

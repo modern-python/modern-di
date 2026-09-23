@@ -15,7 +15,7 @@ issue across the whole graph in one pass rather than stopping at the first one, 
 
 ## Fix
 
-Inspect `.errors` to see every underlying issue, or read the grouped `str()` report directly — each
+Inspect `.errors` to see every underlying issue, or read the grouped `str()` report directly. Each
 group is one of `CircularDependencyError`, `InvalidScopeDependencyError`, `ArgumentResolutionError`,
 or `AliasSourceNotRegisteredError` today. Fix each one; their own pages cover the specific cause and
 remedy:
@@ -28,9 +28,9 @@ except exceptions.ValidationFailedError as exc:
         print(type(error).__name__, error)
 ```
 
-Calling `validate()` explicitly at startup, before the first real request, is the
-whole point — it turns graph bugs into a single startup-time failure instead of scattered runtime
-surprises. Nothing calls it for you: not construction, not `open()`, not `resolve()`.
+Call `validate()` explicitly at startup, before the first real request: it turns graph bugs into a
+single startup-time failure instead of scattered runtime surprises. Nothing calls it for you: not
+construction, not `open()`, not `resolve()`.
 
 ## See also
 

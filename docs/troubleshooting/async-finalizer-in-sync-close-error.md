@@ -9,13 +9,13 @@ cached instance has an async finalizer.
 
 `close_sync()` cannot `await` anything. When it reaches a cached resource whose `CacheSettings`
 finalizer is an async function, it can't run it synchronously, so it records this error for that entry
-instead — and, unlike a normal finalizer failure, keeps the resource's cache entry intact rather than
+instead. Unlike a normal finalizer failure, it keeps the resource's cache entry intact rather than
 discarding it.
 
 ## Fix
 
 Use `close_async()` (or `async with container:`) for containers that hold any resource with an async
-finalizer — it's the only path that can actually run that cleanup:
+finalizer, since it's the only path that can actually run that cleanup:
 
 ```python
 container.resolve(AsyncResource)   # has an async finalizer

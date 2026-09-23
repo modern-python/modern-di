@@ -8,10 +8,10 @@ check `kwargs` and `skip_creator_parsing` usage.
 ## Cause
 
 Argument binding failed when calling the creator: the set of arguments `modern-di` assembled (static
-`kwargs` plus resolved dependencies) doesn't match the creator's signature — a required argument is
+`kwargs` plus resolved dependencies) doesn't match the creator's signature: a required argument is
 missing, or an unexpected one was passed. This typically happens with `skip_creator_parsing=True`
 (where every required argument must be covered by `kwargs`) or a `kwargs` dict that drifted from the
-signature. This is a **wiring problem, not a bug inside your constructor** — an exception raised
+signature. This is a **wiring problem, not a bug inside your constructor**. An exception raised
 inside the creator's body (even a `TypeError`) propagates unchanged as itself, never wrapped in this
 error.
 
@@ -38,7 +38,7 @@ class Dependencies(Group):
     )
 ```
 
-Without `skip_creator_parsing`, unknown `kwargs` keys are caught earlier, at declaration time — see
+Without `skip_creator_parsing`, unknown `kwargs` keys are caught earlier, at declaration time; see
 the page below.
 
 ## See also

@@ -1,6 +1,6 @@
 # Scope chain violation
 
-This error fires when a provider depends on another provider at a deeper (shorter-lived) scope — see [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why that's disallowed.
+This error fires when a provider depends on another provider at a deeper (shorter-lived) scope. See [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why that's disallowed.
 
 ## Symptom
 
@@ -38,12 +38,12 @@ InvalidScopeDependencyError (1):
 ## Cause
 
 1. **Forgot `scope=Scope.REQUEST` on a repository.** Defaults to `Scope.APP` if omitted. A repository that holds a session needs `scope=Scope.REQUEST`.
-2. **Helper or utility provider auto-defaulted to APP.** Same as above — anything that consumes the session is REQUEST-scoped.
+2. **Helper or utility provider auto-defaulted to APP.** Same as above: anything that consumes the session is REQUEST-scoped.
 3. **Choice factory consuming the request.** A factory that depends on the framework's `Request` is REQUEST-scoped; you cannot resolve it from the APP container.
 
 ## How to detect
 
-`container.validate()` runs this check at startup, before the first request. Call it — the
+`container.validate()` runs this check at startup, before the first request. Call it: the
 diagnostic is much clearer than the runtime symptoms.
 
 ## Fix
@@ -58,10 +58,10 @@ class Dependencies(Group):
         cache=providers.CacheSettings(finalizer=close_session),
     )
 
-    # ❌ APP-scoped — fails validation
+    # Broken: APP-scoped, fails validation
     user_repository = providers.Factory(UserRepository)
 
-    # ✅ REQUEST-scoped — matches session's lifetime
+    # Works: REQUEST-scoped, matches session's lifetime
     user_repository = providers.Factory(
         UserRepository,
         scope=Scope.REQUEST,

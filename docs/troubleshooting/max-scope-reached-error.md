@@ -35,7 +35,7 @@ step_container = Container(scope=ExtendedScope.STEP, parent_container=action_con
 sub_container = step_container.build_child_container(scope=ExtendedScope.SUBSTEP)
 ```
 
-Root containers rarely need this — reconsider whether the provider actually needs a scope deeper than
+Root containers rarely need this. Reconsider whether the provider actually needs a scope deeper than
 `STEP`, or whether it belongs at an existing shallower scope instead.
 
 ## See also
