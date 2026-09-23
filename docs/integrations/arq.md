@@ -6,21 +6,21 @@
 
 === "uv"
 
-      ```bash
-      uv add modern-di-arq
-      ```
+    ```bash
+    uv add modern-di-arq
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-arq
-      ```
+    ```bash
+    pip install modern-di-arq
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-arq
-      ```
+    ```bash
+    poetry add modern-di-arq
+    ```
 
 ### 2. Apply to your application
 

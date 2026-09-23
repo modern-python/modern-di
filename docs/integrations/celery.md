@@ -6,21 +6,21 @@
 
 === "uv"
 
-      ```bash
-      uv add modern-di-celery
-      ```
+    ```bash
+    uv add modern-di-celery
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-celery
-      ```
+    ```bash
+    pip install modern-di-celery
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-celery
-      ```
+    ```bash
+    poetry add modern-di-celery
+    ```
 
 ### 2. Apply to your application
 

@@ -11,21 +11,21 @@ per-connection child container automatically.
 
 === "uv"
 
-      ```bash
-      uv add modern-di-starlette
-      ```
+    ```bash
+    uv add modern-di-starlette
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-starlette
-      ```
+    ```bash
+    pip install modern-di-starlette
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-starlette
-      ```
+    ```bash
+    poetry add modern-di-starlette
+    ```
 
 ### 2. Apply to your application
 
@@ -163,7 +163,7 @@ async def ws_handler(
             ...  # resolve REQUEST-scoped providers for this message
 ```
 
-## Framework Context Objects
+## Framework context objects
 
 Framework-specific context objects like `starlette.requests.Request` and
 `starlette.websockets.WebSocket` are automatically made available by the
@@ -175,7 +175,7 @@ The following context providers are available for import:
 - `starlette_request_provider` — the current `starlette.requests.Request` (REQUEST scope)
 - `starlette_websocket_provider` — the current `starlette.websockets.WebSocket` (SESSION scope)
 
-### Implicit Usage (Type-based Resolution)
+### Implicit (type-based) usage
 
 ```python
 from starlette.requests import Request
@@ -190,7 +190,7 @@ class AppGroup(Group):
     request_info = providers.Factory(create_request_info, scope=Scope.REQUEST)
 ```
 
-### Explicit Usage (Provider-based Resolution)
+### Explicit (provider-based) usage
 
 ```python
 import modern_di_starlette

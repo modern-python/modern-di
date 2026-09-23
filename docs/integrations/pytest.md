@@ -18,21 +18,21 @@ example of that approach — the rest of this page assumes the plugin.
 
 === "uv"
 
-      ```bash
-      uv add --dev modern-di-pytest
-      ```
+    ```bash
+    uv add --dev modern-di-pytest
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-pytest
-      ```
+    ```bash
+    pip install modern-di-pytest
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add --group dev modern-di-pytest
-      ```
+    ```bash
+    poetry add --group dev modern-di-pytest
+    ```
 
 ### 2. Define a `di_container` fixture
 

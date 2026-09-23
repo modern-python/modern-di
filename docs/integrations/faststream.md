@@ -6,21 +6,21 @@
 
 === "uv"
 
-      ```bash
-      uv add modern-di-faststream
-      ```
+    ```bash
+    uv add modern-di-faststream
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-faststream
-      ```
+    ```bash
+    pip install modern-di-faststream
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-faststream
-      ```
+    ```bash
+    poetry add modern-di-faststream
+    ```
 
 ### 2. Apply to your application
 

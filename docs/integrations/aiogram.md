@@ -12,21 +12,21 @@ a per-update child container automatically.
 
 === "uv"
 
-      ```bash
-      uv add modern-di-aiogram
-      ```
+    ```bash
+    uv add modern-di-aiogram
+    ```
 
 === "pip"
 
-      ```bash
-      pip install modern-di-aiogram
-      ```
+    ```bash
+    pip install modern-di-aiogram
+    ```
 
 === "poetry"
 
-      ```bash
-      poetry add modern-di-aiogram
-      ```
+    ```bash
+    poetry add modern-di-aiogram
+    ```
 
 ### 2. Apply to your application
 
