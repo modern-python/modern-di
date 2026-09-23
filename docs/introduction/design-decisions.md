@@ -15,20 +15,20 @@ Cached `Factory` providers use a per-container reentrant lock (`threading.RLock`
 ### The thread-safety boundary
 
 - **Cached / singleton creation is locked.** The per-container reentrant lock guards the create-and-store step, so two threads racing to resolve the same cached provider get the same single instance.
-- **Provider registration is safe.** `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently — or while another thread iterates — will not corrupt the registry or raise "dict changed size during iteration".
+- **Provider registration is safe.** `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently, or while another thread iterates, will not corrupt the registry or raise "dict changed size during iteration".
 - **Registration is a setup phase, not a coordination tool.** The registry is
   lock-guarded against corruption, but the supported model is register every
   provider *before* serving. Registering a provider while other threads are
-  already resolving is timing-dependent by nature — nothing breaks, but whether
+  already resolving is timing-dependent by nature: nothing breaks, but whether
   a given resolve sees the new provider is undefined.
 - **`set_context` and overrides are last-write-wins.** Both write into a
   per-container dict with no ordering, queueing, or merge; concurrent writes to
   the same key keep whichever landed last. Do them during setup, or per-request
-  on a request-local child container — never from competing threads.
+  on a request-local child container, never from competing threads.
 - **Free-threaded CPython (PEP 703) is supported at `2 - Beta`.** Production-ready
   and tested under real multithreading on the `3.14t` build. It is Beta rather than
-  Stable for one specific reason: modern-di relies on object-publication ordering —
-  that a reader observing a stored reference sees fully-initialized fields — and
+  Stable for one specific reason: modern-di relies on object-publication ordering
+  (that a reader observing a stored reference sees fully-initialized fields), and
   CPython publishes no memory model, so that is implementation behaviour rather than
   a spec guarantee. Throughput also does not scale across cores; per-op latency is
   competitive, but atomic reference counting of the objects every resolve shares
@@ -36,15 +36,15 @@ Cached `Factory` providers use a per-container reentrant lock (`threading.RLock`
 
 ## 3. No global state
 
-All state — resolved instances, context values, overrides — lives in container registries. There is no module-level container, no `current_container()`, no thread-local singleton. You explicitly create a `Container` and pass it (or its children) where it needs to go. Framework integrations handle this for you.
+All state lives in container registries: resolved instances, context values, overrides. There is no module-level container, no `current_container()`, no thread-local singleton. You explicitly create a `Container` and pass it (or its children) where it needs to go. Framework integrations handle this for you.
 
 ## 4. Maximum type safety
 
-The codebase is type-checked with `ty` and linted with ruff's full rule set (`select = ["ALL"]`). Escape hatches (`typing.cast`, `ty: ignore`) are rare and localized — a handful across the whole library. Provider types parameterize on the resolved type, so type checkers infer the right thing without help.
+The codebase is type-checked with `ty` and linted with ruff's full rule set (`select = ["ALL"]`). Escape hatches (`typing.cast`, `ty: ignore`) are rare and localized: a handful across the whole library. Provider types parameterize on the resolved type, so type checkers infer the right thing without help.
 
 ## 5. Conservative feature set
 
-New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton — most other DI frameworks have two to three times that. This is deliberate: a small, composable core is easier to learn, easier to test, and easier to keep correct.
+New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton. Most other DI frameworks have two to three times that. This is deliberate: a small, composable core is easier to learn, easier to test, and easier to keep correct.
 
 The provider set is closed. `AbstractProvider` is the shared base that appears in signatures, not a hook: resolution compiles a resolver per known provider type, so a subclass of `AbstractProvider` or `Factory` raises `TypeError` at its first resolve. Compose behaviour in a creator function or an `Alias` instead.
 

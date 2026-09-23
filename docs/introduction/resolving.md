@@ -2,10 +2,10 @@
 
 `modern-di` exposes two ways to resolve a dependency:
 
-- **By type** — `container.resolve(SomeType)`. The resolver finds the provider whose `bound_type` matches `SomeType`. This is what handlers and creator signatures normally use.
-- **By provider reference** — `container.resolve_provider(Dependencies.some_provider)`. Resolves a specific provider directly, skipping the type lookup. Useful in tests and when two providers produce the same type.
+- **By type**: `container.resolve(SomeType)`. The resolver finds the provider whose `bound_type` matches `SomeType`. This is what handlers and creator signatures normally use.
+- **By provider reference**: `container.resolve_provider(Dependencies.some_provider)`. Resolves a specific provider directly, skipping the type lookup. Useful in tests and when two providers produce the same type.
 
-In practice, prefer resolution by type — it lets the same code work whether you swap implementations via subclassing, `Alias`, or `override`. Reach for `resolve_provider` only when type-based resolution would be ambiguous.
+In practice, prefer resolution by type: it lets the same code work whether you swap implementations via subclassing, `Alias`, or `override`. Reach for `resolve_provider` only when type-based resolution would be ambiguous.
 
 ## Automatic sub-dependency resolution
 

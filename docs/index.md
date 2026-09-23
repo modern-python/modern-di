@@ -47,11 +47,11 @@ For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqla
     poetry add modern-di
     ```
 
-If you want a framework integration, install the matching adapter — one `modern-di-*` package per framework (`modern-di-fastapi`, `modern-di-aiohttp`, `modern-di-litestar`, …); see the Integrations section for the full list. For pytest support, install `modern-di-pytest`.
+If you want a framework integration, install the matching adapter, one `modern-di-*` package per framework (`modern-di-fastapi`, `modern-di-aiohttp`, `modern-di-litestar`, …). The Integrations section has the full list. For pytest support, install `modern-di-pytest`.
 
 ## 2. First success
 
-One provider, no scopes, no caching — the smallest honest example. A `Group` is a namespace that
+One provider, no scopes, no caching: the smallest honest example. A `Group` is a namespace that
 lists your providers; `Container.resolve` looks a value up by its type.
 
 ```python
@@ -76,8 +76,8 @@ settings = container.resolve(Settings)
 print(settings.database_url)
 ```
 
-Without `cache=`, `Factory` calls the creator on every resolve — fine for cheap, stateless objects,
-but not what you want for a database engine you only want to build once.
+Without `cache=`, `Factory` calls the creator on every resolve. That is fine for cheap,
+stateless objects, but not what you want for a database engine you only want to build once.
 
 ## 3. Create once, reuse
 
@@ -171,7 +171,7 @@ with Container(groups=[Dependencies]) as container:
 A framework integration (linked under "Where to next" below) builds and tears down this REQUEST
 child container for you automatically. Resolution itself is always synchronous; use `async with`
 (on both the container and the child) instead of `with` only when a provider registers an
-**async** finalizer — see [Lifecycle](providers/lifecycle.md).
+**async** finalizer. See [Lifecycle](providers/lifecycle.md).
 
 ## Where to next
 
@@ -179,12 +179,12 @@ child container for you automatically. Resolution itself is always synchronous; 
   [arq](integrations/arq.md), [Celery](integrations/celery.md), [FastAPI](integrations/fastapi.md),
   [FastStream](integrations/faststream.md), [Flask](integrations/flask.md), [gRPC](integrations/grpc.md),
   [Litestar](integrations/litestar.md), [Starlette](integrations/starlette.md),
-  [taskiq](integrations/taskiq.md), [Typer](integrations/typer.md), [Pytest](integrations/pytest.md) —
-  each builds a scoped child container per request/task/call automatically and closes the APP
+  [taskiq](integrations/taskiq.md), [Typer](integrations/typer.md), [Pytest](integrations/pytest.md).
+  Each builds a scoped child container per request/task/call automatically and closes the APP
   container at shutdown.
 - [Resolving](introduction/resolving.md) — how type-based auto-injection works.
 - [Factories](providers/factories.md) — the provider you just used.
-- [Scopes](providers/scopes.md) — the APP → REQUEST lifetime model in one page.
+- [Scopes](providers/scopes.md) — the APP → REQUEST scope model in one page.
 - [Lifecycle](providers/lifecycle.md) — finalizers, `close_async()`, validation.
 - [Recipes](recipes/sqlalchemy.md) — async SQLAlchemy, lifespan-managed resources, testing with overrides.
 - [Good and bad practices](recipes/good-and-bad-practices.md) — named footguns and the mechanism that catches each one.

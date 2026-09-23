@@ -2,7 +2,7 @@
 
 FastAPI's own `Depends` system covers a single request-scoped web service well. You reach for
 modern-di once you need a second entrypoint (a worker, a CLI), typed app-wide singletons with real
-teardown, or overrides that work outside the HTTP path — see
+teardown, or overrides that work outside the HTTP path. See
 [Do you even need a DI container?](comparison.md#do-you-even-need-a-di-container). This page
 translates the `Depends` idioms you already know into their modern-di equivalents.
 
@@ -22,14 +22,15 @@ translates the `Depends` idioms you already know into their modern-di equivalent
 
 Since FastAPI 0.121.0, `Depends(scope="function" | "request")` controls **when the code after
 `yield` runs** relative to the response: `scope="function"` tears down right after your path
-operation function returns (before the response is sent), and `scope="request"` — the default for
-a `yield` dependency — tears down after the response has been sent back to the client. It says
+operation function returns (before the response is sent), and `scope="request"`, the default for
+a `yield` dependency, tears down after the response has been sent back to the client. It says
 nothing about how many times the dependency is *constructed*; that's `use_cache`'s job.
 
 modern-di's `Scope` (`APP → SESSION → REQUEST → ACTION → STEP`) answers a different question
 entirely: **how long a provider's cached instance lives**, not when its finalizer fires relative to
-a response. The two `scope`s share a word but not an axis — FastAPI's is teardown timing, modern-di's
-is lifetime. See [Scopes](../providers/scopes.md) for the full model.
+a response. The two `scope`s share a word but not an axis: FastAPI's is teardown timing, and
+modern-di's is how long a cached instance lives. See [Scopes](../providers/scopes.md) for the
+full model.
 
 ## Example: request-scoped session with teardown
 
@@ -61,8 +62,8 @@ class Dependencies(Group):
 ```
 
 This is the modern-di equivalent of a FastAPI `yield`-dependency that hands out one session per
-request and closes it afterward — but with the container's finalizer, not code after `yield`, and
-`Scope.REQUEST` naming the lifetime rather than the teardown moment.
+request and closes it afterward. The cleanup is the container's finalizer rather than code after
+`yield`, and `Scope.REQUEST` names how long the session lives rather than when it is torn down.
 
 ## See also
 
