@@ -47,8 +47,8 @@ move the dishka ratio below (1.14). The C1-C3 leveling does not apply to C4.
 
 C6 does not split either, for the same reason: modern-di's C6 body resolves by reference and there
 is no by-type C6 variant to pair against dishka and wireup, so a split would leave that half of the
-table mixed-basis. The rivals themselves do line up with the C1-C3 grouping here — that-depends
-resolves its C6 handler by reference exactly as it does on C1-C3 — so it is modern-di's missing
+table mixed-basis. The rivals themselves do line up with the C1-C3 grouping here (that-depends
+resolves its C6 handler by reference exactly as it does on C1-C3), so it is modern-di's missing
 variant, not the rivals' idioms, that keeps C6 in one table against all four.
 
 Every published cell is timed at the same `rounds × iterations` for every framework
@@ -76,7 +76,7 @@ Absolute cells are therefore not comparable with the earlier tables; the ratios 
 > the version you have.
 
 Each cell is modern-di ÷ rival: below 1.0 (bold) means modern-di is faster,
-above 1.0 means slower. Every ratio is **paired within each run** — one run measures both sides
+above 1.0 means slower. Every ratio is **paired within each run**: one run measures both sides
 under the same machine state, so the published statistic is the median of the per-run ratios,
 not a ratio of two independently-reduced medians. Pairing gives each ratio a well-defined
 across-run IQR, published as the `±X.X%` on the cell; read it before treating a near-1.00 cell
@@ -134,14 +134,14 @@ _Across-run IQR of each side's own median (5 runs): modern-di ≤1.5%, rivals �
   (**0.53**). The C1 series across publications is 1.08, 1.12, 0.98, 0.98, 0.97, 0.89, 0.91,
   0.65, now 0.58. that-depends remains faster on C2 warm-singleton (1.79); the suite does not
   decompose its `resolve_sync` cache-hit path, so no mechanism is asserted for the remaining gap.
-- **Against the two `exec`-codegen frameworks, the by-type table is now mostly modern-di's.**
+- Against the two `exec`-codegen frameworks, the by-type table is now mostly modern-di's.
   modern-di is faster than `dishka` on C1 (**0.71**) and C2 (**0.61**), and faster than `wireup`
   on C1 (**0.82**) and C3 (**0.87**). dishka keeps its lead on C3 (1.25), the deepest graph, and
   wireup keeps C2 (1.45). Since #470 modern-di also generates its resolvers from a source
   template, so the frame-count story this page used to tell about dishka's C3 no longer applies:
   both sides run one generated frame per node, and the suite does not decompose what dishka does
   differently on a six-node chain. No mechanism is asserted for that cell.
-- **The by-type surcharge is gone.** `Container.resolve` memoizes type → resolver directly, so
+- The by-type surcharge is gone. `Container.resolve` memoizes type → resolver directly, so
   the by-type and by-reference cells differ by 4-5 ns on C1 and C2 and swap sign on C3, all
   inside the run-to-run spread. The two tables now measure the same resolve; only the rival set
   differs.
@@ -191,14 +191,14 @@ store itself in its own `_scope_map`, making it a reference cycle that reference
 never free, so a request-scoped application handed the garbage collector work at its request rate.
 Seeding the map from the parent instead removed the cycle. Measured on the C4 benchmark at the
 time, that cut the median from 232.7 µs to 194.8 µs per 100-request batch and the standard
-deviation from 123.0 µs to 7.9 µs — the tail this scenario used to carry was the collector
+deviation from 123.0 µs to 7.9 µs. The tail this scenario used to carry was the collector
 reclaiming containers, and it is gone.
 
 **C4 is a batched request lifecycle.** modern-di resolves the connection synchronously while
 finalizing it asynchronously; the other four force an awaited resolve once the finalizer is
 async. C4 therefore measures the whole request lifecycle (enter scope → resolve →
 async-finalize), not an isolated resolve. It is timed as a **batch of 100 cycles per event-loop
-entry**, because a single `run_until_complete` entry costs ~35 µs on any body — timing one
+entry**, because a single `run_until_complete` entry costs ~35 µs on any body: timing one
 request per entry made every framework's cell ~93% asyncio floor. The published figure is the
 batch divided by 100. C1–C3 are synchronous resolves for every framework.
 
@@ -208,7 +208,7 @@ own way: modern-di seeds a child container's context and resolves by reference; 
 placeholder factory; that-depends supplies it through `container_context(global_context=)`; and
 dependency-injector injects **by reference** via `providers.Dependency` + `.override()`, a
 structural analog rather than an equivalent. modern-di's timed body builds the child, resolves, and closes
-it. It calls no `open()` — a freshly built child is already open as of 3.1, so timing one would
+it. It calls no `open()`: a freshly built child is already open as of 3.1, so timing one would
 charge modern-di a redundant lock acquire (81 ns, ~6% of the cell) with no counterpart in any
 rival's body. It does close, because all four rivals exit their scope inside the timed body; that
 teardown is ~110 ns, and omitting it would have flattered modern-di by more than the `open()`
@@ -219,7 +219,7 @@ defaults to `lock_factory=<class '_thread.lock'>`, so every `get()` behind its C
 acquires a lock; modern-di's cached read is lock-free by design (see
 [Design decisions](design-decisions.md#the-thread-safety-boundary)).
 Both run at their defaults, which is the comparison a user
-gets out of the box — a dishka user targeting single-threaded work can pass `lock_factory=None`,
+gets out of the box. A dishka user targeting single-threaded work can pass `lock_factory=None`,
 and that would move dishka's C1–C3 cells. The axis is disclosed rather than normalized away.
 
 ## Why the results look this way
@@ -240,15 +240,15 @@ through compiled resolvers where the check was already inline, did not move.
 
 3.1.1 removed a reference cycle rather than a frame: every `Container` stored itself in its own
 `_scope_map`, so no container could be freed by reference counting and each one waited for the
-garbage collector. Seeding the map from the parent removed it. Resolution is untouched — the
-C1–C3 cells did not move — but the request lifecycle did: C4's median fell from 232.7 µs to
+garbage collector. Seeding the map from the parent removed it. Resolution is untouched (the
+C1–C3 cells did not move), but the request lifecycle did: C4's median fell from 232.7 µs to
 194.8 µs per 100-request batch and its standard deviation from 123.0 µs to 7.9 µs, because the
 collector no longer has to reclaim containers that refcounting now frees.
 
 3.1.2 removed two more frames, this time from the warm-hit path. A cached resolve reached its
 compiled resolver through `ProvidersRegistry.resolver_for` and its `CacheItem` through
 `CacheRegistry.fetch_cache_item`; both methods open with a dict lookup that hits and returns.
-Both lookups are now inlined at the call site, with the method called only on a miss — where it
+Both lookups are now inlined at the call site, with the method called only on a miss, where it
 still owns the cycle guard, the memo write, and the `setdefault` that makes concurrent
 first-resolvers share one `CacheItem`. Worth ~42 ns on a warm hit, and because the first sits in
 `resolve_provider` it applies to every top-level resolve rather than only cached ones.
@@ -256,18 +256,18 @@ first-resolvers share one `CacheItem`. Worth ~42 ns on a warm hit, and because t
 3.2.0 trimmed three more paths rather than one. The cached resolver's cold-miss thunk is now
 built with `functools.partial` instead of a lambda closing over the target container: a closure
 promotes that variable to a cell for the *whole* resolver, so `MAKE_CELL` ran in the prologue on
-every call — including the warm hit that returns two lines later and the override hit that never
+every call, including the warm hit that returns two lines later and the override hit that never
 reaches it (−11.3% on a warm hit). The context-kwarg path front-guards its override lookup on
 `has_overrides` (−6.0%), which is the path every framework integration takes for its per-request
 values. And an `Alias` stopped routing through `Alias._find_source` and `Container.resolve_provider`
 on every hop: it now inlines both lookups and calls its source's compiled resolver directly, one
-Python frame per hop instead of four (~322 → ~252 ns). The alias change has no cell on this page
-— there is no alias scenario in the comparative suite.
+Python frame per hop instead of four (~322 → ~252 ns). The alias change has no cell on this page,
+because there is no alias scenario in the comparative suite.
 
 3.3.0 attacked the *call*, not the lookups. `resolve_positional` built its arguments with a list
 comprehension and star-called the creator, though the dependency count is fixed the moment a
 resolver compiles; a factory with 0 or 1 provider dependencies now compiles to a closure that
-names its argument and calls the creator directly — no list, no `CALL_FUNCTION_EX`, and below
+names its argument and calls the creator directly, with no list, no `CALL_FUNCTION_EX`, and below
 3.12 no comprehension frame either. The ladder stops at 1 because that is where the measured win
 is (leaves are arity 0, chain nodes are arity 1); rungs beyond it were built, measured, and
 dropped. Separately, `Container.resolve` stopped delegating to `resolve_provider` and carries
@@ -310,8 +310,8 @@ just bench-report   # isolated env; first run resolves the pinned rival deps; ru
 ```
 
 `just bench-report` also prints a C5 (cold build + first resolve) scenario that this page does
-not publish: its cells are not one axis — dependency-injector's is ~98% provider-graph deepcopy
-and that-depends wires at import with no per-container build at all — so a ratio column would
+not publish: its cells are not one axis (dependency-injector's is ~98% provider-graph deepcopy,
+and that-depends wires at import with no per-container build at all), so a ratio column would
 assert a comparison those numbers cannot support. See
 [`benchmarks/README.md`](https://github.com/modern-python/modern-di/blob/main/benchmarks/README.md).
 
