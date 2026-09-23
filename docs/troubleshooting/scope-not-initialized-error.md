@@ -9,7 +9,7 @@ number), so you can jump straight to the declaration.
 
 ## Cause
 
-A provider's scope is deeper than any container currently in the chain — you resolved (directly or
+A provider's scope is deeper than any container currently in the chain: you resolved (directly or
 transitively) a provider whose scope has no matching container built yet. For example, a
 `REQUEST`-scoped provider resolved straight from the `APP` container, with no `REQUEST` child ever
 built.
@@ -30,7 +30,7 @@ request_container.resolve(RequestScopedThing)
 ```
 
 When the breadcrumb shows a captive dependency (a shallower provider depending on this deeper one),
-the real fix is usually to move the *depending* provider to the deeper scope instead — see the scope
+the real fix is usually to move the *depending* provider to the deeper scope instead. See the scope
 dependency rule below, which `validate()` catches ahead of time as `InvalidScopeDependencyError`.
 
 ## See also

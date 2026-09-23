@@ -4,13 +4,13 @@ This error fires when a creator parameter is typed `Foo` and the container has n
 
 ## Symptom
 
-**Direct miss** — resolving an unregistered type directly:
+**Direct miss.** Resolving an unregistered type directly:
 
 ```
 ProviderNotRegisteredError: Provider of type <class 'SomeType'> is not registered in providers registry.
 ```
 
-**Nested miss** — a registered factory whose creator depends on an unregistered type:
+**Nested miss.** A registered factory whose creator depends on an unregistered type:
 
 ```
 ArgumentResolutionError: Cannot resolve dependency chain:
@@ -18,13 +18,13 @@ ArgumentResolutionError: Cannot resolve dependency chain:
   caused by: Argument dep of type <class 'MissingDep'> cannot be resolved. Trying to build dependency <class 'MyService'>.
 ```
 
-The resolver walked the creator's signature, found a parameter typed `MissingDep`, and looked it up in the providers registry — nothing was there. The "dependency chain" header shows where in the resolution graph the miss occurred.
+The resolver walked the creator's signature, found a parameter typed `MissingDep`, and looked it up in the providers registry. Nothing was there. The "dependency chain" header shows where in the resolution graph the miss occurred.
 
 ## Cause
 
 ### 1. The group containing the provider was not passed to `Container`
 
-Most common. If you split providers across `Database`, `UseCases`, `Cache`, you have to list them all:
+This is the most common cause. If you split providers across `Database`, `UseCases`, `Cache`, you have to list them all:
 
 ```python
 container = Container(groups=[Database, UseCases, Cache])
@@ -39,11 +39,11 @@ startup catches this before the first request.
 `modern-di` infers the provider's `bound_type` from the creator's return annotation. A creator like `def create_thing(...): ...` (no `-> SomeType`) has no inferable `bound_type` and won't be resolvable by type.
 
 ```python
-# ❌ Cannot resolve by type
+# Broken: cannot resolve by type
 def create_engine(...):
     return sa_async.create_async_engine(...)
 
-# ✅ Return-typed
+# Works: return-typed
 def create_engine(...) -> sa_async.AsyncEngine:
     return sa_async.create_async_engine(...)
 ```

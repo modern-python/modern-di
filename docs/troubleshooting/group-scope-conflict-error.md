@@ -9,7 +9,7 @@ and the two groups that disagree about its scope.
 
 A module-level provider instance was created without an explicit `scope=`, so it takes its scope
 from whichever `class ...(Group, scope=...)` body stamps it first. When that same instance is
-also referenced from a second group whose default scope differs, the two stamps conflict — the
+also referenced from a second group whose default scope differs, the two stamps conflict: the
 provider cannot have two different scopes, and import order must never be what silently decides
 which one wins.
 

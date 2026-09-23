@@ -8,7 +8,7 @@ object.
 ## Cause
 
 A `Group` subclass was called like a constructor (`MyGroup()`). Groups are namespaces for declaring
-providers as class attributes — they're never meant to be instantiated, only passed by class
+providers as class attributes. They're never meant to be instantiated, only passed by class
 reference to `Container(groups=[MyGroup])` or read via `MyGroup.some_provider`.
 
 ## Fix

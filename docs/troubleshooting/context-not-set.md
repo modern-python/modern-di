@@ -1,6 +1,6 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly raises `ContextValueNotSetError`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError` — **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly raises `ContextValueNotSetError`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError`, **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
 
 ## Symptom
 
@@ -10,16 +10,16 @@ Cannot resolve dependency chain:
   caused by: Argument tenant of type <class 'TenantId'> cannot be resolved. Trying to build dependency <class 'MyService'>.
 ```
 
-The error is an `ArgumentResolutionError` rendered as a chain: the top frame shows which provider failed, and the `caused by` line names the specific parameter that could not be wired. The parameter cannot be resolved because the `ContextProvider` for `TenantId` has no value in this container's context registry — nothing was set for that type on this container.
+The error is an `ArgumentResolutionError` rendered as a chain: the top frame shows which provider failed, and the `caused by` line names the specific parameter that could not be wired. The parameter cannot be resolved because the `ContextProvider` for `TenantId` has no value in this container's context registry: nothing was set for that type on this container.
 
 ## Cause
 
 ### 1. `set_context` was called on the wrong container (scope mismatch)
 
-Context never propagates between containers — see [context propagation](../providers/context.md#context-propagation) for why. For a REQUEST-scoped provider, only the request container's registry is ever consulted — setting the value on the parent has no effect, regardless of build order.
+Context never propagates between containers; see [context propagation](../providers/context.md#context-propagation) for why. For a REQUEST-scoped provider, only the request container's registry is ever consulted, so setting the value on the parent has no effect, regardless of build order.
 
 ```python
-# ❌ Broken: TenantId provider has scope=Scope.REQUEST, so it reads the REQUEST
+# Broken: TenantId provider has scope=Scope.REQUEST, so it reads the REQUEST
 # container's registry. Setting it on the APP parent does nothing.
 app_container.set_context(TenantId, TenantId("acme"))     # ignored for REQUEST-scoped providers
 request_container = app_container.build_child_container(scope=Scope.REQUEST)

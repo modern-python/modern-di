@@ -7,7 +7,7 @@ signature, the known parameter names, and a "did you mean" suggestion when a clo
 
 ## Cause
 
-A key in `kwargs={...}` doesn't correspond to any parameter of the creator — usually a typo, or a key
+A key in `kwargs={...}` doesn't correspond to any parameter of the creator, usually a typo or a key
 left over after the creator's signature was renamed/refactored. The creator has no `**kwargs`
 catch-all, so `modern-di` can validate the keys eagerly at declaration time rather than only failing
 at call time.
@@ -33,7 +33,7 @@ class Dependencies(Group):
 ```
 
 If the creator genuinely accepts arbitrary keyword arguments (`**kwargs` in its signature), this check
-is skipped automatically — no escape hatch needed.
+is skipped automatically, with no escape hatch needed.
 
 ## See also
 

@@ -3,13 +3,13 @@
 ## Symptom
 
 Raised naming a creator's parameter and the type it's annotated with, saying the argument couldn't be
-resolved while building a given dependency — often rendered as a dependency-chain trace with a
+resolved while building a given dependency, often rendered as a dependency-chain trace with a
 `caused by:` line naming the specific parameter.
 
 ## Cause
 
 A creator parameter has no registered provider for its annotated type, no default value, and no
-matching `kwargs` entry — so `modern-di` has nothing to inject. This also covers an unannotated
+matching `kwargs` entry, so `modern-di` has nothing to inject. This also covers an unannotated
 parameter with none of those escape routes, and a `ContextProvider`-backed parameter whose context
 value is unset and required (not optional, no default).
 
@@ -32,7 +32,7 @@ class Dependencies(Group):
 
 **Integration-supplied context types.** If the missing type is one a framework
 integration provides at runtime (`fastapi.Request`, `taskiq.TaskiqMessage`, …), its
-`ContextProvider` is registered by `setup_di()` — so a `container.validate()` call made
+`ContextProvider` is registered by `setup_di()`, so a `container.validate()` call made
 *before* `setup_di()` runs sees no provider for it yet and raises. Either call
 `validate()` **after** `setup_di()` (the provider is registered by then), or make the
 parameter optional (`request: fastapi.Request | None = None`) so validation skips it

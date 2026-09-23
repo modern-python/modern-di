@@ -1,6 +1,6 @@
 # Duplicate Type Error
 
-This error occurs when two or more providers are registered with the same `bound_type`. Modern-DI uses the `bound_type` to resolve dependencies by type, so each type must be unique in the providers registry.
+This error occurs when two or more providers are registered with the same `bound_type`. `modern-di` uses the `bound_type` to resolve dependencies by type, so each type must be unique in the providers registry.
 
 ## Symptom
 
@@ -26,7 +26,7 @@ To fix this error, you need to:
 1. Set `bound_type=None` on one of the duplicate providers to make it unresolvable by type
 2. Explicitly pass dependencies via the `kwargs` parameter to avoid automatic resolution
 
-Here's a complete example showing both steps:
+A complete example covering both steps:
 
 ```python
 from modern_di import Group, Scope, providers

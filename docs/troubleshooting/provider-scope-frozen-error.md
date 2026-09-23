@@ -3,7 +3,7 @@
 ## Symptom
 
 Defining a `Group` subclass raises at class-creation (import) time. The error names a provider, the
-group that tried to change its scope, and the two scopes involved — and says the provider is
+group that tried to change its scope, and the two scopes involved. It also says the provider is
 already registered with a container.
 
 ## Cause
@@ -11,7 +11,7 @@ already registered with a container.
 A provider created without an explicit `scope=` takes its scope from whichever
 `class ...(Group, scope=...)` body stamps it first. A group declared **without** a `scope=` kwarg
 stamps nothing, so a provider listed only in such a group keeps the `Scope.APP` default and stays
-unclaimed — a later group is still free to stamp it.
+unclaimed, so a later group is still free to stamp it.
 
 That is fine until the provider has been registered with a container. Registration compiles a
 resolver for the provider, and that resolver **captures the scope as it was at compile time**.
