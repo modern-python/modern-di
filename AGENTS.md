@@ -5,14 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 `modern-di` is a **zero-dependency** Python dependency injection framework; [`CONTEXT.md`](CONTEXT.md)
-opens with what it does and owns the vocabulary — read it before naming a concept in code, a test
+opens with what it does and owns the vocabulary. Read it before naming a concept in code, a test
 name, or an issue title. Every framework integration (`ls docs/integrations/`) lives in a **separate
 repository** and ships as a separate PyPI package, `modern-di-pytest` included.
 
 ## Commands
 
-`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
-`just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
+`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth.
+Run `just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
 say: nothing validates Markdown links outside `docs/`. `just docs-build` runs `mkdocs --strict` over
 the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.
 
@@ -38,7 +38,7 @@ Every module under `modern_di/` is named for what it does; read it. What a singl
 - `exceptions/` owns **every message and every glyph**. A raise site passes structured facts, never
   formatting; the class renders its own f-string and sets a `docs_slug` (its page under
   `docs/troubleshooting/`, enforced by `tests/test_docs_slug_census.py`). Add a message, a glyph, or a
-  class here — never at the raise site. Submodules split by family; `__init__` re-exports every name.
+  class here, never at the raise site. Submodules split by family; `__init__` re-exports every name.
 - `registries/` — `providers_registry` (type → provider, plus the shared plan/resolver memos) and
   `overrides_registry` are shared tree-wide; `cache_registry` and `context_registry` are per-container.
 - `dependency_graph.py` walks `WiringPlan.edges`, so what `validate()` traverses is exactly what
@@ -65,7 +65,7 @@ description, and PyPI does not rewrite relative links, so a relative one 404s on
   in 2.x), though **finalizers** may still be sync or async (`close_sync`/`close_async`); no global state
 - Docstrings: public API documents the contract; internal helpers get a one-line contract, plus at most
   1–2 lines for a genuinely non-obvious constraint. Never narrate implementation or justify code to a
-  reviewer — cross-file rationale lives in an invariant test's docstring
+  reviewer; cross-file rationale lives in an invariant test's docstring
 - `ruff` (`select = ["ALL"]`) and `ty` are configured in `pyproject.toml` and run by `just lint`
 
 ## Agent skills

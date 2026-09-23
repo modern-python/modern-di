@@ -73,7 +73,7 @@ with Container(groups=[Dependencies]) as container:
         print(repo.settings.database_url)
 ```
 
-See the [documentation](https://modern-di.modern-python.org) for scopes, lifecycles, finalizers, and framework integrations. `modern-di` is deliberately conservative — see [Design decisions](https://modern-di.modern-python.org/introduction/design-decisions/) for what it leaves out on purpose, including auto-binding, in-package integrations, and graph rendering.
+See the [documentation](https://modern-di.modern-python.org) for scopes, lifecycles, finalizers, and framework integrations. `modern-di` is deliberately conservative; see [Design decisions](https://modern-di.modern-python.org/introduction/design-decisions/) for what it leaves out on purpose, including auto-binding, in-package integrations, and graph rendering.
 
 Usage examples:
 
@@ -89,4 +89,4 @@ Usage examples:
 ## Part of `modern-python`
 
 Browse the full list of templates and libraries in
-[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
+[`modern-python`](https://github.com/modern-python). See the org profile for the categorized index.
