@@ -1,4 +1,4 @@
-# Circular Dependency Error
+# CircularDependencyError
 
 This error occurs when providers form a dependency cycle, meaning A depends on B which depends back on A (directly or through intermediate providers).
 

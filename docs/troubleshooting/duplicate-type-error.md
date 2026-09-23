@@ -1,4 +1,4 @@
-# Duplicate Type Error
+# DuplicateProviderTypeError
 
 This error occurs when two or more providers are registered with the same `bound_type`. `modern-di` uses the `bound_type` to resolve dependencies by type, so each type must be unique in the providers registry.
 

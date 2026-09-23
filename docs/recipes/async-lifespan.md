@@ -67,6 +67,6 @@ Many "async" resources actually construct synchronously: `redis.asyncio.Redis.fr
 ## See also
 
 - [Lifecycle](../providers/lifecycle.md) — `close_async()` and finalizers.
-- [Context Provider](../providers/context.md) — `ContextProvider` and `set_context` in depth.
+- [Context providers](../providers/context.md) — `ContextProvider` and `set_context` in depth.
 - [Scopes](../providers/scopes.md) — APP vs SESSION vs REQUEST.
 - [Async SQLAlchemy recipe](sqlalchemy.md) — the sync-creator-with-async-finalizer pattern for comparison.

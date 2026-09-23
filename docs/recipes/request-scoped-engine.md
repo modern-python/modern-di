@@ -85,5 +85,5 @@ Why the `PrimaryEngine` / `ReplicaEngine` subclasses: type-based resolution need
 ## See also
 
 - [Async SQLAlchemy recipe](sqlalchemy.md) — the simpler single-engine pattern.
-- [Context Provider](../providers/context.md) — how `Request` is injected.
+- [Context providers](../providers/context.md) — how `Request` is injected.
 - [Scopes](../providers/scopes.md) — why the engines are APP but the choice is REQUEST.
