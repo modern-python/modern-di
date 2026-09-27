@@ -8,16 +8,7 @@ import warnings
 from types import FrameType
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import (
-    Cycle,
-    DependenciesError,
-    DependencyGraph,
-    Edge,
-    NodeEntered,
-    build_cycle_error,
-    effective_scope,
-    terminal_chain,
-)
+from modern_di.dependency_graph import DependencyGraph, build_cycle_error, collect_errors
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -215,30 +206,6 @@ class Container:
         except RecursionError as exc:
             _handle_recursion_error(provider, self, exc)
 
-    def _walk_errors(self) -> list[Exception]:
-        """Walk the graph once, returning every wiring error in walk order."""
-        errors: list[Exception] = []
-        graph = DependencyGraph()
-        for event in graph.walk(self.providers_registry, self):
-            match event:
-                case NodeEntered(provider):
-                    errors.extend(provider.iter_validation_issues(self))
-                case DependenciesError(_, error):
-                    errors.append(error)
-                case Edge(parent, name, dep):
-                    dep_chain = terminal_chain(dep, self)
-                    if dep_chain[-1].scope > effective_scope(parent, self):
-                        errors.append(
-                            exceptions.InvalidScopeDependencyError(
-                                provider=parent,
-                                parameter_name=name,
-                                dep_chain=dep_chain,
-                            )
-                        )
-                case Cycle(providers):
-                    errors.append(build_cycle_error(providers, self))
-        return errors
-
     def validate(self) -> None:
         """Walk the static provider graph and raise on any wiring error.
 
@@ -251,9 +218,8 @@ class Container:
         if reg.is_validated():
             return
 
-        validation_errors = self._walk_errors()
-        if validation_errors:
-            raise exceptions.ValidationFailedError(errors=validation_errors)
+        if errors := collect_errors(self):
+            raise exceptions.ValidationFailedError(errors=errors)
         reg.mark_validated()
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
