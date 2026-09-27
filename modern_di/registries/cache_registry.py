@@ -20,7 +20,7 @@ class CacheItem:
     cache: typing.Any = types.UNSET
     finalized: bool = False
 
-    def _clear(self) -> None:
+    def clear(self) -> None:
         if self.settings and self.settings.clear_cache:
             self.cache = types.UNSET
             self.finalized = False
@@ -58,7 +58,7 @@ class CacheItem:
                 await result
             self.finalized = True
 
-        self._clear()
+        self.clear()
 
     def close_sync(self) -> None:
         if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
@@ -71,7 +71,7 @@ class CacheItem:
                 raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
             self.finalized = True
 
-        self._clear()
+        self.clear()
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -96,9 +96,13 @@ class CacheRegistry:
     async def close_async(self) -> None:
         finalizer_errors: list[BaseException] = []
         for cache_item in reversed(self._creation_order):
+            settings = cache_item.settings
+            if settings is None or settings.finalizer is None:
+                cache_item.clear()
+                continue
             try:
                 await cache_item.close_async()
-            except Exception as e:  # noqa: BLE001, PERF203
+            except Exception as e:  # noqa: BLE001
                 finalizer_errors.append(e)
         self._creation_order.clear()
         if finalizer_errors:

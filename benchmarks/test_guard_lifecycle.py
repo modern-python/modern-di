@@ -152,3 +152,43 @@ def test_g13_teardown_at_scale(benchmark):
 
     result = benchmark(_one_request)
     assert result.closed is True
+
+
+# --- G13b: teardown at scale, async close, nothing to finalize -------------
+# G13 finalizes 10 resources synchronously and G7 awaits one async finalizer. G13b awaits the close
+# of a child whose 10 cached REQUEST providers have no finalizer, so the close loop's per-item cost
+# is measured where there is nothing to run. Batched like G7 to keep the loop-entry floor out.
+_PLAIN_TYPES = [type(f"Plain{i}", (), {}) for i in range(10)]
+_PLAIN_GROUP = type(
+    "PlainGroup",
+    (Group,),
+    {f"plain{i}": providers.Factory(creator=t, scope=Scope.REQUEST, cache=True) for i, t in enumerate(_PLAIN_TYPES)},
+)
+_PLAIN_PROVIDERS = [getattr(_PLAIN_GROUP, f"plain{i}") for i in range(len(_PLAIN_TYPES))]
+
+
+def test_g13b_teardown_at_scale_async_no_finalizers(benchmark):
+    app = Container(scope=Scope.APP, groups=[_PLAIN_GROUP])
+    app.open()
+    loop = asyncio.new_event_loop()
+
+    async def _one_request() -> Container:
+        req = app.build_child_container(scope=Scope.REQUEST)
+        req.open()
+        for provider in _PLAIN_PROVIDERS:
+            req.resolve_provider(provider)
+        await req.close_async()
+        return req
+
+    async def _batch() -> list[Container]:
+        return [await _one_request() for _ in range(_BATCH)]
+
+    def _run_batch() -> list[Container]:
+        return loop.run_until_complete(_batch())
+
+    try:
+        result = benchmark(_run_batch)
+    finally:
+        loop.close()
+    assert len(result) == _BATCH
+    assert all(req.closed for req in result)
