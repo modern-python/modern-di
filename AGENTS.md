@@ -16,6 +16,11 @@ repository** and ships as a separate PyPI package, `modern-di-pytest` included.
 say: nothing validates Markdown links outside `docs/`. `just docs-build` runs `mkdocs --strict` over
 the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.
 
+Run `just install` before `just lint`, in every checkout and worktree. `uv.lock` is gitignored and
+CI's `just install` runs `uv lock --upgrade` before it syncs, so CI always lints with the newest
+`ruff` and `ty`; a plain `uv sync` keeps whatever the checkout resolved last time, and a stale `ty`
+passes code that CI rejects.
+
 ## Architecture
 
 - **Scope** — `IntEnum`, `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. A provider resolves only
