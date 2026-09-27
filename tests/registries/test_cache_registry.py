@@ -1,7 +1,11 @@
 import threading
 import typing
 
-from modern_di.registries.cache_registry import CacheItem
+import pytest
+
+from modern_di.providers import CacheSettings
+from modern_di.registries.cache_registry import CacheItem, CacheRegistry
+from modern_di.types import UNSET
 
 
 def _item() -> CacheItem:
@@ -83,3 +87,31 @@ def test_get_or_create_releases_lock_and_fast_path_on_second_call() -> None:
     # The lock was released by the first call's finally (not left held).
     assert lock.acquire(blocking=False)
     lock.release()
+
+
+async def test_close_async_awaits_only_items_with_a_finalizer(monkeypatch: pytest.MonkeyPatch) -> None:
+    awaited: list[CacheItem] = []
+    original = CacheItem.close_async
+
+    async def _recording(self: CacheItem) -> None:
+        awaited.append(self)
+        await original(self)
+
+    monkeypatch.setattr(CacheItem, "close_async", _recording)
+    finalized: list[object] = []
+    registry = CacheRegistry()
+    plain = CacheItem(settings=CacheSettings(), cache="plain")
+    persistent = CacheItem(settings=CacheSettings(clear_cache=False), cache="persistent")
+    bare = CacheItem(settings=None, cache="bare")
+    with_finalizer = CacheItem(settings=CacheSettings(finalizer=finalized.append), cache="finalized")
+    for item in (plain, persistent, bare, with_finalizer):
+        registry.mark_created(item)
+
+    await registry.close_async()
+
+    assert awaited == [with_finalizer]
+    assert finalized == ["finalized"]
+    assert plain.cache is UNSET
+    assert persistent.cache == "persistent"
+    assert bare.cache == "bare"
+    assert registry._creation_order == []
