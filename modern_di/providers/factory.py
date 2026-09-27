@@ -24,11 +24,11 @@ class CacheSettings(typing.Generic[types.T_co]):
     def __post_init__(self) -> None:
         self.is_async_finalizer = bool(self.finalizer) and inspect.iscoroutinefunction(self.finalizer)
 
-    @classmethod
-    def coerce(cls, cache: "bool | CacheSettings[types.T_co] | None") -> "CacheSettings[types.T_co] | None":
+    @staticmethod
+    def coerce(cache: "bool | CacheSettings[types.T] | None") -> "CacheSettings[types.T] | None":
         """Read a ``Factory``'s ``cache`` argument: ``True`` is the defaults, ``False`` and ``None`` are off."""
         if cache is True:
-            return cls()
+            return CacheSettings()
         return cache or None
 
 
