@@ -146,8 +146,8 @@ def _count_python_calls(fn: "typing.Callable[[], object]") -> int:
         # pragma: no cover - CPython does not trace inside a profile callback, so coverage
         # cannot see this body. That it runs is exactly what the caller's assertion proves.
         nonlocal calls
-        if event == "call":  # pragma: no cover
-            calls += 1  # pragma: no cover
+        if event == "call":  # pragma: no cover - runs inside a sys.setprofile callback, which CPython does not trace
+            calls += 1  # pragma: no cover - runs inside a sys.setprofile callback, which CPython does not trace
 
     sys.setprofile(profiler)
     try:
@@ -282,7 +282,7 @@ def test_arity_rung_reopens_a_closed_target(arity: int) -> None:
 def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
     # A creator whose real signature needs one more argument than the parser reports: the
     # positional call then raises TypeError, which the resolver must convert to CreatorCallError.
-    def _needs_one_more(*args: object, extra: object) -> _Bag:  # noqa: ARG001  # pragma: no cover
+    def _needs_one_more(*args: object, extra: object) -> _Bag:  # noqa: ARG001  # pragma: no cover - binding fails first
         msg = "unreachable - binding fails before the body runs; that is the point"
         raise AssertionError(msg)
 

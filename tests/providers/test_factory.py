@@ -651,7 +651,7 @@ class _UnregisteredDep:
 
 class _NeedsUnregistered:
     def __init__(self, dep: _UnregisteredDep) -> None:
-        self.dep = dep  # pragma: no cover
+        self.dep = dep  # pragma: no cover - _UnregisteredDep has no provider, so resolution fails first
 
 
 def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
@@ -671,7 +671,7 @@ def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
             container.resolve(_NeedsUnregistered)
         except exceptions.ResolutionError as exc:
             return str(exc)
-        return ""  # pragma: no cover
+        return ""  # pragma: no cover - runs only if resolve() stops raising
 
     first = _grab()
     second = _grab()
@@ -692,11 +692,11 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
 
     class _Leaf2:
         def __init__(self, dep: _MissingDep) -> None:
-            self.dep = dep  # pragma: no cover
+            self.dep = dep  # pragma: no cover - _MissingDep has no provider, so resolution fails first
 
     class _Parent2:
         def __init__(self, leaf: _Leaf2) -> None:
-            self.leaf = leaf  # pragma: no cover
+            self.leaf = leaf  # pragma: no cover - _Leaf2 fails to resolve, so _Parent2 is never built
 
     leaf2: providers.Factory[_Leaf2] = providers.Factory(creator=_Leaf2, scope=Scope.APP)
     parent2: providers.Factory[_Parent2] = providers.Factory(creator=_Parent2, scope=Scope.APP)
@@ -716,7 +716,7 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
         leaf_err = str(exc)
         assert "Parent2" not in leaf_err, f"Parent2 leaked into leaf error: {leaf_err!r}"
     else:
-        pytest.fail("Expected ResolutionError when resolving _Leaf2 directly")  # pragma: no cover
+        pytest.fail("Expected ResolutionError when resolving _Leaf2 directly")  # pragma: no cover - if _Leaf2 resolves
 
 
 def test_cache_true_returns_same_instance() -> None:

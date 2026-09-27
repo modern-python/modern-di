@@ -49,7 +49,7 @@ class _MultiKindCreator:
         req: _Request,
         with_default: int = 42,
     ) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - never instantiated; WiringPlan.build only reads its signature
 
 
 class _NullableNoDefaultCreator:
@@ -59,7 +59,7 @@ class _NullableNoDefaultCreator:
     """
 
     def __init__(self, nullable: str | None) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - never instantiated; WiringPlan.build only reads its signature
 
 
 def test_wiring_plan_partitioning() -> None:
@@ -127,7 +127,7 @@ def test_wiring_plan_nullable_no_default_goes_to_static_kwargs() -> None:
 
 class _UnwirableCreator:
     def __init__(self, required_dep: _ServiceA) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - never instantiated; WiringPlan.build only reads its signature
 
 
 def test_wiring_plan_unwireable_no_raise() -> None:
@@ -161,7 +161,7 @@ def test_wiring_plan_unwireable_no_raise() -> None:
 
 class _MixedOwner:
     def __init__(self, x: _ServiceA, y: _ServiceB) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - never instantiated; WiringPlan.build only reads its signature
 
 
 def test_wiring_plan_edges_include_static_supplied_providers() -> None:
@@ -280,7 +280,7 @@ def test_find_dep_provider_union_args_skips_owner() -> None:
 
 class _OrderedDeps:
     def __init__(self, first: _ServiceA, second: _ServiceB, third: _Request) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - never instantiated; WiringPlan.build only reads its signature
 
 
 def test_provider_kwargs_preserves_signature_order() -> None:

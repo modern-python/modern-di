@@ -105,11 +105,11 @@ def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
     # coverage.py can then under-report lines that run immediately during/after that recovery —
     # a known CPython/coverage.py interaction (not a real execution gap: these lines run on
     # every pass of this test, or the test would error/fail instead of passing).
-    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         _assert_simple_cycle(exc)
-    else:  # pragma: no cover
+    else:  # pragma: no cover - runs only if the cycle guard stops raising
         pytest.fail("expected CircularDependencyError")
-    finally:  # pragma: no cover
+    finally:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         sys.setrecursionlimit(original_limit)
 
 
@@ -134,11 +134,11 @@ def test_deep_chain_cycle_is_self_contained() -> None:
     try:
         container.resolve(Root)
     # See `test_unvalidated_cycle_raises_circular_dependency_error` for why this is `no cover`.
-    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         _assert_deep_chain_cycle_is_self_contained(exc)
-    else:  # pragma: no cover
+    else:  # pragma: no cover - runs only if the cycle guard stops raising
         pytest.fail("expected CircularDependencyError")
-    finally:  # pragma: no cover
+    finally:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         sys.setrecursionlimit(original_limit)
 
 
@@ -175,7 +175,7 @@ def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytes
     container.validate()  # marks the graph validated -> the recursion guard short-circuits below
     container.open()
 
-    def _explode(*_: object, **__: object) -> object:  # pragma: no cover
+    def _explode(*_: object, **__: object) -> object:  # pragma: no cover - validated graph must skip find_cycle_from
         msg = "walked"
         raise AssertionError(msg)
 
@@ -218,11 +218,11 @@ def test_cycle_error_is_canonical_and_self_contained() -> None:
     try:
         container.resolve(_CanonicalA)
     # See `test_unvalidated_cycle_raises_circular_dependency_error` for why this is `no cover`.
-    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         _assert_cycle_is_canonical_and_self_contained(exc)
-    else:  # pragma: no cover
+    else:  # pragma: no cover - runs only if the cycle guard stops raising
         pytest.fail("expected CircularDependencyError")
-    finally:  # pragma: no cover
+    finally:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         sys.setrecursionlimit(limit)
 
 
@@ -239,11 +239,11 @@ def test_by_reference_cycle_raises_circular_dependency_error() -> None:
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
     try:
         container.resolve_provider(CycleGroup.a)
-    except exceptions.CircularDependencyError as exc:  # pragma: no cover
+    except exceptions.CircularDependencyError as exc:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         _assert_simple_cycle(exc)
-    else:  # pragma: no cover
+    else:  # pragma: no cover - runs only if the cycle guard stops raising
         pytest.fail("expected CircularDependencyError")
-    finally:  # pragma: no cover
+    finally:  # pragma: no cover - 3.10 coverage loses it after RecursionError
         sys.setrecursionlimit(original_limit)
 
 
