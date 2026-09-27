@@ -396,6 +396,14 @@ def test_build_child_container_propagates_use_lock_false() -> None:
     assert child._lock is None
 
 
+def test_child_shares_the_root_lock() -> None:
+    root = Container(use_lock=True)
+    child = root.build_child_container(scope=Scope.REQUEST)
+    grandchild = Container(scope=Scope.ACTION, parent_container=child, use_lock=False)
+    assert child._lock is root._lock
+    assert grandchild._lock is root._lock
+
+
 def test_container_provider_resolves_on_subclasses() -> None:
     class MyContainer(Container):
         pass

@@ -95,7 +95,8 @@ class Container:
         """Build a container at ``scope``, open and ready to :meth:`resolve`.
 
         ``context`` seeds the context registry. A root binds :class:`Container` itself, so
-        ``resolve(Container)`` returns the resolving container. ``validate`` is deprecated and
+        ``resolve(Container)`` returns the resolving container. ``use_lock`` is read on a root
+        only: a child shares its parent's lock. ``validate`` is deprecated and
         ignored: passing it emits
         :class:`~modern_di.exceptions.ValidateArgumentWarning` and changes nothing.
 
@@ -109,7 +110,6 @@ class Container:
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
-        self._lock = threading.RLock() if use_lock else None
         self.closed = False
         self.scope = scope
         self.parent_container = parent_container
@@ -127,9 +127,12 @@ class Container:
         self.overrides_registry: OverridesRegistry
         # Inlined rather than a helper: this runs per child build (benchmark `test_g6_build_child_container`).
         if parent_container:
+            # SLF001 exempts `self`/`cls` only, so it flags this same-class read; no boundary is crossed.
+            self._lock = parent_container._lock  # noqa: SLF001
             self.providers_registry = parent_container.providers_registry
             self.overrides_registry = parent_container.overrides_registry
         else:
+            self._lock = threading.RLock() if use_lock else None
             self.providers_registry = ProvidersRegistry()
             self.providers_registry.register(Container, container_provider)
             self.overrides_registry = self.providers_registry.overrides
@@ -150,7 +153,7 @@ class Container:
             if scope is None:
                 raise exceptions.MaxScopeReachedError(parent_scope=self.scope)
 
-        return self.__class__(scope=scope, parent_container=self, context=context, use_lock=self._lock is not None)
+        return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
         if scope == self.scope:

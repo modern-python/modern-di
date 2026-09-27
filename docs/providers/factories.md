@@ -53,7 +53,7 @@ for the full cross-framework mapping.
 
 The caching mechanism is thread-safe by default: when multiple threads resolve the same cached factory simultaneously, only one instance is created.
 
-If your application is single-threaded, you can disable the lock for a small performance gain:
+If your application is single-threaded, you can disable the lock on the root container for a small performance gain; child containers inherit the setting:
 
 ```python
 container = Container(groups=[Dependencies], use_lock=False)
