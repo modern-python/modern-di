@@ -11,8 +11,8 @@ repository** and ships as a separate PyPI package, `modern-di-pytest` included.
 
 ## Commands
 
-`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth.
-Run `just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
+`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
+`just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
 say: nothing validates Markdown links outside `docs/`. `just docs-build` runs `mkdocs --strict` over
 the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.
 
