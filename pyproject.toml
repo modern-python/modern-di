@@ -5,7 +5,7 @@ authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
 requires-python = ">=3.10,<4"
 license = "MIT"
 readme = "README.md"
-keywords = ["dependency-injection", "di", "ioc-container", "scopes", "mocks", "python"]
+keywords = ["dependency-injection", "di", "ioc-container", "scopes", "mocks", "python", "asyncio", "modern-di"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
