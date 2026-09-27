@@ -77,7 +77,6 @@ nav:
       - To 1.x: migration/to-1.x.md
       - To 2.x: migration/to-2.x.md
       - To 3.x: migration/to-3.x.md
-      - To 4.x: migration/to-4.x.md
       - From that-depends: migration/from-that-depends.md
       - From dependency-injector: migration/from-dependency-injector.md
   - Development:
@@ -221,7 +220,6 @@ plugins:
           - migration/to-1.x.md: Migrating from modern-di 0.x to 1.x
           - migration/to-2.x.md: Migrating from modern-di 1.x to 2.x
           - migration/to-3.x.md: Migrating from modern-di 2.x to 3.x
-          - migration/to-4.x.md: Migrating from modern-di 3.x to 4.x
           - migration/from-that-depends.md: Migrating an existing that-depends codebase to modern-di
           - migration/from-dependency-injector.md: Migrating an existing dependency-injector codebase to modern-di
         Development:

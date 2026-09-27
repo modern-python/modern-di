@@ -26,19 +26,6 @@ inspect or iterate all providers declared on a group hierarchy.
 `inspect.iscoroutinefunction(finalizer)`. The cache registry uses it to decide whether to
 `await` the finalizer during `close_async()` or treat it as sync.
 
-### `find_container(scope)`
-
-`find_container(scope)` returns `self` immediately when `scope` is the resolving container's own
-scope; otherwise it looks `scope` up in `_scope_map` and returns the ancestor registered there,
-raising `ScopeNotInitializedError` or `ScopeSkippedError` if the scope is absent.
-The compiled resolvers do not call it on a hit. A generated resolver compares scopes and reads
-`_scope_map` inline, and calls `find_container` only when the scope is not an ancestor, which is
-when there is an error to raise. Overriding it in a `Container` subclass therefore does not
-redirect navigation; children are built through `self.__class__`, so a subclass still travels
-down the tree, but the container a hop lands on is the ancestor in `_scope_map`. `resolve` and
-`resolve_provider` are entry points, not hooks either: a compiled resolver calls its dependencies'
-resolvers directly, so an override of either sees only the top-level call.
-
 ## Container internals: no stability guarantee
 
 !!! warning "Internal surface"
@@ -54,6 +41,12 @@ resolvers directly, so an override of either sees only the top-level call.
   would make every container a reference cycle, and `find_container` never needs it: it
   short-circuits on its own scope first. The compiled resolvers read it directly on every
   cross-scope hop.
+- **`find_container(scope)`** returns `self` when `scope` is the container's own scope, otherwise
+  the ancestor in `_scope_map`, and raises `ScopeNotInitializedError` or `ScopeSkippedError` when
+  the scope is absent. The compiled resolvers call it only on that miss, so overriding it in a
+  `Container` subclass does not redirect navigation. `resolve` and `resolve_provider` are entry
+  points, not hooks either: a compiled resolver calls its dependencies' resolvers directly, so an
+  override of either sees only the top-level call.
 - **`_lock`** is a `threading.RLock` instance, or `None` when the container was created with
   `use_lock=False`. A cached `Factory`'s compiled resolver hands it to `CacheItem.get_or_create`,
   which gates the cold-miss build so one instance is created per cache key.
