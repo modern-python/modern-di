@@ -180,3 +180,27 @@ class DependencyGraph:
             yield DependenciesError(provider, exc)
             dependencies = {}
         stack.append(iter(dependencies.items()))
+
+
+def collect_errors(container: "Container") -> list[Exception]:
+    """Walk ``container``'s provider graph once and return every wiring error in walk order."""
+    errors: list[Exception] = []
+    for event in DependencyGraph().walk(container.providers_registry, container):
+        match event:
+            case NodeEntered(provider):
+                errors.extend(provider.iter_validation_issues(container))
+            case DependenciesError(_, error):
+                errors.append(error)
+            case Edge(parent, name, dep):
+                dep_chain = terminal_chain(dep, container)
+                if dep_chain[-1].scope > effective_scope(parent, container):
+                    errors.append(
+                        exceptions.InvalidScopeDependencyError(
+                            provider=parent,
+                            parameter_name=name,
+                            dep_chain=dep_chain,
+                        )
+                    )
+            case Cycle(providers):
+                errors.append(build_cycle_error(providers, container))
+    return errors

@@ -11,6 +11,7 @@ import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers, suggester
 from modern_di import container as container_module
+from modern_di.dependency_graph import collect_errors
 from modern_di.exceptions import (
     ArgumentResolutionError,
     ChildContainerRegistrationError,
@@ -335,7 +336,7 @@ def test_validate_accumulates_multiple_errors() -> None:
     assert CircularDependencyError in error_types
 
 
-def test_walk_errors_returns_flat_list_in_walk_order() -> None:
+def test_collect_errors_returns_flat_list_in_walk_order() -> None:
     class _Missing: ...
 
     @dataclasses.dataclass(kw_only=True, slots=True)
@@ -348,7 +349,7 @@ def test_walk_errors_returns_flat_list_in_walk_order() -> None:
         svc = providers.Factory(creator=_NeedsMissing)
 
     container = Container(scope=Scope.APP, groups=[G])
-    errors = container._walk_errors()
+    errors = collect_errors(container)
 
     # Root order is registration order (a, b, svc): the cycle closes while walking from root
     # `a`, so it is appended before `svc`'s missing dependency is reached.
