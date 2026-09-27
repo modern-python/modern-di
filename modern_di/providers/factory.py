@@ -6,7 +6,7 @@ import warnings
 
 from modern_di import exceptions, suggester, types
 from modern_di.providers.abstract import AbstractProvider
-from modern_di.types_parser import SignatureItem, parse_creator
+from modern_di.types_parser import ParsedCreator, SignatureItem, parse_creator
 from modern_di.wiring import WiringPlan
 
 
@@ -23,6 +23,13 @@ class CacheSettings(typing.Generic[types.T_co]):
 
     def __post_init__(self) -> None:
         self.is_async_finalizer = bool(self.finalizer) and inspect.iscoroutinefunction(self.finalizer)
+
+    @classmethod
+    def coerce(cls, cache: "bool | CacheSettings[types.T_co] | None") -> "CacheSettings[types.T_co] | None":
+        """Read a ``Factory``'s ``cache`` argument: ``True`` is the defaults, ``False`` and ``None`` are off."""
+        if cache is True:
+            return cls()
+        return cache or None
 
 
 class Factory(AbstractProvider[types.T_co]):
@@ -45,12 +52,6 @@ class Factory(AbstractProvider[types.T_co]):
         cache: bool | CacheSettings[types.T_co] | None = None,
         skip_creator_parsing: bool = False,
     ) -> None:
-        if cache is True:
-            resolved_cache: CacheSettings[types.T_co] | None = CacheSettings()
-        elif cache:  # a CacheSettings instance
-            resolved_cache = cache
-        else:  # None or False
-            resolved_cache = None
         if skip_creator_parsing:
             if bound_type is types.UNSET:
                 warnings.warn(
@@ -59,15 +60,12 @@ class Factory(AbstractProvider[types.T_co]):
                     UserWarning,
                     stacklevel=2,
                 )
-            parsed_type: type | None = None
-            parsed_kwargs: dict[str, SignatureItem] = {}
-            has_positional_only_gap = False
+            parsed = ParsedCreator(return_type=SignatureItem(), params={}, has_positional_only_gap=False)
         else:
-            return_sig, parsed_kwargs, has_positional_only_gap = parse_creator(creator)
-            parsed_type = return_sig.arg_type
+            parsed = parse_creator(creator)
             if kwargs:
-                self._validate_kwargs_against_signature(creator, kwargs, parsed_kwargs)
-            for param_name, item in parsed_kwargs.items():
+                self._validate_kwargs_against_signature(creator, kwargs, parsed.params)
+            for param_name, item in parsed.params.items():
                 if item.raw_annotation is None or item.default is not types.UNSET or (kwargs and param_name in kwargs):
                     continue
                 raise exceptions.UnsupportedCreatorParameterError(
@@ -79,11 +77,14 @@ class Factory(AbstractProvider[types.T_co]):
                         f"or use skip_creator_parsing=True"
                     ),
                 )
-        self._parsed_kwargs = parsed_kwargs
-        self._has_positional_only_gap = has_positional_only_gap
-        super().__init__(scope=scope, bound_type=parsed_type if isinstance(bound_type, types.UnsetType) else bound_type)
+        self._parsed_kwargs = parsed.params
+        self._has_positional_only_gap = parsed.has_positional_only_gap
+        super().__init__(
+            scope=scope,
+            bound_type=parsed.return_type.arg_type if isinstance(bound_type, types.UnsetType) else bound_type,
+        )
         self._creator = creator
-        self.cache_settings = resolved_cache
+        self.cache_settings = CacheSettings.coerce(cache)
         self._kwargs = kwargs
         self._cached_definition_site: str | types.UnsetType | None = types.UNSET
 

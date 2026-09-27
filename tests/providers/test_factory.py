@@ -1207,3 +1207,16 @@ def test_from_type_error_returns_none_for_creator_body_typeerror() -> None:
             creator=_body_raises, exc=exc, resolution_step=lambda: step
         )
     assert result is None
+
+
+@pytest.mark.parametrize(
+    ("cache", "expected"),
+    [(True, providers.CacheSettings()), (False, None), (None, None)],
+)
+def test_cache_settings_coerce(cache: bool | None, expected: providers.CacheSettings[object] | None) -> None:
+    assert providers.CacheSettings.coerce(cache) == expected
+
+
+def test_cache_settings_coerce_returns_an_instance_unchanged() -> None:
+    settings: providers.CacheSettings[object] = providers.CacheSettings(clear_cache=False)
+    assert providers.CacheSettings.coerce(settings) is settings
