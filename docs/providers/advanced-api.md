@@ -47,9 +47,10 @@ inspect or iterate all providers declared on a group hierarchy.
   `Container` subclass does not redirect navigation. `resolve` and `resolve_provider` are entry
   points, not hooks either: a compiled resolver calls its dependencies' resolvers directly, so an
   override of either sees only the top-level call.
-- **`_lock`** is a `threading.RLock` instance, or `None` when the container was created with
-  `use_lock=False`. A cached `Factory`'s compiled resolver hands it to `CacheItem.get_or_create`,
-  which gates the cold-miss build so one instance is created per cache key.
+- **`_lock`** is the tree's `threading.RLock`, created by the root and shared by every child, or
+  `None` when the root was created with `use_lock=False`. A cached `Factory`'s compiled resolver
+  hands it to `CacheItem.get_or_create`, which gates the cold-miss build so one instance is created
+  per cache key.
 
 The former public names `scope_map` and `lock` remain as read-only properties that emit
 `DeprecationWarning` and will be removed in a future release.
