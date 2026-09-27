@@ -91,7 +91,7 @@ def test_parse_markers_finds_annotated_marker_params() -> None:
     marker = Marker(_Service)
 
     def handler(a: int, b: typing.Annotated[_Service, marker], *, c: str = "x") -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - only its signature is parsed; never called
 
     assert parse_markers(handler) == {"b": marker}
 
@@ -100,7 +100,7 @@ def test_parse_markers_skips_return_annotation() -> None:
     marker = Marker(_Service)
 
     def handler() -> typing.Annotated[_Service, marker]:
-        raise NotImplementedError  # pragma: no cover
+        raise NotImplementedError  # pragma: no cover - only its signature is parsed; never called
 
     assert parse_markers(handler) == {}
 
@@ -110,14 +110,14 @@ def test_parse_markers_first_marker_wins_per_parameter() -> None:
     second: Marker[int] = Marker(int)
 
     def handler(a: typing.Annotated[_Service, first, second]) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - only its signature is parsed; never called
 
     assert parse_markers(handler) == {"a": first}
 
 
 def test_parse_markers_returns_empty_dict_when_no_markers() -> None:
     def handler(a: int) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - only its signature is parsed; never called
 
     assert parse_markers(handler) == {}
 
@@ -140,7 +140,7 @@ def test_resolve_markers_empty_input_returns_empty_dict() -> None:
 
 def test_mark_injected_then_is_injected_round_trips() -> None:
     def handler() -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - only marked and checked for the injected flag; never called
 
     assert is_injected(handler) is False
     mark_injected(handler)
@@ -169,6 +169,6 @@ def test_integrations_accessible_from_top_level_namespace() -> None:
 
 def test_parse_markers_ignores_annotated_metadata_that_is_not_a_marker() -> None:
     def handler(a: typing.Annotated[int, "not a marker"]) -> None:
-        pass  # pragma: no cover
+        pass  # pragma: no cover - only its signature is parsed; never called
 
     assert parse_markers(handler) == {}

@@ -32,11 +32,11 @@ def test_get_or_create_hit_returns_cache_without_resolving() -> None:
     item = _item()
     item.cache = "cached"
 
-    def resolve() -> object:  # pragma: no cover
+    def resolve() -> object:  # pragma: no cover - a cache hit must not resolve
         msg = "resolve must not run on a cache hit"
         raise AssertionError(msg)
 
-    def create(_: object) -> str:  # pragma: no cover
+    def create(_: object) -> str:  # pragma: no cover - a cache hit must not create
         msg = "create must not run on a cache hit"
         raise AssertionError(msg)
 
@@ -58,7 +58,7 @@ def test_get_or_create_double_checks_after_lock() -> None:
         item.cache = "won-the-race"
         return {}
 
-    def create(kwargs: dict[str, typing.Any]) -> str:  # pragma: no cover
+    def create(kwargs: dict[str, typing.Any]) -> str:  # pragma: no cover - the post-lock re-check must skip create
         created_calls.append(kwargs)
         return "should-not-be-used"
 

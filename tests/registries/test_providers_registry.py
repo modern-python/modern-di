@@ -141,8 +141,8 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
                 for _ in range(50):
                     list(iter(registry))
                     suggester.suggest(_RaceBase, registry)
-            except BaseException as e:  # noqa: BLE001  # pragma: no cover
-                errors_seen.append(e)  # pragma: no cover
+            except BaseException as e:  # noqa: BLE001  # pragma: no cover - only if a racing register() breaks reads
+                errors_seen.append(e)  # pragma: no cover - only if a racing register() breaks reads
 
         threads = [threading.Thread(target=writer), threading.Thread(target=reader)]
         for t in threads:
@@ -251,7 +251,7 @@ def test_mutation_during_compile_does_not_strand_a_stale_resolver(monkeypatch: p
     worker = threading.Thread(target=lambda: container.resolve_provider(svc))
     worker.start()
     try:
-        assert compiled.wait(5), "compile never reached the publication window"  # pragma: no cover
+        assert compiled.wait(5), "compile never reached the publication window"
         container.add_providers(providers.Factory(creator=_RaceDep, scope=Scope.APP))
     finally:
         may_publish.set()
@@ -295,7 +295,7 @@ def test_mutation_during_plan_build_does_not_strand_a_stale_plan(monkeypatch: py
     worker = threading.Thread(target=lambda: svc.wiring_plan(registry))
     worker.start()
     try:
-        assert built.wait(5), "plan build never reached the publication window"  # pragma: no cover
+        assert built.wait(5), "plan build never reached the publication window"
         container.add_providers(providers.Factory(creator=_RaceDep, scope=Scope.APP))
     finally:
         may_publish.set()
