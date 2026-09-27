@@ -7,8 +7,8 @@ resolvers never consult the overrides registry; applying an override drops the c
 resolvers instead (see ``ProvidersRegistry.drop_resolvers``). Why a template and not shared
 helpers: every all-Python single-copy design measured 25-80% slower (docs/introduction/performance.md).
 
-The template reaches into `Container._prepare`/`_lock` and `CacheRegistry._items` to stay within that
-frame budget. No linter sees the template, so those reaches are outside every suppression here.
+The template reaches into `Container._prepare`/`_lock`/`_scope_map` and `CacheRegistry._items` to stay
+within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
 import dataclasses
@@ -59,7 +59,12 @@ def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "Provid
 
 _TRANSIENT = """\
 def resolve(container):
-    target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+    if container.scope == scope:
+        target = container
+    else:
+        target = container._scope_map.get(scope)
+        if target is None:
+            target = _navigate(container, scope, resolution_step)
     if target.closed:
         target._prepare()
     try:
@@ -95,7 +100,12 @@ def create(built):
         raise error from exc
 
 def resolve(container):
-    target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+    if container.scope == scope:
+        target = container
+    else:
+        target = container._scope_map.get(scope)
+        if target is None:
+            target = _navigate(container, scope, resolution_step)
     if target.closed:
         target._prepare()
     cache_registry = target.cache_registry
@@ -113,7 +123,12 @@ def resolve(container):
 
 _CONTEXT_FOLD = """\
         for name, context_scope, context_type, disposition, item in context:
-            holder = target if target.scope == context_scope else target.find_container(context_scope)
+            if target.scope == context_scope:
+                holder = target
+            else:
+                holder = target._scope_map.get(context_scope)
+                if holder is None:
+                    holder = target.find_container(context_scope)
             if holder.closed:
                 holder._prepare()
             value = holder.context_registry.find_context(context_type)
@@ -270,7 +285,12 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
     context_type = cp.context_type
 
     def resolve(container: "Container") -> typing.Any:
-        target = container if container.scope == scope else container.find_container(scope)
+        if container.scope == scope:
+            target = container
+        else:
+            target = container._scope_map.get(scope)
+            if target is None:
+                target = container.find_container(scope)
         if target.closed:
             target._prepare()
         value = target.context_registry.find_context(context_type)
@@ -286,8 +306,7 @@ def _navigate(
     scope: typing.Any,
     resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
 ) -> "Container":
-    """Cross-scope target lookup; a scope error carries this provider's resolution step."""
-    # `find_container`, never an inlined `_scope_map` read: a Container subclass may redirect navigation.
+    """Miss path for a scope absent from `_scope_map`; the scope error carries this provider's resolution step."""
     try:
         return container.find_container(scope)
     except _SCOPE_ERRORS as exc:

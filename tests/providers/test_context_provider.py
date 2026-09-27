@@ -503,11 +503,12 @@ def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step(cache: 
     assert str(exc.value).count("Svc") == 1
 
 
-def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest.MonkeyPatch) -> None:
-    """INVARIANT: a same-scope context kwarg costs no navigation.
+def test_context_hop_does_not_call_find_container(monkeypatch: pytest.MonkeyPatch) -> None:
+    """INVARIANT: a context kwarg costs no navigation, same-scope or cross-scope.
 
-    The generated resolver folds the scope compare inline. Replacing it with an unconditional
-    `find_container` call adds a frame per context kwarg to the hottest path.
+    The generated resolver folds the scope compare and the ancestor lookup inline; `find_container`
+    runs only when the scope is not an ancestor, to raise. An unconditional call adds a frame per
+    context kwarg to the hottest path.
     """
 
     class Cfg: ...
@@ -531,8 +532,7 @@ def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest
     assert isinstance(request.resolve(Svc), Svc)
     assert calls == []
 
-    # The cross-scope hop must still route through find_container: a Container subclass may
-    # redirect navigation, which an inlined `_scope_map` read would bypass.
+    # The cross-scope hop reads `_scope_map` directly; `find_container` is the miss path only.
     class AppCfg: ...
 
     @dataclasses.dataclass(kw_only=True, slots=True)
@@ -549,7 +549,21 @@ def test_same_scope_context_hop_does_not_call_find_container(monkeypatch: pytest
 
     calls.clear()
     assert isinstance(request2.resolve(Wider), Wider)
-    assert calls == [Scope.APP]
+    assert calls == []
+
+
+def test_direct_context_resolve_below_its_scope_raises_scope_error() -> None:
+    """A direct resolve of a context provider from a container above its scope takes the miss path."""
+
+    class Cfg: ...
+
+    class G(Group):
+        cfg = providers.ContextProvider(Cfg, scope=Scope.REQUEST)
+
+    app = Container(scope=Scope.APP, groups=[G])
+
+    with pytest.raises(ScopeNotInitializedError):
+        app.resolve_provider(G.cfg)
 
 
 # The context fold is generated into both the cached and the transient template, so the cached
