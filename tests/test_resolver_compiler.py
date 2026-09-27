@@ -549,6 +549,42 @@ def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
     )
 
 
+def test_cross_scope_hop_costs_no_extra_frame() -> None:
+    """INVARIANT: a dependency at an ancestor scope costs the same Python calls as one at the resolving scope.
+
+    The generated resolver reads `_scope_map` itself; `find_container` and `_navigate` run only
+    when the scope is missing, to raise. Routing every hop through them costs two frames per
+    cross-scope dependency, on the path every REQUEST resolve of an APP dependency takes.
+    """
+
+    class _Dep: ...
+
+    @dataclasses.dataclass(slots=True)
+    class _Svc:
+        dep: _Dep
+
+    class _SameScope(Group):
+        dep = providers.Factory(creator=_Dep, scope=Scope.REQUEST)
+        svc = providers.Factory(creator=_Svc, scope=Scope.REQUEST)
+
+    class _CrossScope(Group):
+        dep = providers.Factory(creator=_Dep, scope=Scope.APP)
+        svc = providers.Factory(creator=_Svc, scope=Scope.REQUEST)
+
+    same = Container(scope=Scope.APP, groups=[_SameScope]).build_child_container(scope=Scope.REQUEST)
+    cross = Container(scope=Scope.APP, groups=[_CrossScope]).build_child_container(scope=Scope.REQUEST)
+    same.resolve_provider(_SameScope.svc)  # compile before measuring
+    cross.resolve_provider(_CrossScope.svc)
+
+    same_scope = _count_python_calls(lambda: same.resolve_provider(_SameScope.svc))
+    cross_scope = _count_python_calls(lambda: cross.resolve_provider(_CrossScope.svc))
+
+    assert cross_scope == same_scope, (
+        f"a cross-scope hop costs {cross_scope - same_scope} extra Python calls, expected 0. "
+        f"Routing the hop through find_container costs two."
+    )
+
+
 def test_overridden_alias_compiles_nothing_of_its_source() -> None:
     """INVARIANT: an override short-circuits before its provider's subtree is compiled.
 
