@@ -71,7 +71,7 @@ def nonetype_func(hook: None = None) -> None: ...
 
 
 def test_nonetype_params_keep_defaults_through_parse_creator() -> None:
-    _ret, params, _gap = parse_creator(nonetype_func)
+    params = parse_creator(nonetype_func).params
     assert params["hook"] == SignatureItem(default=None, is_nullable=True)
 
 
@@ -210,8 +210,8 @@ class ClassWithWrongAnnotations:
     ],
 )
 def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[str, SignatureItem]]) -> None:
-    return_sig, params, _gap = parse_creator(creator)
-    assert (return_sig, params) == result
+    parsed = parse_creator(creator)
+    assert (parsed.return_type, parsed.params) == result
 
 
 def test_parse_creator_str_generic_annotation_without_default_raises() -> None:
@@ -303,13 +303,13 @@ def _pos_only_with_default(x: int = 0, /, y: int = 1) -> int:
 
 def test_positional_only_param_with_default_is_skipped() -> None:
     assert _pos_only_with_default(2) == _pos_only_with_default(1, 2)
-    return_sig, params, has_positional_only_gap = parse_creator(_pos_only_with_default)
-    assert (return_sig, params) == (
+    parsed = parse_creator(_pos_only_with_default)
+    assert (parsed.return_type, parsed.params) == (
         SignatureItem(arg_type=int),
         {"y": SignatureItem(arg_type=int, default=1)},
     )
     # the dropped positional-only `x` is recorded so the compiled fast path keeps **kwargs
-    assert has_positional_only_gap is True
+    assert parsed.has_positional_only_gap is True
 
 
 def _mixed_kind_creator(pos_or_kw: int, *, kw_only: int) -> int:
@@ -320,6 +320,6 @@ def test_keyword_only_signal_recorded() -> None:
     # A keyword-only parameter records is_keyword_only=True; a positional-or-keyword one records
     # False. This is the only param-kind signal the compiled positional fast path consults.
     assert _mixed_kind_creator(1, kw_only=2) == 1 + 2  # exercise the creator body for coverage
-    _ret, params, _gap = parse_creator(_mixed_kind_creator)
+    params = parse_creator(_mixed_kind_creator).params
     assert params["pos_or_kw"].is_keyword_only is False
     assert params["kw_only"].is_keyword_only is True

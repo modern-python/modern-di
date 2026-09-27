@@ -86,18 +86,26 @@ def _parse_parameter(
     return item
 
 
-def parse_creator(
-    creator: typing.Callable[..., typing.Any],
-) -> tuple[SignatureItem, dict[str, SignatureItem], bool]:
-    """Return (return-type item, name→param item, has_positional_only_gap).
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class ParsedCreator:
+    """A creator's signature as the wiring reads it.
 
     ``has_positional_only_gap`` is True when a positional-only-with-default parameter was dropped
-    from the param map, so the map is no longer a faithful positional prefix of the signature.
+    from ``params``, so the map is no longer a faithful positional prefix of the signature.
     """
+
+    return_type: SignatureItem
+    params: dict[str, SignatureItem]
+    has_positional_only_gap: bool
+
+
+def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
     try:
         sig = inspect.signature(creator)
     except (ValueError, TypeError):
-        return SignatureItem.from_type(typing.cast(type, creator)), {}, False
+        return ParsedCreator(
+            return_type=SignatureItem.from_type(typing.cast(type, creator)), params={}, has_positional_only_gap=False
+        )
 
     is_class = isinstance(creator, type)
     try:
@@ -137,4 +145,4 @@ def parse_creator(
     else:
         return_sig = SignatureItem()
 
-    return return_sig, param_hints, has_positional_only_gap
+    return ParsedCreator(return_type=return_sig, params=param_hints, has_positional_only_gap=has_positional_only_gap)
