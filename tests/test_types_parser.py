@@ -295,6 +295,7 @@ def test_positional_only_param_raises_at_declaration() -> None:
         providers.Factory(creator=_pos_only_creator)
     # kwargs cannot help: the creator is always invoked creator(**kwargs)
     assert "kwargs" not in str(exc_info.value)
+    assert "skip_creator_parsing" not in str(exc_info.value)
 
 
 def _pos_only_with_default(x: int = 0, /, y: int = 1) -> int:
