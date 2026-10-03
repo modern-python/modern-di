@@ -1,14 +1,14 @@
 # Async SQLAlchemy: engine, session, repository
 
-**Problem.** Wire `create_async_engine` + `AsyncSession` + repository classes through `modern-di` so the engine is shared process-wide, sessions are per-request, and cleanup happens automatically at shutdown and at the end of each request.
+This recipe wires `create_async_engine` + `AsyncSession` + repository classes through `modern-di` so the engine is shared process-wide, sessions are per-request, and cleanup happens automatically at shutdown and at the end of each request.
 
 ## Solution
 
-Three providers, three scopes:
+The recipe uses three providers at two scopes:
 
-- **Engine** at `Scope.APP`: one per process, cached, disposed at shutdown.
-- **Session** at `Scope.REQUEST`: one per request, cached inside that request, closed at the end of the request.
-- **Repositories** at `Scope.REQUEST`: depend on the session by type; one per request.
+- The engine is at `Scope.APP`: one per process, cached, disposed at shutdown.
+- The session is at `Scope.REQUEST`: one per request, cached inside that request, closed at the end of the request.
+- Repositories are at `Scope.REQUEST` and depend on the session by type, one per request.
 
 ```python
 import sqlalchemy.ext.asyncio as sa_async
@@ -88,7 +88,7 @@ The integration creates a REQUEST child container per request, so the session an
 
 ## See also
 
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — why the engine is APP and sessions are REQUEST.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): why the engine is APP and sessions are REQUEST.
 - [Litestar integration](../integrations/litestar.md), [FastAPI integration](../integrations/fastapi.md).
 - Reference templates: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template), [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template).

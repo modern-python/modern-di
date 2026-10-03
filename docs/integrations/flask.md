@@ -4,7 +4,7 @@ Flask has no dependency-injection system of its own, so `modern-di-flask` uses
 the `@inject` decorator with `FromDI` markers (there is no `Depends`). `setup_di`
 installs a `before_request`/`teardown_appcontext` pair that opens a per-request
 `Scope.REQUEST` child container and closes it once the request finishes.
-Resolution is **sync-only**, and the child container is closed with `close_sync()`.
+Resolution is sync-only, and the child container is closed with `close_sync()`.
 
 ## How to use
 
@@ -155,7 +155,7 @@ for how implicit and explicit resolution work.
 
 The following context provider is available for import:
 
-- `flask_request_provider` — `ContextProvider` for the current `flask.Request` (REQUEST scope), auto-registered by type.
+- `flask_request_provider` is a `ContextProvider` for the current `flask.Request` (REQUEST scope), auto-registered by type.
 
 ### Implicit (type-based) usage
 
@@ -194,16 +194,16 @@ class AppGroup(Group):
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Multi-Group organization](../recipes/multi-group.md) — structuring a larger container.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Multi-Group organization](../recipes/multi-group.md): structuring a larger container.
+- [Lifecycle](../providers/lifecycle.md): finalizers and container teardown.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container, *, auto_inject=False)` | Registers the container on `app.extensions`, installs the `before_request`/`teardown_appcontext` pair that builds and closes a per-request `Scope.REQUEST` child container, and — if `auto_inject=True` — wraps every currently-registered view with `inject`; returns the container. |
+| `setup_di(app, container, *, auto_inject=False)` | Registers the container on `app.extensions`, installs the `before_request`/`teardown_appcontext` pair that builds and closes a per-request `Scope.REQUEST` child container, and, if `auto_inject=True`, wraps every currently-registered view with `inject`; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-request child container. |
 | `inject` | Decorator for a view function; resolves its `FromDI`-annotated parameters without rewriting the function's signature. Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.extensions`. |

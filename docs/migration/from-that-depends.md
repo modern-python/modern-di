@@ -70,9 +70,9 @@ Use this table as the index for the rest of the guide.
 | `Object` | `providers.Factory` with a creator that returns the value | [§4](#4-migrate-the-dependency-graph) |
 | `List` | `providers.Factory` with a creator that returns a list | [§4](#4-migrate-the-dependency-graph) |
 | `Dict` | `providers.Factory` with a creator that returns a dict | [§4](#4-migrate-the-dependency-graph) |
-| `Selector` | No direct equivalent — see [§9](#9-no-direct-equivalent) |
-| `AttrGetter` (`provider.attr`) | No direct equivalent — see [§9](#9-no-direct-equivalent) |
-| `ThreadLocalSingleton` | No direct equivalent — see [§9](#9-no-direct-equivalent) |
+| `Selector` | No direct equivalent; see [§9](#9-no-direct-equivalent) |
+| `AttrGetter` (`provider.attr`) | No direct equivalent; see [§9](#9-no-direct-equivalent) |
+| `ThreadLocalSingleton` | No direct equivalent; see [§9](#9-no-direct-equivalent) |
 | `State` | `ContextProvider` + `set_context` | [§5](#5-context-resources-and-request-scope) |
 | `Provider.bind(Type)` | `providers.Alias(..., bound_type=...)` | [§4](#4-migrate-the-dependency-graph) |
 | `@inject` + `Provide[T]()` (web) | `FromDI(T)` from the framework integration | [§8](#8-framework-integration-and-routes) |
@@ -80,7 +80,7 @@ Use this table as the index for the rest of the guide.
 | `container_context()` | `container.build_child_container(scope=..., context=...)` | [§5](#5-context-resources-and-request-scope) |
 | `DIContextMiddleware` | `setup_di(app, container)` / `ModernDIPlugin(container)` | [§8](#8-framework-integration-and-routes) |
 | `fetch_context_item` / `_by_type` | `ContextProvider(T)` | [§5](#5-context-resources-and-request-scope) |
-| `init_resources()` | Lazy initialization — no equivalent needed | [§7](#7-lifecycle-and-testing) |
+| `init_resources()` | Lazy initialization; no equivalent needed | [§7](#7-lifecycle-and-testing) |
 | `tear_down()` / `tear_down_sync()` | `await container.close_async()` / `container.close_sync()` | [§7](#7-lifecycle-and-testing) |
 | `container.override_providers_sync({...})` | `container.override(provider, mock)` | [§7](#7-lifecycle-and-testing) |
 | `provider.override_sync(mock)` | `container.override(provider, mock)` | [§7](#7-lifecycle-and-testing) |
@@ -149,7 +149,7 @@ When a provider is passed inside `kwargs={...}`, `modern-di` detects it and reso
 
 ### Per-provider replacements
 
-**`Singleton`** → cached `Factory` of `APP` scope:
+Replace `Singleton` with a cached `Factory` of `APP` scope:
 
 ```python
 # that-depends
@@ -162,9 +162,9 @@ some_singleton = providers.Factory(
 )
 ```
 
-**`Resource`** (sync generator or context manager) → cached `Factory` with a `finalizer`, splitting the generator into a creator and a finalizer function. See `database_engine` in the worked example above.
+Replace a sync `Resource` (sync generator or context manager) with a cached `Factory` that has a `finalizer`, splitting the generator into a creator and a finalizer function. See `database_engine` in the worked example above.
 
-**`Object`** → `Factory` whose creator returns the value. Define a small typed function (lambdas have no return annotation, which prevents resolution by type):
+Replace `Object` with a `Factory` whose creator returns the value. Define a small typed function (lambdas have no return annotation, which prevents resolution by type):
 
 ```python
 # that-depends
@@ -181,7 +181,7 @@ api_key = providers.Factory(_api_key, cache=True)
 
 If you only need the value passed into one downstream provider, skip the wrapper and put it directly in that provider's `kwargs`.
 
-**`List` / `Dict`** → `Factory` with a creator that builds the collection:
+Replace `List` and `Dict` with a `Factory` whose creator builds the collection:
 
 ```python
 # that-depends
@@ -194,7 +194,7 @@ def build_list(a: SomeType1, b: SomeType2) -> list[object]:
 some_list = providers.Factory(build_list)
 ```
 
-**`Provider.bind(Type)`** → `Alias`. Useful when you want an abstract type (`Protocol`, ABC) to resolve to a concrete registered provider:
+Replace `Provider.bind(Type)` with `Alias`. This is useful when you want an abstract type (`Protocol`, ABC) to resolve to a concrete registered provider:
 
 ```python
 # that-depends
@@ -238,11 +238,11 @@ with container.build_child_container(
     repo = request_container.resolve(TenantScopedRepository)
 ```
 
-`ContextProvider` returns the value registered for that type on the container **at the provider's own scope**. There is no global lookup like `fetch_context_item`, and [context never propagates between containers](../providers/context.md#context-propagation). For a REQUEST-scoped `ContextProvider`, pass the value to the request container via `build_child_container(context={TenantId: tenant})` or `request_container.set_context(TenantId, tenant)`.
+`ContextProvider` returns the value registered for that type on the container at the provider's own scope. There is no global lookup like `fetch_context_item`, and [context never propagates between containers](../providers/context.md#context-propagation). For a REQUEST-scoped `ContextProvider`, pass the value to the request container via `build_child_container(context={TenantId: tenant})` or `request_container.set_context(TenantId, tenant)`.
 
 ## 6. Async resources
 
-`modern-di` resolves synchronously. There is no `AsyncFactory`, no `AsyncSingleton`, and no `await container.resolve(...)`. The pattern is **async lives in the lifespan, not in the resolve path.** Three cases cover almost everything.
+`modern-di` resolves synchronously. There is no `AsyncFactory`, no `AsyncSingleton`, and no `await container.resolve(...)`. Async work lives in the lifespan, not in the resolve path. Three cases cover almost everything.
 
 ### Sync creator, async finalizer
 
@@ -273,7 +273,7 @@ engine = providers.Factory(
 `ContextProvider` via `set_context` so downstream factories can depend on its type. See
 [Async resources via lifespan](../recipes/async-lifespan.md) for the full pattern, the pitfalls
 (setting context before yielding, combining a hand-written lifespan with an integration's
-`setup_di`), and which resources construct synchronously enough to skip this and just use a
+`setup_di`), and which resources construct synchronously enough to skip this and use a
 sync creator with an async finalizer instead.
 
 ### Per-request async construction
@@ -285,11 +285,11 @@ If a per-request resource genuinely needs `await` at construction time, the simp
 ### Lifecycle
 
 - There is no `init_resources()` equivalent: providers initialize lazily on first resolve; see [Lazy initialization](../providers/lifecycle.md#lazy-initialization) for eager-warmup at startup.
-- `tear_down()` / `tear_down_sync()` → `await container.close_async()` / `container.close_sync()`, also usable as (async) context managers. The framework integrations call `close_async()` automatically at app shutdown.
+- `tear_down()` / `tear_down_sync()` become `await container.close_async()` / `container.close_sync()`, also usable as (async) context managers. The framework integrations call `close_async()` automatically at app shutdown.
 
 ### Overrides
 
-Overrides are keyed by **provider reference**, not by name:
+Overrides are keyed by provider reference, not by name:
 
 ```python
 # that-depends
@@ -315,12 +315,12 @@ Replace `DIContextMiddleware` with the integration package's setup call ([FastAP
 
 A handful of `that-depends` features have no direct port. Workarounds:
 
-- **`Selector`**: write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
-- **`AttrGetter` (`provider.attr` syntax)**: resolve the parent inside the consuming creator and access the attribute there, or expose a dedicated `Factory` whose creator returns the attribute.
-- **`ThreadLocalSingleton`**: register an uncached `Factory` whose creator reads the object from a module-level `threading.local()` and creates and stores it there on a thread's first call. A cached `Factory` can't do this, because it caches one object for the whole container.
-- **`@inject` + `Provide[T]()` for non-framework functions**: `modern-di` has no general-purpose injection decorator. Call `container.resolve(T)` explicitly at the call site, or expose the function through a framework integration and use `FromDI(T)`.
+- For `Selector`, write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
+- For `AttrGetter` (`provider.attr` syntax), resolve the parent inside the consuming creator and access the attribute there, or expose a dedicated `Factory` whose creator returns the attribute.
+- For `ThreadLocalSingleton`, register an uncached `Factory` whose creator reads the object from a module-level `threading.local()` and creates and stores it there on a thread's first call. A cached `Factory` can't do this, because it caches one object for the whole container.
+- `modern-di` has no general-purpose injection decorator to replace `@inject` + `Provide[T]()` on non-framework functions. Call `container.resolve(T)` explicitly at the call site, or expose the function through a framework integration and use `FromDI(T)`.
 
 ## More
 
-- Litestar usage example — [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
-- FastAPI usage example — [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
+- Litestar usage example: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- FastAPI usage example: [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)

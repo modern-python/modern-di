@@ -1,6 +1,6 @@
 # Usage with `Litestar`
 
-*More advanced example of usage with Litestar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)*
+*More advanced example of usage with Litestar: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)*
 
 ## How to use
 
@@ -155,8 +155,8 @@ and explicit resolution work.
 
 The following context providers are available for import:
 
-- `litestar_request_provider` - Provides the current `litestar.Request` object
-- `litestar_websocket_provider` - Provides the current `litestar.WebSocket` object
+- `litestar_request_provider` provides the current `litestar.Request` object
+- `litestar_websocket_provider` provides the current `litestar.WebSocket` object
 
 ### Implicit (type-based) usage
 
@@ -208,10 +208,10 @@ class AppGroup(Group):
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md): engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 

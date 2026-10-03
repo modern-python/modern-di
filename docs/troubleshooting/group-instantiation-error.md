@@ -34,4 +34,4 @@ annotation or default value.
 
 ## See also
 
-- [Multi-Group organization](../recipes/multi-group.md) — organizing providers across several `Group` classes.
+- [Multi-Group organization](../recipes/multi-group.md) covers organizing providers across several `Group` classes.

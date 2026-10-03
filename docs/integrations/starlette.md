@@ -74,13 +74,13 @@ container.validate()  # after setup_di — its connection providers are now regi
 ```
 
 !!! warning "Deployment: mounted sub-apps and disabled lifespan"
-    Starlette only opens the root container from the ASGI **lifespan** event.
-    A `setup_di`-wired app **mounted as a sub-application**
+    Starlette only opens the root container from the ASGI lifespan event.
+    A `setup_di`-wired app mounted as a sub-application
     (`app.mount("/sub", subapp)`) never receives that event from its parent,
     and deployments that disable lifespan (e.g. Mangum `lifespan="off"`) skip
     it too. Requests still succeed (the container is already open from
     construction), but nothing ever closes it, so its finalizers never run at
-    shutdown. Call `setup_di` on the **top-level served app**, or close the
+    shutdown. Call `setup_di` on the top-level served app, or close the
     root yourself (`await container.close_async()`) at shutdown.
 
 ### 3. Scopes
@@ -172,8 +172,8 @@ for how implicit and explicit resolution work.
 
 The following context providers are available for import:
 
-- `starlette_request_provider` — the current `starlette.requests.Request` (REQUEST scope)
-- `starlette_websocket_provider` — the current `starlette.websockets.WebSocket` (SESSION scope)
+- `starlette_request_provider` provides the current `starlette.requests.Request` (REQUEST scope)
+- `starlette_websocket_provider` provides the current `starlette.websockets.WebSocket` (SESSION scope)
 
 ### Implicit (type-based) usage
 
@@ -212,10 +212,10 @@ class AppGroup(Group):
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md): engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 

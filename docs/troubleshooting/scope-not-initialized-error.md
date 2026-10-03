@@ -35,5 +35,5 @@ dependency rule below, which `validate()` catches ahead of time as `InvalidScope
 
 ## See also
 
-- [Scope chain violation](scope-chain.md) — the related, statically-detected form of this problem.
+- [Scope chain violation](scope-chain.md) covers the related, statically-detected form of this problem.
 - [Scopes: the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule).

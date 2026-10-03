@@ -101,7 +101,7 @@ Between `setup_di` and startup no broker carries the middleware yet; see
 
 ## Scopes
 
-The integration creates a `Scope.REQUEST` child container **for each message** the subscriber receives. REQUEST-scoped providers (and their finalizers) live for the duration of that one message; APP-scoped providers persist for the whole process. At app shutdown, the integration runs `await container.close_async()` on the APP container.
+The integration creates a `Scope.REQUEST` child container for each message the subscriber receives. REQUEST-scoped providers (and their finalizers) live for the duration of that one message; APP-scoped providers persist for the whole process. At app shutdown, the integration runs `await container.close_async()` on the APP container.
 
 There is no `Scope.SESSION` for FastStream: message brokers don't have a session concept comparable to websockets.
 
@@ -111,7 +111,7 @@ There is no `Scope.SESSION` for FastStream: message brokers don't have a session
 
 The following context provider is also available for explicit import:
 
-- `faststream_message_provider` — provides the current `faststream.StreamMessage` object.
+- `faststream_message_provider` provides the current `faststream.StreamMessage` object.
 
 ### Implicit (type-based) usage
 
@@ -174,16 +174,16 @@ class AppGroup(Group):
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Async resources via lifespan](../recipes/async-lifespan.md) — constructing async resources with finalizers.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Async resources via lifespan](../recipes/async-lifespan.md): constructing async resources with finalizers.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Wire the APP-scope container into FastStream — at startup, installs the middleware that creates a REQUEST child container per message on every broker of the app, and raises `RuntimeError` if there is none by then; closes the APP container at shutdown. |
+| `setup_di(app, container)` | Wire the APP-scope container into FastStream: at startup, installs the middleware that creates a REQUEST child container per message on every broker of the app, and raises `RuntimeError` if there is none by then; closes the APP container at shutdown. |
 | `FromDI(dependency, *, use_cache=True, cast=False)` | A `faststream.Depends` wrapper for `Annotated[T, FromDI(...)]` in subscriber signatures; accepts a provider instance or a plain type. `use_cache` and `cast` are passed through to `faststream.Depends`. Raises `RuntimeError` naming `setup_di` when a message reaches it without the middleware installed. |
 | `fetch_di_container(app)` | Returns the APP-scope container registered with the FastStream app. |
 | `faststream_message_provider` | `ContextProvider` for the current `faststream.StreamMessage`. |

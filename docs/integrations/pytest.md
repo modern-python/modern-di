@@ -128,7 +128,7 @@ one or more `Group` subclasses can be exposed against the request container.
 
 ## Overrides
 
-`modern-di-pytest` deliberately does **not** ship override sugar. Use
+`modern-di-pytest` deliberately does not ship override sugar. Use
 `Container.override()` directly; it is already backed by a tree-shared
 `OverridesRegistry`.
 
@@ -172,5 +172,5 @@ For deeper patterns (transactional DB sessions, resetting all overrides) see the
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — override patterns beyond fixtures.
-- [Scopes](../providers/scopes.md) — session vs request container fixtures.
+- [Testing with overrides](../recipes/testing-overrides.md): override patterns beyond fixtures.
+- [Scopes](../providers/scopes.md): session vs request container fixtures.

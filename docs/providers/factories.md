@@ -44,7 +44,7 @@ assert isinstance(instance2, IndependentFactory)
 
 Cached factories resolve the dependency only once and cache the resolved instance for future injections.
 
-**This is modern-di's Singleton.** There is no separate `Singleton` provider class: `Factory(cache=True)`
+This is modern-di's Singleton. There is no separate `Singleton` provider class: `Factory(cache=True)`
 *is* the singleton idiom, at whatever scope you declare it (`Scope.APP` for one-per-process,
 `Scope.REQUEST` for one-per-request, etc.). Other DI frameworks name this concept `Singleton`,
 `provide(..., scope=...)`, `@injectable(lifetime="singleton")`, or `@lru_cache`; see
@@ -208,14 +208,14 @@ The table below summarises how Modern-DI handles each parameter shape during **d
 
 | Parameter shape | Behaviour | When it fails |
 |---|---|---|
-| `param: SomeClass` — plain type annotation with a registered provider | Resolved and injected automatically. | `ArgumentResolutionError` at resolve if no provider is registered and there is no default. |
-| `param: X | None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails — see [Optional parameters](#optional-parameters). |
-| `param: A | B` — union without `None` | First registered type from the union is injected. A member that is itself a parameterized generic (e.g. `int | list[X]`) degrades to its bare origin (`list`) for matching purposes — see the note below. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
+| `param: SomeClass` (plain type annotation with a registered provider) | Resolved and injected automatically. | `ArgumentResolutionError` at resolve if no provider is registered and there is no default. |
+| `param: X | None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails; see [Optional parameters](#optional-parameters). |
+| `param: A | B` (union without `None`) | First registered type from the union is injected. A member that is itself a parameterized generic (e.g. `int | list[X]`) degrades to its bare origin (`list`) for matching purposes; see the note below. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
 | `param: list[X]` / any parameterized generic, **outside a union** | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default value or is covered by `kwargs`. | Raised at `Factory(...)` call time. |
 | Positional-only param (`def f(x: T, /)`) | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default (in which case it is silently skipped). | Raised at `Factory(...)` call time. |
 | Unannotated param (`def f(x)`) | Parsed but unresolvable by type. | `ArgumentResolutionError` at resolve unless covered by `kwargs`. |
 | Signature whose hints `get_type_hints` cannot resolve (e.g. a forward reference to an undefined name, or `functools.partial` on Python < 3.14) | `UserWarning` is emitted and type-based wiring is skipped; parameters are still parsed (as unannotated). Silence by passing `skip_creator_parsing=True` and an explicit `bound_type`. | A required unannotated param with no provider/default raises `ArgumentResolutionError` at resolve unless covered by `kwargs` (a parameterized-generic or positional-only param still raises `UnsupportedCreatorParameterError` at declaration). |
-| `skip_creator_parsing=True` | No wiring at all — every required argument must be supplied via `kwargs`. | `CreatorCallError` at resolve for any missing required argument. |
+| `skip_creator_parsing=True` | No wiring at all; every required argument must be supplied via `kwargs`. | `CreatorCallError` at resolve for any missing required argument. |
 
 A parameterized generic used *inside* a union (`param: int | list[X]`) is the one exception to
 the "parameterized generic raises at declaration" row above: the member degrades to its bare

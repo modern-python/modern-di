@@ -4,7 +4,7 @@
 
 ## 1. Resolution is sync-only; finalizers may be sync or async
 
-Since 2.x, `Container.resolve(...)` and `resolve_provider(...)` are synchronous. There is no `await container.resolve(...)`, no `AsyncFactory`, no `AsyncSingleton`. Async work belongs in the framework's lifespan and per-request hooks; the container holds the already-constructed objects (see [Async resources via lifespan](../recipes/async-lifespan.md)). Resolution being sync does not mean teardown is: finalizers may be sync or async (`close_sync` / `close_async`), so async cleanup is fully supported.
+Since 2.x, `Container.resolve(...)` and `resolve_provider(...)` are synchronous. There is no `await container.resolve(...)`, no `AsyncFactory`, no `AsyncSingleton`. Async work belongs in the framework's lifespan and per-request hooks; the container holds the already-constructed objects (see [Async resources via lifespan](../recipes/async-lifespan.md)). Teardown is separate from resolution: finalizers may be sync or async (`close_sync` / `close_async`).
 
 Async resolution will not be added.
 
@@ -14,21 +14,21 @@ Cached `Factory` providers use one reentrant lock (`threading.RLock`) per contai
 
 ### The thread-safety boundary
 
-- **Cached / singleton creation is locked.** The tree-wide reentrant lock guards the create-and-store step, so two threads racing to resolve the same cached provider get the same single instance.
-- **Provider registration is safe.** `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently, or while another thread iterates, will not corrupt the registry or raise "dict changed size during iteration".
-- **Registration is a setup phase, not a coordination tool.** The registry is
-  lock-guarded against corruption, but the supported model is register every
-  provider *before* serving. Registering a provider while other threads are
+- Cached / singleton creation is locked. The tree-wide reentrant lock guards the create-and-store step, so two threads racing to resolve the same cached provider get the same single instance.
+- Provider registration is safe. `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently, or while another thread iterates, will not corrupt the registry or raise "dict changed size during iteration".
+- Registration belongs to the setup phase. The registry is lock-guarded
+  against corruption, but the supported model is to register every provider
+  *before* serving. Registering a provider while other threads are
   already resolving is timing-dependent by nature: nothing breaks, but whether
   a given resolve sees the new provider is undefined.
-- **`set_context` and overrides are last-write-wins.** Both write into a dict
+- `set_context` and overrides are last-write-wins. Both write into a dict
   with no ordering, queueing, or merge; concurrent writes to the same key keep
   whichever landed last. Context is per container, so per-request context
   belongs on a request-local child container. Overrides live in one registry
   shared by the whole container tree, so an override set on any container is
   seen by every container in it. Set overrides during setup, never from
   competing threads.
-- **Free-threaded CPython (PEP 703) is supported at `2 - Beta`.** It is tested
+- Free-threaded CPython (PEP 703) is supported at `2 - Beta`. It is tested
   under real multithreading on the `3.14t` build. It is Beta rather than Stable
   for one specific reason: modern-di relies on object-publication ordering
   (that a reader observing a stored reference sees fully-initialized fields), and
@@ -47,7 +47,7 @@ The codebase is type-checked with `ty` and linted with ruff's full rule set (`se
 
 ## 5. Conservative feature set
 
-New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton. Most other DI frameworks have two to three times that. This is deliberate: a small, composable core is easier to learn, easier to test, and easier to keep correct.
+New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton. Most other DI frameworks have two to three times that. The small core is deliberate, because a small, composable core is easier to learn, test, and keep correct.
 
 The provider set is closed. `AbstractProvider` is the shared base that appears in signatures, not a hook: resolution compiles a resolver per known provider type, so a subclass of `AbstractProvider` or `Factory` raises `TypeError` at its first resolve. Compose behaviour in a creator function or an `Alias` instead.
 
@@ -63,7 +63,7 @@ Beyond the choices above, these are deliberately out of scope. Naming them here 
 
 ### Auto-binding / auto-registration
 
-modern-di never registers a provider for a type you did not declare and never infers wiring by scanning your code. Without it, a missing provider is an `ArgumentResolutionError`, reported by `validate()` (run it once at startup or in a test) or raised at resolve. Auto-binding would hide that error until whichever request first exercises the untested path. Register the provider in a `Group`; if the boilerplate is real, a small helper that builds several `Factory` instances from a list of classes is application code, not a framework feature.
+modern-di never registers a provider for a type you did not declare and never infers wiring by scanning your code. Without it, a missing provider is an `ArgumentResolutionError`, reported by `validate()` (run it once at startup or in a test) or raised at resolve. Auto-binding would hide that error until whichever request first exercises the untested path. Register the provider in a `Group`; if the boilerplate is real, write a small helper in your application that builds several `Factory` instances from a list of classes.
 
 ### In-package framework integrations
 
@@ -95,5 +95,5 @@ No static dependency-graph checker and no type-checker plugin. True compile-time
 
 ## See also
 
-- [About DI](about-di.md) — the framework-agnostic introduction.
-- [Migration from `that-depends`](../migration/from-that-depends.md) — what these decisions changed compared to the older framework.
+- [About DI](about-di.md): the framework-agnostic introduction.
+- [Migration from `that-depends`](../migration/from-that-depends.md): what these decisions changed compared to the older framework.

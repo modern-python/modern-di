@@ -130,7 +130,7 @@ container.validate()  # after setup_di — its connection providers are now regi
 
 ## Scopes
 
-The integration creates one `Scope.REQUEST` child container **per update**.
+The integration creates one `Scope.REQUEST` child container per update.
 The middleware is installed on `dispatcher.update` as an
 [outer middleware](https://docs.aiogram.dev/en/latest/dispatcher/middlewares.html),
 so it wraps every update regardless of which router or handler ultimately
@@ -161,8 +161,8 @@ for how implicit and explicit resolution work.
 
 The following context providers are also available for explicit import:
 
-- `aiogram_update_provider` — provides the current `aiogram.types.Update`.
-- `aiogram_event_provider` — provides the current `aiogram.types.TelegramObject`,
+- `aiogram_update_provider` provides the current `aiogram.types.Update`.
+- `aiogram_event_provider` provides the current `aiogram.types.TelegramObject`,
   the concrete event unwrapped from the `Update` (e.g. a `Message` or
   `CallbackQuery` instance).
 
@@ -211,9 +211,9 @@ async def log_message(
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Lifecycle](../providers/lifecycle.md): finalizers and container teardown.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 
@@ -224,14 +224,14 @@ async def log_message(
 | `inject` | Decorator for an aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed. |
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher. |
 | `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (REQUEST scope). |
-| `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (REQUEST scope) — the concrete event unwrapped from the `Update`. |
+| `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (REQUEST scope), the concrete event unwrapped from the `Update`. |
 
 ## Usage with `aiogram-dialog`
 
 [aiogram-dialog](https://github.com/Tishka17/aiogram_dialog) runs inside
 aiogram's dispatch, so the per-update child container that `setup_di`'s
 middleware already builds is reachable from dialog code. `modern_di_aiogram.dialog`
-adds a dialog-aware `inject` for **getters** and **callbacks** (`on_click`,
+adds a dialog-aware `inject` for getters and callbacks (`on_click`,
 `on_start`/`on_close`, `on_process_result`). Install it with the normal
 `setup_di(...)` and decorate your dialog functions:
 
@@ -277,7 +277,7 @@ and a callback via the positional `DialogManager`'s `.middleware_data`. Dialog D
 requires the normal `setup_di(dispatcher, container)`, whose middleware provides
 the per-update container.
 
-- `modern_di_aiogram.dialog` has **no runtime dependency** on `aiogram-dialog`;
+- `modern_di_aiogram.dialog` has no runtime dependency on `aiogram-dialog`;
   install `aiogram-dialog` yourself.
 - The `FromDI` marker is the same one used for handlers; it is re-exported from
   `modern_di_aiogram.dialog` for convenience.

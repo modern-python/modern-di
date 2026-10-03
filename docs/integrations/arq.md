@@ -101,7 +101,7 @@ unchanged.
 
 ## Scopes
 
-The integration builds one `Scope.REQUEST` child container **per job** in
+The integration builds one `Scope.REQUEST` child container per job in
 `on_job_start`. For an `@inject` task, the wrapper closes it with
 `close_async()` when the task body exits, whether it returned or raised. Nested
 or concurrent `@inject` calls in the same job share the child, and the last one
@@ -143,16 +143,16 @@ container.
 `@inject` resolves dependencies by binding the task signature by name, which is
 what makes injection order-insensitive. A task that mixes a `FromDI` parameter
 with `*args` or `**kwargs` cannot be bound unambiguously, so `@inject` raises a
-`TypeError` **at decoration time** rather than silently misrouting arguments.
+`TypeError` at decoration time rather than silently misrouting arguments.
 Give an `@inject` task explicit named parameters. (A task with no `FromDI`
 parameter is untouched and may use `*args`/`**kwargs` freely.)
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Async resources via lifespan](../recipes/async-lifespan.md) — constructing async resources with finalizers.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Async resources via lifespan](../recipes/async-lifespan.md): constructing async resources with finalizers.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 

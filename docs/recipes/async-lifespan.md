@@ -1,6 +1,6 @@
 # Async resources via lifespan
 
-**Problem.** A resource genuinely needs an `await` (or a running event loop) to construct: `aiohttp.ClientSession`, an `asyncpg` connection pool, an authenticated client whose construction does a token exchange. `modern-di` resolves synchronously, so the construction has to happen outside the resolve path.
+Some resources need an `await` (or a running event loop) to construct, such as `aiohttp.ClientSession`, an `asyncpg` connection pool, an authenticated client whose construction does a token exchange. `modern-di` resolves synchronously, so the construction has to happen outside the resolve path.
 
 ## Solution
 
@@ -62,11 +62,11 @@ lifespan.
 
 ## When a sync creator works instead
 
-Many "async" resources actually construct synchronously: `redis.asyncio.Redis.from_url(...)`, `sqlalchemy.ext.asyncio.create_async_engine(...)`, and `httpx.AsyncClient(...)` all return without awaiting. For those, prefer a normal `Factory` with `cache=CacheSettings(finalizer=async_close_fn)` and skip the lifespan + `set_context` dance entirely. Use this recipe only when construction genuinely needs `await` or a running event loop.
+Many "async" resources actually construct synchronously: `redis.asyncio.Redis.from_url(...)`, `sqlalchemy.ext.asyncio.create_async_engine(...)`, and `httpx.AsyncClient(...)` all return without awaiting. For those, prefer a normal `Factory` with `cache=CacheSettings(finalizer=async_close_fn)` and skip the lifespan + `set_context` dance entirely. Use this recipe only when construction needs `await` or a running event loop.
 
 ## See also
 
-- [Lifecycle](../providers/lifecycle.md) — `close_async()` and finalizers.
-- [Context providers](../providers/context.md) — `ContextProvider` and `set_context` in depth.
-- [Scopes](../providers/scopes.md) — APP vs SESSION vs REQUEST.
-- [Async SQLAlchemy recipe](sqlalchemy.md) — the sync-creator-with-async-finalizer pattern for comparison.
+- [Lifecycle](../providers/lifecycle.md): `close_async()` and finalizers.
+- [Context providers](../providers/context.md): `ContextProvider` and `set_context` in depth.
+- [Scopes](../providers/scopes.md): APP vs SESSION vs REQUEST.
+- [Async SQLAlchemy recipe](sqlalchemy.md): the sync-creator-with-async-finalizer pattern for comparison.

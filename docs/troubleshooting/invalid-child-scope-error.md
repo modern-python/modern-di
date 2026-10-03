@@ -36,4 +36,4 @@ caught exception for the exact list of valid choices at that point in the tree.
 
 ## See also
 
-- [Scopes](../providers/scopes.md#the-scope-dependency-rule) — the scope hierarchy and ordering rule.
+- [Scopes](../providers/scopes.md#the-scope-dependency-rule) explains the scope hierarchy and ordering rule.

@@ -18,8 +18,8 @@
 
 Reference templates:
 
-- Litestar — [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
-- FastAPI — [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
+- Litestar: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- FastAPI: [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
 
 For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqlalchemy.md) section.
 
@@ -175,7 +175,7 @@ child container for you automatically. Resolution itself is always synchronous; 
 
 ## Where to next
 
-- Framework integrations — [aiogram](integrations/aiogram.md), [aiohttp](integrations/aiohttp.md),
+- Framework integrations: [aiogram](integrations/aiogram.md), [aiohttp](integrations/aiohttp.md),
   [arq](integrations/arq.md), [Celery](integrations/celery.md), [FastAPI](integrations/fastapi.md),
   [FastStream](integrations/faststream.md), [Flask](integrations/flask.md), [gRPC](integrations/grpc.md),
   [Litestar](integrations/litestar.md), [Starlette](integrations/starlette.md),
@@ -183,9 +183,9 @@ child container for you automatically. Resolution itself is always synchronous; 
   The framework integrations build a scoped child container per request/task/call automatically,
   and most close the APP container at shutdown. Flask, gRPC, and Typer have no shutdown hook, so
   you close the root container yourself. The Pytest plugin exposes providers as fixtures.
-- [Resolving](introduction/resolving.md) — how type-based auto-injection works.
-- [Factories](providers/factories.md) — the provider you just used.
-- [Scopes](providers/scopes.md) — the APP → REQUEST scope model in one page.
-- [Lifecycle](providers/lifecycle.md) — finalizers, `close_async()`, validation.
-- [Recipes](recipes/sqlalchemy.md) — async SQLAlchemy, lifespan-managed resources, testing with overrides.
-- [Good and bad practices](recipes/good-and-bad-practices.md) — named footguns and the mechanism that catches each one.
+- [Resolving](introduction/resolving.md): how type-based auto-injection works.
+- [Factories](providers/factories.md): the provider you just used.
+- [Scopes](providers/scopes.md): the APP → REQUEST scope model in one page.
+- [Lifecycle](providers/lifecycle.md): finalizers, `close_async()`, validation.
+- [Recipes](recipes/sqlalchemy.md): async SQLAlchemy, lifespan-managed resources, testing with overrides.
+- [Good and bad practices](recipes/good-and-bad-practices.md): named footguns and the mechanism that catches each one.

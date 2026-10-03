@@ -29,8 +29,7 @@ resolve overflows the stack, and `Container.resolve_provider` catches that `Recu
 re-walks the static graph from the failing provider, and, since a cycle is reachable, raises
 `CircularDependencyError` (with the same cycle-path rendering shown above) `from` the original
 `RecursionError`. A creator that merely recurses on its own, with no actual cycle in the provider
-graph, still raises the original `RecursionError` unchanged. Only a real static cycle gets
-converted. This guard runs on every resolve, whether or not `validate()` was ever called.
+graph, still raises the original `RecursionError` unchanged. This guard runs on every resolve, whether or not `validate()` was ever called.
 
 ### Cycle detection with `validate()`
 
@@ -46,11 +45,11 @@ container.validate()  # raises ValidationFailedError (wraps CircularDependencyEr
 
 ## Fix
 
-1. **Break the cycle with an interface/protocol**: introduce an abstraction that one side depends on instead of the concrete type
-2. **Use `kwargs` to inject one dependency manually**: pass a factory or value via `kwargs` instead of relying on automatic resolution
-3. **Restructure your dependencies**: extract shared logic into a third provider that both can depend on without forming a cycle
+1. Break the cycle by introducing an interface or protocol that one side depends on instead of the concrete type.
+2. Inject one dependency manually by passing a factory or value via `kwargs` instead of relying on automatic resolution.
+3. Restructure your dependencies by extracting shared logic into a third provider that both can depend on without forming a cycle.
 
 ## See also
 
 - [Errors and exceptions](../providers/errors-and-exceptions.md)
-- [Lifecycle](../providers/lifecycle.md) — the validation section.
+- [Lifecycle](../providers/lifecycle.md), the validation section.

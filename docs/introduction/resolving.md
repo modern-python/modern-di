@@ -2,8 +2,8 @@
 
 `modern-di` exposes two ways to resolve a dependency:
 
-- **By type**: `container.resolve(SomeType)`. The resolver finds the provider whose `bound_type` matches `SomeType`. This is what handlers and creator signatures normally use.
-- **By provider reference**: `container.resolve_provider(Dependencies.some_provider)`. Resolves a specific provider directly, skipping the type lookup. Useful in tests and when two providers produce the same type.
+- By type, with `container.resolve(SomeType)`. The resolver finds the provider whose `bound_type` matches `SomeType`. This is what handlers and creator signatures normally use.
+- By provider reference, with `container.resolve_provider(Dependencies.some_provider)`. This resolves a specific provider directly and skips the type lookup, which helps in tests and when two providers produce the same type.
 
 In practice, prefer resolution by type: it lets the same code work whether you swap implementations via subclassing, `Alias`, or `override`. Reach for `resolve_provider` only when type-based resolution would be ambiguous.
 
@@ -48,6 +48,6 @@ For union-typed parameters (`dep: A | B`), the resolver picks the *first* type i
 
 ## See also
 
-- [Scopes](../providers/scopes.md) — the scope chain governs which container resolves which provider.
-- [Lifecycle](../providers/lifecycle.md) — `container.validate()` catches resolution problems at startup.
-- [Factories: `bound_type`](../providers/factories.md) — how the type lookup key is set, and how to opt out.
+- [Scopes](../providers/scopes.md): the scope chain governs which container resolves which provider.
+- [Lifecycle](../providers/lifecycle.md): `container.validate()` catches resolution problems at startup.
+- [Factories: `bound_type`](../providers/factories.md): how the type lookup key is set, and how to opt out.

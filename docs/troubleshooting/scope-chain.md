@@ -16,7 +16,7 @@ InvalidScopeDependencyError (1):
       caused by: UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
 ```
 
-The fix is always to make the depender's scope equal to or shorter than the dependee's. In the example above, `UserCache` should be REQUEST-scoped, not APP-scoped.
+The fix is always to make the depender's scope equal to or shorter than the dependee's. In the example above, `UserCache` is APP-scoped and should be REQUEST-scoped.
 
 The chain is the same arrow tree `ScopeNotInitializedError` and `ScopeSkippedError` draw at runtime, so the same violation reads identically whether you find it with `validate()` or by resolving.
 
@@ -37,9 +37,9 @@ InvalidScopeDependencyError (1):
 
 ## Cause
 
-1. **Forgot `scope=Scope.REQUEST` on a repository.** Defaults to `Scope.APP` if omitted. A repository that holds a session needs `scope=Scope.REQUEST`.
-2. **Helper or utility provider auto-defaulted to APP.** Same as above: anything that consumes the session is REQUEST-scoped.
-3. **Choice factory consuming the request.** A factory that depends on the framework's `Request` is REQUEST-scoped; you cannot resolve it from the APP container.
+1. A repository is missing `scope=Scope.REQUEST`. The scope defaults to `Scope.APP` if omitted, and a repository that holds a session needs `scope=Scope.REQUEST`.
+2. A helper or utility provider auto-defaulted to APP. As above, anything that consumes the session is REQUEST-scoped.
+3. A choice factory consumes the request. A factory that depends on the framework's `Request` is REQUEST-scoped; you cannot resolve it from the APP container.
 
 ## How to detect
 
@@ -70,5 +70,5 @@ class Dependencies(Group):
 
 ## See also
 
-- [Scopes](../providers/scopes.md#the-scope-dependency-rule) — the lifetime model and the "max of dependencies' scopes" rule.
-- [Lifecycle](../providers/lifecycle.md) — `container.validate()` and other startup checks.
+- [Scopes](../providers/scopes.md#the-scope-dependency-rule) explains the lifetime model and the "max of dependencies' scopes" rule.
+- [Lifecycle](../providers/lifecycle.md) covers `container.validate()` and other startup checks.

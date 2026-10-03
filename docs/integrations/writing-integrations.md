@@ -1,6 +1,6 @@
 # Writing an integration
 
-This page is the specification for building a **modern-di integration** for a
+This page is the specification for building a modern-di integration for a
 framework that does not yet have one (an ASGI app, a message broker, a CLI, a
 test runner...). It is written to be followed step by step: implement the
 contract below, mirror the scaffolding, and check every box in the final
@@ -77,18 +77,18 @@ def fetch_di_container(app: myfw.App) -> Container:
     return typing.cast(Container, app.state.di_container)
 ```
 
-Store and read under a **named constant**, not a repeated string literal, when
+Store and read under a named constant, not a repeated string literal, when
 the framework uses a string-keyed store (FastStream's `ContextRepo`, Typer's
 `context_settings["obj"]`); it keeps writer and reader in provable agreement.
 
 ### 4. Per-unit-of-work child-container builder
 
 Build a child container at the connection's scope, inject the connection object
-as context, hand it to the handler, and **close it in `finally`**. The shape
+as context, hand it to the handler, and close it in `finally`. The shape
 depends on how the framework runs handlers:
 
-- **Dependency generator** (FastAPI, Litestar) — an `async def` that `yield`s
-  the container and closes after. Derive the child's scope and context with
+- With a dependency generator (FastAPI, Litestar), an `async def` `yield`s
+  the container and closes it after. Derive the child's scope and context with
   `modern_di.integrations.classify_connection`, which picks the first provider
   the connection is an instance of and returns its scope + a
   `{context_type: connection}` context, or `None` if nothing matches:
@@ -114,35 +114,35 @@ depends on how the framework runs handlers:
   own. The `with`/`async with` here buys guaranteed cleanup on the way out; it
   is not a required open step or a fail-fast check.
 
-  For a **single** connection kind with no dispatch to do, call
+  For a single connection kind with no dispatch to do, call
   `integrations.bind(my_provider, connection)` directly; it returns the same
   scope + context for one provider without the isinstance scan. An adapter
-  whose unit of work carries **no** connection object (a Typer command) skips
+  whose unit of work carries no connection object (a Typer command) skips
   the kit entirely and calls `build_child_container(scope=...)` directly. See
   [How the existing integrations realize the
   contract](#how-the-existing-integrations-realize-the-contract) for which
   shape fits which adapter.
 
-- **Middleware** (FastStream) — a `BaseMiddleware` whose `consume_scope` builds
+- With middleware (FastStream), the `consume_scope` of a `BaseMiddleware` builds
   the child, stashes it in the framework context for the duration of the call,
   and closes it in `finally`.
 
-- **Decorator** (Typer) — an `inject` decorator that wraps the command, opens a
+- With a decorator (Typer), an `inject` decorator wraps the command, opens a
   child container for the command's duration, resolves the marked parameters,
   and closes the container (synchronously) on exit.
 
 ### 5. `FromDI` marker + `Dependency` resolver
 
-`FromDI(dependency)` accepts a provider **or** a type and, at a handler's call
+`FromDI(dependency)` accepts a provider or a type and, at a handler's call
 site, stands in for the resolved value: `x: Annotated[Foo, FromDI(foo_provider)]`.
 How it delivers that value splits into two modes depending on the framework:
 
-- **Native-DI frameworks** (FastAPI, FastStream, Litestar) have a per-handler
+- Native-DI frameworks (FastAPI, FastStream, Litestar) have a per-handler
   injection seam: `Depends`, `Provide`. `FromDI` returns that native marker and
   the framework calls your resolver with the request container. This is the path
   documented below.
-- **Frameworks with no request-scoped DI** (Typer/Click CLIs, argparse, task
-  runners) have no seam. `FromDI` returns an inert marker and a **decorator**
+- Frameworks with no request-scoped DI (Typer/Click CLIs, argparse, task
+  runners) have no seam. `FromDI` returns an inert marker and a decorator
   does the resolution. See [Frameworks without native
   DI](#frameworks-without-native-di-the-decorator-path).
 
@@ -185,7 +185,7 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
       existing lifespan rather than replacing it.
     - With callback hooks: `app.on_startup(container.open)` and
       `app.after_shutdown(container.close_async)`. Calling `open()` on an
-      already-open container **is** a no-op: it unconditionally clears
+      already-open container is a no-op: it unconditionally clears
       `closed`, runs no validation, and costs nothing either way.
 - Always close the child container in `finally`. Never leak a unit-of-work
   container on the error path.
@@ -198,9 +198,8 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
   integration's own connection providers (typically via `add_providers`), so
   a `validate()` call made *before* `setup_di` sees an incomplete graph and
   raises for any service that depends on the connection object *by type*, which
-  genuinely isn't registered yet. Calling `validate()` after `setup_di` sees the
-  complete graph. Validating at all is optional, and nothing requires a caller
-  to do it, but document the ordering for whoever does.
+  isn't registered yet. Calling `validate()` after `setup_di` sees the
+  complete graph. Validating at all is optional, but document the ordering for whoever does.
 - Open the root in *every* execution context the framework runs work in. A
   worker may dispatch units of work from more than one place: Celery fires
   `worker_process_init` only for the prefork/solo pools, never for the
@@ -247,8 +246,8 @@ Pattern-match your framework to the closest precedent.
 | `FromDI` bridge | `fastapi.Depends(Dependency(Marker(...)))` | `faststream.Depends(Dependency(Marker(...)))` | `Provide(_Dependency(Marker(...)))` | inert `Marker` (`integrations.from_di`) + `inject` |
 | Child close | `close_async` | `close_async` | `close_async` | `close_sync` |
 
-The **Starlette** integration ([`modern-di-starlette`](starlette.md)) is the
-reference for a **middleware + decorator hybrid**: Starlette has no native DI,
+The Starlette integration ([`modern-di-starlette`](starlette.md)) is the
+reference for a middleware + decorator hybrid: Starlette has no native DI,
 so a pure-ASGI middleware owns the child-container lifecycle (like FastStream)
 while an `@inject` decorator with an inert `FromDI` marker does resolution (like
 Typer). It splits the two responsibilities of the decorator path: the middleware
@@ -256,7 +255,7 @@ builds and closes the per-connection child, and the decorator only reads it back
 from the ASGI scope and resolves. See [Frameworks without native
 DI](#frameworks-without-native-di-the-decorator-path).
 
-The **aiohttp** integration ([`modern-di-aiohttp`](aiohttp.md)) is another
+The aiohttp integration ([`modern-di-aiohttp`](aiohttp.md)) is another
 middleware + decorator hybrid, for a non-ASGI server where the only connection
 object at middleware entry is `web.Request`: a WebSocket is an upgraded HTTP
 request, not a distinct type. It detects a WebSocket via
@@ -267,20 +266,20 @@ both connection providers bind `web.Request`, it registers
 reference-only (`bound_type=None`). Its root lifecycle rides aiohttp's
 `on_startup`/`on_cleanup` signals rather than a composed lifespan.
 
-The **pytest** integration
+The pytest integration
 ([`modern-di-pytest`](pytest.md)) is a different shape: it has no app to wire, so
 instead of `setup_di`/`FromDI` it exposes `modern_di_fixture` (turn one
 dependency into a fixture) and `expose` (turn a `Group`'s providers into
 fixtures). It resolves from a user-supplied `di_container` fixture. Follow it
-when integrating a **test runner** rather than an application framework.
+when integrating a test runner.
 
 ## Frameworks without native DI (the decorator path)
 
-Contract points 4 and 5 assume a **per-handler injection seam** (FastAPI /
+Contract points 4 and 5 assume a per-handler injection seam (FastAPI /
 FastStream `Depends`, Litestar `Provide`) that you hand a native marker and
 that calls your resolver with the request container. Some frameworks have none:
 a Typer/Click command, an argparse handler, or a plain task callable receives
-only what the framework's argument parser binds. There is nowhere to inject.
+only what the framework's argument parser binds.
 
 The rule: an integration is decorator-free only where the framework evaluates a parameter
 default as a provider (FastAPI and FastStream `Depends`, Litestar `Provide`, taskiq
@@ -289,7 +288,7 @@ callable, and aiogram matches its `data` dict by parameter name, so those need `
 of them apply it for you: Flask and aiogram take `setup_di(..., auto_inject=True)`, and Celery
 has the `DITask` base class.
 
-For these, `FromDI` becomes an inert annotation marker and a **decorator** does
+For these, `FromDI` becomes an inert annotation marker and a decorator does
 the work native DI would have. [`modern-di-typer`](typer.md)'s `@inject` is the
 reference implementation. Reach for this shape whenever the framework runs
 handlers as plain callables it parses arguments for. The decorator can build the
@@ -308,9 +307,9 @@ either way.
   service: typing.Annotated[MyService, FromDI(Dependencies.service)]
   ```
 
-- **Decoration time** — the decorator introspects
+- At decoration time, the decorator introspects
   `typing.get_type_hints(func, include_extras=True)`, finds parameters whose
-  `Annotated` metadata holds a `Marker`, then **rewrites the signature**:
+  `Annotated` metadata holds a `Marker`, then rewrites the signature:
   *remove* those parameters (so the arg parser never treats them as CLI options)
   and *insert* the framework's context parameter (`typer.Context`) at position 0
   if the handler didn't declare one. Assign the cleaned signature to
@@ -326,14 +325,14 @@ either way.
   `@inject` per handler), guard against double-wrapping with
   `integrations.is_injected(func)` / `integrations.mark_injected(wrapper)`.
 
-- **Call time** — bind incoming args against the rewritten signature, pull out
+- At call time, bind incoming args against the rewritten signature, pull out
   the context object (deleting it again if the decorator added it implicitly),
   build the per-call child container, resolve each marked parameter by kind
   (contract point 5), fill them into the call by name, invoke the original
   function, and `close_sync` the container in `finally`.
 
 DI parameters coexist with ordinary framework parameters because the decorator
-strips **only** the marked ones; everything else still reaches the parser.
+strips only the marked ones; everything else still reaches the parser.
 
 ### What changes vs. the native path
 
@@ -353,7 +352,7 @@ strips **only** the marked ones; everything else still reaches the parser.
 - Strip only DI params. Leave real arguments/options in the signature or the
   framework stops parsing them.
 - Get the decorator order right. The framework's own registration decorator goes
-  **outside**: `@app.command()` above `@inject`, so it registers the rewritten
+  outside: `@app.command()` above `@inject`, so it registers the rewritten
   signature.
 - Isolate per-call state. Stash the per-call container on a per-invocation
   store (`ctx.meta`), not shared app state (`ctx.obj`), so nested scopes can
@@ -379,55 +378,55 @@ strips **only** the marked ones; everything else still reaches the parser.
 Each official integration is its own repository and PyPI package, mirroring the
 `modern-di` repo's tooling.
 
-- **Names.** Repo and PyPI package `modern-di-<framework>`; import package
+- Name the repo and PyPI package `modern-di-<framework>` and the import package
   `modern_di_<framework>`.
-- **Layout.**
-    - `modern_di_<framework>/main.py` — the implementation. A larger integration may add
+- Lay out the package as follows:
+    - `modern_di_<framework>/main.py` holds the implementation. A larger integration may add
       modules beside it, as aiogram does with `dialog.py`; pytest keeps its code in `factory.py`.
-    - `modern_di_<framework>/__init__.py` — re-export the public API from
-      `main` and list it in an explicit `__all__` (this is the integration's
+    - `modern_di_<framework>/__init__.py` re-exports the public API from
+      `main` and lists it in an explicit `__all__` (this is the integration's
       surface; keep private helpers out of it).
-- **`pyproject.toml`.** `name = "modern-di-<framework>"`,
+- In `pyproject.toml`, set `name = "modern-di-<framework>"`,
   `description = "modern-di integration for <Framework>"`, dependencies
   `["<framework>>=...,<...", "modern-di>=<current>,<4"]`, the standard
   `classifiers` (Typed, supported Python versions) and `[project.urls]` pointing
-  at the shared docs site and the integration's own repo. `version = "0"`, since
+  at the shared docs site and the integration's own repo. Use `version = "0"`, since
   the release tag sets it.
-- **Tests** (`tests/`):
-    - `conftest.py` — fixtures that build an app, call `setup_di` (or install the
+- Put tests in `tests/`:
+    - `conftest.py` holds fixtures that build an app, call `setup_di` (or install the
       plugin) with a `Container(groups=[Dependencies])`, and yield a test client.
-    - `dependencies.py` — a sample `Group` with `Factory` providers at several
+    - `dependencies.py` defines a sample `Group` with `Factory` providers at several
       scopes, plus providers that read the connection object (e.g. a request
       header) to prove context injection works.
     - `test_lifespan.py` (startup/shutdown + restart), `test_routes.py` /
       `test_commands.py` (resolution through `FromDI`), and `test_websockets.py`
       where the framework has websockets. Aim for the same 100%-coverage gate
       `modern-di` holds.
-- **Canonical example** (`examples/`). Ship a runnable `examples/app.py` (plus an
-  empty `examples/__init__.py`) demonstrating the recommended wiring: an
+- Ship a runnable canonical example, `examples/app.py` (plus an
+  empty `examples/__init__.py`), demonstrating the recommended wiring: an
   APP-scoped `Settings` plus one work-scoped service that depends on it by type,
   resolved into a single handler/task/command via the framework's real idiom.
   Use the `typing.Annotated[T, FromDI(...)]` marker form, not a `= FromDI(...)`
   default (the default-call form trips ruff `B008`). Name the example's types to
   match the integration's `docs/integrations/<framework>.md` snippet; diverge
   only where testability requires it (e.g. return a value the test can assert).
-  A `tests/test_example.py` **smoke test** drives it through the repo's own
+  A `tests/test_example.py` smoke test drives it through the repo's own
   in-memory test double (test client / eager mode / in-memory broker, whatever
-  the existing tests use) and asserts the **real injected output**, never a mock.
-  The smoke test must cover `examples/app.py` to **100%** under the coverage
-  gate. Do **not** add a coverage `omit`; mark `# pragma: no cover` only on a
+  the existing tests use) and asserts the real injected output, never a mock.
+  The smoke test must cover `examples/app.py` to 100% under the coverage
+  gate. Do not add a coverage `omit`; mark `# pragma: no cover` only on a
   genuinely unreachable boot line (`if __name__ == "__main__"` / server-run).
   Link it from the README with a `Usage example: [examples/](./examples)` line
   directly under `Full guide:`.
-- **Tooling.** Mirror `modern-di`'s `AGENTS.md` and `justfile`. Keep behavioural
+- For tooling, mirror `modern-di`'s `AGENTS.md` and `justfile`. Keep behavioural
   invariants in named tests rather than in a prose truth home, and record rejected
   alternatives on the [design decisions](../introduction/design-decisions.md#non-goals) page. Keep resolution sync-only and add no
   runtime dependency beyond the framework and `modern-di`. `ruff` is unpinned and
   CI floats it forward, so keep `CPY001` (no per-file copyright header) in the
   lint `ignore` and reflow any pre-existing Markdown-embedded code fences the
   current `ruff` reformats.
-- **Docs.** Add a `docs/integrations/<framework>.md` usage page **in the
-  `modern-di` repo** and a nav entry for it in `mkdocs.yml` (under the matching
+- For docs, add a `docs/integrations/<framework>.md` usage page in the
+  `modern-di` repo and a nav entry for it in `mkdocs.yml` (under the matching
   family group: Web / Tasks & events / Bots / RPC / CLI / Testing). Follow the
   canonical page shape the existing pages use: a single realistic-but-compact
   example, an APP-scoped `Settings` plus one work-scoped service (two providers,
@@ -435,7 +434,7 @@ Each official integration is its own repository and PyPI package, mirroring the
   (`Container(groups=[AppGroup])`, no `validate=` argument, which is deprecated
   and does nothing) and `container.validate()` called explicitly *after*
   `setup_di`, demonstrating the [ordering rule](#lifecycle-rules) above. Keep the
-  connection/message object **out** of that validated example: its
+  connection/message object out of that validated example: its
   `ContextProvider` is registered by `setup_di`, so a service that requires it by
   type would fail `validate()` if that call were placed *before* `setup_di`.
   Demonstrate context injection in a dedicated "Framework context objects"
@@ -451,7 +450,7 @@ Each official integration is its own repository and PyPI package, mirroring the
   [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and
   the most relevant recipe, and the `## API` table last. Integrations do not
   ship their own docs site.
-- **Release.** Tag-driven, mirroring `modern-di`: push a bare semver tag off
+- Releases are tag-driven, mirroring `modern-di`: push a bare semver tag off
   green `main` and let the workflow publish.
 
 ## Checklist
@@ -465,14 +464,14 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `fetch_di_container` reads the root container back out of framework state.
 - [ ] A per-unit-of-work builder opens a child container at the right scope,
       injects the connection as context, and closes it in `finally`.
-- [ ] Root container **reopens on startup** so a restart doesn't rely on the
+- [ ] Root container reopens on startup so a restart doesn't rely on the
       implicit-reuse warning (`ContainerClosedWarning`) and gets finalizers
       wired to shutdown.
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves it via
       `resolve_dependency`. Use `modern_di.integrations.from_di` (or a
       factory wrapping `integrations.Marker`) rather than hand-rolling it.
-- [ ] **No native DI?** `FromDI` is an inert marker and a decorator rewrites the
+- [ ] Without native DI, `FromDI` is an inert marker and a decorator rewrites the
       handler signature (strips DI params, threads the context object, sets
       `wrapper.__signature__`), resolves at call time, and closes the per-call
       container in `finally`. See the [decorator
