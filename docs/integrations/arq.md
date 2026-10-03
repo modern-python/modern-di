@@ -85,10 +85,11 @@ async def main() -> None:
 `setup_di(worker_settings, container)` seeds the container into arq's `ctx` dict
 (arq's per-worker state store) and wraps four of arq's lifecycle hooks:
 `on_startup`/`on_shutdown` open and close the root container, and
-`on_job_start`/`on_job_end` build and close a `Scope.REQUEST` child container
-around each job. Any hook you already defined still runs: yours runs *after*
-ours on startup/job-start and *before* ours on shutdown/job-end, so your code
-always sees a live container. It accepts a `WorkerSettings` class (the common
+`on_job_start`/`on_job_end` build and, as a safety net, close a `Scope.REQUEST`
+child container around each job. Any hook you already defined still runs: yours
+runs *after* ours on startup/job-start and *before* ours on shutdown/job-end. The
+root container is live in all of them, but for an `@inject` task the child is
+already closed by the time your `on_job_end` runs. It accepts a `WorkerSettings` class (the common
 case) or a plain settings `dict`, and returns the container.
 
 `@inject` resolves each `FromDI`-annotated parameter from the per-job child
@@ -100,11 +101,13 @@ unchanged.
 
 ## Scopes
 
-The integration builds one `Scope.REQUEST` child container **per job**. It is
-created in `on_job_start` and closed with `close_async()` in `on_job_end`, which
-arq runs whether the job succeeded or raised, so REQUEST-scoped providers (and
-their finalizers) live exactly for the duration of one job and never leak on the
-error path. APP-scoped providers persist for the whole worker: `setup_di` opens
+The integration builds one `Scope.REQUEST` child container **per job** in
+`on_job_start`. For an `@inject` task, the wrapper closes it with
+`close_async()` when the task body exits, whether it returned or raised. Nested
+or concurrent `@inject` calls in the same job share the child, and the last one
+to exit closes it. `on_job_end` closes the child only if it is still open, which
+covers jobs that ran no `@inject` wrapper. Either way REQUEST-scoped providers
+(and their finalizers) never leak on the error path. APP-scoped providers persist for the whole worker: `setup_di` opens
 the root container on `on_startup` and closes it on `on_shutdown`, running
 APP-scoped finalizers once when the worker stops.
 

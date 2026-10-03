@@ -13,8 +13,7 @@ the smallest enum member greater than the parent's. The built-in `Scope` enum en
 
 ## Fix
 
-Define a custom `IntEnum` scope with a member deeper than `STEP` and build the child with that scope
-explicitly:
+Define an `IntEnum` with a member deeper than `STEP` and build the child with that scope explicitly:
 
 ```python
 import enum
@@ -22,17 +21,11 @@ import enum
 from modern_di import Scope
 
 
-class ExtendedScope(enum.IntEnum):
-    APP = Scope.APP
-    SESSION = Scope.SESSION
-    REQUEST = Scope.REQUEST
-    ACTION = Scope.ACTION
-    STEP = Scope.STEP
-    SUBSTEP = 6
+class MyScope(enum.IntEnum):
+    SUBSTEP = Scope.STEP + 1
 
 
-step_container = Container(scope=ExtendedScope.STEP, parent_container=action_container)
-sub_container = step_container.build_child_container(scope=ExtendedScope.SUBSTEP)
+sub_container = step_container.build_child_container(scope=MyScope.SUBSTEP)
 ```
 
 Root containers rarely need this. Reconsider whether the provider actually needs a scope deeper than

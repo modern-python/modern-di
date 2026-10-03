@@ -14,10 +14,10 @@ ones.
 
 ## Fix
 
-Pick one of three escape routes, in order of preference:
+For a parameterized generic, pick one of three escape routes, in order of preference:
 
 ```python
-def create_thing(items: list[Item], /) -> Thing: ...
+def create_thing(items: list[Item]) -> Thing: ...
 
 
 class Dependencies(Group):
@@ -33,10 +33,15 @@ class Dependencies(Group):
     )
 ```
 
+A positional-only parameter (`def create_thing(items: list[Item], /)`) can only be fixed with route
+1. Routes 2 and 3 pass the value by keyword, so route 2 still raises this error and route 3 raises
+`CreatorCallError` at resolve. If you can't give it a default, drop the `/` or wrap the creator in a
+function that takes the parameter by keyword.
+
 ## Escape hatches
 
 `skip_creator_parsing=True` bypasses signature parsing altogether (option 3 above). Use it when a
-creator has several unsupported parameter shapes rather than fixing each one individually.
+creator has several unsupported keyword-passable parameters rather than fixing each one individually.
 
 ## See also
 

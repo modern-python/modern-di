@@ -22,7 +22,7 @@ CI runs the coverage-enforcing recipe `just test-ci` along with `just lint-ci`.
 
 ## Submitting changes
 1. Fork the repo and branch off `main`.
-2. Make your change with tests; keep **100% line coverage** (CI runs `just test-ci` with `--cov-fail-under=100`).
+2. Make your change with tests; keep **100% line coverage** (CI runs `just test-ci`, which fails below the `report.fail_under = 100` gate in `pyproject.toml`).
 3. Run `just lint` and `just test` locally before pushing (CI runs the non-fixing variants `just lint-ci` / `just test-ci`).
 4. For non-trivial changes, the PR body is the spec; the pull-request template walks you through it (why, design, non-goals, verification).
 5. Open a pull request upstream.

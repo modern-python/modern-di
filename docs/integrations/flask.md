@@ -66,14 +66,13 @@ def get_report(report: typing.Annotated[Report, FromDI(Report)]) -> dict[str, st
     return report.as_dict()
 
 
-# call setup_di AFTER registering routes
 container = Container(groups=[Dependencies])
 setup_di(app, container)
 container.validate()  # after setup_di — its connection providers are now registered
 ```
 
-`FromDI(dependency)` accepts either a provider reference (as above) or a plain
-type, resolved from the per-request child container the middleware built.
+`FromDI(dependency)` accepts either a provider reference or a plain type (as
+above), resolved from the per-request child container the middleware built.
 
 ### 3. `auto_inject`
 

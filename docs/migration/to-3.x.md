@@ -258,9 +258,7 @@ change. A container is **open from construction** again (`closed = False` the mo
 explicit close warns (`ContainerClosedWarning`) and reopens instead of raising
 `ContainerClosedError`.
 
-An earlier version of this note said every pattern shown above under "After (3.0)" kept
-working unchanged, including that `with`/`open()` "still validates, still fails fast." That
-part was wrong and has been corrected here: **validation is explicit-only as of 3.1.**
+Validation is explicit-only as of 3.1.
 `open()` (and `with`/`async with`, which call it) no longer runs `validate()`. It only
 clears `closed`, unconditionally. Nothing validates automatically: not construction,
 not `open()`, not `add_providers`, not `resolve()`.
@@ -280,6 +278,7 @@ not `open()`, not `add_providers`, not `resolve()`.
     pass without proving anything. Close the container first, so the transition stays
     observable. If the subject is the validation-ordering rule, point it at
     `container.validate()`. The rule still holds, it just binds a different call.
+
 `container.validate()` is the only thing that walks the graph, and `Container(validate=...)`
 is deprecated: passing `True` or `False` is ignored and emits `ValidateArgumentWarning`
 (a `DeprecationWarning`), removed in 4.0. So in the "After (3.0)" example above, the comment

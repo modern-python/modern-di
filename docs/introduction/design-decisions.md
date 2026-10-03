@@ -6,7 +6,7 @@
 
 Since 2.x, `Container.resolve(...)` and `resolve_provider(...)` are synchronous. There is no `await container.resolve(...)`, no `AsyncFactory`, no `AsyncSingleton`. Async work belongs in the framework's lifespan and per-request hooks; the container holds the already-constructed objects (see [Async resources via lifespan](../recipes/async-lifespan.md)). Resolution being sync does not mean teardown is: finalizers may be sync or async (`close_sync` / `close_async`), so async cleanup is fully supported.
 
-This is a permanent choice, not a temporary limitation. There are no plans to reintroduce async resolution.
+Async resolution will not be added.
 
 ## 2. Cached factories are thread-safe
 
@@ -14,20 +14,23 @@ Cached `Factory` providers use one reentrant lock (`threading.RLock`) per contai
 
 ### The thread-safety boundary
 
-- **Cached / singleton creation is locked.** The per-container reentrant lock guards the create-and-store step, so two threads racing to resolve the same cached provider get the same single instance.
+- **Cached / singleton creation is locked.** The tree-wide reentrant lock guards the create-and-store step, so two threads racing to resolve the same cached provider get the same single instance.
 - **Provider registration is safe.** `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently, or while another thread iterates, will not corrupt the registry or raise "dict changed size during iteration".
 - **Registration is a setup phase, not a coordination tool.** The registry is
   lock-guarded against corruption, but the supported model is register every
   provider *before* serving. Registering a provider while other threads are
   already resolving is timing-dependent by nature: nothing breaks, but whether
   a given resolve sees the new provider is undefined.
-- **`set_context` and overrides are last-write-wins.** Both write into a
-  per-container dict with no ordering, queueing, or merge; concurrent writes to
-  the same key keep whichever landed last. Do them during setup, or per-request
-  on a request-local child container, never from competing threads.
-- **Free-threaded CPython (PEP 703) is supported at `2 - Beta`.** Production-ready
-  and tested under real multithreading on the `3.14t` build. It is Beta rather than
-  Stable for one specific reason: modern-di relies on object-publication ordering
+- **`set_context` and overrides are last-write-wins.** Both write into a dict
+  with no ordering, queueing, or merge; concurrent writes to the same key keep
+  whichever landed last. Context is per container, so per-request context
+  belongs on a request-local child container. Overrides live in one registry
+  shared by the whole container tree, so an override set on any container is
+  seen by every container in it. Set overrides during setup, never from
+  competing threads.
+- **Free-threaded CPython (PEP 703) is supported at `2 - Beta`.** It is tested
+  under real multithreading on the `3.14t` build. It is Beta rather than Stable
+  for one specific reason: modern-di relies on object-publication ordering
   (that a reader observing a stored reference sees fully-initialized fields), and
   CPython publishes no memory model, so that is implementation behaviour rather than
   a spec guarantee. Throughput also does not scale across cores; per-op latency is
@@ -60,7 +63,7 @@ Beyond the choices above, these are deliberately out of scope. Naming them here 
 
 ### Auto-binding / auto-registration
 
-modern-di never registers a provider for a type you did not declare and never infers wiring by scanning your code. Auto-binding defers a missing-provider error from declaration time, where `UnsupportedCreatorParameterError` already raises, to whichever request first exercises the untested path. Register the provider in a `Group`; if the boilerplate is real, a small helper that builds several `Factory` instances from a list of classes is application code, not a framework feature.
+modern-di never registers a provider for a type you did not declare and never infers wiring by scanning your code. Without it, a missing provider is an `ArgumentResolutionError`, reported by `validate()` (run it once at startup or in a test) or raised at resolve. Auto-binding would hide that error until whichever request first exercises the untested path. Register the provider in a `Group`; if the boilerplate is real, a small helper that builds several `Factory` instances from a list of classes is application code, not a framework feature.
 
 ### In-package framework integrations
 
@@ -72,7 +75,7 @@ One type, one provider. Registering several providers for one type and injecting
 
 ### Generator creators (teardown after `yield`)
 
-`Factory` does not treat a generator creator as "yield the value, run the rest as a finalizer"; `CacheSettings(finalizer=)` is the only teardown spelling. The generator form is breaking (a generator creator resolves to the generator today), needs per-instance finalizer records for uncached factories and `bound_type` extraction from `Iterator[T]`, and cannot express an async finalizer under sync resolution, which the explicit form can. A `Factory` subclass in application code can wrap a generator creator and register the continuation as a finalizer.
+`Factory` does not treat a generator creator as "yield the value, run the rest as a finalizer"; `CacheSettings(finalizer=)` is the only teardown spelling. The generator form is breaking (a generator creator resolves to the generator today), needs per-instance finalizer records for uncached factories and `bound_type` extraction from `Iterator[T]`, and cannot express an async finalizer under sync resolution, which the explicit form can. Write a plain creator that returns the value and pass the teardown as `Factory(..., cache=CacheSettings(finalizer=...))`.
 
 ### An `enter_scope` alias for `build_child_container`
 

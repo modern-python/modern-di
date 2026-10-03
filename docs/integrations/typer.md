@@ -122,3 +122,4 @@ def run_job(
 | `@inject` | Decorator that resolves `FromDI`-annotated parameters before the command runs |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]`; accepts a provider instance or a plain type |
 | `fetch_di_container(ctx)` | Returns the app-scoped container registered by `setup_di`, from any command including those of nested `add_typer` sub-apps; does not read `ctx.obj` |
+| `action_scope(ctx)` | Context manager that yields a `Scope.ACTION` child of the per-command container built by `@inject`, and closes it on exit. Raises `RuntimeError` when the command isn't decorated with `@inject` |
