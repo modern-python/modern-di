@@ -108,9 +108,9 @@ objects, so you never declare a `ContextProvider` for these yourself. Each integ
 per-request (or per-message, or per-connection) child container and sets the framework object as
 context on it before your code resolves anything from it. There are two ways to consume that value:
 
-**Implicit usage (type-based resolution).** Annotate a factory parameter with the framework's
+For implicit, type-based resolution, annotate a factory parameter with the framework's
 type; because the integration already registered a matching `ContextProvider`, modern-di resolves
-it automatically. It is the same mechanism as [Basic usage](#basic-usage) above, just with the
+it automatically. It is the same mechanism as [Basic usage](#basic-usage) above, with the
 `ContextProvider` declared by the integration instead of by you. With
 [FastAPI](../integrations/fastapi.md), the `fastapi.Request` is injected into each per-request
 child container automatically:
@@ -147,7 +147,7 @@ container.validate()
 
 Nothing validates automatically, so the ordering above is what matters: `fastapi.Request`'s
 `ContextProvider` only exists once `setup_di()` has registered it, so calling
-`container.validate()` **before** that line would raise
+`container.validate()` before that line would raise
 [`ValidationFailedError`](../troubleshooting/validation-failed-error.md), and its `.errors` would
 carry an [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) for the
 required `request` parameter, since the provider isn't there yet. Call `validate()` after
@@ -164,7 +164,7 @@ parameter keeps its own disposition here too: `ContextValueNotSetError` (see [Wh
 set](#when-no-value-is-set) above) affects only a *direct* resolve of an unset context type, not
 a defaulted parameter, which still falls back to its default when no context is set.
 
-**Explicit usage (provider-based resolution).** Every integration also exports the underlying
+For explicit, provider-based resolution, every integration also exports the underlying
 `ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,
 `aiohttp_request_provider`, `faststream_message_provider`) so you can wire it through `kwargs`
 instead of relying on type-based resolution. This is useful with `skip_creator_parsing=True`, or
@@ -183,7 +183,7 @@ Each integration's own page has its exact provider names, scopes, and API table:
 
 ## See also
 
-- [Factories](factories.md) — how factories receive injected context values.
-- [Scopes](scopes.md) — choosing the scope a `ContextProvider` is bound to.
-- [Container](container.md) — `build_child_container` and `set_context`.
-- [FastAPI integration](../integrations/fastapi.md) — framework-provided context objects.
+- [Factories](factories.md): how factories receive injected context values.
+- [Scopes](scopes.md): choosing the scope a `ContextProvider` is bound to.
+- [Container](container.md): `build_child_container` and `set_context`.
+- [FastAPI integration](../integrations/fastapi.md): framework-provided context objects.

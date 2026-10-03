@@ -70,6 +70,6 @@ per request, or a fresh one on every call. `modern-di` expresses this with
 
 ## See also
 
-- [modern-di vs other libraries](comparison.md) — including whether you need a container at all.
-- [Quickstart](../index.md) — modern-di's own syntax, end to end.
-- [Design decisions](design-decisions.md) — the reasoning behind the API's choices.
+- [modern-di vs other libraries](comparison.md), including whether you need a container at all.
+- [Quickstart](../index.md): modern-di's own syntax, end to end.
+- [Design decisions](design-decisions.md): the reasoning behind the API's choices.

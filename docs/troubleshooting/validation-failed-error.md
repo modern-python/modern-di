@@ -9,7 +9,7 @@ error class name, with the count of each kind and every individual issue indente
 
 The provider graph has one or more problems: a circular dependency, a provider depending on a
 deeper-scoped one, a creator parameter with no way to be resolved, or an alias whose source type has
-no registered provider. `validate()` collects **every**
+no registered provider. `validate()` collects every
 issue across the whole graph in one pass rather than stopping at the first one, so `.errors` (a
 `list[Exception]`) may hold several distinct exception types at once.
 
@@ -35,4 +35,4 @@ construction, not `open()`, not `resolve()`.
 ## See also
 
 - [Lifecycle: validation](../providers/lifecycle.md#validation).
-- [Circular dependency](circular-dependency.md), [Scope chain violation](scope-chain.md), [Argument resolution error](argument-resolution-error.md), [Alias source not registered](alias-source-not-registered-error.md) — the underlying issue kinds.
+- The underlying issue kinds: [Circular dependency](circular-dependency.md), [Scope chain violation](scope-chain.md), [Argument resolution error](argument-resolution-error.md), [Alias source not registered](alias-source-not-registered-error.md).

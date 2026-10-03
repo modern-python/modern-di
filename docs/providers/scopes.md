@@ -15,7 +15,7 @@ APP → SESSION → REQUEST → ACTION → STEP
 | `APP` | One-per-process resources: settings, the database engine, a Redis client, a Kafka producer. The default if you omit `scope=`. |
 | `SESSION` | One-per-websocket-connection resources. Framework integrations enter SESSION automatically when a websocket opens. |
 | `REQUEST` | One-per-HTTP-request resources: the database session, the per-request user repository, the current `Request` object. Framework integrations create the REQUEST child container for each incoming request. |
-| `ACTION` | A sub-step inside a request — e.g. one item in a batch handler that should get its own cached values. Enter manually with `build_child_container`. |
+| `ACTION` | A sub-step inside a request, e.g. one item in a batch handler that should get its own cached values. Enter manually with `build_child_container`. |
 | `STEP` | A sub-step inside an ACTION. Same idea, one level deeper. |
 
 `APP` and `REQUEST` cover the vast majority of real apps. Reach for `SESSION` only for websockets; `ACTION`/`STEP` are for cases where you want isolated caching inside a request.
@@ -40,9 +40,9 @@ Children share their parent's `providers_registry` (provider definitions) and `o
 
 ## The scope dependency rule
 
-**A provider can only depend on providers at the same scope or a broader (lower int) scope.** A REQUEST-scoped session can consume the APP-scoped engine. The engine cannot consume the session.
+A provider can only depend on providers at the same scope or a broader (lower int) scope. A REQUEST-scoped session can consume the APP-scoped engine. The engine cannot consume the session.
 
-Why: lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state. This is called a **captive dependency**: a wide-scoped (long-lived) provider "captive" to a narrower-scoped (shorter-lived) one it cannot actually hold onto. `container.validate()` enforces this, so call it at startup. See [Good and bad practices](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one) for a worked example of the mistake and the fix.
+The rule exists for lifetime safety. If an APP-scoped singleton held a reference to a REQUEST-scoped session, the session would outlive its request and produce stale state. This is called a **captive dependency**: a wide-scoped (long-lived) provider "captive" to a narrower-scoped (shorter-lived) one it cannot actually hold onto. `container.validate()` enforces this, so call it at startup. See [Good and bad practices](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one) for a worked example of the mistake and the fix.
 
 ### How to choose a scope
 
@@ -56,9 +56,8 @@ If you pick a broader scope than the rule allows, `container.validate()` catches
 
 ## Building child containers
 
-Two patterns:
-
-**Manual.** Use the child container as a context manager so finalizers run on exit:
+You can build child containers yourself or let a framework integration do it. To build one
+yourself, use the child container as a context manager so finalizers run on exit:
 
 ```python
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
@@ -72,7 +71,7 @@ async with app_container.build_child_container(scope=Scope.REQUEST) as request_c
 
 Use `async with` only when the scope holds providers with async finalizers; otherwise plain `with` is enough. Resolution itself is always synchronous.
 
-**Framework-managed.** The [framework integrations](../integrations/fastapi.md) build the per-request child container for each request (or per-message for brokers) and tear it down at the end. You only declare `scope=Scope.REQUEST` on the providers that need it.
+If you use a [framework integration](../integrations/fastapi.md), it builds the per-request child container for each request (or per-message for brokers) and tears it down at the end. You only declare `scope=Scope.REQUEST` on the providers that need it.
 
 ## Resolving across scopes
 
@@ -155,6 +154,6 @@ A group declared without a `scope=` kwarg stamps nothing, so a provider listed o
 
 ## See also
 
-- [Lifecycle](lifecycle.md) — finalizers and `close_async()` work per-scope.
-- [Container provider](container.md) — injecting the active container into a creator.
-- [Async resources via lifespan](../recipes/async-lifespan.md) — pattern for APP-scoped async setup.
+- [Lifecycle](lifecycle.md): finalizers and `close_async()` work per-scope.
+- [Container provider](container.md): injecting the active container into a creator.
+- [Async resources via lifespan](../recipes/async-lifespan.md): pattern for APP-scoped async setup.

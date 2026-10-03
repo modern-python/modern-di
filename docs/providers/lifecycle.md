@@ -34,8 +34,8 @@ session = providers.Factory(
 )
 ```
 
-- **Caching.** With `cache=True`, the provider returns the same instance for every resolve inside that scope's container. That is the singleton idiom; see [Cached factories](factories.md#cached-factories). Without `cache`, the provider creates a fresh instance every call.
-- **Finalizer.** A callable that runs on the cached instance when the container is closed. It can be sync or async; `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance.
+- With `cache=True`, the provider returns the same instance for every resolve inside that scope's container. That is the singleton idiom; see [Cached factories](factories.md#cached-factories). Without `cache`, the provider creates a fresh instance every call.
+- A finalizer is a callable that runs on the cached instance when the container is closed. It can be sync or async; `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance.
 
 ```python
 def close_engine_sync(engine: Engine) -> None:
@@ -177,7 +177,7 @@ Framework integrations handle this automatically: they build the REQUEST child c
 
 `container.validate()` is the only thing that walks the graph. Nothing validates automatically:
 not construction, not `open()`, not `add_providers`, not `resolve()`. A container is fully usable,
-and stays usable, without ever calling `validate()`; a broken graph nobody validates simply surfaces
+and stays usable, without ever calling `validate()`; a broken graph nobody validates surfaces
 at whichever resolve first hits the problem, as an ordinary resolution error.
 
 Call it explicitly, whenever you want the whole graph checked at once: cycles, inverted scope
@@ -192,7 +192,7 @@ It aggregates every issue it finds into one `exceptions.ValidationFailedError` r
 at the first; see [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
 Call it right after building the container for a construction-time check, or later. A framework
 integration that registers its own providers after construction (via `add_providers`) should call it
-**after** that registration, so the complete graph is what gets checked; see [Writing an
+after that registration, so the complete graph is what gets checked; see [Writing an
 integration](../integrations/writing-integrations.md#lifecycle-rules).
 
 A repeat `validate()` after a clean walk is free: it memoizes against the registry's contents and
@@ -204,14 +204,14 @@ you don't want to discover under load.
 
 `Container(validate=...)` still exists for backward compatibility. Passing `True` or `False` is
 ignored and emits `exceptions.ValidateArgumentWarning` (a `DeprecationWarning`); omitting it (the
-default) is silent either way. It changes nothing about the container built: there is no longer a
-spelling of the constructor that validates for you. The argument is removed in 4.0; call
+default) is silent either way. It changes nothing about the container built: no spelling of the
+constructor validates for you. The argument is removed in 4.0; call
 `container.validate()` instead. See [Migration: To
 3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default) for how this used to
 work.
 
 ## See also
 
-- [Scopes](scopes.md) — child containers and per-scope finalization.
-- [Factories](factories.md) — `CacheSettings` is configured on the factory itself.
-- [Async resources via lifespan](../recipes/async-lifespan.md) — sync creator + async finalizer is the most common shape.
+- [Scopes](scopes.md): child containers and per-scope finalization.
+- [Factories](factories.md): `CacheSettings` is configured on the factory itself.
+- [Async resources via lifespan](../recipes/async-lifespan.md): sync creator + async finalizer is the most common shape.

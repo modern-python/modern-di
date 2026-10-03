@@ -19,7 +19,7 @@ class Dependencies(Group):
     user_cache = providers.Factory(UserCache, scope=Scope.REQUEST)
 ```
 
-**Caught by:** an explicit `container.validate()` call, which raises `ValidationFailedError`
+An explicit `container.validate()` call catches this: it raises `ValidationFailedError`
 carrying an `InvalidScopeDependencyError` for this exact graph before anything is ever resolved.
 See [Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
 the graph is never validated, the runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError`
@@ -31,8 +31,8 @@ than at startup. Prefer catching it statically with an explicit `validate()` cal
 
 `validate()` is the only thing that checks the *whole* graph (cycles, inverted scopes, and missing
 dependencies). Nothing calls it for you: not construction, not `open()`, not `add_providers`, not
-`resolve()`. Skipping it doesn't remove the bugs, it just delays finding them to whichever resolve
-happens to hit one first.
+`resolve()`. Skipping it leaves the bugs in place until whichever resolve happens to hit one
+first.
 
 ```python
 # Broken: never validated, so wiring bugs surface one at a time, in production, on whatever request trips them
@@ -43,7 +43,7 @@ container = Container(groups=[Dependencies])
 container.validate()  # raises ValidationFailedError here if the graph is broken
 ```
 
-**Caught by:** an explicit `container.validate()` call. It is the only thing that finds every issue
+An explicit `container.validate()` call catches this. It is the only thing that finds every issue
 in the graph up front; without it, each wiring bug surfaces individually, at whichever resolve first
 reaches it. `Container(validate=...)` is deprecated and does nothing (see [Migration: To
 3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default)). An unvalidated cyclic
@@ -52,7 +52,7 @@ graph still isn't a silent hang; see
 
 ## 3. A cached factory resolved before `set_context`
 
-Context values are read live on every resolve of a **non-cached** factory. A **cached** factory is
+Context values are read live on every resolve of a non-cached factory. A cached factory is
 built once, and a later `set_context` does not rebuild it.
 
 ```python
@@ -70,7 +70,7 @@ If a request container resolves `tenant_config` before the real tenant ID is kno
 setup), the cached version keeps serving that first value for the rest of the request even after
 `request.set_context(str, real_tenant_id)` runs. Either drop `cache=True` for anything whose
 correctness depends on context set later, or make sure `set_context` runs before the first resolve.
-**Caught by:** nothing automatic. This is a timing bug, not a wiring bug, so `validate()` cannot
+Nothing catches this automatically. It is a timing bug, not a wiring bug, so `validate()` cannot
 see it. See [Context propagation](../providers/context.md#context-propagation) for how `set_context`
 timing interacts with a provider's scope, and [Lifecycle](../providers/lifecycle.md) for caching.
 
@@ -92,7 +92,7 @@ def create_api_key(settings: Settings) -> str:
     return settings.api_key
 ```
 
-**Caught by:** nothing enforces this; it's a style discipline, not a validation rule. Reserve
+Nothing enforces this; it is a matter of style discipline. Reserve
 `container_provider` for cases that are actually about the container (building a child container,
 introspecting the current scope), and declare everything else as a typed parameter so
 `validate()` and [Resolving dependencies](../introduction/resolving.md) can see it.
@@ -119,8 +119,8 @@ def frozen_clock() -> Mock:
     container.reset_override(Dependencies.clock)
 ```
 
-**Caught by:** nothing automatic mid-suite. `reset_override(provider)` (or `reset_override()` with no
-arguments, to clear everything) is the fix, and closing the **root** container clears every override
+Nothing catches this automatically mid-suite. `reset_override(provider)` (or `reset_override()` with no
+arguments, to clear everything) is the fix, and closing the root container clears every override
 in the shared registry as a last resort. See
 [Testing with overrides](testing-overrides.md#pitfalls).
 
@@ -143,12 +143,12 @@ providers.Factory(
 )
 ```
 
-**Caught by:** a `UserWarning` at declaration time. It's easy to miss in test output, so treat it as
-a signal to add `bound_type=`, not as noise to ignore.
+A `UserWarning` at declaration time catches this. It's easy to miss in test output, so treat it
+as a signal to add `bound_type=`.
 
 ## See also
 
-- [Errors and exceptions](../providers/errors-and-exceptions.md) — the full catalog this page draws
+- [Errors and exceptions](../providers/errors-and-exceptions.md): the full catalog this page draws
   its mechanisms from.
-- [Testing with overrides](testing-overrides.md) — the full override lifecycle.
-- [Lifecycle](../providers/lifecycle.md) — caching, finalizers, and `validate()`.
+- [Testing with overrides](testing-overrides.md): the full override lifecycle.
+- [Lifecycle](../providers/lifecycle.md): caching, finalizers, and `validate()`.

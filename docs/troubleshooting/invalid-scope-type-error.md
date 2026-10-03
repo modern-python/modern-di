@@ -33,4 +33,4 @@ values are ordered the way you want the hierarchy to resolve, and use that inste
 
 ## See also
 
-- [Scopes](../providers/scopes.md) — the `IntEnum` hierarchy and why membership is required.
+- [Scopes](../providers/scopes.md) explains the `IntEnum` hierarchy and why membership is required.

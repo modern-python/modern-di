@@ -32,5 +32,5 @@ resolve.
 
 ## See also
 
-- [Alias](../providers/alias.md) — binding one type to an already-registered provider.
-- [No provider registered for type](missing-provider.md) — the same "unregistered type" problem, without an alias in the way.
+- [Alias](../providers/alias.md) covers binding one type to an already-registered provider.
+- [No provider registered for type](missing-provider.md) covers the same "unregistered type" problem, without an alias in the way.

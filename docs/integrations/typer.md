@@ -110,9 +110,9 @@ def run_job(
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Lifecycle](../providers/lifecycle.md): finalizers and container teardown.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 

@@ -1,8 +1,8 @@
 # Request-scoped engine selection (read replicas)
 
-> **Advanced.** Use this only if you have actual read-replica traffic to route. For a single-database setup, the [Async SQLAlchemy recipe](sqlalchemy.md) is what you want.
+> This is an advanced recipe. Use it only if you have actual read-replica traffic to route. For a single-database setup, use the [Async SQLAlchemy recipe](sqlalchemy.md).
 
-**Problem.** Route read-only requests (`GET`, `HEAD`) to a read-replica engine and mutating requests to the primary, without changing handler code.
+This recipe routes read-only requests (`GET`, `HEAD`) to a read-replica engine and mutating requests to the primary, without changing handler code.
 
 ## Solution
 
@@ -79,11 +79,11 @@ Why the `PrimaryEngine` / `ReplicaEngine` subclasses: type-based resolution need
 
 - The choice factory must be REQUEST-scoped. It depends on the per-request `Request` object. An APP-scoped factory cannot consume request-scoped data and `container.validate()` will reject it.
 - The framework integration provides `fastapi.Request` (or `litestar.Request`) automatically. No need to declare a `ContextProvider` for it. For Litestar, use `litestar.Request`.
-- Don't apply this to per-connection pooling decisions. Engines (and their pools) are APP-scoped, so the choice you make per request just selects which long-lived pool the session checks out from. Trying to make the engine itself REQUEST-scoped would create and dispose a pool every request.
+- Don't apply this to per-connection pooling decisions. Engines (and their pools) are APP-scoped, so the choice you make per request selects which long-lived pool the session checks out from. Trying to make the engine itself REQUEST-scoped would create and dispose a pool every request.
 - Watch for write-after-read in a single request. If a `GET` handler ends up doing a write (e.g. updating a `last_seen_at` field), it'll go to the replica and fail. Either move the side-effect out of the read path, or pick a different routing predicate than HTTP method.
 
 ## See also
 
-- [Async SQLAlchemy recipe](sqlalchemy.md) — the simpler single-engine pattern.
-- [Context providers](../providers/context.md) — how `Request` is injected.
-- [Scopes](../providers/scopes.md) — why the engines are APP but the choice is REQUEST.
+- [Async SQLAlchemy recipe](sqlalchemy.md): the simpler single-engine pattern.
+- [Context providers](../providers/context.md): how `Request` is injected.
+- [Scopes](../providers/scopes.md): why the engines are APP but the choice is REQUEST.

@@ -1,6 +1,6 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly raises `ContextValueNotSetError`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError`, **unless** that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly raises `ContextValueNotSetError`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError`, unless that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
 
 ## Symptom
 
@@ -26,7 +26,7 @@ app_container.set_context(TenantId, TenantId("acme"))     # ignored for REQUEST-
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 ```
 
-Fix: set the value on the container whose scope matches the provider's scope:
+To fix it, set the value on the container whose scope matches the provider's scope:
 
 ```python
 # Option A: pass directly to the child when building it
@@ -44,16 +44,16 @@ request_container.set_context(TenantId, TenantId("acme"))
 
 `ContextProvider(TenantId, scope=Scope.APP)` looks up the value on the APP container. If you `set_context` on the REQUEST child container, the APP-scope provider doesn't see it.
 
-Fix: match the scope. If the value is per-request, declare `ContextProvider(TenantId, scope=Scope.REQUEST)` and `set_context` on the request container (or pass via `build_child_container(context=...)`).
+Make the scopes match. If the value is per-request, declare `ContextProvider(TenantId, scope=Scope.REQUEST)` and `set_context` on the request container (or pass via `build_child_container(context=...)`).
 
 ### 3. Framework integration didn't inject the expected request
 
 Framework integrations (`modern-di-fastapi`, `modern-di-litestar`) register the per-request `Request`/`WebSocket` automatically. If your code expects, say, `fastapi.Request` but you're outside the framework's request lifecycle (a background task, a CLI command), no `Request` is in context and the lookup fails.
 
-Fix: only depend on framework-injected context inside the framework's request handling. For background tasks, build the REQUEST child container yourself and pass the necessary context.
+Depend on framework-injected context only inside the framework's request handling. For background tasks, build the REQUEST child container yourself and pass the necessary context.
 
 ## See also
 
-- [Context providers](../providers/context.md) — the full `ContextProvider` and `set_context` API.
-- [Scopes](../providers/scopes.md) — per-container context registries, why context never propagates between containers.
-- [Async resources via lifespan](../recipes/async-lifespan.md) — the canonical "construct in lifespan, inject as context" pattern.
+- [Context providers](../providers/context.md) documents the full `ContextProvider` and `set_context` API.
+- [Scopes](../providers/scopes.md) explains per-container context registries and why context never propagates between containers.
+- [Async resources via lifespan](../recipes/async-lifespan.md) shows the canonical "construct in lifespan, inject as context" pattern.

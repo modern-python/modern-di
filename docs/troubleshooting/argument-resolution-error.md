@@ -30,11 +30,11 @@ class Dependencies(Group):
     service2 = providers.Factory(Service, scope=Scope.APP, kwargs={"clock": clock})
 ```
 
-**Integration-supplied context types.** If the missing type is one a framework
+If the missing type is one a framework
 integration provides at runtime (`fastapi.Request`, `taskiq.TaskiqMessage`, …), its
 `ContextProvider` is registered by `setup_di()`, so a `container.validate()` call made
 *before* `setup_di()` runs sees no provider for it yet and raises. Either call
-`validate()` **after** `setup_di()` (the provider is registered by then), or make the
+`validate()` after `setup_di()` (the provider is registered by then), or make the
 parameter optional (`request: fastapi.Request | None = None`) so validation skips it
 regardless of ordering; the integration still injects the real value at runtime either
 way. See [Framework context objects](../providers/context.md#framework-context-objects).
@@ -44,5 +44,5 @@ registered instead.
 
 ## See also
 
-- [No provider registered for type](missing-provider.md) — the direct-resolve form of this same gap.
-- [Factories](../providers/factories.md#creator) — how parameters are parsed and wired.
+- [No provider registered for type](missing-provider.md) describes the direct-resolve form of this same gap.
+- [Factories](../providers/factories.md#creator) explains how parameters are parsed and wired.

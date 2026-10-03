@@ -1,6 +1,6 @@
 # Testing with overrides
 
-**Problem.** Tests need to swap a real dependency (database, HTTP client, clock) for a fake one without touching production wiring.
+Tests often need to swap a real dependency (database, HTTP client, clock) for a fake one without touching production wiring.
 
 ## Solution
 
@@ -13,7 +13,7 @@ with container.override(MyGroup.api_client, mock_client) as client:
 
 The override applies at the `override()` call, not at `__enter__`. `__exit__` restores the snapshot taken at that call: a previously stacked override if there was one, otherwise no override. It does so even on exception, and even if `reset_override()` ran inside the block, or a root `close_sync()`/`close_async()` (which clears all overrides) did. Exit still restores the snapshot. Nested overrides of the same provider unwind in order: each handle restores whatever was active before it. Handles are expected to exit in reverse order of creation, which `with`-block nesting does naturally; manually exiting handles out of order can restore stale state.
 
-`container.override(provider, replacement)` also works as a plain imperative call: reset with `container.reset_override(provider)` (or `container.reset_override()` to clear all). This pair remains fully supported (see the patterns below), and `close_sync`/`close_async` on the root container also clear all overrides automatically. Either way, the replacement is keyed by **provider reference** (not name) and is shared across the container tree, so an override on the root APP container applies to all child REQUEST containers too.
+`container.override(provider, replacement)` also works as a plain imperative call: reset with `container.reset_override(provider)` (or `container.reset_override()` to clear all). This pair remains fully supported (see the patterns below), and `close_sync`/`close_async` on the root container also clear all overrides automatically. Either way, the replacement is keyed by provider reference (not name) and is shared across the container tree, so an override on the root APP container applies to all child REQUEST containers too.
 
 ## Pattern 1: Simple mock override
 
@@ -108,5 +108,5 @@ Combine with `container.override(...)` in a setup fixture to swap underlying pro
 ## See also
 
 - [Pytest integration](../integrations/pytest.md).
-- [Async SQLAlchemy recipe](sqlalchemy.md) — the engine/session/repository chain being overridden here.
-- Reference template: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template) — full transactional fixture setup.
+- [Async SQLAlchemy recipe](sqlalchemy.md): the engine/session/repository chain being overridden here.
+- Reference template: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template) has the full transactional fixture setup.

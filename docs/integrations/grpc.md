@@ -117,7 +117,7 @@ four RPC types on either server.
 
 ## Scopes
 
-The integration opens one `Scope.REQUEST` child container **per RPC call**, for
+The integration opens one `Scope.REQUEST` child container per RPC call, for
 all four RPC types (unary-unary, server-streaming, client-streaming, bidi). The
 child is created when the RPC starts and closed when it ends. For a streaming
 RPC it stays open for the whole stream and closes after the last message,
@@ -151,14 +151,14 @@ class AppGroup(Group):
 `validate()` never constructs a provider, so the default isn't needed for
 validation. The `| None = None` default lets the provider resolve outside an RPC,
 where no context is set: the creator gets `None` instead of the resolve raising
-`ArgumentResolutionError`. The protobuf request `Message` is **not** exposed as a provider
+`ArgumentResolutionError`. The protobuf request `Message` is not exposed as a provider
 (that would add a `protobuf` dependency); the request is already a servicer-method
 argument.
 
 ## Root container lifecycle
 
-gRPC has no server startup/shutdown hook, so the **root container's lifecycle is
-yours to own** (as with Flask). Create the container open, pass it to the
+gRPC has no server startup/shutdown hook, so the root container's lifecycle is
+yours to own (as with Flask). Create the container open, pass it to the
 interceptor, and close it after the server stops to run APP-scoped finalizers:
 
 ```python
@@ -185,9 +185,9 @@ imposes no restriction on the method signature beyond the injected parameters.
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and container teardown.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Lifecycle](../providers/lifecycle.md): finalizers and container teardown.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 

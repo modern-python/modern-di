@@ -15,7 +15,7 @@ which one wins.
 
 ## Fix
 
-Three ways to resolve it, pick whichever fits:
+There are three ways to resolve it; pick whichever fits:
 
 ```python
 # 1. Set scope= explicitly on the shared provider — explicit always wins over a group default.
@@ -41,4 +41,4 @@ the exception to see exactly which provider and groups collided.
 
 ## See also
 
-- [Scopes](../providers/scopes.md) — the scope hierarchy and how a provider's scope is chosen.
+- [Scopes](../providers/scopes.md) explains the scope hierarchy and how a provider's scope is chosen.

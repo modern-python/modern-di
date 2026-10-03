@@ -33,4 +33,4 @@ Root containers rarely need this. Reconsider whether the provider actually needs
 
 ## See also
 
-- [Scopes](../providers/scopes.md) — the built-in hierarchy and how to extend it with a custom `IntEnum`.
+- [Scopes](../providers/scopes.md) explains the built-in hierarchy and how to extend it with a custom `IntEnum`.

@@ -1,6 +1,6 @@
 # Organize a large container with multiple Groups
 
-**Problem.** Your application has 30+ providers and stuffing them all into one `Group` is unreadable.
+Your application has 30+ providers, and one `Group` holding all of them is unreadable.
 
 ## Solution
 
@@ -103,5 +103,5 @@ See the [Litestar integration](../integrations/litestar.md) for the full pattern
 ## See also
 
 - [Factories](../providers/factories.md), [Scopes](../providers/scopes.md).
-- [Litestar integration](../integrations/litestar.md) — `autowired_groups`.
-- [Async SQLAlchemy recipe](sqlalchemy.md) — the building blocks for the `Database` group above.
+- [Litestar integration](../integrations/litestar.md): `autowired_groups`.
+- [Async SQLAlchemy recipe](sqlalchemy.md): the building blocks for the `Database` group above.

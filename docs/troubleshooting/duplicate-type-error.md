@@ -75,7 +75,7 @@ class MyGroup(Group):
 
 ## See also
 
-- [Factories](../providers/factories.md#bound_type) — the `bound_type` section.
+- [Factories](../providers/factories.md#bound_type), the `bound_type` section.
 - [Errors and exceptions](../providers/errors-and-exceptions.md)
 - [Missing provider](../troubleshooting/missing-provider.md)
 

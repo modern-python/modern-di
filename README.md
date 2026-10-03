@@ -37,7 +37,7 @@
 - Python 3.10+ support
 - Fully typed and tested
 - Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, and `Typer`
-- Pytest integration (`modern-di-pytest`) — turns any DI dependency into a pytest fixture
+- Pytest integration (`modern-di-pytest`) that turns any DI dependency into a pytest fixture
 
 ## Install
 
@@ -45,7 +45,7 @@
 uv add modern-di      # or: pip install modern-di
 ```
 
-## Quick Start
+## Quick start
 
 ```python
 import dataclasses
@@ -77,8 +77,8 @@ See the [documentation](https://modern-di.modern-python.org) for scopes, lifecyc
 
 Usage examples:
 
-- with Litestar - [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
-- with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
+- with Litestar: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
+- with FastAPI: [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
 
 ## 📚 [Documentation](https://modern-di.modern-python.org)
 

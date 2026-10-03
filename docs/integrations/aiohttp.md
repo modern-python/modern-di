@@ -91,7 +91,7 @@ Unlike FastAPI, Litestar, and Starlette, aiohttp has no separate WebSocket
 object. A WebSocket is an upgraded `web.Request`, so `aiohttp_websocket_provider`
 binds `web.Request` too, and is declared `bound_type=None` (not resolvable by
 type, because `aiohttp_request_provider` already owns `web.Request`). That is why
-you wire it **explicitly** with `FromDI(aiohttp_websocket_provider)` rather than
+you wire it explicitly with `FromDI(aiohttp_websocket_provider)` rather than
 by type annotation.
 
 For per-message work, open a nested `Scope.REQUEST` child of the session
@@ -154,10 +154,10 @@ on the first request to a decorated method.
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md): engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 
@@ -169,4 +169,4 @@ on the first request to a decorated method.
 | `fetch_di_container(app)` | Returns the root `Container` stored on the app. |
 | `fetch_request_container(request)` | Returns the per-connection child container the middleware built (REQUEST for HTTP, SESSION for a WebSocket). Raises `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `aiohttp_request_provider` | `ContextProvider` for `web.Request` (REQUEST scope), auto-registered by type. |
-| `aiohttp_websocket_provider` | `ContextProvider` for the WebSocket connection's `web.Request` (SESSION scope), `bound_type=None` — resolve via `FromDI(aiohttp_websocket_provider)`. |
+| `aiohttp_websocket_provider` | `ContextProvider` for the WebSocket connection's `web.Request` (SESSION scope), `bound_type=None`; resolve via `FromDI(aiohttp_websocket_provider)`. |

@@ -8,9 +8,9 @@ modern-di 3.0 flips five switches from warn-then-continue to raise/validate-by-d
 one more that has no 2.x precedent to warn from. Each of the five already has a 2.x signal, a
 warning that fires today wherever the 3.0 behavior would differ. If your 2.x test suite is green
 with the [readiness recipe](#readiness-recipe-escalating-warnings-to-errors-with-filterwarnings)
-below escalating those five warnings to errors, **those five switches** are a no-op for you.
+below escalating those five warnings to errors, those five switches are a no-op for you.
 
-3.0 **additionally** requires a container to be opened (`with`/`async with`/`open()`) before it can
+3.0 additionally requires a container to be opened (`with`/`async with`/`open()`) before it can
 `resolve` or `build_child_container` (switch 6 below), and changes `validate`'s constructor
 signature from `bool | None` to a plain `bool`. Neither has a 2.x warning to escalate: 2.x has no
 "unopened" state to signal on, and an explicit `validate=True` in 2.x validates eagerly at
@@ -26,9 +26,9 @@ and a green suite under the recipe does not, by itself, get you past them. See
 | Reusing a closed container raises `ContainerClosedError` | `ContainerClosedWarning` |
 | `Alias(scope=)` parameter removed | `DeprecationWarning` |
 | `Factory(cache_settings=)` removed | `DeprecationWarning` |
-| `validate` defaults to `True` and runs at container entry (`open()`/`with`) | `UnvalidatedContainerWarning` — covers the *unset* case only; see below |
+| `validate` defaults to `True` and runs at container entry (`open()`/`with`) | `UnvalidatedContainerWarning` (covers the *unset* case only; see below) |
 | Direct resolve of an unset `ContextProvider` raises `ContextValueNotSetError` | `ContextValueNoneWarning` |
-| A container must be opened before `resolve`/`build_child_container` | **none** — inherent hard break, no 2.x state to warn from |
+| A container must be opened before `resolve`/`build_child_container` | None: an inherent hard break, with no 2.x state to warn from |
 
 ## Key changes
 
@@ -38,7 +38,7 @@ In 2.x, resolving from (or building a child of) a closed container emits `Contai
 and transparently reopens the container so the call still succeeds. In 3.0 the same call raises
 `ContainerClosedError` instead.
 
-**Before (2.x):**
+Before (2.x):
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)
 container.close_sync()
@@ -50,7 +50,7 @@ container.close_sync()
 service = container.resolve(MyService)  # succeeds — container self-reopens
 ```
 
-**After (3.0):**
+After (3.0):
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)
 with container:
@@ -62,7 +62,7 @@ service = container.resolve(MyService)  # raises ContainerClosedError — reused
 
 Re-enter the container with `with`/`async with`, or call `container.open()`, before reusing it.
 
-This is one half of a single rule: **a container must be open to be used.** This switch is the
+This is one half of a single rule: a container must be open to be used. This switch is the
 *closed-after-use* half (a container that was open, then closed); [switch 6](#6-a-container-must-be-opened-before-use)
 below is the *never-opened* half (a fresh container that was never entered at all). Both raise the
 same `ContainerClosedError`, and both are fixed the same way: enter the container with
@@ -74,7 +74,7 @@ same `ContainerClosedError`, and both are fixed the same way: enter the containe
 never affected resolution. In 2.x, passing it emits a `DeprecationWarning`; in 3.0 the parameter is
 gone.
 
-**Before (2.x):**
+Before (2.x):
 ```python
 from modern_di import Scope, providers
 
@@ -84,7 +84,7 @@ from modern_di import Scope, providers
 alias = providers.Alias(DatabaseProtocol, scope=Scope.APP)
 ```
 
-**After (3.0):**
+After (3.0):
 ```python
 from modern_di import providers
 
@@ -96,7 +96,7 @@ alias = providers.Alias(DatabaseProtocol)
 `cache_settings=` was the pre-`cache=` spelling for tuning a `Factory`'s cache. In 2.x it still
 works but warns; in 3.0 only `cache=` is accepted.
 
-**Before (2.x):**
+Before (2.x):
 ```python
 # DeprecationWarning: `cache_settings=` is deprecated; use `cache=` (pass
 # cache=True for defaults, or cache=CacheSettings(...) to tune). It will be
@@ -108,7 +108,7 @@ factory = providers.Factory(
 )
 ```
 
-**After (3.0):**
+After (3.0):
 ```python
 factory = providers.Factory(
     create_resource,
@@ -121,18 +121,18 @@ factory = providers.Factory(
 
 The final 3.0 form differs from what 2.x signals in two ways, so read this one carefully.
 
-**The signature.** In 2.x, `Container`'s `validate` argument is `bool | None = None`: unset (`None`)
+The first is the signature. In 2.x, `Container`'s `validate` argument is `bool | None = None`: unset (`None`)
 skips validation but emits `UnvalidatedContainerWarning`; `False` skips it silently; `True` enables
 it. In 3.0, the parameter is a plain `validate: bool = True`, and the `None` sentinel is gone.
 Passing `validate=False` still means "off"; there is no other spelling to adopt for the unset case,
 because unset now *is* the default-on case.
 
-**The timing.** In 2.x, `validate=True` validates **eagerly at construction**: `Container(...)`
+The second is the timing. In 2.x, `validate=True` validates eagerly at construction: `Container(...)`
 itself raises `ValidationFailedError` if the graph is broken. In 3.0, validation never runs in
-`__init__`. It runs once, at container **entry** (`open()`, or `with`/`async with`, which call
+`__init__`. It runs once, at container entry (`open()`, or `with`/`async with`, which call
 `open()`), so an invalid graph raises there instead. This lets a framework integration register
 its own providers (e.g. via `add_providers`) after construction and still have the complete graph
-validated before first use. `validate=True` is **not eager**: if you need a construction-time
+validated before first use. `validate=True` is not eager: if you need a construction-time
 check, call `container.validate()` explicitly right after building it.
 
 This timing change has no 2.x warning: an explicit `validate=True` caller in 2.x sees no
@@ -143,7 +143,7 @@ about when validation happens once enabled. Escalating it to an error still gets
 signal for switching the *default* to on. It does not, and cannot, warn you about the *timing*
 move for callers who already pass `validate=True`.
 
-**Before (2.x):**
+Before (2.x):
 ```python
 # UnvalidatedContainerWarning: This root container was created without an
 # explicit `validate` argument. modern-di 3.0 runs validate() at container
@@ -156,7 +156,7 @@ container.resolve(MyService)
 container = Container(scope=Scope.APP, groups=[MyGroup], validate=True)  # raises here if broken
 ```
 
-**After (3.0):**
+After (3.0):
 ```python
 # validate is on by default; it runs once at open(), not at construction.
 with Container(scope=Scope.APP, groups=[MyGroup]) as container:
@@ -175,7 +175,7 @@ container.validate()  # raises ValidationFailedError here if the graph is broken
 Child containers (built via `build_child_container`) never validate, in either version; this
 switch only affects root containers.
 
-**Changed again in 3.1.** Validation is explicit-only; `open()` no longer runs it either. See
+3.1 changed this again. Validation is explicit-only; `open()` no longer runs it either. See
 the [3.1 note under switch 6](#6-a-container-must-be-opened-before-use) below for the full
 correction.
 
@@ -187,7 +187,7 @@ In 2.x, resolving a type backed by a `ContextProvider` with no value set emits
 parameter backed by the same `ContextProvider` continues to follow its own
 default/nullable/required disposition, unchanged.
 
-**Before (2.x):**
+Before (2.x):
 ```python
 # ContextValueNoneWarning: No context value is set for <class '...'> (scope
 # APP); returning None. modern-di 3.0 raises ContextValueNotSetError here.
@@ -195,7 +195,7 @@ default/nullable/required disposition, unchanged.
 value = container.resolve(SomeContextType)  # None
 ```
 
-**After (3.0):**
+After (3.0):
 ```python
 value = container.resolve(SomeContextType)  # raises ContextValueNotSetError
 ```
@@ -206,7 +206,7 @@ resolving.
 
 ### 6. A container must be opened before use
 
-New in 3.0, added mid-development, with **no 2.x deprecation signal at all**: 2.x has no
+New in 3.0, added mid-development, with no 2.x deprecation signal at all: 2.x has no
 "unopened" state, so there was never anything for it to warn about. A freshly constructed
 container now starts unopened; using it before entering it (`resolve`, `resolve_provider`,
 `build_child_container`) raises `ContainerClosedError`. Enter it with `with`/`async with`, or call
@@ -215,11 +215,11 @@ use. Child containers (from `build_child_container`) also start unopened and mus
 themselves before they can be used.
 
 This is the *never-opened* half of the same rule as [switch 1](#1-closed-containers-raise-instead-of-self-healing)
-above (the *closed-after-use* half): **a container must be open to be used**, whether it was never
+above (the *closed-after-use* half): a container must be open to be used, whether it was never
 opened or was opened and then closed. Both cases raise the identical `ContainerClosedError`, with a
 message that names which state applies, and both are fixed the same way.
 
-**Before (2.x):**
+Before (2.x):
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup])
 service = container.resolve(MyService)  # works — no open() call needed
@@ -228,7 +228,7 @@ child = container.build_child_container(scope=Scope.REQUEST)
 value = child.resolve(SomeContextType)  # works — no open() call needed either
 ```
 
-**After (3.0):**
+After (3.0):
 ```python
 container = Container(scope=Scope.APP, groups=[MyGroup])
 service = container.resolve(MyService)  # raises ContainerClosedError: not open
@@ -251,9 +251,9 @@ Because there is no 2.x signal for this one, the [readiness recipe](#readiness-r
 below cannot surface it in advance. A green 2.x suite under that recipe still needs every
 construct-then-use call site audited for a matching `with`/`open()` before it can run against 3.0.
 
-**Changed again in 3.1.** This requirement is relaxed, not reversed: see the
+3.1 changed this again. The requirement is relaxed, not reversed: see the
 [3.1 release notes](https://github.com/modern-python/modern-di/releases) for the full
-change. A container is **open from construction** again (`closed = False` the moment
+change. A container is open from construction again (`closed = False` the moment
 `Container(...)` returns, no `open()` step required), and reusing a container after an
 explicit close warns (`ContainerClosedWarning`) and reopens instead of raising
 `ContainerClosedError`.
@@ -296,7 +296,7 @@ This is the one place in the docs that lists the full `filterwarnings` escalatio
 other page that mentions escalating a specific warning links back here.
 
 This recipe covers switches 1, 2, 3, and 5 fully, and switch 4 only for the *unset-`validate`*
-case, the case `UnvalidatedContainerWarning` actually warns about. It has **nothing** to say about
+case, the case `UnvalidatedContainerWarning` actually warns about. It has nothing to say about
 switch 6 (mandatory-open) or about switch 4's timing move for callers who already pass
 `validate=True` explicitly: both are hard breaks with no 2.x warning to escalate. A green suite
 under this recipe rules out five-and-a-half of the six switches; you still need to audit
@@ -346,7 +346,7 @@ filterwarnings = [
     happens to still be inside `modern_di`, so they *would* match. That inconsistency is exactly
     why `module=` isn't part of the recipe above.
 
-    **Changed again in 3.1.** `ContainerClosedWarning` now computes its `stacklevel` (via
+    3.1 changed this again. `ContainerClosedWarning` now computes its `stacklevel` (via
     `_caller_stacklevel`) so it attributes *outside* `modern_di`, and `ContextValueNoneWarning`
     has no raise sites left at all, so on 3.1 a `module=r"modern_di(\..*)?"` filter escalates
     none of the five. The paragraph above describes 2.x, which is what this page's recipe runs

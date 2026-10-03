@@ -16,8 +16,7 @@ The container chain skipped an intermediate scope when it was built. For example
 
 ## Fix
 
-Build child containers through every intermediate scope your providers need, rather than jumping
-straight to a deep one:
+Build child containers through every intermediate scope your providers need:
 
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
@@ -37,5 +36,5 @@ request/message and align your providers to those, not to the full built-in hier
 
 ## See also
 
-- [Scope chain violation](scope-chain.md) — the related, statically-detected form of this problem.
-- [Scopes](../providers/scopes.md) — how container chains map to the scope hierarchy.
+- [Scope chain violation](scope-chain.md) covers the related, statically-detected form of this problem.
+- [Scopes](../providers/scopes.md) explains how container chains map to the scope hierarchy.

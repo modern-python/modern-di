@@ -2,7 +2,7 @@
 
 modern-di 2.x merges the container classes, moves providers to keyword-only arguments, removes four provider types in favor of `Factory`, and drops async resolution. Breaking changes, once:
 
-1. **`AsyncContainer`/`SyncContainer` → `Container`** (single class, both sync and async operations):
+1. `AsyncContainer` and `SyncContainer` are merged into a single `Container` class that supports both sync and async operations:
 
     ```python
     # Before (1.x)
@@ -18,7 +18,7 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
 
     `with`/`async with container.build_child_container(...)` still works for automatic cleanup; `close_sync()`/`close_async()` are also available for manual lifecycle control. The framework integration packages were updated with matching new APIs.
 
-2. **Provider constructor arguments became keyword-only.**
+2. Provider constructor arguments became keyword-only.
 
     ```python
     # Before (1.x)
@@ -30,7 +30,7 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
 
     Since 2.27, the subject argument (`creator` / `context_type` / `source_type`) is accepted positionally again; all other parameters remain keyword-only.
 
-3. **`Singleton`, `Resource`, `Dict`, `List` removed.** All four map onto `Factory`:
+3. `Singleton`, `Resource`, `Dict`, and `List` are removed. All four map onto `Factory`:
 
     ```python
     # Before (1.x)
@@ -51,7 +51,7 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
     semantics: finalizer runs on close, instance rebuilt on next resolve); set `clear_cache=False`
     only when the same object must survive a close→reopen cycle.
 
-4. **Resolution is sync-only.** No more `sync_` prefix, no `await` on resolution (async *finalizers* are still supported via `CacheSettings(finalizer=async_fn)` and `await container.close_async()`):
+4. Resolution is sync-only. There is no more `sync_` prefix and no `await` on resolution (async *finalizers* are still supported via `CacheSettings(finalizer=async_fn)` and `await container.close_async()`):
 
     ```python
     # Before (1.x)
@@ -61,11 +61,11 @@ modern-di 2.x merges the container classes, moves providers to keyword-only argu
     instance = container.resolve_provider(provider)
     ```
 
-5. **`.cast` removed.** Wiring is by type instead:
+5. `.cast` is removed, and wiring is by type:
 
     | 1.x | 2.x |
     |---|---|
-    | `dep=other_provider.cast` (a provider dependency) | Drop the argument — annotate the creator parameter with the dependency's type. |
+    | `dep=other_provider.cast` (a provider dependency) | Drop the argument and annotate the creator parameter with the dependency's type. |
     | `value=settings.host` (a static value) | Pass it in `kwargs={"value": ...}`. |
     | a request/context value | Register a `ContextProvider` for that type (see [Context](../providers/context.md)). |
 

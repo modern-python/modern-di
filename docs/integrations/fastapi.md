@@ -1,6 +1,6 @@
 # Usage with `FastAPI`
 
-*More advanced example of usage with FastAPI - [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)*
+*More advanced example of usage with FastAPI: [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)*
 
 ## How to use
 
@@ -66,13 +66,13 @@ async def get_report(
 ```
 
 !!! warning "Deployment: mounted sub-apps and disabled lifespan"
-    FastAPI only opens the root container from the ASGI **lifespan** event. A
-    `setup_di`-wired app **mounted as a sub-application** (`app.mount("/sub",
+    FastAPI only opens the root container from the ASGI lifespan event. A
+    `setup_di`-wired app mounted as a sub-application (`app.mount("/sub",
     subapp)`) never receives that event from its parent, and deployments that
     disable lifespan (e.g. Mangum `lifespan="off"`) skip it too. Requests
     still succeed (the container is already open from construction), but
     nothing ever closes it, so its finalizers never run at shutdown. Call
-    `setup_di` on the **top-level served app**, or close the root yourself
+    `setup_di` on the top-level served app, or close the root yourself
     (`await container.close_async()`) at shutdown.
 
 ## Websockets
@@ -116,8 +116,8 @@ and explicit resolution work.
 
 The following context providers are available for import:
 
-- `fastapi_request_provider` - Provides the current `fastapi.Request` object
-- `fastapi_websocket_provider` - Provides the current `fastapi.WebSocket` object
+- `fastapi_request_provider` provides the current `fastapi.Request` object
+- `fastapi_websocket_provider` provides the current `fastapi.WebSocket` object
 
 ### Implicit (type-based) usage
 
@@ -169,10 +169,10 @@ class AppGroup(Group):
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Async SQLAlchemy](../recipes/sqlalchemy.md) — engine + session + repository through the request container.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Async SQLAlchemy](../recipes/sqlalchemy.md): engine + session + repository through the request container.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 
@@ -180,7 +180,7 @@ class AppGroup(Group):
 |---|---|
 | `setup_di(app, container)` | Registers the container on the FastAPI app and appends a lifespan that closes it on shutdown (merges with any existing `lifespan=`); returns the container. |
 | `FromDI(dependency, *, use_cache=True)` | A `fastapi.Depends` wrapper that resolves a provider (or type) from the per-request child container. Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
-| `build_di_container(connection)` | A `fastapi.Depends` callable that yields the per-request child container — REQUEST scope for an HTTP request, SESSION scope for a WebSocket. |
+| `build_di_container(connection)` | A `fastapi.Depends` callable that yields the per-request child container: REQUEST scope for an HTTP request, SESSION scope for a WebSocket. |
 | `fastapi_request_provider` | `ContextProvider` for `fastapi.Request` (REQUEST scope), auto-registered. |
 | `fastapi_websocket_provider` | `ContextProvider` for `fastapi.WebSocket` (SESSION scope), auto-registered. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on the app. Raises `RuntimeError` naming `setup_di` when called on an app without `setup_di` called. |

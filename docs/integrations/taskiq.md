@@ -64,7 +64,7 @@ async def get_report(
     return report.as_dict()
 ```
 
-`setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it. Those fire when the broker's worker process starts and stops, so a script that just calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.
+`setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it. Those fire when the broker's worker process starts and stops, so a script that calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.
 
 !!! warning "Deployment: `run_receiver_task` skips startup by default"
     `taskiq.api.run_receiver_task(...)` defaults `run_startup=False`, which
@@ -76,7 +76,7 @@ async def get_report(
 
 ## Scopes
 
-The integration creates a `Scope.REQUEST` child container **for each task** that uses `FromDI`, built lazily through `TaskiqDepends` when the task's dependencies are resolved. A task with no `FromDI` parameter gets no child container. REQUEST-scoped providers (and their finalizers) live for the duration of that one task: the child container is closed after the task returns, including when it raises. APP-scoped providers persist for the whole worker process; `setup_di` opens the APP container on `WORKER_STARTUP` and runs `await container.close_async()` on `WORKER_SHUTDOWN`.
+The integration creates a `Scope.REQUEST` child container for each task that uses `FromDI`, built lazily through `TaskiqDepends` when the task's dependencies are resolved. A task with no `FromDI` parameter gets no child container. REQUEST-scoped providers (and their finalizers) live for the duration of that one task: the child container is closed after the task returns, including when it raises. APP-scoped providers persist for the whole worker process; `setup_di` opens the APP container on `WORKER_STARTUP` and runs `await container.close_async()` on `WORKER_SHUTDOWN`.
 
 There is no `Scope.SESSION` for taskiq: a task queue doesn't have a session concept comparable to websockets.
 
@@ -90,7 +90,7 @@ There is no `Scope.SESSION` for taskiq: a task queue doesn't have a session conc
 
 The following context provider is also available for explicit import:
 
-- `taskiq_message_provider` — provides the current `taskiq.TaskiqMessage` object.
+- `taskiq_message_provider` provides the current `taskiq.TaskiqMessage` object.
 
 ### Implicit (type-based) usage
 
@@ -136,16 +136,16 @@ class AppGroup(Group):
 
 ## See also
 
-- [Testing with overrides](../recipes/testing-overrides.md) — swap providers in your tests.
-- [Async resources via lifespan](../recipes/async-lifespan.md) — constructing async resources with finalizers.
-- [Lifecycle](../providers/lifecycle.md) — finalizers and `close_async()`.
-- [Scopes](../providers/scopes.md) — the APP → REQUEST lifetime model.
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Async resources via lifespan](../recipes/async-lifespan.md): constructing async resources with finalizers.
+- [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
 ## API
 
 | Symbol | Description |
 |---|---|
-| `setup_di(broker, container)` | Wire the APP-scope container into taskiq — a REQUEST child container is then built through `TaskiqDepends` for each task that uses `FromDI`; opens/closes the APP container on worker startup/shutdown. |
+| `setup_di(broker, container)` | Wire the APP-scope container into taskiq: a REQUEST child container is then built through `TaskiqDepends` for each task that uses `FromDI`; opens/closes the APP container on worker startup/shutdown. |
 | `FromDI(provider_or_type, *, use_cache=True)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. `use_cache` is passed through to `TaskiqDepends`. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called. |
 | `fetch_di_container(broker)` | Returns the APP-scope container registered with the taskiq broker. |
 | `taskiq_message_provider` | `ContextProvider` for the current `taskiq.TaskiqMessage`. |

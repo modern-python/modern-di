@@ -1,12 +1,12 @@
 # Migration guide: upgrading to modern-di 1.x
 
 !!! warning "Historical guide"
-    This guide covers migrating from 0.x to 1.x. The APIs shown here (`AsyncContainer`, `SyncContainer`, `providers.Singleton`, `.cast`) were **removed in 2.x**.
+    This guide covers migrating from 0.x to 1.x. The APIs shown here (`AsyncContainer`, `SyncContainer`, `providers.Singleton`, `.cast`) were removed in 2.x.
     If you are on 1.x today, also follow the [2.x migration guide](to-2.x.md) to reach the current API.
 
 modern-di 1.x inverts where resolution methods live and replaces a handful of provider types. Breaking changes, once:
 
-1. **`BaseGraph` → `Group`**; single `Container` → `AsyncContainer` or `SyncContainer` (async supports both sync and async resolution; sync is sync-only).
+1. `BaseGraph` is replaced by `Group`, and the single `Container` by `AsyncContainer` or `SyncContainer` (async supports both sync and async resolution; sync is sync-only).
 
     ```python
     # Before (0.x)
@@ -19,7 +19,7 @@ modern-di 1.x inverts where resolution methods live and replaces a handful of pr
     sync_container.enter()  # replaces Container().sync_enter()
     ```
 
-2. **Resolution moved from provider to container**, and can now target a type directly (requires passing `groups=` at construction):
+2. Resolution moved from the provider to the container, and can now target a type directly (requires passing `groups=` at construction):
 
     ```python
     # Before (0.x)
@@ -35,7 +35,7 @@ modern-di 1.x inverts where resolution methods live and replaces a handful of pr
 
     Manual provider overrides and the way dependencies are declared in web-framework applications changed accordingly. Both now go through the container and integration APIs.
 
-3. **`Selector` and `ContextAdapter` removed.** Replace both with `Factory` + `ContextProvider`:
+3. `Selector` and `ContextAdapter` are removed. Replace both with `Factory` + `ContextProvider`:
 
     ```python
     # Before (0.x)
@@ -46,9 +46,9 @@ modern-di 1.x inverts where resolution methods live and replaces a handful of pr
     dynamic_engine = providers.Factory(Scope.REQUEST, choose_engine, context=mode.cast, write=w.cast, read=r.cast)
     ```
 
-4. **`AttrGetter` removed.** Reference the provider directly, or write a small factory function that extracts the attribute.
-5. **Factory attribute access removed** (`.async_provider`/`.sync_provider`). Inject the container itself and resolve dependencies manually instead of injecting a factory function.
-6. **`async_enter()` → `enter()`.**
+4. `AttrGetter` is removed. Reference the provider directly, or write a small factory function that extracts the attribute.
+5. Factory attribute access (`.async_provider`/`.sync_provider`) is removed. Inject the container itself and resolve dependencies manually instead of injecting a factory function.
+6. `async_enter()` is renamed to `enter()`.
 
 ## More
 

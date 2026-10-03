@@ -28,7 +28,7 @@ result = container.resolve(str)
 
 ### Explicit injection
 
-You can also explicitly inject the container using `providers.container_provider`. Reach for this when the parameter is **not** annotated as `Container` (so type-based injection can't find it), or when you want an explicit binding instead of relying on the type:
+You can also explicitly inject the container using `providers.container_provider`. Reach for this when the parameter is not annotated as `Container` (so type-based injection can't find it), or when you want an explicit binding instead of relying on the type:
 
 ```python
 from modern_di import Container, Group, Scope, providers
@@ -52,7 +52,7 @@ result = container.resolve(str)
 ## Which container you get
 
 Resolving `Container` returns the **calling container**: the deepest, most-specific container in
-the active chain, not the `APP` root. The `container_provider` simply hands back whichever container
+the active chain, not the `APP` root. The `container_provider` hands back whichever container
 ran the resolve, so a `REQUEST` child resolves `Container` to *itself*:
 
 ```python
@@ -83,7 +83,7 @@ resolve a `FromDI`-style marker. See [Writing an integration](../integrations/wr
 
 ## See also
 
-- **Context propagation** — how context values reach (and don't reach) a `ContextProvider` is
-  covered on the [Context providers](context.md#context-propagation) page.
-- **Low-level API** — `find_container`, `scope_map`, and `Group.get_providers()` are documented
-  under [Advanced / low-level API](advanced-api.md).
+- [Context providers](context.md#context-propagation) covers how context values reach (and don't
+  reach) a `ContextProvider`.
+- [Advanced / low-level API](advanced-api.md) documents `find_container`, `scope_map`, and
+  `Group.get_providers()`.
