@@ -29,7 +29,7 @@ class MyGroup(Group):
 
 
 def test_context_provider() -> None:
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
     app_container.open()
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
@@ -38,7 +38,7 @@ def test_context_provider() -> None:
 
 
 def test_context_provider_set_context_after_creation() -> None:
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container()
     app_container.open()
     app_container.set_context(datetime.datetime, now)
@@ -67,7 +67,7 @@ def test_context_provider_not_found_but_required() -> None:
 
 
 def test_context_provider_in_request_scope() -> None:
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container()
     app_container.open()
     request_container = app_container.build_child_container(context={datetime.datetime: now}, scope=Scope.REQUEST)
@@ -132,7 +132,7 @@ def test_factory_resolves_with_none_context_value() -> None:
 
 
 def test_factory_uses_default_when_context_provider_value_unset() -> None:
-    default = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+    default = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 
     @dataclasses.dataclass(kw_only=True, slots=True)
     class TsHolder:
@@ -178,7 +178,7 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
 
 
 def test_context_provider_through_closed_owning_container_warns() -> None:
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app = Container(groups=[MyGroup], context={datetime.datetime: now})
     app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
@@ -192,7 +192,7 @@ def test_context_provider_through_closed_owning_container_warns() -> None:
 def test_context_provider_does_not_prepare_an_already_open_container(monkeypatch: pytest.MonkeyPatch) -> None:
     # `_prepare()` takes the container's RLock before re-checking `closed`, so calling it
     # unconditionally would serialize every context resolve on the owning container's lock.
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app = Container(groups=[MyGroup], context={datetime.datetime: now})
     app.open()
 
@@ -359,7 +359,7 @@ def test_direct_resolve_unset_context_raises() -> None:
 
 
 def test_set_context_provider_direct_resolve_does_not_warn() -> None:
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
     app_container.open()
     with warnings.catch_warnings():
@@ -369,7 +369,7 @@ def test_set_context_provider_direct_resolve_does_not_warn() -> None:
 
 def test_context_provider_accepts_positional_context_type() -> None:
     provider = providers.ContextProvider(datetime.datetime)
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(context={datetime.datetime: now})
     app_container.open()
     assert app_container.resolve_provider(provider) is now
@@ -383,7 +383,7 @@ def test_context_provider_rejects_context_type_passed_twice() -> None:
 def test_context_provider_override_direct_short_circuits() -> None:
     # An override of a ContextProvider compiles to a constant resolver, so resolving it directly
     # returns the override with no ContextValueNotSetError, even with nothing in the registry.
-    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
     app_container = Container(groups=[MyGroup])
     app_container.open()
     app_container.override(MyGroup.context_provider, override_value)
@@ -392,7 +392,7 @@ def test_context_provider_override_direct_short_circuits() -> None:
         assert app_container.resolve_provider(MyGroup.context_provider) is override_value
 
 
-_SENTINEL_DEFAULT = datetime.datetime(1999, 9, 9, tzinfo=datetime.timezone.utc)
+_SENTINEL_DEFAULT = datetime.datetime(1999, 9, 9, tzinfo=datetime.UTC)
 
 
 def _ctx_default_creator(*, ctx: datetime.datetime | None = _SENTINEL_DEFAULT) -> str:
@@ -430,14 +430,14 @@ def test_kwargs_context_provider_matches_by_type_wiring() -> None:
 
 
 def test_kwargs_context_provider_injects_present_value() -> None:
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(groups=[_KwargsCtxExplicitGroup], context={datetime.datetime: now})
     app_container.open()
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {now!r}"
 
 
 def test_kwargs_context_provider_override_wins() -> None:
-    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
     app_container = Container(groups=[_KwargsCtxExplicitGroup])
     app_container.open()
     app_container.override(_KwargsCtxExplicitGroup.ctx, override_value)
@@ -468,7 +468,7 @@ def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve()
 def test_kwargs_context_provider_without_parsed_signature_injects_present_value() -> None:
     # Same no-parsed-signature routing as above, but with a value present: the direct-resolve path
     # returns it normally and the creator runs.
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now})
     app_container.open()
     assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"

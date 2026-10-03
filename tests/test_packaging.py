@@ -36,7 +36,7 @@ def test_modern_di_imports_without_typing_extensions() -> None:
     """modern-di advertises zero runtime dependencies; `typing_extensions` must be type-checking only.
 
     Runs in a fresh subprocess with `typing_extensions` import blocked, to catch any
-    unconditional runtime `import typing_extensions` (see container.py / group.py).
+    unconditional runtime `import typing_extensions`.
     """
     code = (
         "import sys\n"

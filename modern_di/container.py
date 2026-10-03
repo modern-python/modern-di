@@ -19,10 +19,6 @@ from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope, _next_deeper
 
 
-if typing.TYPE_CHECKING:
-    import typing_extensions
-
-
 def _handle_recursion_error(
     provider: AbstractProvider[typing.Any], container: "Container", exc: RecursionError
 ) -> typing.NoReturn:
@@ -77,7 +73,7 @@ class Container:
     def __init__(  # noqa: PLR0913, PLR0917
         self,
         scope: enum.IntEnum = Scope.APP,
-        parent_container: typing.Optional["typing_extensions.Self"] = None,
+        parent_container: typing.Self | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
         use_lock: bool = True,
@@ -107,7 +103,7 @@ class Container:
         # Ancestors only, never self: a `scope: self` entry is a reference cycle, so no container
         # would ever be freed by refcounting.
         # SLF001 exempts `self`/`cls` only, so it flags this same-class read; no boundary is crossed.
-        self._scope_map: dict[enum.IntEnum, typing_extensions.Self] = (
+        self._scope_map: dict[enum.IntEnum, typing.Self] = (
             {**parent_container._scope_map, parent_container.scope: parent_container}  # noqa: SLF001
             if parent_container
             else {}
@@ -138,7 +134,7 @@ class Container:
         *,
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
-    ) -> "typing_extensions.Self":
+    ) -> typing.Self:
         if scope is None:
             scope = _next_deeper(self.scope)
             if scope is None:
@@ -146,7 +142,7 @@ class Container:
 
         return self.__class__(scope=scope, parent_container=self, context=context)
 
-    def find_container(self, scope: enum.IntEnum) -> "typing_extensions.Self":
+    def find_container(self, scope: enum.IntEnum) -> typing.Self:
         if scope == self.scope:
             return self
         target = self._scope_map.get(scope)
@@ -157,7 +153,7 @@ class Container:
         return target
 
     @property
-    def scope_map(self) -> "dict[enum.IntEnum, typing_extensions.Self]":
+    def scope_map(self) -> dict[enum.IntEnum, typing.Self]:
         warnings.warn(
             "`Container.scope_map` is private; it will be removed in a future release.",
             DeprecationWarning,
@@ -300,21 +296,21 @@ class Container:
         )
         self.closed = False
 
-    def __enter__(self) -> "typing_extensions.Self":
+    def __enter__(self) -> typing.Self:
         self.open()
         return self
 
     def __exit__(self, *_: object) -> None:
         self.close_sync()
 
-    async def __aenter__(self) -> "typing_extensions.Self":
+    async def __aenter__(self) -> typing.Self:
         self.open()
         return self
 
     async def __aexit__(self, *_: object) -> None:
         await self.close_async()
 
-    def __copy__(self, *_: object, **__: object) -> "typing_extensions.Self":
+    def __copy__(self, *_: object, **__: object) -> typing.Self:
         """Never clone: a copied container would own a detached cache whose finalizers never run."""
         return self
 

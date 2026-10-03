@@ -12,7 +12,7 @@
 - Automatic dependency graph based on type annotations
 - Also, explicit dependencies are allowed where needed
 - Scopes and context management
-- Python 3.10+ support
+- Python 3.11+ support
 - Fully typed and tested
 - Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, `Typer`, and `pytest`
 
