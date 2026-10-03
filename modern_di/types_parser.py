@@ -67,10 +67,7 @@ def _parse_parameter(
         raise exceptions.UnsupportedCreatorParameterError(
             creator=creator,
             parameter_name=param_name,
-            reason=(
-                "positional-only parameters cannot be passed by keyword; "
-                "give the parameter a default or use skip_creator_parsing=True"
-            ),
+            reason="positional-only parameters cannot be passed by keyword; give the parameter a default",
         )
 
     default = UNSET
