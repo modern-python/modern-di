@@ -121,7 +121,7 @@ _Across-run IQR of each side's own median (5 runs): modern-di â‰¤1.1%, rivals â‰
 ## What the numbers show
 
 - Against `dependency-injector`, modern-di is faster by reference on C1 (**0.42**) and
-  C3 (**0.37**), and far faster on the batched C4 request lifecycle (**0.02**).
+  C3 (**0.36**), and far faster on the batched C4 request lifecycle (**0.02**).
   dependency-injector's C4 body calls `init_resources()`/`shutdown_resources()` every cycle
   in addition to resolving; the suite doesn't decompose how much of its per-request cost is
   that lifecycle work versus the resolve itself, so C4 should be read as a whole-lifecycle
