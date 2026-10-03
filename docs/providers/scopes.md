@@ -71,7 +71,7 @@ async with app_container.build_child_container(scope=Scope.REQUEST) as request_c
 
 Use `async with` only when the scope holds providers with async finalizers; otherwise plain `with` is enough. Resolution itself is always synchronous.
 
-Otherwise, the [framework integrations](../integrations/fastapi.md) build the per-request child container for each request (or per-message for brokers) and tear it down at the end. You only declare `scope=Scope.REQUEST` on the providers that need it.
+If you use a [framework integration](../integrations/fastapi.md), it builds the per-request child container for each request (or per-message for brokers) and tears it down at the end. You only declare `scope=Scope.REQUEST` on the providers that need it.
 
 ## Resolving across scopes
 

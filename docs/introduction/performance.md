@@ -210,7 +210,7 @@ own way: modern-di seeds a child container's context and resolves by reference; 
 placeholder factory; that-depends supplies it through `container_context(global_context=)`; and
 dependency-injector injects by reference via `providers.Dependency` + `.override()`, a
 structural analog rather than an equivalent. modern-di's timed body builds the child, resolves, and closes
-it. It calls no `open()`: a freshly built child is already open, so timing one would
+it. It calls no `open()`: a freshly built child is already open as of 3.1, so timing one would
 charge modern-di a redundant lock acquire (81 ns, ~6% of the cell) with no counterpart in any
 rival's body. It does close, because all four rivals exit their scope inside the timed body; that
 teardown is ~110 ns, and omitting it would have flattered modern-di by more than the `open()`

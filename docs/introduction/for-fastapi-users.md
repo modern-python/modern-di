@@ -62,7 +62,7 @@ class Dependencies(Group):
 
 This is the modern-di equivalent of a FastAPI `yield`-dependency that hands out one session per
 request and closes it afterward. The cleanup runs as the container's finalizer instead of code
-after `yield`.
+after `yield`, and `Scope.REQUEST` names how long the session lives, not when it is torn down.
 
 ## See also
 
