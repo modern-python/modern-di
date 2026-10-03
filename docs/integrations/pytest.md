@@ -130,45 +130,42 @@ one or more `Group` subclasses can be exposed against the request container.
 
 `modern-di-pytest` deliberately does **not** ship override sugar. Use
 `Container.override()` directly; it is already backed by a tree-shared
-`OverridesRegistry`:
+`OverridesRegistry`.
 
-```python
-import modern_di
-
-from app.ioc import Dependencies
-from app.services import UserService
-from tests.fakes import FakeRepo
-
-
-def test_with_override(
-    di_container: modern_di.Container,
-    user_service: UserService,
-) -> None:
-    di_container.override(Dependencies.user_repo, FakeRepo())
-    try:
-        assert user_service.list_users() == []
-    finally:
-        di_container.reset_override(Dependencies.user_repo)
-```
-
-When `di_container` is session-scoped, prefer to wrap the override in a
-function-scoped fixture so cleanup is guaranteed:
+A fixture such as `user_service` resolves during test setup, before the test
+body runs, so an override set inside the test body comes too late to reach it.
+Apply the override in a fixture and point the dependency's fixture at it with
+`container_fixture=`, so the override is in place when the dependency resolves
+and is reset afterwards:
 
 ```python
 import typing
 
 import modern_di
 import pytest
+from modern_di_pytest import modern_di_fixture
 
 from app.ioc import Dependencies
+from app.services import UserService
 from tests.fakes import FakeRepo
 
 
 @pytest.fixture
-def mock_user_repo(di_container: modern_di.Container) -> typing.Iterator[None]:
+def fake_repo_container(
+    di_container: modern_di.Container,
+) -> typing.Iterator[modern_di.Container]:
     di_container.override(Dependencies.user_repo, FakeRepo())
-    yield
+    yield di_container
     di_container.reset_override(Dependencies.user_repo)
+
+
+user_service_with_fake_repo = modern_di_fixture(
+    UserService, container_fixture="fake_repo_container"
+)
+
+
+def test_with_override(user_service_with_fake_repo: UserService) -> None:
+    assert user_service_with_fake_repo.list_users() == []
 ```
 
 For deeper patterns (transactional DB sessions, resetting all overrides) see the [testing-with-overrides recipe](../recipes/testing-overrides.md).

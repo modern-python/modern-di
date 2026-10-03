@@ -148,8 +148,10 @@ class AppGroup(Group):
     caller = providers.Factory(make_caller, scope=Scope.REQUEST)
 ```
 
-The `| None = None` default lets the provider construct at validation time, when
-no context is set. The protobuf request `Message` is **not** exposed as a provider
+`validate()` never constructs a provider, so the default isn't needed for
+validation. The `| None = None` default lets the provider resolve outside an RPC,
+where no context is set: the creator gets `None` instead of the resolve raising
+`ArgumentResolutionError`. The protobuf request `Message` is **not** exposed as a provider
 (that would add a `protobuf` dependency); the request is already a servicer-method
 argument.
 

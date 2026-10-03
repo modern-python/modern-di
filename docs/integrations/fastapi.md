@@ -183,3 +183,4 @@ class AppGroup(Group):
 | `build_di_container(connection)` | A `fastapi.Depends` callable that yields the per-request child container — REQUEST scope for an HTTP request, SESSION scope for a WebSocket. |
 | `fastapi_request_provider` | `ContextProvider` for `fastapi.Request` (REQUEST scope), auto-registered. |
 | `fastapi_websocket_provider` | `ContextProvider` for `fastapi.WebSocket` (SESSION scope), auto-registered. |
+| `fetch_di_container(app)` | Returns the root `Container` stored on the app. Raises `RuntimeError` naming `setup_di` when called on an app without `setup_di` called. |

@@ -11,10 +11,11 @@ Container.validate() found 1 issue(s): CircularDependencyError
 
 CircularDependencyError (1):
   - Circular dependency detected:
-      ServiceA
-      └─> ServiceB
-          └─> ServiceA
+      APP  ServiceA (myapp.cycle:6)
+      APP  └─> ServiceB (myapp.cycle:10)
+      APP      └─> ServiceA (myapp.cycle:6)
     Check your provider graph for unintended cycles.
+See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/
 ```
 
 It means the listed providers form a cycle that cannot be resolved. Each hop in the arrow chain may also end with a pointer to where that provider was declared (module and line number), making it easier to locate the offending provider in a large codebase.

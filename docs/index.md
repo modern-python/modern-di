@@ -51,7 +51,7 @@ If you want a framework integration, install the matching adapter, one `modern-d
 
 ## 2. First success
 
-One provider, no scopes, no caching: the smallest honest example. A `Group` is a namespace that
+One provider, no scopes, no caching: the smallest example. A `Group` is a namespace that
 lists your providers; `Container.resolve` looks a value up by its type.
 
 ```python
@@ -180,8 +180,9 @@ child container for you automatically. Resolution itself is always synchronous; 
   [FastStream](integrations/faststream.md), [Flask](integrations/flask.md), [gRPC](integrations/grpc.md),
   [Litestar](integrations/litestar.md), [Starlette](integrations/starlette.md),
   [taskiq](integrations/taskiq.md), [Typer](integrations/typer.md), [Pytest](integrations/pytest.md).
-  Each builds a scoped child container per request/task/call automatically and closes the APP
-  container at shutdown.
+  The framework integrations build a scoped child container per request/task/call automatically,
+  and most close the APP container at shutdown. Flask, gRPC, and Typer have no shutdown hook, so
+  you close the root container yourself. The Pytest plugin exposes providers as fixtures.
 - [Resolving](introduction/resolving.md) — how type-based auto-injection works.
 - [Factories](providers/factories.md) — the provider you just used.
 - [Scopes](providers/scopes.md) — the APP → REQUEST scope model in one page.

@@ -340,7 +340,7 @@ Call `container.validate()` explicitly during migration. The cycle row above is 
 
 A handful of `dependency-injector` features have no direct port. Workarounds:
 
-- **`ThreadLocalSingleton`**: use `threading.local()` inside a cached `Factory`'s creator and store the per-thread object there.
+- **`ThreadLocalSingleton`**: register an uncached `Factory` whose creator reads the object from a module-level `threading.local()` and creates and stores it there on a thread's first call. A cached `Factory` can't do this, because it caches one object for the whole container.
 - **`Selector`**: write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
 - **`Aggregate` / `FactoryAggregate`**: resolve each candidate provider individually (by type or by reference) and dispatch on the key yourself in a small creator function, rather than injecting the whole aggregate object.
 - **`.provided` (attribute / item / method-call access on a provider, e.g. `service.provided.value`)**: resolve the parent inside the consuming creator and access the attribute, item, or method result there, or expose a dedicated `Factory` whose creator returns just that piece.

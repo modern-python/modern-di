@@ -23,8 +23,8 @@ class Dependencies(Group):
 carrying an `InvalidScopeDependencyError` for this exact graph before anything is ever resolved.
 See [Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
 the graph is never validated, the runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError`
-that (since the scope-error breadcrumb work) now names both the provider that captured the
-dependency and the one that actually failed, and it fires on the first request that hits it rather
+where the runtime error names both the provider that captured the dependency and the one that
+failed, and it fires on the first request that hits it rather
 than at startup. Prefer catching it statically with an explicit `validate()` call.
 
 ## 2. Shipping a never-validated graph

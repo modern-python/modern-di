@@ -98,7 +98,9 @@ async def list_users(user_repo: UserRepository) -> list[str]:
     ...
 ```
 
-If the same attribute name appears in multiple groups, a `UserWarning` is emitted and the last group's provider wins.
+If an attribute name appears in more than one group, or matches a dependency the app already has (including the plugin's own `di_container`), a `UserWarning` is emitted and the autowired provider overwrites the earlier one; among groups, the last one wins.
+
+With `autowired_groups` set, `FromDI` on a route can still take a type. Pass a provider instance only for providers outside `autowired_groups`: Litestar rejects one provider registered under two keys and raises `ImproperlyConfiguredException`.
 
 ## Websockets
 

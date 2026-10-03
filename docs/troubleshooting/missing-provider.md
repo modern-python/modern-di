@@ -7,15 +7,17 @@ This error fires when a creator parameter is typed `Foo` and the container has n
 **Direct miss.** Resolving an unregistered type directly:
 
 ```
-ProviderNotRegisteredError: Provider of type <class 'SomeType'> is not registered in providers registry.
+ProviderNotRegisteredError: Provider of type <class 'myapp.missing.MissingDep'> is not registered in providers registry.
+See: https://modern-di.modern-python.org/troubleshooting/missing-provider/
 ```
 
 **Nested miss.** A registered factory whose creator depends on an unregistered type:
 
 ```
 ArgumentResolutionError: Cannot resolve dependency chain:
-  APP  MyService
-  caused by: Argument dep of type <class 'MissingDep'> cannot be resolved. Trying to build dependency <class 'MyService'>.
+  APP  MyService (myapp.missing:7)
+  caused by: Argument dep of type <class 'myapp.missing.MissingDep'> cannot be resolved. Trying to build dependency <class 'myapp.missing.MyService'>.
+See: https://modern-di.modern-python.org/troubleshooting/argument-resolution-error/
 ```
 
 The resolver walked the creator's signature, found a parameter typed `MissingDep`, and looked it up in the providers registry. Nothing was there. The "dependency chain" header shows where in the resolution graph the miss occurred.

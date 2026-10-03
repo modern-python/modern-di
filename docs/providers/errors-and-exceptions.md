@@ -73,8 +73,8 @@ Catch `ContainerError` for any container/scope failure.
   current container but is missing from the scope chain (a level was skipped when building children).
   Carries the same breadcrumb `dependency_path` as `ScopeNotInitializedError`. See
   [Troubleshooting: ScopeSkippedError](../troubleshooting/scope-skipped-error.md).
-- **`InvalidScopeTypeError`** is raised by the `Container` constructor when `scope` is not an
-  `enum.IntEnum`. See
+- **`InvalidScopeTypeError`** is raised by the `Container` constructor, and by a `Group` subclass
+  declared as `class G(Group, scope=...)`, when `scope` is not an `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
 - **`ContainerClosedError`** is no longer raised as of modern-di 3.1; it stays importable for
   back-compat and is removed in 4.0. A container is open from construction, so there is nothing to

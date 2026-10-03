@@ -229,6 +229,10 @@ Escaping problem shapes: if a parameter shape would raise at declaration, there 
 2. Supply the value via `kwargs={"items": []}` at `Factory` declaration time.
 3. Pass `skip_creator_parsing=True` (and supply all required args via `kwargs`).
 
+Routes 2 and 3 pass the value by keyword, so they only work for a parameterized generic. A
+positional-only parameter needs route 1: with route 2 it still raises
+`UnsupportedCreatorParameterError`, and with route 3 it raises `CreatorCallError` at resolve.
+
 ### Provider passed as a kwargs value
 
 Passing an `AbstractProvider` instance directly as a value in the `kwargs` dict is treated as **explicit wiring**: Modern-DI resolves the provider and injects the resolved value; the provider object itself is never seen by the creator.

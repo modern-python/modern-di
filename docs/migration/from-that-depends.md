@@ -317,7 +317,7 @@ A handful of `that-depends` features have no direct port. Workarounds:
 
 - **`Selector`**: write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
 - **`AttrGetter` (`provider.attr` syntax)**: resolve the parent inside the consuming creator and access the attribute there, or expose a dedicated `Factory` whose creator returns the attribute.
-- **`ThreadLocalSingleton`**: use `threading.local()` inside a cached `Factory`'s creator and store the per-thread object there.
+- **`ThreadLocalSingleton`**: register an uncached `Factory` whose creator reads the object from a module-level `threading.local()` and creates and stores it there on a thread's first call. A cached `Factory` can't do this, because it caches one object for the whole container.
 - **`@inject` + `Provide[T]()` for non-framework functions**: `modern-di` has no general-purpose injection decorator. Call `container.resolve(T)` explicitly at the call site, or expose the function through a framework integration and use `FromDI(T)`.
 
 ## More

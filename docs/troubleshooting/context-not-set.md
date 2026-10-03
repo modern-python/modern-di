@@ -6,8 +6,9 @@ A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container
 
 ```
 Cannot resolve dependency chain:
-  REQUEST  MyService
-  caused by: Argument tenant of type <class 'TenantId'> cannot be resolved. Trying to build dependency <class 'MyService'>.
+  REQUEST  MyService (myapp.ctx:9)
+  caused by: Argument tenant of type <class 'myapp.ctx.TenantId'> cannot be resolved. Trying to build dependency <class 'myapp.ctx.MyService'>.
+See: https://modern-di.modern-python.org/troubleshooting/argument-resolution-error/
 ```
 
 The error is an `ArgumentResolutionError` rendered as a chain: the top frame shows which provider failed, and the `caused by` line names the specific parameter that could not be wired. The parameter cannot be resolved because the `ContextProvider` for `TenantId` has no value in this container's context registry: nothing was set for that type on this container.
