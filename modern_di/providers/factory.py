@@ -73,8 +73,7 @@ class Factory(AbstractProvider[types.T_co]):
                     parameter_name=param_name,
                     reason=(
                         f"parameterized generic annotation {item.raw_annotation!r} cannot be resolved by type; "
-                        f"pass the value via the kwargs parameter, give the parameter a default, "
-                        f"or use skip_creator_parsing=True"
+                        "pass the value via the kwargs parameter or give the parameter a default"
                     ),
                 )
         self._parsed_kwargs = parsed.params
