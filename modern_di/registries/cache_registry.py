@@ -114,7 +114,7 @@ class CacheRegistry:
         for cache_item in reversed(self._creation_order):
             try:
                 cache_item.close_sync()
-            except exceptions.AsyncFinalizerInSyncCloseError as e:  # noqa: PERF203
+            except exceptions.AsyncFinalizerInSyncCloseError as e:
                 finalizer_errors.append(e)
                 remaining.append(cache_item)
             except Exception as e:  # noqa: BLE001

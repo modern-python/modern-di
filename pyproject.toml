@@ -2,14 +2,13 @@
 name = "modern-di"
 description = "Powerful dependency-injection framework with IoC container and scopes"
 authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
-requires-python = ">=3.10,<4"
+requires-python = ">=3.11,<4"
 license = "MIT"
 readme = "README.md"
 keywords = ["dependency-injection", "di", "ioc-container", "scopes", "mocks", "python", "asyncio", "modern-di"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -47,7 +46,6 @@ lint = [
     "ruff",
     "ty",
     "eof-fixer",
-    "typing-extensions",
 ]
 
 [tool.ty.src]

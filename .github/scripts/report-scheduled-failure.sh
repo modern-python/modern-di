@@ -19,7 +19,7 @@ if [ -z "$existing" ]; then
   body=$(printf '%s\n\n%s\n\n%s\n\n%s' \
     "The scheduled dependency check failed." \
     "First failing run: ${RUN_URL}" \
-    "Likely cause: a transitive dev or lint dependency (ruff, ty, eof-fixer, pytest, typing-extensions) released a breaking change. Reproduce locally with \`just install\` then \`just lint\` and \`just test\`." \
+    "Likely cause: a transitive dev or lint dependency (ruff, ty, eof-fixer, pytest) released a breaking change. Reproduce locally with \`just install\` then \`just lint\` and \`just test\`." \
     "Close this issue once fixed. The next scheduled failure will open a fresh issue.")
   gh issue create --title "$TITLE" --label "$LABEL" --body "$body"
 else
