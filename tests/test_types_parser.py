@@ -259,8 +259,9 @@ def _generic_param_creator(x: list[_GenericDep]) -> str:
 
 def test_parameterized_generic_param_without_default_raises_at_declaration() -> None:
     assert _generic_param_creator([]) == "[]"
-    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match=r"list\[.*_GenericDep\]"):
+    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match=r"list\[.*_GenericDep\]") as exc_info:
         providers.Factory(creator=_generic_param_creator)
+    assert "skip_creator_parsing" not in str(exc_info.value)
 
 
 def test_parameterized_generic_param_supplied_via_kwargs_is_allowed() -> None:
