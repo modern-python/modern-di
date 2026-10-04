@@ -428,6 +428,18 @@ def test_container_rejects_non_intenum_scope_at_init() -> None:
     assert "99" in str(exc.value)
 
 
+def test_constructor_takes_only_scope_positionally() -> None:
+    class G(Group):
+        name = providers.Factory(creator=lambda: "r", bound_type=str)
+
+    with pytest.raises(TypeError):
+        Container(Scope.APP, None)  # ty: ignore[too-many-positional-arguments]
+
+    assert Container(Scope.APP).scope is Scope.APP
+    with Container(scope=Scope.APP, groups=[G]) as container:
+        assert container.resolve(str) == "r"
+
+
 def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
     app = Container(scope=Scope.APP)
     app.open()

@@ -70,9 +70,10 @@ class Container:
         "scope",
     )
 
-    def __init__(  # noqa: PLR0913, PLR0917
+    def __init__(  # noqa: PLR0913
         self,
         scope: enum.IntEnum = Scope.APP,
+        *,
         parent_container: typing.Self | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
