@@ -111,30 +111,29 @@ fresh container. `close_sync()` / `close_async()` run the finalizers (in reverse
 above) and mark the container closed; entering `with container:` (or `async with`) is the idiomatic
 way to guarantee that close runs, even on an exception.
 
-Resolving from a container **that was explicitly closed**, directly or through a child whose
-resolve reaches back into that container's scope, reopens it and emits `ContainerClosedWarning`.
-The warning signals that a reference to the container is being held past its lifetime, unless the
-reuse is deliberate. Building a child of a closed container does not, by itself, trigger any of
-this. Re-entering `with container:` (or calling `open()` directly) reopens it silently instead,
-since a deliberate reopen isn't diagnostic-worthy:
+Resolving from a container **that was closed**, directly or through a child whose resolve reaches
+back into that container's scope, raises `ContainerClosedError`, and the creator does not run.
+Nothing reopens a closed container implicitly. Building a child of a closed container still works,
+and the child resolves what it owns; only a provider that resolves in the closed scope raises.
+Re-entering `with container:` (or calling `open()` directly) reopens it:
 
 ```python
 container = Container(groups=[Dependencies])
 
 with container:
     container.resolve(Settings)
-# closed here — finalizers ran
+# closed here: finalizers ran
 
-container.resolve(Settings)  # warns ContainerClosedWarning, then reopens and resolves
+container.resolve(Settings)  # raises ContainerClosedError
 
-with container:                 # reopened silently — no warning
+with container:                 # reopened by __enter__
     container.resolve(Settings)
 ```
 
-See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md) for what
-`ContainerClosedWarning` means and how to respond to it, and
-[Migration: To 3.x](../migration/to-3.x.md#1-closed-containers-raise-instead-of-self-healing) for how
-this differed in 3.0.
+See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md) for how to
+tell a deliberate restart from a reference held past the container's lifetime, and
+[Migration: To 4.x](../migration/to-4.x.md#resolving-on-a-closed-container-raises) for the 3.x
+behavior, which warned and reopened instead.
 
 How a cached instance survives this cycle depends on its `CacheSettings`:
 

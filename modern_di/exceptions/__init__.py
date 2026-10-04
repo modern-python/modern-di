@@ -43,7 +43,6 @@ from modern_di.exceptions.resolution import (
     ResolutionError,
 )
 from modern_di.exceptions.warnings import (
-    ContainerClosedWarning,
     ContextValueNoneWarning,
     UnvalidatedContainerWarning,
     ValidateArgumentWarning,
@@ -58,7 +57,6 @@ __all__ = [
     "ChildContainerRegistrationError",
     "CircularDependencyError",
     "ContainerClosedError",
-    "ContainerClosedWarning",
     "ContainerError",
     "ContextValueNoneWarning",
     "ContextValueNotSetError",

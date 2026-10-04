@@ -1,11 +1,7 @@
 import enum
-import os
-import pathlib
-import sys
 import threading
 import typing
 import warnings
-from types import FrameType
 
 from modern_di import exceptions, types
 from modern_di.dependency_graph import DependencyGraph, build_cycle_error, collect_errors
@@ -34,20 +30,6 @@ def _handle_recursion_error(
     if cycle is None:
         raise exc
     raise build_cycle_error(cycle, container) from exc
-
-
-# Trailing separator: without it the prefix test also swallows `modern_di_fastapi/` and friends.
-_PACKAGE_DIR = str(pathlib.Path(__file__).parent) + os.sep
-
-
-def _caller_stacklevel() -> int:
-    """Frames to skip so a warning points at the caller, not at modern_di internals."""
-    level = 1
-    frame: FrameType | None = sys._getframe(1)  # noqa: SLF001
-    while frame is not None and frame.f_code.co_filename.startswith(_PACKAGE_DIR):
-        level += 1
-        frame = frame.f_back
-    return level
 
 
 class Container:
@@ -172,14 +154,18 @@ class Container:
         return self._lock
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
-        """Resolve a dependency by its type."""
+        """Resolve a dependency by its type.
+
+        Raises :class:`~modern_di.exceptions.ContainerClosedError` when this container, or the
+        ancestor a provider resolves in, is closed.
+        """
         registry = self.providers_registry
         try:
             resolver = registry._resolvers_by_type.get(dependency_type)  # noqa: SLF001
             if resolver is None:
                 resolver = registry.resolver_for_type(dependency_type)
             if self.closed:
-                self._prepare()
+                raise exceptions.ContainerClosedError(container_scope=self.scope)
             return resolver(self)
         except RecursionError as exc:
             _handle_recursion_error(registry._providers[dependency_type], self, exc)  # noqa: SLF001
@@ -191,9 +177,13 @@ class Container:
         return self.resolve(dependency)
 
     def resolve_provider(self, provider: "AbstractProvider[types.T]") -> types.T:
-        """Resolve a specific provider by reference via its compiled resolver."""
+        """Resolve a specific provider by reference via its compiled resolver.
+
+        Raises :class:`~modern_di.exceptions.ContainerClosedError` when this container, or the
+        ancestor the provider resolves in, is closed.
+        """
         if self.closed:
-            self._prepare()
+            raise exceptions.ContainerClosedError(container_scope=self.scope)
         try:
             registry = self.providers_registry
             resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
@@ -282,19 +272,12 @@ class Container:
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
     def open(self) -> None:
-        """Reopen a closed container silently; a no-op on an open one, and never validates.
+        """Reopen a closed container; a no-op on an open one, and never validates.
 
-        Optional: a constructed container is already open, and an implicit reuse reopens too,
-        with a warning.
+        A constructed container is already open. After a close, resolving raises
+        :class:`~modern_di.exceptions.ContainerClosedError` until this, or re-entering the
+        container with ``with``/``async with``, reopens it.
         """
-        self.closed = False
-
-    def _prepare(self) -> None:
-        """Reopen a closed container on implicit reuse, warning the caller. Callers guard on ``closed``."""
-        warnings.warn(
-            exceptions.ContainerClosedWarning(container_scope=self.scope),
-            stacklevel=_caller_stacklevel(),
-        )
         self.closed = False
 
     def __enter__(self) -> typing.Self:

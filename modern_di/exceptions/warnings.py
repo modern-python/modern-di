@@ -1,25 +1,5 @@
 """Warnings; none descend from ``ModernDIError``."""
 
-import enum
-
-
-class ContainerClosedWarning(RuntimeWarning):
-    """A closed container was reused implicitly and has been reopened. Attr: ``container_scope``.
-
-    ``RuntimeWarning``, not ``DeprecationWarning``: CPython hides deprecation warnings outside
-    ``__main__``, which would hide this from exactly the applications that need it.
-    """
-
-    __slots__ = ("container_scope",)
-
-    def __init__(self, *, container_scope: enum.IntEnum) -> None:
-        self.container_scope = container_scope
-        super().__init__(
-            f"Container (scope {container_scope.name}) was reused after close and has been reopened. "
-            "Call `open()`, or re-enter it with `with`/`async with`, to reuse it deliberately; "
-            "if you did not intend to reuse it, a reference is being held past its lifetime."
-        )
-
 
 class ValidateArgumentWarning(DeprecationWarning):
     """`Container(validate=...)` is ignored; call `Container.validate()` instead."""

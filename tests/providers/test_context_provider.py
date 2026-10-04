@@ -7,7 +7,7 @@ import pytest
 from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
-    ContainerClosedWarning,
+    ContainerClosedError,
     ContextValueNotSetError,
     ScopeNotInitializedError,
 )
@@ -177,30 +177,19 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
     assert second.ctx is value
 
 
-def test_context_provider_through_closed_owning_container_warns() -> None:
+def test_context_provider_through_closed_owning_container_raises() -> None:
     now = datetime.datetime.now(tz=datetime.UTC)
     app = Container(groups=[MyGroup], context={datetime.datetime: now})
     app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
     child.open()
     app.close_sync()
-    with pytest.warns(ContainerClosedWarning):
-        assert child.resolve_provider(MyGroup.context_provider) == now
-    assert app.closed is False  # the owning ancestor reopened itself
-
-
-def test_context_provider_does_not_prepare_an_already_open_container(monkeypatch: pytest.MonkeyPatch) -> None:
-    # `_prepare()` takes the container's RLock before re-checking `closed`, so calling it
-    # unconditionally would serialize every context resolve on the owning container's lock.
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app = Container(groups=[MyGroup], context={datetime.datetime: now})
+    with pytest.raises(ContainerClosedError) as exc:
+        child.resolve_provider(MyGroup.context_provider)
+    assert exc.value.container_scope is Scope.APP
+    assert app.closed is True
     app.open()
-
-    def _forbidden(*_: object) -> None:  # pragma: no cover - the assertion is that it never runs
-        pytest.fail("_prepare() must not run on an already-open container")
-
-    monkeypatch.setattr(Container, "_prepare", _forbidden)
-    assert app.resolve_provider(MyGroup.context_provider) == now
+    assert child.resolve_provider(MyGroup.context_provider) == now
 
 
 # Q-12 — ContextProvider reads the registry at its OWN scope
@@ -632,7 +621,7 @@ def test_cached_factory_context_kwarg_absent_and_required_raises() -> None:
     assert exc.value.arg_name == "ctx"
 
 
-def test_cached_factory_context_kwarg_through_closed_holder_warns() -> None:
+def test_cached_factory_context_kwarg_through_closed_holder_raises() -> None:
     class G(Group):
         ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.REQUEST, cache=True)
@@ -643,11 +632,11 @@ def test_cached_factory_context_kwarg_through_closed_holder_warns() -> None:
     request = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
 
-    with pytest.warns(ContainerClosedWarning):
-        assert request.resolve(_CachedNullable).ctx is value
+    with pytest.raises(ContainerClosedError):
+        request.resolve(_CachedNullable)
 
 
-def test_transient_factory_context_kwarg_through_closed_holder_warns() -> None:
+def test_transient_factory_context_kwarg_through_closed_holder_raises() -> None:
     class G(Group):
         ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.REQUEST)
@@ -658,8 +647,8 @@ def test_transient_factory_context_kwarg_through_closed_holder_warns() -> None:
     request = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
 
-    with pytest.warns(ContainerClosedWarning):
-        assert request.resolve(_CachedNullable).ctx is value
+    with pytest.raises(ContainerClosedError):
+        request.resolve(_CachedNullable)
 
 
 def test_direct_context_resolve_reads_the_scope_only_at_compile_time(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -712,8 +701,8 @@ def test_fetch_context_value_reports_an_absent_value_instead_of_raising() -> Non
         app.resolve(Cfg)
 
 
-def test_fetch_context_value_hops_to_the_provider_scope_reopening_a_closed_owner() -> None:
-    """From a deeper container the accessor navigates to the provider's own scope, reopening it if closed."""
+def test_fetch_context_value_hops_to_the_provider_scope_raising_for_a_closed_owner() -> None:
+    """From a deeper container the accessor navigates to the provider's own scope, raising if it is closed."""
 
     class Cfg: ...
 
@@ -725,6 +714,8 @@ def test_fetch_context_value_hops_to_the_provider_scope_reopening_a_closed_owner
     request = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
 
-    with pytest.warns(ContainerClosedWarning):
-        assert provider.fetch_context_value(request) is cfg
-    assert app.closed is False
+    with pytest.raises(ContainerClosedError) as exc:
+        provider.fetch_context_value(request)
+    assert exc.value.container_scope is Scope.APP
+    app.open()
+    assert provider.fetch_context_value(request) is cfg

@@ -100,12 +100,11 @@ class InvalidScopeTypeError(ContainerError):
 
 
 class ContainerClosedError(ContainerError):
-    """No longer raised; kept importable for back-compat. Attr: ``container_scope``.
+    """A closed container was resolved from, directly or through a descendant. Attr: ``container_scope``.
 
-    Through 3.0 a not-open container raised this. As of 3.1 a container is open from
-    construction, and reusing one after an explicit close reopens it instead — implicitly
-    with :class:`ContainerClosedWarning`, or silently via :meth:`Container.open`. Nothing
-    raises this class anymore. Removed in 4.0.
+    ``container_scope`` names the closed container, which is an ancestor when a child's resolve
+    reaches back into its scope. :meth:`Container.open`, or re-entering it with ``with`` /
+    ``async with``, reopens it.
     """
 
     docs_slug = "container-closed-error"
@@ -115,8 +114,8 @@ class ContainerClosedError(ContainerError):
     def __init__(self, *, container_scope: enum.IntEnum) -> None:
         self.container_scope = container_scope
         super().__init__(
-            f"Container (scope {container_scope.name}) is not open — enter it with `with`/`async with` "
-            "or call `open()` before resolving or building child containers."
+            f"Container (scope {container_scope.name}) is closed. Reopen it with `open()` or by re-entering "
+            "`with`/`async with` before resolving from it or from any of its child containers."
         )
 
 

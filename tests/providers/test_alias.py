@@ -499,16 +499,18 @@ def test_alias_to_a_same_scope_source_validates_clean_below_app() -> None:
     assert container.providers_registry.is_validated() is True
 
 
-def test_alias_resolves_from_a_closed_container_with_warning() -> None:
-    # The alias hop itself carries no closed-container check; the entry `resolve_provider`
-    # reopens, exactly as it does for a context provider or `container_provider`.
+def test_alias_on_a_closed_container_raises() -> None:
+    # The alias hop itself carries no closed-container check; the entry `resolve` raises,
+    # exactly as it does for a context provider or `container_provider`.
     container = Container(groups=[MyGroup])
     container.open()
     container.resolve(AbstractRepository)
     container.close_sync()
 
-    with pytest.warns(exceptions.ContainerClosedWarning):
-        assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
+    with pytest.raises(exceptions.ContainerClosedError):
+        container.resolve(AbstractRepository)
+    container.open()
+    assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
 
 
 def test_alias_picks_up_a_source_registered_after_a_failed_resolve() -> None:

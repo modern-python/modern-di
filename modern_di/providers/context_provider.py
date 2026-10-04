@@ -1,7 +1,7 @@
 import enum
 import typing
 
-from modern_di import types
+from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -35,9 +35,12 @@ class ContextProvider(AbstractProvider[types.T_co]):
         return f"ContextProvider(context_type={self.context_type!r}, scope={self.scope!r})"
 
     def fetch_context_value(self, container: "Container") -> "types.T_co | types.UnsetType":
-        """Read this provider's context value at its own scope, or UNSET when none is set."""
+        """Read this provider's context value at its own scope, or UNSET when none is set.
+
+        Raises :class:`~modern_di.exceptions.ContainerClosedError` when that scope's container is closed.
+        """
         if container.scope != self.scope:
             container = container.find_container(self.scope)
-        if container.closed:  # guarded: `_prepare()` warns and reopens unconditionally
-            container._prepare()  # noqa: SLF001
+        if container.closed:
+            raise exceptions.ContainerClosedError(container_scope=container.scope)
         return container.context_registry.find_context(self.context_type)

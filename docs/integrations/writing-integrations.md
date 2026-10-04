@@ -176,10 +176,9 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
 ## Lifecycle rules
 
 - Reopen the root container on startup. A container that was closed on shutdown
-  self-heals if reused without reopening: the next resolve emits
-  `ContainerClosedWarning` and reopens it. Reopening explicitly on each startup
-  avoids the warning and lets a second lifespan cycle (test client re-entry,
-  broker restart) work cleanly.
+  stays closed: the next resolve raises `ContainerClosedError`. Reopening
+  explicitly on each startup is what lets a second lifespan cycle (test client
+  re-entry, broker restart) work at all.
     - With a context-manager lifespan: `async with fetch_di_container(app): yield`,
       where `__aenter__` reopens and `__aexit__` closes. Compose *around* any
       existing lifespan rather than replacing it.
@@ -206,9 +205,9 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
   gevent / eventlet / threads pools (which run in the main worker process).
   Wire open/close to a hook that fires for *all* of them, e.g. `worker_init` /
   `worker_shutdown` *in addition to* the per-process signals. Where a hook
-  exists, close there so finalizers run at shutdown, and open there too, which
-  reopens silently instead of warning if a previous cycle in the same process
-  already closed the container (a restart). Where no hook fires for a given
+  exists, close there so finalizers run at shutdown, and open there too, so a
+  restart after a previous cycle in the same process closed the container does
+  not raise `ContainerClosedError`. Where no hook fires for a given
   pool, work still succeeds, because the container is already open from
   construction, but nothing ever closes it, so that pool's finalizers never
   run. `open()` and `close_*` are idempotent, so overlapping hooks are safe. If
@@ -464,9 +463,8 @@ Each official integration is its own repository and PyPI package, mirroring the
 - [ ] `fetch_di_container` reads the root container back out of framework state.
 - [ ] A per-unit-of-work builder opens a child container at the right scope,
       injects the connection as context, and closes it in `finally`.
-- [ ] Root container reopens on startup so a restart doesn't rely on the
-      implicit-reuse warning (`ContainerClosedWarning`) and gets finalizers
-      wired to shutdown.
+- [ ] Root container reopens on startup, so a restart doesn't raise
+      `ContainerClosedError`, and gets finalizers wired to shutdown.
 - [ ] `close_async` / `close_sync` matches the framework's async-ness.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves it via
       `resolve_dependency`. Use `modern_di.integrations.from_di` (or a
