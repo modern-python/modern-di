@@ -17,3 +17,12 @@ ancestor, emitted `ContainerClosedWarning` and reopened it. In 4.0 the same call
 any `filterwarnings` entry that names it. Where the reuse is deliberate, reopen the container first
 with `open()` or by re-entering `with` / `async with`. See
 [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
+
+### The 3.x deprecations are removed
+
+- `Container(validate=...)` raises `TypeError`, and `ValidateArgumentWarning` is gone with it. Drop
+  the argument and call `container.validate()` where you want the graph checked.
+- `Container.scope_map` and `Container.lock` are removed. Nothing replaces them as public API; call
+  `find_container(scope)` to reach an ancestor.
+- `ContextValueNoneWarning` and `UnvalidatedContainerWarning` are removed. Neither has been emitted
+  since 3.0, so delete any `filterwarnings` entry or import that names them.
