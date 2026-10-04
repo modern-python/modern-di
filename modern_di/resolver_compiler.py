@@ -1,18 +1,18 @@
 """Compile one resolver per provider: the single resolve path.
 
-A ``Factory`` resolver is generated from a source template, specialised to the factory's
-:class:`_Shape`, and ``exec``'d with the factory's constants as its globals. An ``Alias`` compiles
-to its source's resolver, so a parent's error clause redraws the redirect hops it skipped. Every
-other provider type compiles to a small closure. An overridden provider compiles to its override
-value, so the resolvers never consult the overrides registry; applying an override drops the
-compiled resolvers instead (see ``ProvidersRegistry.drop_resolvers``). Why a template and not shared
-helpers: every all-Python single-copy design measured 25-80% slower (docs/introduction/performance.md).
+A ``Factory`` resolver is generated from a source template, specialised to the factory's shape
+(arity, argument names, static kwargs, caching), and ``exec``'d with the factory's constants as its
+globals. An ``Alias`` compiles to its source's resolver, so a parent's error clause redraws the
+redirect hops it skipped. Every other provider type compiles to a small closure. An overridden
+provider compiles to its override value, so the resolvers never consult the overrides registry;
+applying an override drops the compiled resolvers instead (see
+``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: every all-Python
+single-copy design measured 25-80% slower (docs/introduction/performance.md).
 
 The template reaches into `Container._lock`/`_scope_map` and `CacheRegistry._items` to stay
 within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
-import dataclasses
 import functools
 import itertools
 import linecache
@@ -137,46 +137,41 @@ def resolve(container):
 """
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class _Shape:
-    """The parts of a Factory that decide its generated source; factories of one shape share a code object."""
-
-    arity: int
-    names: tuple[str, ...] | None
-    static: bool
-    cached: bool
-
-    def source(self) -> str:
-        if self.names is None:
-            build = "\n".join(f"        a{i} = r{i}(target)" for i in range(self.arity)) or "        pass"
-            args = ", ".join(f"a{i}" for i in range(self.arity))
-            built = "(" + "".join(f"a{i}, " for i in range(self.arity)) + ")"
-            star = "*"
-        else:
-            calls = [f"            {name!r}: r{i}(target)," for i, name in enumerate(self.names)]
-            build = "\n".join(["        kwargs = {", *calls, "        }"])
-            if self.static:
-                build += "\n        kwargs.update(static)"
-            args, built, star = "**kwargs", "kwargs", "**"
-        if self.cached:
-            return _CACHED.format(build=build, built=built, star=star)
-        return _TRANSIENT.format(build=build, args=args)
+def _source(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool) -> str:
+    """Generate the resolver source for one shape: the parts of a Factory that decide it."""
+    if names is None:
+        build = "\n".join(f"        a{i} = r{i}(target)" for i in range(arity)) or "        pass"
+        args = ", ".join(f"a{i}" for i in range(arity))
+        built = "(" + "".join(f"a{i}, " for i in range(arity)) + ")"
+        star = "*"
+    else:
+        calls = [f"            {name!r}: r{i}(target)," for i, name in enumerate(names)]
+        build = "\n".join(["        kwargs = {", *calls, "        }"])
+        if static:
+            build += "\n        kwargs.update(static)"
+        args, built, star = "**kwargs", "kwargs", "**"
+    if cached:
+        return _CACHED.format(build=build, built=built, star=star)
+    return _TRANSIENT.format(build=build, args=args)
 
 
 _shape_ids = itertools.count()
 
 
 @functools.cache
-def _code(shape: _Shape) -> "tuple[CodeType, dict[int, int]]":
-    """Compile `shape`'s source; also map each resolver call's line to its argument index."""
-    source = shape.source()
+def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool) -> "tuple[CodeType, dict[int, int]]":
+    """Compile one shape's source, so factories of one shape share a code object.
+
+    Also map each resolver call's line to its argument index.
+    """
+    source = _source(arity, names, static, cached)
     filename = f"<modern_di resolver shape {next(_shape_ids)}>"
     lines = source.splitlines(keepends=True)
     linecache.cache[filename] = (len(source), None, lines, filename)
     arg_lines = {
         lineno: i
         for lineno, line in enumerate(lines, start=1)
-        for i in range(shape.arity)
+        for i in range(arity)
         if line.rstrip("\n").endswith((f" r{i}(target)", f" r{i}(target),"))
     }
     return compile(source, filename, "exec"), arg_lines
@@ -187,13 +182,12 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
     positional = f.can_call_positionally(plan)
-    shape = _Shape(
-        arity=len(plan.provider_kwargs),
-        names=None if positional else tuple(plan.provider_kwargs),
-        static=bool(plan.static_kwargs),
-        cached=f.cache_settings is not None,
+    code, arg_lines = _code(
+        len(plan.provider_kwargs),
+        None if positional else tuple(plan.provider_kwargs),
+        bool(plan.static_kwargs),
+        f.cache_settings is not None,
     )
-    code, arg_lines = _code(shape)
     namespace: dict[str, typing.Any] = {
         "provider": f,
         "pid": f.provider_id,
@@ -277,12 +271,13 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
                 target = container.find_container(scope)
         if target.closed:
             raise exceptions.ContainerClosedError(container_scope=target.scope)
-        value = target.context_registry.find_context(context_type)
-        if value is types.UNSET:
-            if default is not types.UNSET:
-                return default
-            raise exceptions.ContextValueNotSetError(context_type=context_type, provider_scope=scope)
-        return value
+        context = target.context_registry.context
+        # Not `.get(key, UNSET)`: that skips a dict subclass's `__contains__`/`__getitem__`.
+        if context_type in context:
+            return context[context_type]
+        if default is not types.UNSET:
+            return default
+        raise exceptions.ContextValueNotSetError(context_type=context_type, provider_scope=scope)
 
     return resolve
 

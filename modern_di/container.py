@@ -86,7 +86,7 @@ class Container:
             else {}
         )
         self.cache_registry = CacheRegistry()
-        self.context_registry = ContextRegistry(context=context or {})
+        self.context_registry = ContextRegistry(context or {})
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
         # Inlined rather than a helper: this runs per child build (benchmark `test_g6_build_child_container`).
@@ -208,13 +208,15 @@ class Container:
 
     async def close_async(self) -> None:
         try:
-            await self.cache_registry.close_async()
+            if self.cache_registry._creation_order:  # noqa: SLF001
+                await self.cache_registry.close_async()
         finally:
             self.closed = True
 
     def close_sync(self) -> None:
         try:
-            self.cache_registry.close_sync()
+            if self.cache_registry._creation_order:  # noqa: SLF001
+                self.cache_registry.close_sync()
         finally:
             self.closed = True
 
