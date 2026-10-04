@@ -79,10 +79,10 @@ Catch `ContainerError` for any container/scope failure.
 - `ContainerClosedError` is raised by `resolve()` / `resolve_provider()` when the call reaches a
   closed container: the one you called, or an ancestor whose scope a child's resolve reaches back
   into. Its `.container_scope` names the closed one. A container is open from construction and is
-  closed by `close_sync()`, `close_async()`, or leaving `with` / `async with`; nothing reopens it
-  implicitly. `build_child_container()` never checks or touches any container's open/closed state,
-  so building a child of a closed parent does not raise by itself. Re-enter the container via
-  `with`/`async with`, or call `container.open()`, to reopen it. See
+  closed by `close_sync()`, `close_async()`, or leaving `with` / `async with`. It stays closed until
+  you call `container.open()` or enter it again with `with` / `async with`, which calls `open()`.
+  `build_child_container()` never checks or touches any container's open/closed state, so building
+  a child of a closed parent does not raise by itself. See
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening) and
   [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 - `ValidationFailedError` is raised only by `Container.validate()`. Catch this for validation

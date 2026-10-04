@@ -111,11 +111,12 @@ fresh container. `close_sync()` / `close_async()` run the finalizers (in reverse
 above) and mark the container closed; entering `with container:` (or `async with`) is the idiomatic
 way to guarantee that close runs, even on an exception.
 
-Resolving from a container **that was closed**, directly or through a child whose resolve reaches
-back into that container's scope, raises `ContainerClosedError`, and the creator does not run.
-Nothing reopens a closed container implicitly. Building a child of a closed container still works,
-and the child resolves what it owns; only a provider that resolves in the closed scope raises.
-Re-entering `with container:` (or calling `open()` directly) reopens it:
+Resolving from a closed container, directly or through a child whose resolve reaches back into
+that container's scope, raises `ContainerClosedError`, and the creator does not run. The container
+stays closed until it is reopened. Building a child of a closed container still works, and the child
+resolves what it owns; only a provider that resolves in the closed scope raises. Calling `open()`
+reopens the container, and so does entering `with container:` or `async with container:` again,
+because `__enter__` and `__aenter__` call `open()`:
 
 ```python
 container = Container(groups=[Dependencies])
@@ -130,8 +131,8 @@ with container:                 # reopened by __enter__
     container.resolve(Settings)
 ```
 
-See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md) for how to
-tell a deliberate restart from a reference held past the container's lifetime, and
+See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md) for what to
+check when a container is closed where you did not expect it, and
 [Migration: To 4.x](../migration/to-4.x.md#resolving-on-a-closed-container-raises) for the 3.x
 behavior, which warned and reopened instead.
 

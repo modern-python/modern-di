@@ -14,8 +14,8 @@ Every `Container` argument after `scope` is keyword-only: `Container(Scope.APP, 
 In 3.x, resolving from a closed container, or through a child whose resolve reached a closed
 ancestor, emitted `ContainerClosedWarning` and reopened it. In 4.0 the same call raises
 `ContainerClosedError` and the container stays closed. `ContainerClosedWarning` is removed, so delete
-any `filterwarnings` entry that names it. Where the reuse is deliberate, reopen the container first
-with `open()` or by re-entering `with` / `async with`. See
+any `filterwarnings` entry that names it. To use a closed container again, reopen it first with
+`open()` or by re-entering `with` / `async with`, which calls `open()`. See
 [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 
 ### Context values are required unless the provider sets `default=`

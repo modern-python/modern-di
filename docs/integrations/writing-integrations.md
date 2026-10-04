@@ -176,9 +176,9 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
 ## Lifecycle rules
 
 - Reopen the root container on startup. A container that was closed on shutdown
-  stays closed: the next resolve raises `ContainerClosedError`. Reopening
-  explicitly on each startup is what lets a second lifespan cycle (test client
-  re-entry, broker restart) work at all.
+  stays closed: the next resolve raises `ContainerClosedError`. Reopen it on
+  each startup so that a second lifespan cycle in the same process (test client
+  re-entry, broker restart) can resolve from it.
     - With a context-manager lifespan: `async with fetch_di_container(app): yield`,
       where `__aenter__` reopens and `__aexit__` closes. Compose *around* any
       existing lifespan rather than replacing it.
@@ -206,8 +206,8 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
   Wire open/close to a hook that fires for *all* of them, e.g. `worker_init` /
   `worker_shutdown` *in addition to* the per-process signals. Where a hook
   exists, close there so finalizers run at shutdown, and open there too, so a
-  restart after a previous cycle in the same process closed the container does
-  not raise `ContainerClosedError`. Where no hook fires for a given
+  restart in the same process reopens the container the previous cycle closed
+  instead of raising `ContainerClosedError`. Where no hook fires for a given
   pool, work still succeeds, because the container is already open from
   construction, but nothing ever closes it, so that pool's finalizers never
   run. `open()` and `close_*` are idempotent, so overlapping hooks are safe. If
