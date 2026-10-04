@@ -16,42 +16,39 @@ the ancestor, not the child you called.
 ## Cause
 
 `close_sync()`, `close_async()`, and leaving a `with` / `async with` block run the container's
-finalizers and mark it closed. Nothing reopens it on its own: every resolve that lands on it raises
-until the container is reopened, and the creator never runs. A child container built before or
-after the close does not reopen its parent either. Building a child of a closed container still
-works, and so does resolving anything the child owns, but any provider that resolves in the closed
-ancestor's scope raises.
+finalizers and mark it closed. Every resolve that lands on a closed container raises, and the
+creator never runs. A child container does not reopen its parent, whether it was built before or
+after the close. Building a child of a closed container still works, and so does resolving anything
+the child owns, but any provider that resolves in the closed ancestor's scope raises.
 
 A fresh container is open from construction, so this never means "you forgot to open it".
 
 ## Fix
 
-Two cases, and they want different fixes:
+Reopen the container before resolving from it again. Call `container.open()`, or enter it again
+with `with` / `async with`: `__enter__` and `__aenter__` call `open()` for you. This is how a test
+harness enters the same container twice, how a broker stops and starts, and how a framework
+lifespan runs more than once in one process. Integrations call `open()` in their startup hook.
 
-- **The reuse is deliberate.** A test harness that enters the same container twice, a broker that
-  stops and starts, or a framework lifespan that runs more than once in one process all close and
-  then restart the same object. Reopen it explicitly before the next use: call `container.open()`,
-  or re-enter it with `with` / `async with`, which calls `open()` for you. Integrations do this in
-  their startup hook.
+```python
+container = Container(groups=[Dependencies])
 
-  ```python
-  container = Container(groups=[Dependencies])
+with container:
+    container.resolve(Settings)
+# closed here: finalizers ran
 
-  with container:
-      container.resolve(Settings)
-  # closed here: finalizers ran
+container.resolve(Settings)  # Broken: raises ContainerClosedError
 
-  container.resolve(Settings)  # Broken: raises ContainerClosedError
+with container:  # Works: __enter__ reopens it
+    container.resolve(Settings)
+```
 
-  with container:  # Works: __enter__ reopens it
-      container.resolve(Settings)
-  ```
-
-- **The reuse is not deliberate.** Something holds a reference to the container past its lifetime,
-  such as a request handler that kept the container from an earlier unit of work, or a background
-  task still running after the application shut down. Find where that reference comes from and stop
-  it outliving the container. Reopening here would hide the leak, and anything it cached would miss
-  its finalizer at the real shutdown.
+If you did not expect the container to be closed at that point, something holds a reference to it
+past its lifetime. A request handler may have kept the container from an earlier unit of work, or a
+background task may still be running after the application shut down. Find where that reference
+comes from and stop it outliving the container. Reopening there would hide the leak, and anything
+cached after the reopen would never be finalized, because the shutdown that should close it has
+already run.
 
 ## See also
 

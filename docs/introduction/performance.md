@@ -189,7 +189,7 @@ C4's own cell carries a ±4.8% spread this time, so read its 5% as the sign and 
 as the size. The wireup C6 cell has crossed from 1.16 to 1.02 ±2.4%, which is level, not a lead.
 
 The C4 gain recorded at 3.1.1 was a library fix, and it stands: every `Container` used to
-store itself in its own `_scope_map`, making it a reference cycle that reference counting could
+store itself in its own ancestor map, making it a reference cycle that reference counting could
 never free, so a request-scoped application handed the garbage collector work at its request rate.
 Seeding the map from the parent instead removed the cycle. Measured on the C4 benchmark at the
 time, that cut the median from 232.7 µs to 194.8 µs per 100-request batch and the standard
@@ -241,7 +241,7 @@ C2-shaped resolves and on child construction; the deeper scenarios, which run
 through compiled resolvers where the check was already inline, did not move.
 
 3.1.1 removed a reference cycle rather than a frame: every `Container` stored itself in its own
-`_scope_map`, so no container could be freed by reference counting and each one waited for the
+ancestor map, so no container could be freed by reference counting and each one waited for the
 garbage collector. Seeding the map from the parent removed it. Resolution is untouched (the
 C1-C3 cells did not move), but the request lifecycle did: C4's median fell from 232.7 µs to
 194.8 µs per 100-request batch and its standard deviation from 123.0 µs to 7.9 µs, because the
@@ -261,7 +261,7 @@ promotes that variable to a cell for the *whole* resolver, so `MAKE_CELL` ran in
 every call, including the warm hit that returns two lines later and the override hit that never
 reaches it (−11.3% on a warm hit). The context-kwarg path front-guards its override lookup on
 `has_overrides` (−6.0%), which is the path every framework integration takes for its per-request
-values. And an `Alias` stopped routing through `Alias._find_source` and `Container.resolve_provider`
+values. And an `Alias` stopped routing through its source lookup and `Container.resolve_provider`
 on every hop: it now inlines both lookups and calls its source's compiled resolver directly, one
 Python frame per hop instead of four (~322 → ~252 ns). The alias change has no cell on this page,
 because there is no alias scenario in the comparative suite.
