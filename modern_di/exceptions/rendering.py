@@ -2,8 +2,13 @@
 
 import dataclasses
 import enum
+import typing
 
 from modern_di import suggester
+
+
+if typing.TYPE_CHECKING:
+    from modern_di.providers.abstract import AbstractProvider
 
 
 SUGGESTION_HEADER = "Did you mean:"
@@ -26,6 +31,20 @@ class ResolutionStep:
     scope: enum.IntEnum
     name: str
     location: str | None = None
+
+
+def provider_step(provider: "AbstractProvider[typing.Any]", scope: enum.IntEnum) -> ResolutionStep:
+    """Draw `provider` as a chain step at `scope`."""
+    return ResolutionStep(scope=scope, name=provider.display_name, location=provider.definition_site)
+
+
+def redirect_steps(chain: "list[AbstractProvider[typing.Any]]") -> list[ResolutionStep]:
+    """Draw every hop of a redirect chain except its terminal, at the scope the terminal resolves at.
+
+    A redirect owns no lifetime of its own, so its declared scope is a default it never resolves at.
+    """
+    scope = chain[-1].scope
+    return [provider_step(p, scope) for p in chain[:-1]]
 
 
 def _render_chain(steps: "list[ResolutionStep]") -> list[str]:

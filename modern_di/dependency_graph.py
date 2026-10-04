@@ -10,6 +10,7 @@ import typing
 from typing import NamedTuple
 
 from modern_di import exceptions
+from modern_di.exceptions.rendering import redirect_steps
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -71,13 +72,11 @@ def effective_scope(provider: "AbstractProvider[typing.Any]", container: "Contai
     return terminal_chain(provider, container)[-1].scope
 
 
-def redirect_step(provider: "AbstractProvider[typing.Any]", container: "Container") -> "exceptions.ResolutionStep":
-    """Draw a chain step at the scope a possibly-redirecting provider resolves at, not its own default."""
-    return exceptions.ResolutionStep(
-        scope=effective_scope(provider, container),
-        name=provider.display_name,
-        location=provider.definition_site,
-    )
+def redirect_hops(
+    provider: "AbstractProvider[typing.Any]", container: "Container"
+) -> "list[exceptions.ResolutionStep]":
+    """Return the chain steps for the redirects between ``provider`` and its terminal, terminal excluded."""
+    return redirect_steps(terminal_chain(provider, container))
 
 
 def build_cycle_error(

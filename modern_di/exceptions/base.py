@@ -50,8 +50,9 @@ class DependencyPathMixin:
         # ModernDIError -> RuntimeError) accepts the arg at runtime.
         super().__init__(message)  # ty: ignore[too-many-positional-arguments]
 
-    def prepend_step(self, step: ResolutionStep) -> None:
-        self.dependency_path.insert(0, step)
+    def prepend_step(self, *steps: ResolutionStep) -> None:
+        """Put `steps` in front of the chain, in the order given."""
+        self.dependency_path[:0] = steps
         self.args = (str(self),)
 
     def _render_body(self) -> str:
