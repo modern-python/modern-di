@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 from modern_di import Container, Group, Scope, providers
-from modern_di.exceptions import AsyncFinalizerInSyncCloseError, ContainerClosedError, FinalizerError
+from modern_di.exceptions import AsyncFinalizerInSyncCloseError, ContainerClosedError, FinalizerError, ModernDIError
 from modern_di.types import UNSET
 
 
@@ -148,8 +148,8 @@ async def test_request_singleton() -> None:
     with pytest.raises(FinalizerError) as exc_info:
         request_container.close_sync()
     assert exc_info.value.is_async is False
-    assert len(exc_info.value.finalizer_errors) == 1
-    assert isinstance(exc_info.value.finalizer_errors[0], AsyncFinalizerInSyncCloseError)
+    assert len(exc_info.value.exceptions) == 1
+    assert isinstance(exc_info.value.exceptions[0], AsyncFinalizerInSyncCloseError)
 
     assert cache_item.cache is not UNSET  # preserved — user can still recover via close_async
     await request_container.close_async()
@@ -202,7 +202,7 @@ def test_sync_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
     with pytest.raises(FinalizerError, match="Errors during sync cleanup") as exc:
         app_container.close_sync()
     assert exc.value.is_async is False
-    assert len(exc.value.finalizer_errors) == 1
+    assert len(exc.value.exceptions) == 1
 
     assert cleaned_up == ["done"]
 
@@ -238,9 +238,110 @@ async def test_async_finalizer_exception_does_not_abort_remaining_cleanup() -> N
     with pytest.raises(FinalizerError, match="Errors during async cleanup") as exc:
         await app_container.close_async()
     assert exc.value.is_async is True
-    assert len(exc.value.finalizer_errors) == 1
+    assert len(exc.value.exceptions) == 1
 
     assert cleaned_up == ["done"]
+
+
+def _raise_value_error(_: SimpleCreator) -> None:
+    msg = "boom"
+    raise ValueError(msg)
+
+
+class _ValueErrorFinalizerGroup(Group):
+    failing = providers.Factory(
+        creator=SimpleCreator,
+        kwargs={"dep1": "x"},
+        cache=providers.CacheSettings(finalizer=_raise_value_error),
+    )
+
+
+def test_finalizer_error_is_an_exception_group() -> None:
+    container = Container(groups=[_ValueErrorFinalizerGroup])
+    container.open()
+    container.resolve_provider(_ValueErrorFinalizerGroup.failing)
+
+    with pytest.raises(FinalizerError) as exc_info:
+        container.close_sync()
+
+    err = exc_info.value
+    assert isinstance(err, ExceptionGroup)
+    assert isinstance(err, ModernDIError)
+    assert isinstance(err, RuntimeError)
+    assert len(err.exceptions) == 1
+    assert isinstance(err.exceptions[0], ValueError)
+    assert str(err) == (
+        "Errors during sync cleanup: [ValueError('boom')]\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/finalizer-error/"
+    )
+
+
+def test_except_star_catches_user_finalizer_error_from_close_sync() -> None:
+    container = Container(groups=[_ValueErrorFinalizerGroup])
+    container.open()
+    container.resolve_provider(_ValueErrorFinalizerGroup.failing)
+    caught: list[ExceptionGroup[ValueError]] = []
+
+    try:
+        container.close_sync()
+    except* ValueError as group:
+        caught.append(group)
+
+    assert len(caught) == 1
+    assert isinstance(caught[0], FinalizerError)
+    assert caught[0].is_async is False
+    assert [str(e) for e in caught[0].exceptions] == ["boom"]
+
+
+async def test_except_star_catches_user_finalizer_error_from_close_async() -> None:
+    container = Container(groups=[_ValueErrorFinalizerGroup])
+    container.open()
+    container.resolve_provider(_ValueErrorFinalizerGroup.failing)
+    caught: list[ExceptionGroup[ValueError]] = []
+
+    try:
+        await container.close_async()
+    except* ValueError as group:
+        caught.append(group)
+
+    assert len(caught) == 1
+    assert isinstance(caught[0], FinalizerError)
+    assert caught[0].is_async is True
+
+
+async def test_except_star_catches_async_finalizer_in_sync_close() -> None:
+    app_container = Container(groups=[MyGroup])
+    app_container.open()
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    request_container.open()
+    request_container.resolve_provider(MyGroup.request_singleton)
+    caught: list[ExceptionGroup[AsyncFinalizerInSyncCloseError]] = []
+
+    try:
+        request_container.close_sync()
+    except* AsyncFinalizerInSyncCloseError as group:
+        caught.append(group)
+
+    assert len(caught) == 1
+    (inner,) = caught[0].exceptions
+    assert isinstance(inner, AsyncFinalizerInSyncCloseError)
+    assert inner.finalizer_type is DependentCreator
+    await request_container.close_async()
+
+
+def test_finalizer_error_split_keeps_type_and_is_async() -> None:
+    value_error = ValueError("boom")
+    key_error = KeyError("k")
+    err = FinalizerError(finalizer_errors=[value_error, key_error], is_async=True)
+
+    matched, rest = err.split(ValueError)
+
+    assert isinstance(matched, FinalizerError)
+    assert isinstance(rest, FinalizerError)
+    assert matched.is_async is True
+    assert rest.is_async is True
+    assert matched.exceptions == (value_error,)
+    assert rest.exceptions == (key_error,)
 
 
 def test_finalizer_runs_for_falsy_cached_resource_sync() -> None:

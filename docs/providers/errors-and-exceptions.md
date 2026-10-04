@@ -43,7 +43,7 @@ ModernDIError (RuntimeError)
 │   ├── UnknownFactoryKwargError
 │   ├── UnsupportedCreatorParameterError
 │   └── InvalidScopeDependencyError
-├── FinalizerError
+├── FinalizerError (also an ExceptionGroup)
 ├── AsyncFinalizerInSyncCloseError
 └── GroupInstantiationError
 ```
@@ -178,12 +178,13 @@ These don't fit the register/resolve/validate grouping:
 
 - `FinalizerError` is raised by `close_sync()` / `close_async()` when one or more finalizers raised
   during cleanup. The remaining finalizers still run; all errors are aggregated into this single
-  exception. `.finalizer_errors` holds the list and `.is_async` records which close path ran. See
+  exception. It is also an `ExceptionGroup`, so `except*` can catch the finalizer errors by type.
+  `.exceptions` holds them as a tuple and `.is_async` records which close path ran. See
   [Lifecycle](lifecycle.md#close-failure-semantics) and
   [Troubleshooting: FinalizerError](../troubleshooting/finalizer-error.md).
 - `AsyncFinalizerInSyncCloseError` is raised when `close_sync()` reaches a cached resource whose
-  finalizer is async. Because `close_sync()` aggregates, this arrives *wrapped inside a*
-  `FinalizerError` (as an entry in `.finalizer_errors`), not on its own. The cache is retained so a
+  finalizer is async. Because `close_sync()` aggregates, this arrives inside a `FinalizerError` (as
+  an entry in `.exceptions`), so catch it with `except* AsyncFinalizerInSyncCloseError`. The cache is retained so a
   later `await close_async()` can finalize it. See [Lifecycle](lifecycle.md#close-failure-semantics) and
   [Troubleshooting: AsyncFinalizerInSyncCloseError](../troubleshooting/async-finalizer-in-sync-close-error.md).
 - `GroupInstantiationError` is raised when a `Group` subclass is instantiated. Groups are

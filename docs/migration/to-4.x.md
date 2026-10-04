@@ -100,6 +100,36 @@ another member) in place of the 3.x `scope_name="APP"` string.
 was meant for use outside the package. Import them from `modern_di.exceptions.base` and
 `modern_di.exceptions.rendering` if you still need them.
 
+### `FinalizerError` is an `ExceptionGroup`
+
+`FinalizerError` now subclasses `ExceptionGroup` as well as `ModernDIError`, so `except*` can catch
+the finalizer errors inside it by type, `AsyncFinalizerInSyncCloseError` included.
+
+- `.finalizer_errors` is removed. Read `.exceptions`, which is a tuple where `.finalizer_errors`
+  was a list.
+- `.is_async` is unchanged, and a group that `except*` splits off keeps it.
+- `except FinalizerError` and `except ModernDIError` still catch it, and its message is unchanged.
+
+```python
+# 3.x
+try:
+    container.close_sync()
+except exceptions.FinalizerError as exc:
+    errors = exc.finalizer_errors
+
+# 4.0
+try:
+    container.close_sync()
+except exceptions.FinalizerError as exc:
+    errors = exc.exceptions
+
+# 4.0, by type
+try:
+    container.close_sync()
+except* exceptions.AsyncFinalizerInSyncCloseError:
+    ...
+```
+
 ### The 3.x deprecations are removed
 
 - `Container(validate=...)` raises `TypeError`, and `ValidateArgumentWarning` is gone with it. Drop

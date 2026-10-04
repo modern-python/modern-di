@@ -2,8 +2,9 @@
 
 ## Symptom
 
-Arrives wrapped inside a `FinalizerError` (as one entry in `.finalizer_errors`), naming the type whose
-cached instance has an async finalizer.
+Arrives inside a `FinalizerError` (as one entry in its `.exceptions`), naming the type whose cached
+instance has an async finalizer. A traceback shows it below the `FinalizerError`, and
+`except* AsyncFinalizerInSyncCloseError` catches it.
 
 ## Cause
 
@@ -22,8 +23,8 @@ container.resolve(AsyncResource)   # has an async finalizer
 
 try:
     container.close_sync()
-except exceptions.FinalizerError as exc:
-    # exc.finalizer_errors contains an AsyncFinalizerInSyncCloseError — cache retained, not lost
+except* exceptions.AsyncFinalizerInSyncCloseError:
+    # cache retained, not lost
     ...
 
 await container.close_async()      # recovers: runs the async finalizer, completes cleanup
