@@ -313,6 +313,15 @@ where each child used to allocate its own (−14% on a child build, −3.5% on a
 coroutine that only did that (−8% on a request cycle closing ten such items). The C4 and C6
 movement above is the sum of the first two; the third has no cell on this page.
 
+4.0 sped up two resolve paths. The tables above still show the 3.x publication, so these are
+guard-tier figures. #557 made a context value an ordinary dependency: a `ContextProvider` compiles
+to its own resolver, and a factory that depends on one takes the same generated path as any other
+factory. The per-resolve loop that looked up each context value and decided what to pass when one
+was missing is gone (−28% on a context resolve, G9, C6's guard twin). #559 compiles an `Alias` to its source's
+resolver, so a hop through an alias runs no frame of its own (−33% on an alias hop, G18, which
+now matches a plain cached resolve). An error that crosses an alias still shows the alias in its
+chain: the parent puts the hop back when it adds its own step.
+
 ## Reproduce it yourself
 
 ```bash
