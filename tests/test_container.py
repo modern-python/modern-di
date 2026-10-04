@@ -22,7 +22,6 @@ from modern_di.exceptions import (
     MaxScopeReachedError,
     ProviderNotRegisteredError,
     ScopeSkippedError,
-    ValidateArgumentWarning,
     ValidationFailedError,
 )
 from modern_di.providers.abstract import AbstractProvider
@@ -693,35 +692,6 @@ def test_use_lock_false_yields_no_private_lock() -> None:
     assert child._lock is None
 
 
-def test_scope_map_alias_warns_and_forwards() -> None:
-    container = Container()
-    with pytest.warns(DeprecationWarning, match="scope_map"):
-        aliased = container.scope_map
-    assert aliased is container._scope_map
-
-
-def test_lock_alias_warns_and_forwards() -> None:
-    container = Container(use_lock=True)
-    with pytest.warns(DeprecationWarning, match="lock"):
-        aliased = container.lock
-    assert aliased is container._lock
-
-
-def test_resolve_emits_no_deprecation_warning() -> None:
-    class _Dep:
-        pass
-
-    class _Group(Group):
-        dep = providers.Factory(scope=Scope.APP, creator=_Dep, cache=True)
-
-    container = Container(groups=[_Group])
-    container.open()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        container.resolve(_Dep)  # touches _lock and _scope_map internally
-        container.build_child_container(scope=Scope.REQUEST)
-
-
 def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:
     container = Container(scope=Scope.APP)
     container.open()
@@ -1076,23 +1046,21 @@ def test_resolve_never_validates() -> None:
         container.resolve(_DeferBrokenService)
 
 
-def test_validate_argument_is_a_deprecated_no_op() -> None:
-    with pytest.warns(ValidateArgumentWarning) as record:
-        container = Container(scope=Scope.APP, groups=[CycleGroup], validate=True)
-    assert "validate()" in str(record[0].message)
-    with pytest.raises(ValidationFailedError):
-        container.validate()  # the argument changed nothing
+@pytest.mark.parametrize("validate", [True, False])
+def test_validate_argument_is_rejected(validate: bool) -> None:
+    with pytest.raises(TypeError, match="validate"):
+        Container(scope=Scope.APP, validate=validate)  # ty: ignore[unknown-argument]
 
 
-def test_validate_false_also_warns_and_changes_nothing() -> None:
-    with pytest.warns(ValidateArgumentWarning):
-        Container(scope=Scope.APP, validate=False)
+@pytest.mark.parametrize("name", ["ValidateArgumentWarning", "ContextValueNoneWarning", "UnvalidatedContainerWarning"])
+def test_removed_warning_is_not_exported(name: str) -> None:
+    assert not hasattr(exceptions, name)
+    assert name not in exceptions.__all__
 
 
-def test_no_warning_when_validate_is_not_passed() -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        Container(scope=Scope.APP)
+@pytest.mark.parametrize("name", ["scope_map", "lock"])
+def test_removed_public_alias_is_gone(name: str) -> None:
+    assert not hasattr(Container(), name)
 
 
 def test_integration_pattern_context_registered_after_construction() -> None:

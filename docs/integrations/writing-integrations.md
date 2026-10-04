@@ -430,9 +430,8 @@ Each official integration is its own repository and PyPI package, mirroring the
   canonical page shape the existing pages use: a single realistic-but-compact
   example, an APP-scoped `Settings` plus one work-scoped service (two providers,
   no more) that depends on `Settings` by type, with the container built plain
-  (`Container(groups=[AppGroup])`, no `validate=` argument, which is deprecated
-  and does nothing) and `container.validate()` called explicitly *after*
-  `setup_di`, demonstrating the [ordering rule](#lifecycle-rules) above. Keep the
+  (`Container(groups=[AppGroup])`) and `container.validate()` called explicitly
+  *after* `setup_di`, demonstrating the [ordering rule](#lifecycle-rules) above. Keep the
   connection/message object out of that validated example: its
   `ContextProvider` is registered by `setup_di`, so a service that requires it by
   type would fail `validate()` if that call were placed *before* `setup_di`.

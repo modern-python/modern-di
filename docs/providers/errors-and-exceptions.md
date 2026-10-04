@@ -91,8 +91,7 @@ Catch `ContainerError` for any container/scope failure.
   Nothing validates automatically (not construction, not `open()`, not `add_providers`, not
   `resolve()`), so call `validate()` explicitly whenever you want the whole graph checked; an
   integration that registers its own providers after construction (via `add_providers`) should call
-  it after that registration. `Container(validate=...)` is a deprecated no-op: passing `True` or
-  `False` emits `ValidateArgumentWarning` and gates nothing. See
+  it after that registration. See
   [Lifecycle: validation](lifecycle.md#validation),
   [Migration: To 3.x](../migration/to-3.x.md) and
   [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).

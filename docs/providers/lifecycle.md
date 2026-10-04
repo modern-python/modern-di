@@ -199,16 +199,6 @@ only re-walks once something has changed it (`register`/`add_providers`). Valida
 runtime cost after that. Turn it on in a startup path or a single test, where it catches the bugs
 you don't want to discover under load.
 
-### The deprecated `validate` constructor argument
-
-`Container(validate=...)` still exists for backward compatibility. Passing `True` or `False` is
-ignored and emits `exceptions.ValidateArgumentWarning` (a `DeprecationWarning`); omitting it (the
-default) is silent either way. It changes nothing about the container built: no spelling of the
-constructor validates for you. The argument is removed in 4.0; call
-`container.validate()` instead. See [Migration: To
-3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default) for how this used to
-work.
-
 ## See also
 
 - [Scopes](scopes.md): child containers and per-scope finalization.

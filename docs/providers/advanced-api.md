@@ -51,6 +51,3 @@ inspect or iterate all providers declared on a group hierarchy.
   `None` when the root was created with `use_lock=False`. A cached `Factory`'s compiled resolver
   hands it to `CacheItem.get_or_create`, which gates the cold-miss build so one instance is created
   per cache key.
-
-The former public names `scope_map` and `lock` remain as read-only properties that emit
-`DeprecationWarning` and will be removed in a future release.

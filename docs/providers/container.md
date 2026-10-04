@@ -85,5 +85,5 @@ resolve a `FromDI`-style marker. See [Writing an integration](../integrations/wr
 
 - [Context providers](context.md#context-propagation) covers how context values reach (and don't
   reach) a `ContextProvider`.
-- [Advanced / low-level API](advanced-api.md) documents `find_container`, `scope_map`, and
+- [Advanced / low-level API](advanced-api.md) documents `find_container`, `_scope_map`, and
   `Group.get_providers()`.

@@ -45,9 +45,7 @@ container.validate()  # raises ValidationFailedError here if the graph is broken
 
 An explicit `container.validate()` call catches this. It is the only thing that finds every issue
 in the graph up front; without it, each wiring bug surfaces individually, at whichever resolve first
-reaches it. `Container(validate=...)` is deprecated and does nothing (see [Migration: To
-3.x](../migration/to-3.x.md#4-validate-runs-at-container-entry-on-by-default)). An unvalidated cyclic
-graph still isn't a silent hang; see
+reaches it. An unvalidated cyclic graph still isn't a silent hang; see
 [the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 
 ## 3. A cached factory resolved before `set_context`

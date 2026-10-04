@@ -1,7 +1,6 @@
 import enum
 import threading
 import typing
-import warnings
 
 from modern_di import exceptions, types
 from modern_di.dependency_graph import DependencyGraph, build_cycle_error, collect_errors
@@ -52,7 +51,7 @@ class Container:
         "scope",
     )
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         scope: enum.IntEnum = Scope.APP,
         *,
@@ -60,22 +59,17 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
         use_lock: bool = True,
-        validate: bool | None = None,
     ) -> None:
         """Build a container at ``scope``, open and ready to :meth:`resolve`.
 
         ``context`` seeds the context registry. A root binds :class:`Container` itself, so
         ``resolve(Container)`` returns the resolving container. ``use_lock`` is read on a root
-        only: a child shares its parent's lock. ``validate`` is deprecated and
-        ignored: passing it emits
-        :class:`~modern_di.exceptions.ValidateArgumentWarning` and changes nothing.
+        only: a child shares its parent's lock.
 
         Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
         ``IntEnum``, and :class:`~modern_di.exceptions.InvalidChildScopeError` when it is not
         deeper than ``parent_container``'s.
         """
-        if validate is not None:
-            warnings.warn(exceptions.ValidateArgumentWarning(), stacklevel=2)
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
@@ -134,24 +128,6 @@ class Container:
                 raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)
             raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope)
         return target
-
-    @property
-    def scope_map(self) -> dict[enum.IntEnum, typing.Self]:
-        warnings.warn(
-            "`Container.scope_map` is private; it will be removed in a future release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._scope_map
-
-    @property
-    def lock(self) -> "threading.RLock | None":
-        warnings.warn(
-            "`Container.lock` is private; it will be removed in a future release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._lock
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
         """Resolve a dependency by its type.
