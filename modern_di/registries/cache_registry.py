@@ -27,7 +27,7 @@ class CacheItem:
 
     def get_or_create(
         self,
-        lock: "threading.RLock | None",
+        lock: "threading.RLock",
         resolve: typing.Callable[[], _R],
         create: typing.Callable[[_R], _V],
     ) -> tuple[_V, bool]:
@@ -39,17 +39,12 @@ class CacheItem:
         if self.cache is not types.UNSET:
             return self.cache, False
         resolved = resolve()
-        if lock is not None:
-            lock.acquire()
-        try:
+        with lock:
             if self.cache is not types.UNSET:
                 return self.cache, False
             value = create(resolved)
             self.cache = value
             return value, True
-        finally:
-            if lock is not None:
-                lock.release()
 
     async def close_async(self) -> None:
         if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:

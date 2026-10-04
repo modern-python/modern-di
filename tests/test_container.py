@@ -385,18 +385,15 @@ def test_validation_failed_error_str_renders_inner_errors() -> None:
     assert "Circular dependency detected" in rendered
 
 
-def test_build_child_container_propagates_use_lock_false() -> None:
-    root = Container(use_lock=False)
-    root.open()
-    child = root.build_child_container(scope=Scope.REQUEST)
-    assert root._lock is None
-    assert child._lock is None
+def test_constructor_rejects_use_lock() -> None:
+    with pytest.raises(TypeError):
+        Container(use_lock=False)  # ty: ignore[unknown-argument]
 
 
 def test_child_shares_the_root_lock() -> None:
-    root = Container(use_lock=True)
+    root = Container()
     child = root.build_child_container(scope=Scope.REQUEST)
-    grandchild = Container(scope=Scope.ACTION, parent_container=child, use_lock=False)
+    grandchild = Container(scope=Scope.ACTION, parent_container=child)
     assert child._lock is root._lock
     assert grandchild._lock is root._lock
 
@@ -626,7 +623,7 @@ def test_build_child_off_closed_parent_is_allowed() -> None:
 
 
 def test_private_lock_and_scope_map_back_the_machinery() -> None:
-    root = Container(use_lock=True)
+    root = Container()
     root.open()
     child = root.build_child_container(scope=Scope.REQUEST)
 
@@ -682,14 +679,6 @@ def test_closed_children_are_freed_without_the_cycle_collector() -> None:
     finally:
         if was_enabled:
             gc.enable()
-
-
-def test_use_lock_false_yields_no_private_lock() -> None:
-    root = Container(use_lock=False)
-    root.open()
-    child = root.build_child_container(scope=Scope.REQUEST)
-    assert root._lock is None
-    assert child._lock is None
 
 
 def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:

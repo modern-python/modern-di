@@ -7,7 +7,13 @@ This document describes the changes required to migrate from modern-di 3.x to mo
 ### `Container` takes only `scope` positionally
 
 Every `Container` argument after `scope` is keyword-only: `Container(Scope.APP, None)` raises
-`TypeError`, so pass `parent_container=`, `context=`, `groups=` and `use_lock=` by name.
+`TypeError`, so pass `parent_container=`, `context=` and `groups=` by name.
+
+### `use_lock` is removed
+
+`Container(use_lock=...)` raises `TypeError`; drop the argument. Every container tree is now
+locked, and the lock is taken only on a cache miss (see
+[Design decisions](../introduction/design-decisions.md#2-cached-factories-are-thread-safe)).
 
 ### Resolving on a closed container raises
 

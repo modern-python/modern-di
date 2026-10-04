@@ -59,13 +59,12 @@ class Container:
         parent_container: typing.Self | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
         groups: list[type[Group]] | None = None,
-        use_lock: bool = True,
     ) -> None:
         """Build a container at ``scope``, open and ready to :meth:`resolve`.
 
         ``context`` seeds the context registry. A root binds :class:`Container` itself, so
-        ``resolve(Container)`` returns the resolving container. ``use_lock`` is read on a root
-        only: a child shares its parent's lock.
+        ``resolve(Container)`` returns the resolving container. A cached factory creates at most one
+        instance per cache key across the tree, whichever threads resolve it.
 
         Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
         ``IntEnum``, and :class:`~modern_di.exceptions.InvalidChildScopeError` when it is not
@@ -97,7 +96,7 @@ class Container:
             self.providers_registry = parent_container.providers_registry
             self.overrides_registry = parent_container.overrides_registry
         else:
-            self._lock = threading.RLock() if use_lock else None
+            self._lock = threading.RLock()
             self.providers_registry = ProvidersRegistry()
             self.providers_registry.register(Container, container_provider)
             self.overrides_registry = self.providers_registry.overrides

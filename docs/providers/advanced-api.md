@@ -38,6 +38,5 @@ inspect or iterate all providers declared on a group hierarchy.
   `Container` subclass does not redirect navigation. `resolve` and `resolve_provider` are entry
   points, not hooks either: a compiled resolver calls its dependencies' resolvers directly, so an
   override of either sees only the top-level call.
-- With `use_lock=True` (the default) the root creates one `threading.RLock`, and every child
-  shares it; `use_lock=False` creates none. A cached `Factory` holds that lock while it builds on a
-  cold cache miss, so one instance is created per cache key.
+- The root creates one `threading.RLock`, and every child shares it. A cached `Factory` holds
+  that lock while it builds on a cold cache miss, so one instance is created per cache key.
