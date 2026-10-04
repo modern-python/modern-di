@@ -802,7 +802,7 @@ def test_override_change_drops_compiled_resolvers_and_recompiles_to_the_constant
 
     Overrides are compiled in, not checked at resolve time: a parent resolver holds its
     dependencies' resolvers by reference, so the only way a new override reaches it is a recompile.
-    Dropping nothing on a no-op reset keeps `close()` on a root from churning the memo.
+    Dropping nothing on a no-op reset keeps a blanket `reset_override()` in teardown from churning the memo.
     """
 
     class _G(Group):

@@ -207,16 +207,12 @@ class Container:
         self.providers_registry.add_providers(*providers)
 
     async def close_async(self) -> None:
-        if not self.parent_container:
-            self.overrides_registry.reset_override()
         try:
             await self.cache_registry.close_async()
         finally:
             self.closed = True
 
     def close_sync(self) -> None:
-        if not self.parent_container:
-            self.overrides_registry.reset_override()
         try:
             self.cache_registry.close_sync()
         finally:

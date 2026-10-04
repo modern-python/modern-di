@@ -925,6 +925,39 @@ def test_override_context_manager_exit_restores_snapshot_after_inner_reset() -> 
     assert container.resolve(_OverrideSvc) is first  # exit restores the snapshot taken at override() time
 
 
+def test_override_survives_root_close_sync_and_reopen() -> None:
+    container = Container(groups=[_OverrideGroup])
+    container.open()
+    mock = _OverrideSvc()
+    container.override(_OverrideGroup.svc, mock)
+    container.close_sync()
+    container.open()
+    assert container.resolve(_OverrideSvc) is mock
+
+
+async def test_override_survives_root_close_async_and_reopen() -> None:
+    container = Container(groups=[_OverrideGroup])
+    container.open()
+    mock = _OverrideSvc()
+    container.override(_OverrideGroup.svc, mock)
+    await container.close_async()
+    container.open()
+    assert container.resolve(_OverrideSvc) is mock
+
+
+def test_override_context_manager_exit_after_root_close_restores_prior_override() -> None:
+    container = Container(groups=[_OverrideGroup])
+    container.open()
+    first = _OverrideSvc()
+    second = _OverrideSvc()
+    container.override(_OverrideGroup.svc, first)
+    with container.override(_OverrideGroup.svc, second):
+        container.close_sync()
+        container.open()
+        assert container.resolve(_OverrideSvc) is second
+    assert container.resolve(_OverrideSvc) is first
+
+
 def test_resolve_provider_raises_for_unhandled_provider_type() -> None:
     # Every real provider type compiles; an unknown AbstractProvider subclass hits compile_resolver's
     # final explicit raise (the single place a new, unregistered provider type is rejected).

@@ -24,6 +24,14 @@ any `filterwarnings` entry that names it. To use a closed container again, reope
 `open()` or by re-entering `with` / `async with`, which calls `open()`. See
 [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 
+### Closing a root container keeps overrides
+
+In 3.x, `close_sync()` and `close_async()` on a root container cleared every override. In 4.0 they
+leave overrides in place, so an override set before a close→reopen cycle still applies after it.
+If your test teardown relied on the close to clear overrides, reset them with `reset_override()` or
+apply them with `with container.override(...)`. See
+[Testing with overrides](../recipes/testing-overrides.md).
+
 ### Scope and closed-container errors are also `ResolutionError`s
 
 `ScopeNotInitializedError`, `ScopeSkippedError` and `ContainerClosedError` now subclass
