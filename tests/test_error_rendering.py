@@ -161,7 +161,17 @@ def test_context_value_not_set_error_message_and_hierarchy() -> None:
     assert isinstance(error, exceptions.ResolutionError)
     assert str(error) == (
         "No context value is set for <class 'str'> (scope APP). "
-        "Pass context={...} to the container or call set_context().\n"
+        "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/context-not-set/"
+    )
+
+
+def test_context_value_not_set_error_names_the_argument() -> None:
+    error = exceptions.ContextValueNotSetError(context_type=str, scope_name="REQUEST", arg_name="request")
+    assert error.arg_name == "request"
+    assert str(error) == (
+        "No context value is set for <class 'str'> (scope REQUEST), needed for argument request. "
+        "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.\n"
         "See: https://modern-di.modern-python.org/troubleshooting/context-not-set/"
     )
 

@@ -51,7 +51,7 @@ _Avoid_: compiled kwargs
 
 **Resolver shape**:
 The parts of a Factory that decide its generated resolver source: arity or kwarg names, static
-kwargs, context kwargs, cached. Factories of one shape share a code object.
+kwargs, cached. Factories of one shape share a code object.
 _Avoid_: template (that is the source the shape is rendered into), signature
 
 **Finalizer**:

@@ -361,8 +361,8 @@ def test_can_call_positionally_accepts_ordered_provider_signature() -> None:
     assert owner.can_call_positionally(_plan(registry, owner)) is True
 
 
-def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
-    """INVARIANT: the positional-path predicate excludes a static-or-context kwarg.
+def test_can_call_positionally_rejects_static_kwarg() -> None:
+    """INVARIANT: the positional-path predicate excludes a static kwarg.
 
     A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
     path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
@@ -370,7 +370,19 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
     below share this rationale rather than repeating it.
     """
 
-    # rule 1: a context param makes the plan non-pure, so kwargs folding must run.
+    # rule 1: a static kwarg makes the plan non-pure, so the kwargs build must run.
+    def creator(dep: _A, req: _Req) -> _Ordered:
+        raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
+
+    registry = ProvidersRegistry()
+    registry.add_providers(providers.Factory(creator=_A, scope=Scope.APP))
+    owner = providers.Factory(creator=creator, scope=Scope.APP, kwargs={"req": _Req()})
+    registry.add_providers(owner)
+
+    assert owner.can_call_positionally(_plan(registry, owner)) is False
+
+
+def test_can_call_positionally_accepts_a_context_provider_dependency() -> None:
     def creator(dep: _A, req: _Req) -> _Ordered:
         raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
 
@@ -382,13 +394,13 @@ def test_can_call_positionally_rejects_static_or_context_kwarg() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert owner.can_call_positionally(_plan(registry, owner)) is False
+    assert owner.can_call_positionally(_plan(registry, owner)) is True
 
 
 def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
     """INVARIANT: the positional-path predicate excludes a defaulted, omitted param.
 
-    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    See `test_can_call_positionally_rejects_static_kwarg` for why a wrong `True` here is
     a correctness bug, not a slow path.
     """
 
@@ -408,7 +420,7 @@ def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
 def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
     """INVARIANT: the positional-path predicate excludes a kwargs-overlay reorder.
 
-    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    See `test_can_call_positionally_rejects_static_kwarg` for why a wrong `True` here is
     a correctness bug, not a slow path.
     """
 
@@ -431,7 +443,7 @@ def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
 def test_can_call_positionally_rejects_keyword_only_param() -> None:
     """INVARIANT: the positional-path predicate excludes a keyword-only param.
 
-    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    See `test_can_call_positionally_rejects_static_kwarg` for why a wrong `True` here is
     a correctness bug, not a slow path.
     """
 
@@ -450,7 +462,7 @@ def test_can_call_positionally_rejects_keyword_only_param() -> None:
 def test_can_call_positionally_rejects_positional_only_param() -> None:
     """INVARIANT: the positional-path predicate excludes a positional-only param.
 
-    See `test_can_call_positionally_rejects_static_or_context_kwarg` for why a wrong `True` here is
+    See `test_can_call_positionally_rejects_static_kwarg` for why a wrong `True` here is
     a correctness bug, not a slow path.
     """
 
@@ -638,7 +650,7 @@ def test_no_compiled_resolver_closes_over_its_registry() -> None:
     assert capturing == []
 
 
-def _shape_group(*, arity: int, positional: bool, context: bool, cached: bool) -> typing.Any:  # noqa: ANN401
+def _shape_group(*, arity: int, positional: bool, cached: bool) -> typing.Any:  # noqa: ANN401
     """Group whose `target` factory has the given resolver shape; every shape is buildable."""
     dep_types = [_P0, _P1, _P2][:arity]
     params = [f"p{i}: _P{i}" for i in range(arity)]
@@ -650,33 +662,28 @@ def _shape_group(*, arity: int, positional: bool, context: bool, cached: bool) -
     members: dict[str, typing.Any] = {
         f"p{i}": providers.Factory(creator=t, scope=Scope.APP) for i, t in enumerate(dep_types)
     }
-    if context:
-        members["req"] = providers.ContextProvider(_Req, scope=Scope.APP)
     members["target"] = providers.Factory(creator=ns["_c"], scope=Scope.APP, bound_type=_Bag, cache=cached)
     return _pytypes.new_class("_ShapeGroup", (Group,), exec_body=lambda body: body.update(members))
 
 
 @pytest.mark.parametrize("cached", [False, True])
-@pytest.mark.parametrize("context", [False, True])
 @pytest.mark.parametrize("positional", [True, False])
 @pytest.mark.parametrize("arity", [0, 1, 2, 3])
-def test_every_resolver_shape_compiles_and_resolves(arity: int, positional: bool, context: bool, cached: bool) -> None:
+def test_every_resolver_shape_compiles_and_resolves(arity: int, positional: bool, cached: bool) -> None:
     """INVARIANT: every resolver shape generates source that compiles and resolves correctly.
 
     The template and the namespace it runs in are coupled by name only, so a name used in one and
     missing from the other is a `NameError` at resolve time for exactly that shape. Enumerating the
     shapes turns that into a test failure.
     """
-    if positional and context:
-        pytest.skip("a context kwarg makes the creator call keyword-based")
-    group = _shape_group(arity=arity, positional=positional, context=context, cached=cached)
-    container = Container(scope=Scope.APP, groups=[group], context={_Req: _Req()} if context else None)
+    group = _shape_group(arity=arity, positional=positional, cached=cached)
+    container = Container(scope=Scope.APP, groups=[group])
 
     bag = container.resolve_provider(group.target)
 
     assert [type(v) for v in bag.values[:arity]] == [_P0, _P1, _P2][:arity]
     if not positional:
-        assert isinstance(bag.values[arity], _Req) if context else bag.values[arity] is None
+        assert bag.values[arity] is None
     again = container.resolve_provider(group.target)
     assert (again is bag) is cached
 
@@ -816,3 +823,29 @@ def test_compile_resolver_rejects_an_unknown_provider_type() -> None:
 
     with pytest.raises(TypeError, match="no compiled resolver for provider type _Unsupported"):
         compile_resolver(_Unsupported(scope=Scope.APP, bound_type=None), ProvidersRegistry())
+
+
+@pytest.mark.parametrize("cached", [False, True])
+def test_unset_context_error_is_named_from_the_line_of_the_failing_call(cached: bool) -> None:
+    """INVARIANT: the argument an unset context value is named after is the one whose call raised.
+
+    The handler reads it from the traceback line, so the success path pays nothing. Each resolver
+    call sits on its own line of the generated source; a key that quotes another call, or an index
+    that prefixes another (``r1`` / ``r11``), must not shift the name.
+    """
+
+    def _creator(**kwargs: object) -> _Bag:
+        raise NotImplementedError  # pragma: no cover - an argument raises first
+
+    present = ContextProvider(_A, scope=Scope.APP, bound_type=None)
+    unset = ContextProvider(_B, scope=Scope.APP, bound_type=None)
+    kwargs: dict[str, object] = {f"k{i}": present for i in range(11)}
+    kwargs["x: r0(target),"] = unset
+
+    class _G(Group):
+        target = providers.Factory(creator=_creator, scope=Scope.APP, bound_type=_Bag, kwargs=kwargs, cache=cached)
+
+    container = Container(scope=Scope.APP, groups=[_G], context={_A: _A()})
+    with pytest.raises(exceptions.ContextValueNotSetError) as exc:
+        container.resolve_provider(_G.target)
+    assert exc.value.arg_name == "x: r0(target),"

@@ -24,7 +24,6 @@ from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.providers.factory import Factory
-from modern_di.wiring import _Absent, absent_disposition
 
 
 if typing.TYPE_CHECKING:
@@ -69,6 +68,11 @@ def resolve(container):
         raise ContainerClosedError(container_scope=target.scope)
     try:
 {build}
+    except ContextValueNotSetError as exc:
+        if exc.arg_name is None:
+            exc.name_argument(arg_names[arg_lines[exc.__traceback__.tb_lineno]])
+        exc.prepend_step(resolution_step())
+        raise
     except _STEP_ERRORS as exc:
         exc.prepend_step(resolution_step())
         raise
@@ -85,6 +89,11 @@ _CACHED = """\
 def build(target):
     try:
 {build}
+    except ContextValueNotSetError as exc:
+        if exc.arg_name is None:
+            exc.name_argument(arg_names[arg_lines[exc.__traceback__.tb_lineno]])
+        exc.prepend_step(resolution_step())
+        raise
     except _STEP_ERRORS as exc:
         exc.prepend_step(resolution_step())
         raise
@@ -121,25 +130,6 @@ def resolve(container):
     return value
 """
 
-_CONTEXT_FOLD = """\
-        for name, context_scope, context_type, disposition, item in context:
-            if target.scope == context_scope:
-                holder = target
-            else:
-                holder = target._scope_map.get(context_scope)
-                if holder is None:
-                    holder = target.find_container(context_scope)
-            if holder.closed:
-                raise ContainerClosedError(container_scope=holder.scope)
-            value = holder.context_registry.find_context(context_type)
-            if value is not UNSET:
-                kwargs[name] = value
-            elif disposition is NULL:
-                kwargs[name] = None
-            elif disposition is not OMIT:
-                raise build_arg_error(arg_name=name, item=item)
-"""
-
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class _Shape:
@@ -148,7 +138,6 @@ class _Shape:
     arity: int
     names: tuple[str, ...] | None
     static: bool
-    context: bool
     cached: bool
 
     def source(self) -> str:
@@ -158,13 +147,10 @@ class _Shape:
             built = "(" + "".join(f"a{i}, " for i in range(self.arity)) + ")"
             star = "*"
         else:
-            build = (
-                "        kwargs = {" + ", ".join(f"{name!r}: r{i}(target)" for i, name in enumerate(self.names)) + "}"
-            )
+            calls = [f"            {name!r}: r{i}(target)," for i, name in enumerate(self.names)]
+            build = "\n".join(["        kwargs = {", *calls, "        }"])
             if self.static:
                 build += "\n        kwargs.update(static)"
-            if self.context:
-                build += "\n" + _CONTEXT_FOLD.rstrip("\n")
             args, built, star = "**kwargs", "kwargs", "**"
         if self.cached:
             return _CACHED.format(build=build, built=built, star=star)
@@ -175,55 +161,52 @@ _shape_ids = itertools.count()
 
 
 @functools.cache
-def _code(shape: _Shape) -> "CodeType":
+def _code(shape: _Shape) -> "tuple[CodeType, dict[int, int]]":
+    """Compile `shape`'s source; also map each resolver call's line to its argument index."""
     source = shape.source()
     filename = f"<modern_di resolver shape {next(_shape_ids)}>"
-    linecache.cache[filename] = (len(source), None, source.splitlines(keepends=True), filename)
-    return compile(source, filename, "exec")
+    lines = source.splitlines(keepends=True)
+    linecache.cache[filename] = (len(source), None, lines, filename)
+    arg_lines = {
+        lineno: i
+        for lineno, line in enumerate(lines, start=1)
+        for i in range(shape.arity)
+        if line.rstrip("\n").endswith((f" r{i}(target)", f" r{i}(target),"))
+    }
+    return compile(source, filename, "exec"), arg_lines
 
 
 def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
     plan = f.wiring_plan(registry)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
-    static = dict(plan.static_kwargs)
-    context: list[tuple[typing.Any, ...]] = []
-    for name, (context_provider, item) in plan.context_kwargs.items():
-        override = registry.overrides.fetch_override(context_provider.provider_id)
-        if override is not types.UNSET:
-            static[name] = override
-        else:
-            context.append(
-                (name, context_provider.scope, context_provider.context_type, absent_disposition(item), item)
-            )
     positional = f.can_call_positionally(plan)
     shape = _Shape(
         arity=len(plan.provider_kwargs),
         names=None if positional else tuple(plan.provider_kwargs),
-        static=bool(static),
-        context=bool(context),
+        static=bool(plan.static_kwargs),
         cached=f.cache_settings is not None,
     )
+    code, arg_lines = _code(shape)
     namespace: dict[str, typing.Any] = {
         "provider": f,
         "pid": f.provider_id,
         "scope": f.scope,
         "creator": f._creator,
         "resolution_step": f.resolution_step,
-        "build_arg_error": f._argument_resolution_error,
-        "static": static,
-        "context": tuple(context),
+        "arg_names": tuple(plan.provider_kwargs),
+        "arg_lines": arg_lines,
+        "static": plan.static_kwargs,
         "UNSET": types.UNSET,
-        "NULL": _Absent.NULL,
-        "OMIT": _Absent.OMIT,
         "partial": functools.partial,
         "_navigate": _navigate,
         "_STEP_ERRORS": _STEP_ERRORS,
         "CreatorCallError": exceptions.CreatorCallError,
         "ContainerClosedError": exceptions.ContainerClosedError,
+        "ContextValueNotSetError": exceptions.ContextValueNotSetError,
         **{f"r{i}": registry.resolver_for(p) for i, p in enumerate(plan.provider_kwargs.values())},
     }
-    exec(_code(shape), namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
+    exec(code, namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
     resolve = namespace["resolve"]
     resolve.__qualname__ = f"resolve[{f.display_name}]"
     return resolve
@@ -284,6 +267,7 @@ def _resolve_to_container(container: "Container") -> typing.Any:
 def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
     scope = cp.scope
     context_type = cp.context_type
+    default = cp.default
 
     def resolve(container: "Container") -> typing.Any:
         if container.scope == scope:
@@ -296,6 +280,8 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
             raise exceptions.ContainerClosedError(container_scope=target.scope)
         value = target.context_registry.find_context(context_type)
         if value is types.UNSET:
+            if default is not types.UNSET:
+                return default
             raise exceptions.ContextValueNotSetError(context_type=context_type, scope_name=scope.name)
         return value
 

@@ -20,7 +20,7 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G7c | Control: K=100 empty awaits in one loop entry | residual event-loop floor inside G7 |
 | G8 | Cold first-resolve: build root container + compile + resolve, depth 6 | construction + first-compile cost |
 | G8b | G8 with every provider `cache=True` | the cached template's cold-miss `build`/`create`, read against G8 |
-| G9 | Context resolve: request value by type + APP dep, warm child | non-pure context-folding path |
+| G9 | Context resolve: request value by type + APP dep, warm child | a `ContextProvider` dependency's own resolver |
 | G10 | `validate()` on a depth-6 chain (isolated via `pedantic`) | graph-validation traversal, deep |
 | G11 | `validate()` on a wide 10-sibling graph (isolated via `pedantic`) | graph-validation traversal, fan-out |
 | G12 | Resolve a depth-6 chain with one unrelated override active | that an active override costs the unrelated chain nothing |

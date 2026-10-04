@@ -1,4 +1,4 @@
-"""Direct tests for WiringPlan.build and absent_disposition — no Container required."""
+"""Direct tests for WiringPlan.build — no Container required."""
 
 import pytest
 
@@ -6,9 +6,8 @@ from modern_di import providers
 from modern_di.providers import ContextProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
-from modern_di.types import UNSET
 from modern_di.types_parser import SignatureItem
-from modern_di.wiring import WiringPlan, _Absent, absent_disposition, find_dep_provider
+from modern_di.wiring import WiringPlan, find_dep_provider
 
 
 # ---------------------------------------------------------------------------
@@ -29,16 +28,16 @@ class _Request:
 
 
 # ---------------------------------------------------------------------------
-# Test 1: Partitioning — five bucket kinds across two creators
+# Test 1: Partitioning — the bucket kinds across two creators
 # ---------------------------------------------------------------------------
 
 
 class _MultiKindCreator:
-    """Creator exercising four wiring buckets.
+    """Creator exercising every wiring bucket.
 
     a) type-matched provider param  → provider_kwargs
     b) static kwarg literal         → static_kwargs
-    c) ContextProvider param        → context_kwargs
+    c) ContextProvider param        → provider_kwargs, like any other provider
     d) defaulted param (absent)     → omitted from all buckets
     """
 
@@ -55,7 +54,7 @@ class _MultiKindCreator:
 class _NullableNoDefaultCreator:
     """Creator with a nullable param and no default.
 
-    Maps to static_kwargs[k] = None (the NULL disposition).
+    Maps to static_kwargs[k] = None.
     """
 
     def __init__(self, nullable: str | None) -> None:
@@ -90,14 +89,13 @@ def test_wiring_plan_partitioning() -> None:
     # b) static kwarg literal → static_kwargs
     assert plan.static_kwargs.get("svc_b") == "static-literal"
 
-    # c) ContextProvider param → context_kwargs
-    assert "req" in plan.context_kwargs
-    assert plan.context_kwargs["req"][0] is ctx_req
+    # c) ContextProvider param → provider_kwargs, and an edge like any other
+    assert plan.provider_kwargs["req"] is ctx_req
+    assert plan.edges["req"] is ctx_req
 
-    # d) defaulted param → omitted from all three buckets
+    # d) defaulted param → omitted from both buckets
     assert "with_default" not in plan.provider_kwargs
     assert "with_default" not in plan.static_kwargs
-    assert "with_default" not in plan.context_kwargs
 
     # no unwireable params on a correctly wired plan
     assert plan.unwireable == []
@@ -151,7 +149,6 @@ def test_wiring_plan_unwireable_no_raise() -> None:
     # nothing wired when the only param is unwirable
     assert plan.provider_kwargs == {}
     assert plan.static_kwargs == {}
-    assert plan.context_kwargs == {}
 
 
 # ---------------------------------------------------------------------------
@@ -199,37 +196,46 @@ def test_wiring_plan_edges_include_static_supplied_providers() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 4: absent_disposition precedence — parametrized table
+# Test 4: a parameter with no provider — default, then nullable, then unwireable
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     ("item", "expected"),
     [
-        # default present (even if also nullable) → OMIT (default wins)
-        (SignatureItem(default=0, is_nullable=True), _Absent.OMIT),
-        (SignatureItem(default="x"), _Absent.OMIT),
-        # no default, nullable → NULL
-        (SignatureItem(is_nullable=True), _Absent.NULL),
-        # no default, not nullable → UNWIRABLE
-        (SignatureItem(arg_type=int), _Absent.UNWIRABLE),
-        (SignatureItem(), _Absent.UNWIRABLE),
+        # default present (even if also nullable) → omitted (default wins)
+        (SignatureItem(default=0, is_nullable=True), "omitted"),
+        (SignatureItem(default="x"), "omitted"),
+        # no default, nullable → None
+        (SignatureItem(is_nullable=True), "none"),
+        # no default, not nullable → unwireable
+        (SignatureItem(arg_type=int), "unwireable"),
+        (SignatureItem(), "unwireable"),
     ],
 )
-def test_absent_disposition_precedence(item: SignatureItem, expected: _Absent) -> None:
-    assert absent_disposition(item) is expected
+def test_parameter_without_provider_precedence(item: SignatureItem, expected: str) -> None:
+    owner = providers.Factory(scope=Scope.APP, creator=_ServiceA)
+    plan = WiringPlan.build(parsed_kwargs={"p": item}, kwargs=None, registry=ProvidersRegistry(), owner=owner)
+    outcome = {
+        "omitted": ({}, {}, []),
+        "none": ({}, {"p": None}, []),
+        "unwireable": ({}, {}, [("p", item)]),
+    }[expected]
+    assert (plan.provider_kwargs, plan.static_kwargs, plan.unwireable) == outcome
 
 
 # ---------------------------------------------------------------------------
-# Test: default-present overrides nullable (extra precision for the OMIT branch)
+# Test: default-present overrides nullable (extra precision for the omitted branch)
 # ---------------------------------------------------------------------------
 
 
-def test_absent_disposition_default_wins_over_nullable() -> None:
+def test_parameter_without_provider_default_wins_over_nullable() -> None:
+    owner = providers.Factory(scope=Scope.APP, creator=_ServiceA)
     item = SignatureItem(default=None, is_nullable=True)
-    # default is not UNSET (it is None), so OMIT regardless of is_nullable
-    assert item.default is not UNSET
-    assert absent_disposition(item) is _Absent.OMIT
+    plan = WiringPlan.build(parsed_kwargs={"p": item}, kwargs=None, registry=ProvidersRegistry(), owner=owner)
+    # default is not UNSET (it is None), so omitted regardless of is_nullable
+    assert plan.static_kwargs == {}
+    assert plan.unwireable == []
 
 
 # ---------------------------------------------------------------------------

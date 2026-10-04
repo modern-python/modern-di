@@ -168,15 +168,31 @@ class CircularDependencyError(ResolutionError):
 
 
 class ContextValueNotSetError(ResolutionError):
-    """An unset ``ContextProvider`` was resolved directly. Inspect ``.context_type``."""
+    """A ``ContextProvider`` with no ``default=`` was resolved with no value set.
+
+    Inspect ``.context_type``, and ``.arg_name``: the ``Factory`` parameter it was resolved for, or
+    None for a direct resolve.
+    """
 
     docs_slug = "context-not-set"
 
-    __slots__ = ("context_type",)
+    __slots__ = ("arg_name", "context_type", "scope_name")
 
-    def __init__(self, *, context_type: type, scope_name: str) -> None:
+    def __init__(self, *, context_type: type, scope_name: str, arg_name: str | None = None) -> None:
         self.context_type = context_type
-        super().__init__(
-            f"No context value is set for {context_type!r} (scope {scope_name}). "
-            "Pass context={...} to the container or call set_context()."
+        self.scope_name = scope_name
+        self.arg_name = arg_name
+        super().__init__(self._render_message())
+
+    def _render_message(self) -> str:
+        needed_for = "" if self.arg_name is None else f", needed for argument {self.arg_name}"
+        return (
+            f"No context value is set for {self.context_type!r} (scope {self.scope_name}){needed_for}. "
+            "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider."
         )
+
+    def name_argument(self, arg_name: str) -> None:
+        """Record the ``Factory`` parameter this value was resolved for and re-render the message."""
+        self.arg_name = arg_name
+        self._base_message = self._render_message()
+        self.args = (str(self),)

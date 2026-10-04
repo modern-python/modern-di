@@ -123,12 +123,12 @@ the same `dependency_path`, since they share the breadcrumb machinery.
   `skip_creator_parsing` mismatch). Exceptions raised *inside* the creator body propagate unchanged,
   never wrapped. The binding `TypeError` is preserved on `.original_error` (and as the `__cause__`).
   See [Troubleshooting: CreatorCallError](../troubleshooting/creator-call-error.md).
-- `ContextValueNotSetError` is raised when an unset `ContextProvider` is resolved *directly*
-  (`container.resolve(SomeContextType)` with no value set); there is no fallback. See
-  [Migration: To 3.x](../migration/to-3.x.md#5-direct-resolve-of-an-unset-contextprovider-raises).
-  Only the direct-resolve path is affected; a `Factory` parameter backed by the same
-  `ContextProvider` keeps following its own default/nullable/required disposition. Inspect
-  `.context_type`. See [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
+- `ContextValueNotSetError` is raised when a `ContextProvider` with no `default=` is resolved and
+  no value is set, either directly (`container.resolve(SomeContextType)`) or as a `Factory`
+  argument. A `Factory` parameter's own default or nullable annotation does not apply. See
+  [Migration: To 4.x](../migration/to-4.x.md#context-values-are-required-unless-the-provider-sets-default).
+  Inspect `.context_type`, and `.arg_name` for the parameter (`None` for a direct resolve). See
+  [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
 
 ## `RegistrationError`: declaration / registration problems
 
