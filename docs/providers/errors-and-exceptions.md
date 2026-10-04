@@ -101,8 +101,9 @@ to render the chain programmatically.
 - `ContainerClosedError` is raised by `resolve()` / `resolve_provider()` when the call reaches a
   closed container: the one you called, or an ancestor whose scope a child's resolve reaches back
   into. Its `.container_scope` names the closed one, and its `dependency_path` is always empty. A
-  container is open from construction and is closed by `close_sync()`, `close_async()`, or leaving `with` / `async with`. It stays closed until
-  you call `container.open()` or enter it again with `with` / `async with`, which calls `open()`.
+  container is open from construction and is closed by `close_sync()`, `close_async()`, or leaving
+  `with` / `async with`. It stays closed until you call `container.open()` or enter it again with
+  `with` / `async with`, which calls `open()`.
   `build_child_container()` never checks or touches any container's open/closed state, so building
   a child of a closed parent does not raise by itself. See
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening) and

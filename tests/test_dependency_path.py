@@ -170,7 +170,6 @@ def test_resolution_error_catches_scope_not_initialized() -> None:
         resource = providers.Factory(scope=Scope.REQUEST, creator=ScopedResource)
 
     container = Container(groups=[_G])
-    container.open()
     with pytest.raises(ResolutionError) as exc_info:
         container.resolve(ScopedResource)
     assert isinstance(exc_info.value, ScopeNotInitializedError)
@@ -182,7 +181,6 @@ def test_resolution_error_catches_scope_skipped() -> None:
         resource = providers.Factory(scope=Scope.APP, creator=ScopedResource)
 
     container = Container(scope=Scope.REQUEST, groups=[_G])
-    container.open()
     with pytest.raises(ResolutionError) as exc_info:
         container.resolve(ScopedResource)
     assert isinstance(exc_info.value, ScopeSkippedError)
@@ -207,9 +205,7 @@ def test_closed_ancestor_reached_through_a_dependency_renders_without_chain() ->
         consumer = providers.Factory(scope=Scope.REQUEST, creator=CaptiveConsumer)
 
     app = Container(groups=[_G])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
-    request.open()
     app.close_sync()
     with pytest.raises(ContainerClosedError) as exc_info:
         request.resolve(CaptiveConsumer)
