@@ -200,6 +200,43 @@ parameters from the `__new__` annotations.
 A `Factory` whose creator returns a union of several types (`-> A | B`) still gets no bound type,
 and now emits a `UserWarning` saying so. Pass `bound_type=` explicitly to silence it.
 
+### `Container` registries are private
+
+`providers_registry`, `cache_registry`, `context_registry` and `overrides_registry` are no longer
+public attributes of `Container`. To look up the provider registered for a type, call
+`container.find_provider(SomeType)`, which returns the provider or `None`:
+
+```python
+# 3.x
+provider = container.providers_registry.find_provider(SomeType)
+
+# 4.0
+provider = container.find_provider(SomeType)
+```
+
+Register providers with `groups=` on the root or with `add_providers()`, and manage overrides with
+`override()` and `reset_override()`. See
+[Container: looking up a provider](../providers/container.md#looking-up-a-provider).
+
+### `Container.closed` is read-only
+
+`container.closed` still reports whether the container is closed, but assigning to it raises
+`AttributeError`. Close a container with `close_sync()`, `close_async()` or by leaving `with` /
+`async with`, and reopen it with `open()`.
+
+### A child container rejects `groups=`
+
+`Container(scope=..., parent_container=parent, groups=[...])` raises
+`ChildContainerRegistrationError`, the same error `add_providers()` raises on a child. In 3.x the
+groups were registered into the registry the whole tree shares. Pass the groups to the root
+container instead. The error message now covers both cases, so update any test that matched the
+old `Container.add_providers can only be called on a root container` text.
+
+### A closed container raises before the provider lookup
+
+`resolve()` on a closed container raises `ContainerClosedError` even when the type is not
+registered. In 3.x that call raised `ProviderNotRegisteredError`.
+
 ### The 3.x deprecations are removed
 
 - `Container(validate=...)` raises `TypeError`, and `ValidateArgumentWarning` is gone with it. Drop

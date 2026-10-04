@@ -96,4 +96,4 @@ def test_concurrent_resolve_after_close_raises_in_every_thread() -> None:
 
     assert len(raised) == n
     assert container.closed is True
-    assert container.cache_registry.cached_count() == 0
+    assert container._cache_registry.cached_count() == 0

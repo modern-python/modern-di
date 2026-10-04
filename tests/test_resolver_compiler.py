@@ -174,7 +174,7 @@ def test_positional_path_binds_args_in_signature_order() -> None:
 
     container = Container(groups=[G])
     container.open()
-    plan = _plan(container.providers_registry, G.ordered)
+    plan = _plan(container._providers_registry, G.ordered)
     assert G.ordered._can_call_positionally(plan)  # self-guard: positional path selected
 
     result = container.resolve(_Ordered)
@@ -201,7 +201,7 @@ def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int
 
     container = Container(scope=Scope.APP, groups=[group])
     container.open()
-    plan = _plan(container.providers_registry, members["bag"])
+    plan = _plan(container._providers_registry, members["bag"])
     assert members["bag"]._can_call_positionally(plan)  # self-guard: positional path selected
 
     bag = container.resolve_provider(members["bag"])
@@ -268,7 +268,7 @@ def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
 def test_arity_rung_raises_for_a_closed_target(arity: int) -> None:
     # The closed target must be an ANCESTOR, not the container the call enters on: the entry
     # `resolve_provider` checks itself first, so only a cross-scope hop reaches the resolver's
-    # own `if target.closed` guard.
+    # own `if target._closed` guard.
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
     app.open()
@@ -661,7 +661,7 @@ def test_overridden_alias_compiles_nothing_of_its_source() -> None:
     container.override(_G.iface, sentinel)
 
     assert container.resolve(_Iface) is sentinel
-    assert list(container.providers_registry._resolvers) == [_G.iface.provider_id]
+    assert list(container._providers_registry._resolvers) == [_G.iface.provider_id]
 
 
 def test_no_compiled_resolver_closes_over_its_registry() -> None:
@@ -681,7 +681,7 @@ def test_no_compiled_resolver_closes_over_its_registry() -> None:
 
     container = Container(scope=Scope.APP, groups=[_G])
     container.resolve(_Iface)
-    registry = container.providers_registry
+    registry = container._providers_registry
 
     capturing = [
         fn.__qualname__
@@ -744,9 +744,9 @@ def test_factories_of_one_shape_share_a_code_object() -> None:
         leaf = providers.Factory(creator=_L0, scope=Scope.APP)
 
     container = Container(scope=Scope.APP, groups=[_G])
-    left = typing.cast("_pytypes.FunctionType", container.providers_registry.resolver_for(_G.left))
-    right = typing.cast("_pytypes.FunctionType", container.providers_registry.resolver_for(_G.right))
-    leaf = typing.cast("_pytypes.FunctionType", container.providers_registry.resolver_for(_G.leaf))
+    left = typing.cast("_pytypes.FunctionType", container._providers_registry.resolver_for(_G.left))
+    right = typing.cast("_pytypes.FunctionType", container._providers_registry.resolver_for(_G.right))
+    leaf = typing.cast("_pytypes.FunctionType", container._providers_registry.resolver_for(_G.leaf))
 
     assert left.__code__ is right.__code__
     assert leaf.__code__ is not left.__code__
@@ -811,7 +811,7 @@ def test_override_change_drops_compiled_resolvers_and_recompiles_to_the_constant
 
     container = Container(scope=Scope.APP, groups=[_G])
     container.resolve_provider(_G.node)
-    registry = container.providers_registry
+    registry = container._providers_registry
     assert registry._resolvers
 
     sentinel = _L0()
@@ -841,7 +841,7 @@ def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
         cached = providers.Factory(creator=_A, scope=Scope.APP, cache=True)
 
     container = Container(scope=Scope.APP, groups=[G])
-    resolver = container.providers_registry.resolver_for(G.cached)
+    resolver = container._providers_registry.resolver_for(G.cached)
     code = typing.cast("_pytypes.FunctionType", resolver).__code__
 
     assert code.co_cellvars == (), (

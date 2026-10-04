@@ -259,7 +259,7 @@ def test_mutation_during_compile_does_not_strand_a_stale_resolver(monkeypatch: p
 
     # _RaceDep is registered, so a resolve must now inject it -- from a fresh resolver, because the
     # one compiled against the old registry must not have survived the invalidation.
-    assert container.providers_registry.find_provider(_RaceDep) is not None
+    assert container.find_provider(_RaceDep) is not None
     assert isinstance(container.resolve_provider(svc).dep, _RaceDep)
 
 
@@ -273,7 +273,7 @@ def test_mutation_during_plan_build_does_not_strand_a_stale_plan(monkeypatch: py
         s = svc
 
     container = Container(scope=Scope.APP, groups=[G])
-    registry = container.providers_registry
+    registry = container._providers_registry
     built = threading.Event()
     may_publish = threading.Event()
     real_build = pr_mod.WiringPlan.build

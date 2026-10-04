@@ -268,7 +268,7 @@ def test_validate_raises_on_inverted_scope_dependency_supplied_via_kwargs() -> N
     outer = providers.Factory(scope=Scope.APP, creator=Outer, kwargs={"inner": inner})
 
     container = Container()
-    container.providers_registry.add_providers(inner, outer)
+    container._providers_registry.add_providers(inner, outer)
 
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
@@ -345,7 +345,7 @@ def test_collect_errors_returns_flat_list_in_walk_order() -> None:
         svc = providers.Factory(creator=_NeedsMissing)
 
     container = Container(scope=Scope.APP, groups=[G])
-    errors = collect_errors(container)
+    errors = collect_errors(container, container._providers_registry)
 
     # Root order is registration order (a, b, svc): the cycle closes while walking from root
     # `a`, so it is appended before `svc`'s missing dependency is reached.
@@ -470,6 +470,21 @@ def test_resolve_provider_on_closed_container_raises() -> None:
     assert container.closed is True
 
 
+def test_resolve_unregistered_type_on_closed_container_raises_closed() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.raises(ContainerClosedError) as exc:
+        container.resolve(_PersistentBroker)
+    assert exc.value.container_scope is Scope.APP
+
+
+def test_resolve_provider_unregistered_on_closed_container_raises_closed() -> None:
+    container = Container(scope=Scope.APP)
+    container.close_sync()
+    with pytest.raises(ContainerClosedError):
+        container.resolve_provider(_AppBrokerGroup.broker)
+
+
 def test_reenter_reopens_closed_container() -> None:
     container = Container(scope=Scope.APP)
     container.close_sync()
@@ -501,7 +516,7 @@ def test_resolving_through_closed_parent_via_open_child_raises() -> None:
         child.resolve(_PersistentBroker)
     assert exc.value.container_scope is Scope.APP
     assert app.closed is True
-    assert app.cache_registry.cached_count() == 0
+    assert app._cache_registry.cached_count() == 0
 
 
 async def test_async_context_manager_reopens() -> None:
@@ -535,7 +550,7 @@ def test_closed_container_raises_before_running_the_creator() -> None:
     with pytest.raises(ContainerClosedError):
         container.resolve(str)
     assert calls == []
-    assert container.cache_registry.cached_count() == 0
+    assert container._cache_registry.cached_count() == 0
 
 
 def test_explicit_open_after_close_does_not_warn() -> None:
@@ -723,6 +738,37 @@ def test_add_providers_on_child_container_raises() -> None:
         child.add_providers(str_factory)
     assert isinstance(exc.value, exceptions.RegistrationError)
     assert exc.value.scope is Scope.REQUEST
+
+
+def test_child_constructor_with_groups_raises() -> None:
+    root = Container(scope=Scope.APP)
+
+    with pytest.raises(ChildContainerRegistrationError, match="groups= to the root") as exc:
+        Container(scope=Scope.REQUEST, parent_container=root, groups=[_AppBrokerGroup])
+    assert exc.value.scope is Scope.REQUEST
+    assert root.find_provider(_PersistentBroker) is None
+
+
+def test_find_provider_returns_registered_provider_or_none() -> None:
+    root = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
+    child = root.build_child_container(scope=Scope.REQUEST)
+
+    assert root.find_provider(_PersistentBroker) is _AppBrokerGroup.broker
+    assert child.find_provider(_PersistentBroker) is _AppBrokerGroup.broker
+    assert root.find_provider(str) is None
+
+
+def test_closed_is_read_only() -> None:
+    container = Container(scope=Scope.APP)
+    with pytest.raises(AttributeError):
+        container.closed = True  # ty: ignore[invalid-assignment]
+    assert container.closed is False
+
+
+def test_registries_are_not_public() -> None:
+    container = Container(scope=Scope.APP)
+    for name in ("providers_registry", "cache_registry", "context_registry", "overrides_registry"):
+        assert not hasattr(container, name)
 
 
 def test_resolve_dependency_with_provider_returns_same_instance_as_resolve_provider() -> None:
@@ -1041,7 +1087,7 @@ def test_add_providers_never_validates_and_does_not_roll_back() -> None:
 
     container.add_providers(broken)  # registers quietly: no raise, no rollback
 
-    assert container.providers_registry.find_provider(Broken) is broken
+    assert container.find_provider(Broken) is broken
     with pytest.raises(ValidationFailedError):
         container.validate()
 
