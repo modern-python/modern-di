@@ -207,18 +207,14 @@ class Container:
         self.providers_registry.add_providers(*providers)
 
     async def close_async(self) -> None:
-        try:
-            if self.cache_registry._creation_order:  # noqa: SLF001
-                await self.cache_registry.close_async()
-        finally:
-            self.closed = True
+        self.closed = True
+        if self.cache_registry._creation_order:  # noqa: SLF001
+            await self.cache_registry.close_async()
 
     def close_sync(self) -> None:
-        try:
-            if self.cache_registry._creation_order:  # noqa: SLF001
-                self.cache_registry.close_sync()
-        finally:
-            self.closed = True
+        self.closed = True
+        if self.cache_registry._creation_order:  # noqa: SLF001
+            self.cache_registry.close_sync()
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
         """Apply an override immediately, tree-wide.

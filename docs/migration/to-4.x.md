@@ -32,6 +32,16 @@ If your test teardown relied on the close to clear overrides, reset them with `r
 apply them with `with container.override(...)`. See
 [Testing with overrides](../recipes/testing-overrides.md).
 
+### Finalizers run on a closed container
+
+In 3.x a container was marked closed only after its finalizers ran, so a finalizer could resolve from
+it. That resolve could build a new instance after the original was finalized, and nothing finalized
+the new one. In 4.0 the container counts as closed while its finalizers run, and a resolve from
+inside a finalizer raises `ContainerClosedError`. Give the cached instance what its finalizer needs
+when it is created. A finalizer that raises now also drops its cached instance, so the next resolve
+after reopening builds a fresh one instead of returning the half-finalized object. See
+[Close-failure semantics](../providers/lifecycle.md#close-failure-semantics).
+
 ### Scope and closed-container errors are also `ResolutionError`s
 
 `ScopeNotInitializedError`, `ScopeSkippedError` and `ContainerClosedError` now subclass

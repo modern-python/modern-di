@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import threading
 import time
@@ -603,3 +604,147 @@ def test_persistent_provider_survives_close_reopen_cycle() -> None:
     assert svc2 is not svc1  # ephemeral: rebuilt fresh
     # finalizer did NOT re-fire for the preserved broker
     assert _cycle_events == ["broker-finalized"]
+
+
+class _First: ...
+
+
+class _Second: ...
+
+
+class _Built:
+    count = 0
+
+    def __init__(self) -> None:
+        _Built.count += 1
+
+
+def test_resolve_from_a_finalizer_during_close_sync_raises_container_closed() -> None:
+    container = Container()
+    _Built.count = 0
+    errors: list[Exception] = []
+
+    def resolve_built(_: _First) -> None:
+        try:
+            container.resolve(_Built)
+        except ContainerClosedError as exc:
+            errors.append(exc)
+
+    class FinGroup(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=resolve_built))
+        built = providers.Factory(creator=_Built, cache=True)
+
+    container.add_providers(FinGroup.first, FinGroup.built)
+    container.resolve(_First)
+    container.resolve(_Built)
+
+    container.close_sync()
+
+    assert len(errors) == 1
+    assert _Built.count == 1
+    assert container.cache_registry.cached_count() == 0
+    assert container.closed is True
+
+
+async def test_resolve_from_a_finalizer_during_close_async_raises_container_closed() -> None:
+    container = Container()
+    _Built.count = 0
+    errors: list[Exception] = []
+
+    async def resolve_built(_: _First) -> None:
+        try:
+            container.resolve(_Built)
+        except ContainerClosedError as exc:
+            errors.append(exc)
+
+    class FinGroup(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=resolve_built))
+        built = providers.Factory(creator=_Built, cache=True)
+
+    container.add_providers(FinGroup.first, FinGroup.built)
+    container.resolve(_First)
+    container.resolve(_Built)
+
+    await container.close_async()
+
+    assert len(errors) == 1
+    assert _Built.count == 1
+    assert container.cache_registry.cached_count() == 0
+    assert container.closed is True
+
+
+def _failing_finalizer(_: _First) -> None:
+    msg = "boom"
+    raise ValueError(msg)
+
+
+async def _failing_async_finalizer(_: _First) -> None:
+    msg = "boom"
+    raise ValueError(msg)
+
+
+def test_failed_sync_finalizer_drops_the_instance() -> None:
+    class FailGroup(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=_failing_finalizer))
+
+    container = Container(groups=[FailGroup])
+    stale = container.resolve(_First)
+
+    with pytest.raises(FinalizerError) as exc:
+        container.close_sync()
+
+    assert [type(e) for e in exc.value.finalizer_errors] == [ValueError]
+    assert container.cache_registry.cached_count() == 0
+    container.open()
+    assert container.resolve(_First) is not stale
+
+
+async def test_failed_async_finalizer_drops_the_instance() -> None:
+    class FailGroup(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=_failing_async_finalizer))
+
+    container = Container(groups=[FailGroup])
+    stale = container.resolve(_First)
+
+    with pytest.raises(FinalizerError) as exc:
+        await container.close_async()
+
+    assert [type(e) for e in exc.value.finalizer_errors] == [ValueError]
+    assert container.cache_registry.cached_count() == 0
+    container.open()
+    assert container.resolve(_First) is not stale
+
+
+async def test_cancelled_close_async_keeps_unfinalized_items_queued() -> None:
+    events: list[str] = []
+    slow_calls: list[int] = []
+
+    def sync_finalizer(_: _First) -> None:
+        events.append("first")
+
+    async def slow_finalizer(_: _Second) -> None:
+        slow_calls.append(len(slow_calls))
+        if len(slow_calls) == 1:
+            await asyncio.Event().wait()
+        events.append("second")
+
+    class SlowGroup(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=sync_finalizer))
+        second = providers.Factory(creator=_Second, cache=providers.CacheSettings(finalizer=slow_finalizer))
+
+    container = Container(groups=[SlowGroup])
+    container.resolve(_First)
+    container.resolve(_Second)
+
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(container.close_async(), timeout=0.05)
+
+    assert container.closed is True
+    assert events == []
+    assert slow_calls == [0]
+
+    await container.close_async()
+
+    assert events == ["second", "first"]
+    assert slow_calls == [0, 1]
+    assert container.cache_registry.cached_count() == 0

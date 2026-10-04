@@ -50,6 +50,10 @@ comes from and stop it outliving the container. Reopening there would hide the l
 cached after the reopen would never be finalized, because the shutdown that should close it has
 already run.
 
+A finalizer that resolves from its own container also raises, because the container counts as
+closed while its finalizers run. Do not reopen the container from a finalizer. Give the cached
+instance what its finalizer needs when it is created.
+
 ## See also
 
 - [Lifecycle: closing and reopening](../providers/lifecycle.md#closing-and-reopening) — what close

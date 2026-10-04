@@ -48,9 +48,13 @@ class CacheItem:
 
     async def close_async(self) -> None:
         if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
-            result = self.settings.finalizer(self.cache)
-            if inspect.isawaitable(result):
-                await result
+            try:
+                result = self.settings.finalizer(self.cache)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:
+                self.clear()
+                raise
             self.finalized = True
 
         self.clear()
@@ -59,7 +63,11 @@ class CacheItem:
         if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
             if self.settings.is_async_finalizer:
                 raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
-            result = self.settings.finalizer(self.cache)
+            try:
+                result = self.settings.finalizer(self.cache)
+            except Exception:
+                self.clear()
+                raise
             if inspect.isawaitable(result):
                 if inspect.iscoroutine(result):
                     result.close()  # suppress "never awaited" warning

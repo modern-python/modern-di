@@ -89,6 +89,24 @@ except* ConnectionError as group:
         print("cleanup failed:", err)
 ```
 
+A finalizer that raises still clears its cache entry. The instance is dropped, and the next resolve
+after reopening builds a fresh one. With `clear_cache=False` the entry is kept, as it is after a
+finalizer that succeeds.
+
+If `close_async()` is cancelled, or a finalizer raises a `BaseException` that is not an `Exception`
+(such as `asyncio.CancelledError` or `KeyboardInterrupt`), that exception propagates at once. The
+container is marked closed, and every resource whose finalizer has not completed, including the one
+that was interrupted, stays queued. Awaiting `close_async()` again runs the remaining finalizers:
+
+```python
+try:
+    await asyncio.wait_for(container.close_async(), timeout=5)
+except TimeoutError:
+    ...
+
+await container.close_async()  # finalizes what the cancelled close did not reach
+```
+
 Calling `close_sync()` on a cached resource with an async finalizer is recoverable. `close_sync()`
 cannot await, so when it reaches such a resource it produces an `AsyncFinalizerInSyncCloseError`,
 delivered inside the aggregated `FinalizerError` (as an entry in `.exceptions`), since sync close
@@ -121,6 +139,10 @@ the parent's shared registries and scope map), and the returned child starts ope
 fresh container. `close_sync()` / `close_async()` run the finalizers (in reverse-creation order, as
 above) and mark the container closed; entering `with container:` (or `async with`) is the idiomatic
 way to guarantee that close runs, even on an exception.
+
+The container counts as closed as soon as `close_sync()` or `close_async()` starts, so a finalizer
+that resolves from its own container gets `ContainerClosedError`. Pass a finalizer what it needs
+through the cached instance instead of resolving it during close.
 
 Resolving from a closed container, directly or through a child whose resolve reaches back into
 that container's scope, raises `ContainerClosedError`, and the creator does not run. The container
