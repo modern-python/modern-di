@@ -7,7 +7,7 @@ resolvers never consult the overrides registry; applying an override drops the c
 resolvers instead (see ``ProvidersRegistry.drop_resolvers``). Why a template and not shared
 helpers: every all-Python single-copy design measured 25-80% slower (docs/introduction/performance.md).
 
-The template reaches into `Container._prepare`/`_lock`/`_scope_map` and `CacheRegistry._items` to stay
+The template reaches into `Container._lock`/`_scope_map` and `CacheRegistry._items` to stay
 within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
@@ -66,7 +66,7 @@ def resolve(container):
         if target is None:
             target = _navigate(container, scope, resolution_step)
     if target.closed:
-        target._prepare()
+        raise ContainerClosedError(container_scope=target.scope)
     try:
 {build}
     except _STEP_ERRORS as exc:
@@ -107,7 +107,7 @@ def resolve(container):
         if target is None:
             target = _navigate(container, scope, resolution_step)
     if target.closed:
-        target._prepare()
+        raise ContainerClosedError(container_scope=target.scope)
     cache_registry = target.cache_registry
     cache_item = cache_registry._items.get(pid)
     if cache_item is None:
@@ -130,7 +130,7 @@ _CONTEXT_FOLD = """\
                 if holder is None:
                     holder = target.find_container(context_scope)
             if holder.closed:
-                holder._prepare()
+                raise ContainerClosedError(container_scope=holder.scope)
             value = holder.context_registry.find_context(context_type)
             if value is not UNSET:
                 kwargs[name] = value
@@ -220,6 +220,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "_navigate": _navigate,
         "_STEP_ERRORS": _STEP_ERRORS,
         "CreatorCallError": exceptions.CreatorCallError,
+        "ContainerClosedError": exceptions.ContainerClosedError,
         **{f"r{i}": registry.resolver_for(p) for i, p in enumerate(plan.provider_kwargs.values())},
     }
     exec(_code(shape), namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
@@ -245,7 +246,7 @@ def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") ->
     def resolve(container: "Container") -> typing.Any:
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
         if target.closed:
-            target._prepare()
+            raise exceptions.ContainerClosedError(container_scope=target.scope)
         error = build_error(arg_name=arg_name, item=item, registry=target.providers_registry)
         error.prepend_step(resolution_step())
         raise error
@@ -292,7 +293,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
             if target is None:
                 target = container.find_container(scope)
         if target.closed:
-            target._prepare()
+            raise exceptions.ContainerClosedError(container_scope=target.scope)
         value = target.context_registry.find_context(context_type)
         if value is types.UNSET:
             raise exceptions.ContextValueNotSetError(context_type=context_type, scope_name=scope.name)

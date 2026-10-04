@@ -76,14 +76,13 @@ Catch `ContainerError` for any container/scope failure.
 - `InvalidScopeTypeError` is raised by the `Container` constructor, and by a `Group` subclass
   declared as `class G(Group, scope=...)`, when `scope` is not an `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
-- `ContainerClosedError` has not been raised since modern-di 3.1; it stays importable for
-  back-compat and is removed in 4.0. A container is open from construction, so there is nothing to
-  raise: resolving from a container that was explicitly closed, directly or through a child
-  whose resolve reaches back into its scope, reopens it and emits `ContainerClosedWarning` (a
-  `RuntimeWarning`, not a `ModernDIError`) instead. `build_child_container()` itself never checks or
-  touches any container's open/closed state, so building a child of a closed parent triggers neither
-  the reopen nor the warning by itself. Re-enter the container via `with`/`async with`, or call
-  `container.open()`, to reopen it deliberately and silently. See
+- `ContainerClosedError` is raised by `resolve()` / `resolve_provider()` when the call reaches a
+  closed container: the one you called, or an ancestor whose scope a child's resolve reaches back
+  into. Its `.container_scope` names the closed one. A container is open from construction and is
+  closed by `close_sync()`, `close_async()`, or leaving `with` / `async with`; nothing reopens it
+  implicitly. `build_child_container()` never checks or touches any container's open/closed state,
+  so building a child of a closed parent does not raise by itself. Re-enter the container via
+  `with`/`async with`, or call `container.open()`, to reopen it. See
   [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening) and
   [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 - `ValidationFailedError` is raised only by `Container.validate()`. Catch this for validation

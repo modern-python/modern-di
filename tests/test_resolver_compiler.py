@@ -227,7 +227,7 @@ def _arity_group(
 
 
 # Arity 0, 1 and 2 generate different source (no argument, one, several), so each branch of
-# the template -- the scope hop, the closed-target reopen, and both error handlers -- is
+# the template -- the scope hop, the closed-target raise, and both error handlers -- is
 # exercised at every arity.
 
 
@@ -254,7 +254,7 @@ def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
 
     The same-scope case is an int compare, not a `find_container` call. This test pins that the
     resolver navigates at all; the wrong target is not observable here (dependencies navigate
-    themselves), so the skip-navigation mutant is killed by `test_arity_rung_reopens_a_closed_target`
+    themselves), so the skip-navigation mutant is killed by `test_arity_rung_raises_for_a_closed_target`
     and `test_arity_rung_prepends_its_step_to_a_dependency_error`.
     """
     group = _arity_group(arity)
@@ -265,17 +265,18 @@ def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
 
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
-def test_arity_rung_reopens_a_closed_target(arity: int) -> None:
+def test_arity_rung_raises_for_a_closed_target(arity: int) -> None:
     # The closed target must be an ANCESTOR, not the container the call enters on: the entry
-    # `resolve_provider` reopens itself first, so only a cross-scope hop reaches the resolver's
+    # `resolve_provider` checks itself first, so only a cross-scope hop reaches the resolver's
     # own `if target.closed` guard.
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
     app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
-    with pytest.warns(exceptions.ContainerClosedWarning):
-        assert isinstance(request.resolve_provider(group.target), _Bag)
+    with pytest.raises(exceptions.ContainerClosedError) as exc:
+        request.resolve_provider(group.target)
+    assert exc.value.container_scope is Scope.APP
 
 
 @pytest.mark.parametrize("arity", [0, 1, 2])
