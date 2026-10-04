@@ -7,7 +7,14 @@ This document describes the changes required to migrate from modern-di 3.x to mo
 ### `Container` takes only `scope` positionally
 
 Every `Container` argument after `scope` is keyword-only: `Container(Scope.APP, None)` raises
-`TypeError`, so pass `parent_container=`, `context=`, `groups=` and `use_lock=` by name.
+`TypeError`, so pass `parent_container=`, `context=` and `groups=` by name.
+
+### `use_lock` is removed
+
+Every container tree is locked: the root creates one lock and every child shares it.
+`Container(use_lock=...)` raises `TypeError`, so drop the argument. The lock is taken only when a
+cached instance is first created, so an application that passed `use_lock=False` loses nothing on
+a resolve that finds its instance cached.
 
 ### Resolving on a closed container raises
 

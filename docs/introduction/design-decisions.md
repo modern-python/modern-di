@@ -10,7 +10,7 @@ Async resolution will not be added.
 
 ## 2. Cached factories are thread-safe
 
-Cached `Factory` providers use one reentrant lock (`threading.RLock`) per container tree, created by the root and shared by every child, so concurrent resolves in multiple threads still produce exactly one instance per cache. Single-threaded apps can disable the lock with `Container(..., use_lock=False)` on the root for a small performance gain; children inherit that choice. Multi-threaded apps must leave it on.
+Cached `Factory` providers use one reentrant lock (`threading.RLock`) per container tree, created by the root and shared by every child, so concurrent resolves in multiple threads still produce exactly one instance per cache. The lock is taken only when a cached instance is first created; a resolve that finds the instance already cached never touches it.
 
 ### The thread-safety boundary
 

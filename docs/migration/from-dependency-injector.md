@@ -63,7 +63,7 @@ Use this table as the index for the rest of the guide. Every provider class docu
 | `Factory` | `providers.Factory(...)` | [§4](#4-migrate-the-dependency-graph) |
 | `Callable` | `providers.Factory(the_callable)`; `Factory`'s creator can be any callable, not just a class | [§4](#4-migrate-the-dependency-graph) |
 | `Singleton` | `providers.Factory(..., cache=True)` | [§4](#4-migrate-the-dependency-graph) |
-| `ThreadSafeSingleton` | `providers.Factory(..., cache=True)`; `modern-di`'s cache is lock-guarded by default (`use_lock=True` on the container) | [§4](#4-migrate-the-dependency-graph) |
+| `ThreadSafeSingleton` | `providers.Factory(..., cache=True)`; `modern-di`'s cache is always lock-guarded | [§4](#4-migrate-the-dependency-graph) |
 | `ThreadLocalSingleton` | No direct equivalent; see [§11](#11-no-direct-equivalent) | [§11](#11-no-direct-equivalent) |
 | `Resource` (plain-function initializer, their docs' most common form; no shutdown step) | `providers.Factory(..., cache=True)`, same as `Singleton`; add a finalizer only when there is teardown | [§4](#4-migrate-the-dependency-graph) |
 | `Resource` (generator / context-manager initializer) | `providers.Factory(..., cache=CacheSettings(finalizer=...))` | [§4](#4-migrate-the-dependency-graph) |

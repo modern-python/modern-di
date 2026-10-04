@@ -24,7 +24,7 @@ def test_get_or_create_miss_calls_resolve_and_create_once_and_caches() -> None:
         calls["create"] += 1
         return ("made", kwargs)
 
-    value, created = item.get_or_create(None, resolve=resolve, create=create)
+    value, created = item.get_or_create(threading.RLock(), resolve=resolve, create=create)
 
     assert created is True
     assert value == ("made", {"x": 1})
@@ -44,7 +44,7 @@ def test_get_or_create_hit_returns_cache_without_resolving() -> None:
         msg = "create must not run on a cache hit"
         raise AssertionError(msg)
 
-    value, created = item.get_or_create(None, resolve=resolve, create=create)
+    value, created = item.get_or_create(threading.RLock(), resolve=resolve, create=create)
 
     assert created is False
     assert value == "cached"
