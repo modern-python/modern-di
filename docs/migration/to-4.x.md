@@ -185,6 +185,21 @@ provider set is closed. Only code that relied on `ABCMeta` is affected:
 `AbstractProvider.register(...)` raises `AttributeError`. `isinstance(x, AbstractProvider)` works
 as before for every provider, and type hints that name `AbstractProvider` need no change.
 
+### `NewType` and type alias annotations are wired
+
+In 3.x a parameter annotated with a `NewType` or a `type X = ...` alias was treated as unannotated,
+and a creator returning one got no bound type. In 4.0 both are bound types of their own: the
+parameter resolves from the provider declared with `bound_type=UserId`, and `Factory(make_user_id)`
+with `-> UserId` registers under `UserId`. If a group already has a provider bound to the same
+`NewType` or alias, registration now raises `DuplicateProviderTypeError`; pass `bound_type=None`
+to the one that should stay unregistered.
+
+Classes whose signature comes from `__new__`, such as `NamedTuple` subclasses, now wire their
+parameters from the `__new__` annotations.
+
+A `Factory` whose creator returns a union of several types (`-> A | B`) still gets no bound type,
+and now emits a `UserWarning` saying so. Pass `bound_type=` explicitly to silence it.
+
 ### The 3.x deprecations are removed
 
 - `Container(validate=...)` raises `TypeError`, and `ValidateArgumentWarning` is gone with it. Drop

@@ -136,6 +136,14 @@ Modern-DI analyzes the creator's signature to:
 Explicitly sets the type for resolving by type. By default, this is automatically inferred from the creator's return type annotation.
 Set to `None` to make the provider unresolvable by type.
 
+A `NewType` or a `type X = ...` alias is a bound type of its own. A provider declared with
+`bound_type=UserId` (or a creator returning `UserId`) is what a `user_id: UserId` parameter
+resolves to; a provider bound to the underlying `int` is not.
+
+A return annotation that is a union of several types (`-> A | B`) gives no bound type, and
+`Factory(...)` emits a `UserWarning`. Pass `bound_type=` with the type to register under, or
+`bound_type=None` if the provider is only resolved directly.
+
 ### kwargs
 
 Manual values for creator parameters that override automatic dependency resolution.
@@ -203,6 +211,7 @@ The table below summarises how Modern-DI handles each parameter shape during **d
 | `param: SomeClass` (plain type annotation with a registered provider) | Resolved and injected automatically. | `ArgumentResolutionError` at resolve if no provider is registered and there is no default. |
 | `param: X | None` / `Optional[X]` | Provider injected if one is registered; otherwise `None`. | Never fails; see [Optional parameters](#optional-parameters). |
 | `param: A | B` (union without `None`) | First registered type from the union is injected. A member that is itself a parameterized generic (e.g. `int | list[X]`) degrades to its bare origin (`list`) for matching purposes; see the note below. | `ArgumentResolutionError` at resolve if neither `A` nor `B` has a registered provider. |
+| `param: UserId` (a `NewType`) or `param: Alias` (a `type Alias = ...` statement, Python 3.12+) | Resolved from the provider whose `bound_type` is that `NewType` or alias. The underlying type is not looked up. | `ArgumentResolutionError` at resolve if no provider is bound to it and there is no default. |
 | `param: list[X]` / any parameterized generic, **outside a union** | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default value or is covered by `kwargs`. | Raised at `Factory(...)` call time. |
 | Positional-only param (`def f(x: T, /)`) | **`UnsupportedCreatorParameterError` at declaration** unless the parameter has a default (in which case it is silently skipped). | Raised at `Factory(...)` call time. |
 | Unannotated param (`def f(x)`) | Parsed but unresolvable by type. | `ArgumentResolutionError` at resolve unless covered by `kwargs`. |

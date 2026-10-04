@@ -1,11 +1,15 @@
 import dataclasses
 import inspect
+import sys
 import types
 import typing
 import warnings
 
 from modern_di import exceptions
 from modern_di.types import UNSET
+
+
+_NAMED_TYPE_FORMS = (typing.NewType,) if sys.version_info < (3, 12) else (typing.NewType, typing.TypeAliasType)
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -24,14 +28,14 @@ class SignatureItem:
             # try to resolve `NoneType` from the registry.
             return cls(default=default, is_nullable=True)
 
-        # typing.Annotated
-        if hasattr(type_, "__metadata__"):
+        origin = typing.get_origin(type_)
+        if origin is typing.Annotated:
             type_ = typing.get_args(type_)[0]
+            origin = typing.get_origin(type_)
 
         result: dict[str, typing.Any] = {"default": default}
 
-        # union type
-        if isinstance(type_, types.UnionType) or typing.get_origin(type_) is typing.Union:
+        if isinstance(type_, types.UnionType) or origin is typing.Union:
             # A parameterized generic member degrades to its origin (list[str] -> list); see
             # test_union_member_degrades_to_bare_origin.
             union_members = [typing.get_origin(x) or x for x in typing.get_args(type_)]
@@ -41,14 +45,13 @@ class SignatureItem:
 
             if len(non_none_members) > 1:
                 result["args"] = non_none_members
-            elif non_none_members:
+            else:
                 result["arg_type"] = non_none_members[0]
 
-        # generic — parameterized generics are not resolvable by type
-        elif typing.get_origin(type_) is not None:
+        elif origin is not None:
             result["raw_annotation"] = type_
 
-        elif isinstance(type_, type):
+        elif isinstance(type_, (type, _NAMED_TYPE_FORMS)):
             result["arg_type"] = type_
 
         return cls(**result)
@@ -96,6 +99,16 @@ class ParsedCreator:
     has_positional_only_gap: bool
 
 
+def _class_type_hints(creator: type) -> dict[str, typing.Any]:
+    """Return the hints of the ``__new__`` or ``__init__`` that ``inspect.signature`` reads for a class."""
+    for base in creator.__mro__:
+        for name in ("__new__", "__init__"):
+            if name in base.__dict__ and inspect.isfunction(method := getattr(base, name)):
+                module = sys.modules.get(base.__module__)
+                return typing.get_type_hints(method, localns=vars(module) if module else None)
+    return typing.get_type_hints(creator.__init__)
+
+
 def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
     try:
         sig = inspect.signature(creator)
@@ -106,10 +119,7 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
 
     is_class = isinstance(creator, type)
     try:
-        if is_class and hasattr(creator, "__init__"):
-            type_hints = typing.get_type_hints(creator.__init__)
-        else:
-            type_hints = typing.get_type_hints(creator)
+        type_hints = _class_type_hints(creator) if is_class else typing.get_type_hints(creator)
     except (NameError, TypeError) as e:
         warnings.warn(
             f"Failed to resolve type hints for {creator}: {e}. Dependency wiring will be skipped. "
@@ -126,8 +136,6 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
             continue
         item = _parse_parameter(creator, param_name, param, type_hints)
         if item is None:
-            # Dropped from param_hints, so a positional creator() call would bind a later
-            # dependency into this slot; the fast path must keep **kwargs.
             has_positional_only_gap = True
             continue
         param_hints[param_name] = item
@@ -137,7 +145,6 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
     elif "return" in type_hints:
         return_sig = SignatureItem.from_type(type_hints["return"])
         if return_sig.raw_annotation is not None:
-            # a parameterized generic return type degrades to its origin for bound_type
             return_sig = SignatureItem(arg_type=typing.get_origin(return_sig.raw_annotation))
     else:
         return_sig = SignatureItem()
