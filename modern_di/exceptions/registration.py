@@ -1,4 +1,4 @@
-"""Errors raised while providers and groups are declared."""
+"""Errors reporting declaration mistakes, detected at declaration time or by ``validate()``."""
 
 import enum
 import typing
@@ -13,7 +13,7 @@ if typing.TYPE_CHECKING:
 
 
 class RegistrationError(ModernDIError):
-    """Base class for errors raised while registering providers."""
+    """Base class for declaration mistakes, detected at declaration time or by ``validate()``."""
 
     __slots__ = ()
 

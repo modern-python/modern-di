@@ -24,6 +24,15 @@ any `filterwarnings` entry that names it. To use a closed container again, reope
 `open()` or by re-entering `with` / `async with`, which calls `open()`. See
 [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 
+### Scope and closed-container errors are also `ResolutionError`s
+
+`ScopeNotInitializedError`, `ScopeSkippedError` and `ContainerClosedError` now subclass
+`ResolutionError` as well as `ContainerError`, so `except ResolutionError` catches every modern-di
+error raised by `resolve()` and `resolve_provider()`. `except ContainerError` still catches them. If an
+`except ResolutionError` clause comes before an `except ContainerError` clause, the first one now
+handles these three errors; reorder the clauses if the `ContainerError` handler should run. See
+[Errors and exceptions](../providers/errors-and-exceptions.md).
+
 ### Context values are required unless the provider sets `default=`
 
 In 3.x, when a `Factory` parameter was backed by a `ContextProvider` and no context value was set,

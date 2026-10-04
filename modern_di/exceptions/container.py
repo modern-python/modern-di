@@ -2,7 +2,9 @@
 
 import enum
 
-from modern_di.exceptions.base import DependencyPathMixin, ModernDIError
+from modern_di.exceptions.base import ModernDIError
+from modern_di.exceptions.rendering import ResolutionStep
+from modern_di.exceptions.resolution import ResolutionError
 from modern_di.scope import _deeper_members
 
 
@@ -47,7 +49,7 @@ class MaxScopeReachedError(ContainerError):
         )
 
 
-class ScopeNotInitializedError(DependencyPathMixin, ContainerError):
+class ScopeNotInitializedError(ResolutionError, ContainerError):
     """Provider's scope is deeper than any active container. Inspect ``.provider_scope``, ``.container_scope``.
 
     Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`) so a captive
@@ -56,7 +58,7 @@ class ScopeNotInitializedError(DependencyPathMixin, ContainerError):
 
     docs_slug = "scope-not-initialized-error"
 
-    __slots__ = ("_base_message", "container_scope", "dependency_path", "provider_scope")
+    __slots__ = ("container_scope", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
@@ -66,7 +68,7 @@ class ScopeNotInitializedError(DependencyPathMixin, ContainerError):
         )
 
 
-class ScopeSkippedError(DependencyPathMixin, ContainerError):
+class ScopeSkippedError(ResolutionError, ContainerError):
     """Provider's scope was skipped in the container chain. Attrs: ``provider_scope``, ``container_scope``.
 
     Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`) so a captive
@@ -75,7 +77,7 @@ class ScopeSkippedError(DependencyPathMixin, ContainerError):
 
     docs_slug = "scope-skipped-error"
 
-    __slots__ = ("_base_message", "container_scope", "dependency_path", "provider_scope")
+    __slots__ = ("container_scope", "provider_scope")
 
     def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
         self.provider_scope = provider_scope
@@ -99,7 +101,7 @@ class InvalidScopeTypeError(ContainerError):
         super().__init__(f"Scope must be an enum.IntEnum member; got {scope_value!r} ({type(scope_value).__name__}).")
 
 
-class ContainerClosedError(ContainerError):
+class ContainerClosedError(ResolutionError, ContainerError):
     """A closed container was resolved from, directly or through a descendant. Attr: ``container_scope``.
 
     ``container_scope`` names the closed container, which is an ancestor when a child's resolve
@@ -117,6 +119,9 @@ class ContainerClosedError(ContainerError):
             f"Container (scope {container_scope.name}) is closed. Reopen it with `open()` or by re-entering "
             "`with`/`async with` before resolving from it or from any of its child containers."
         )
+
+    def prepend_step(self, *steps: ResolutionStep) -> None:
+        """No-op: ``container_scope`` already names the closed container, so ``dependency_path`` stays empty."""
 
 
 class ValidationFailedError(ContainerError):
