@@ -42,12 +42,12 @@ startup catches this before the first request.
 
 ```python
 # Broken: cannot resolve by type
-def create_engine(...):
-    return sa_async.create_async_engine(...)
+def create_engine(settings: Settings):
+    return sa_async.create_async_engine(settings.database_url)
 
 # Works: return-typed
-def create_engine(...) -> sa_async.AsyncEngine:
-    return sa_async.create_async_engine(...)
+def create_engine(settings: Settings) -> sa_async.AsyncEngine:
+    return sa_async.create_async_engine(settings.database_url)
 ```
 
 To fix it, add the return annotation, or set `bound_type=SomeType` on the provider explicitly.

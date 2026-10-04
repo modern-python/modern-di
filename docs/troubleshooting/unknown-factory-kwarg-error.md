@@ -21,12 +21,12 @@ def create_service(connection_string: str) -> Service: ...
 
 
 class Dependencies(Group):
-    # Wrong: typo — raises UnknownFactoryKwargError, suggests "connection_string"
+    # Broken: typo — raises UnknownFactoryKwargError, suggests "connection_string"
     service = providers.Factory(
         create_service, scope=Scope.APP, kwargs={"conection_string": "..."}
     )
 
-    # Right
+    # Works
     service = providers.Factory(
         create_service, scope=Scope.APP, kwargs={"connection_string": "..."}
     )

@@ -20,11 +20,11 @@ Use the built-in `Scope` enum, or your own `IntEnum` subclass:
 ```python
 from modern_di import Container, Scope
 
-# Wrong
+# Broken
 container = Container(scope=1)                 # raises InvalidScopeTypeError
 container = Container(scope="APP")              # raises InvalidScopeTypeError
 
-# Right
+# Works
 container = Container(scope=Scope.APP)
 ```
 

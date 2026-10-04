@@ -21,11 +21,11 @@ Build child containers through every intermediate scope your providers need:
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 
-# Wrong: jumps straight past REQUEST
+# Broken: jumps straight past REQUEST
 action_container = app_container.build_child_container(scope=Scope.ACTION)
 action_container.resolve(RequestScopedThing)  # raises ScopeSkippedError
 
-# Right: build through REQUEST first
+# Works: build through REQUEST first
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 action_container = request_container.build_child_container(scope=Scope.ACTION)
 action_container.resolve(RequestScopedThing)
