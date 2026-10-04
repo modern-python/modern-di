@@ -1011,3 +1011,51 @@ def test_direct_resolve_from_too_shallow_a_container_names_the_context_provider(
         "  caused by: Provider of scope REQUEST cannot be resolved in container of scope APP.\n"
         "See: https://modern-di.modern-python.org/troubleshooting/scope-not-initialized-error/"
     )
+
+
+class _SharedReq: ...
+
+
+class _LeakedUser: ...
+
+
+class _LeakGroup(Group):
+    app_user = providers.ContextProvider(scope=Scope.APP, context_type=_LeakedUser, default=None)
+    request_user = providers.ContextProvider(
+        scope=Scope.REQUEST, context_type=_LeakedUser, default=None, bound_type=None
+    )
+
+
+def test_set_context_on_child_does_not_leak_to_sibling_or_caller_dict() -> None:
+    app = Container(scope=Scope.APP, groups=[_LeakGroup])
+    app.open()
+    shared = {_SharedReq: _SharedReq()}
+    first = app.build_child_container(scope=Scope.REQUEST, context=shared)
+    second = app.build_child_container(scope=Scope.REQUEST, context=shared)
+
+    first.set_context(_LeakedUser, _LeakedUser())
+
+    assert second.resolve_provider(_LeakGroup.request_user) is None
+    assert _LeakedUser not in shared
+    assert isinstance(first.resolve_provider(_LeakGroup.request_user), _LeakedUser)
+
+
+def test_set_context_on_root_does_not_leak_to_other_root_or_caller_dict() -> None:
+    shared = {_SharedReq: _SharedReq()}
+    first = Container(scope=Scope.APP, groups=[_LeakGroup], context=shared)
+    second = Container(scope=Scope.APP, groups=[_LeakGroup], context=shared)
+
+    first.set_context(_LeakedUser, _LeakedUser())
+
+    assert second.resolve_provider(_LeakGroup.app_user) is None
+    assert _LeakedUser not in shared
+    assert isinstance(first.resolve_provider(_LeakGroup.app_user), _LeakedUser)
+
+
+def test_caller_dict_changes_after_construction_are_not_seen() -> None:
+    shared: dict[type, object] = {_SharedReq: _SharedReq()}
+    container = Container(scope=Scope.APP, groups=[_LeakGroup], context=shared)
+
+    shared[_LeakedUser] = _LeakedUser()
+
+    assert container.resolve_provider(_LeakGroup.app_user) is None

@@ -62,9 +62,10 @@ class Container:
     ) -> None:
         """Build a container at ``scope``, open and ready to :meth:`resolve`.
 
-        ``context`` seeds the context registry. A root binds :class:`Container` itself, so
-        ``resolve(Container)`` returns the resolving container. A cached factory creates at most one
-        instance per cache key across the tree, whichever threads resolve it.
+        ``context`` is copied into the context registry, so later changes to the caller's dict are
+        not seen and :meth:`set_context` never writes into it. A root binds :class:`Container`
+        itself, so ``resolve(Container)`` returns the resolving container. A cached factory creates at
+        most one instance per cache key across the tree, whichever threads resolve it.
 
         Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
         ``IntEnum``, and :class:`~modern_di.exceptions.InvalidChildScopeError` when it is not
@@ -86,7 +87,7 @@ class Container:
             else {}
         )
         self.cache_registry = CacheRegistry()
-        self.context_registry = ContextRegistry(context or {})
+        self.context_registry = ContextRegistry(context.copy() if context else {})
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
         # Inlined rather than a helper: this runs per child build (benchmark `test_g6_build_child_container`).
