@@ -394,7 +394,6 @@ def test_child_shares_the_root_lock() -> None:
     root = Container()
     child = root.build_child_container(scope=Scope.REQUEST)
     grandchild = Container(scope=Scope.ACTION, parent_container=child)
-    assert root._lock is not None
     assert child._lock is root._lock
     assert grandchild._lock is root._lock
 

@@ -84,9 +84,15 @@ def test_get_or_create_releases_lock_and_fast_path_on_second_call() -> None:
     value2, created2 = item.get_or_create(lock, resolve=lambda: 0, create=lambda _: "v2")
     assert (value2, created2) == ("v", False)
 
-    # The lock was released by the first call's finally (not left held).
-    assert lock.acquire(blocking=False)
-    lock.release()
+    acquired: list[bool] = []
+
+    def try_acquire() -> None:
+        acquired.append(lock.acquire(blocking=False))
+
+    thread = threading.Thread(target=try_acquire)
+    thread.start()
+    thread.join()
+    assert acquired == [True]
 
 
 async def test_close_async_awaits_only_items_with_a_finalizer(monkeypatch: pytest.MonkeyPatch) -> None:

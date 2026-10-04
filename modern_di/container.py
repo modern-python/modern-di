@@ -63,8 +63,8 @@ class Container:
         """Build a container at ``scope``, open and ready to :meth:`resolve`.
 
         ``context`` seeds the context registry. A root binds :class:`Container` itself, so
-        ``resolve(Container)`` returns the resolving container. A root creates the tree's lock and a
-        child shares its parent's.
+        ``resolve(Container)`` returns the resolving container. A cached factory creates at most one
+        instance per cache key across the tree, whichever threads resolve it.
 
         Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
         ``IntEnum``, and :class:`~modern_di.exceptions.InvalidChildScopeError` when it is not

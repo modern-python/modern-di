@@ -11,10 +11,9 @@ Every `Container` argument after `scope` is keyword-only: `Container(Scope.APP, 
 
 ### `use_lock` is removed
 
-Every container tree is locked: the root creates one lock and every child shares it.
-`Container(use_lock=...)` raises `TypeError`, so drop the argument. The lock is taken only when a
-cached instance is first created, so an application that passed `use_lock=False` loses nothing on
-a resolve that finds its instance cached.
+`Container(use_lock=...)` raises `TypeError`; drop the argument. Every container tree is now
+locked, and the lock is taken only on a cache miss (see
+[Design decisions](../introduction/design-decisions.md#2-cached-factories-are-thread-safe)).
 
 ### Resolving on a closed container raises
 
