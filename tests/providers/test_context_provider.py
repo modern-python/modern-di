@@ -1,5 +1,6 @@
 import dataclasses
 import datetime
+import typing
 import warnings
 
 import pytest
@@ -58,7 +59,7 @@ def test_context_provider_not_found_but_required() -> None:
     app_container.open()
     with pytest.raises(
         ContextValueNotSetError,
-        match=r"No context value is set for <class 'datetime.datetime'> \(scope APP\), required by argument arg1",
+        match=r"No context value is set for <class 'datetime.datetime'> \(scope APP\), needed for argument arg1",
     ) as exc:
         app_container.resolve(SomeFactory)
     assert exc.value.arg_name == "arg1"
@@ -712,7 +713,7 @@ def test_unset_context_as_factory_argument_raises_naming_the_parameter() -> None
         app_container.resolve(SomeFactory)
     assert exc_info.value.context_type is datetime.datetime
     assert exc_info.value.arg_name == "arg1"
-    assert "required by argument arg1" in str(exc_info.value)
+    assert "needed for argument arg1" in str(exc_info.value)
 
 
 def test_direct_resolve_of_unset_context_names_no_parameter() -> None:
@@ -721,7 +722,7 @@ def test_direct_resolve_of_unset_context_names_no_parameter() -> None:
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
     assert exc_info.value.arg_name is None
-    assert "required by argument" not in str(exc_info.value)
+    assert "needed for argument" not in str(exc_info.value)
 
 
 _PROVIDER_DEFAULT = datetime.datetime(2001, 1, 1, tzinfo=datetime.UTC)
@@ -891,3 +892,70 @@ def test_app_owned_optional_request_is_none_when_no_request_is_set() -> None:
     with pytest.raises(ContextValueNotSetError) as exc_info:
         child.resolve(_StandInRequest)
     assert exc_info.value.context_type is _StandInRequest
+
+
+class _FirstCtx: ...
+
+
+class _SecondCtx: ...
+
+
+def _positional_pair(first: _FirstCtx, second: _SecondCtx) -> str:
+    raise NotImplementedError  # pragma: no cover - the second argument raises first
+
+
+def _keyword_pair(*, first: _FirstCtx, second: _SecondCtx) -> str:
+    raise NotImplementedError  # pragma: no cover - the second argument raises first
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize("creator", [_positional_pair, _keyword_pair])
+def test_unset_context_error_names_the_argument_that_failed(creator: typing.Callable[..., str], cache: bool) -> None:
+    class G(Group):
+        first = providers.ContextProvider(_FirstCtx, scope=Scope.APP)
+        second = providers.ContextProvider(_SecondCtx, scope=Scope.APP)
+        pair = providers.Factory(creator, bound_type=None, cache=cache)
+
+    app_container = Container(groups=[G], context={_FirstCtx: _FirstCtx()})
+    app_container.open()
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        app_container.resolve_provider(G.pair)
+    assert exc_info.value.context_type is _SecondCtx
+    assert exc_info.value.arg_name == "second"
+
+
+def test_unset_context_error_names_the_failing_one_of_two_same_type_providers() -> None:
+    def creator(*, first: _FirstCtx, second: _FirstCtx) -> str:
+        raise NotImplementedError  # pragma: no cover - the second argument raises first
+
+    present = providers.ContextProvider(_FirstCtx, scope=Scope.APP, bound_type=None)
+    absent = providers.ContextProvider(_FirstCtx, scope=Scope.REQUEST, bound_type=None)
+
+    class G(Group):
+        pair = providers.Factory(
+            creator, bound_type=None, scope=Scope.REQUEST, kwargs={"first": present, "second": absent}
+        )
+
+    app_container = Container(groups=[G], context={_FirstCtx: _FirstCtx()})
+    request = app_container.build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        request.resolve_provider(G.pair)
+    assert exc_info.value.arg_name == "second"
+
+
+def test_unset_context_error_names_the_failing_one_of_two_same_type_same_scope_providers() -> None:
+    def creator(*, first: _FirstCtx, second: _FirstCtx) -> str:
+        raise NotImplementedError  # pragma: no cover - the second argument raises first
+
+    overridden = providers.ContextProvider(_FirstCtx, scope=Scope.APP, bound_type=None)
+    unset = providers.ContextProvider(_FirstCtx, scope=Scope.APP, bound_type=None)
+
+    class G(Group):
+        pair = providers.Factory(creator, bound_type=None, kwargs={"first": overridden, "second": unset})
+
+    app_container = Container(groups=[G])
+    app_container.add_providers(overridden, unset)
+    app_container.override(overridden, _FirstCtx())
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        app_container.resolve_provider(G.pair)
+    assert exc_info.value.arg_name == "second"

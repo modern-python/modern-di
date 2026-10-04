@@ -823,3 +823,29 @@ def test_compile_resolver_rejects_an_unknown_provider_type() -> None:
 
     with pytest.raises(TypeError, match="no compiled resolver for provider type _Unsupported"):
         compile_resolver(_Unsupported(scope=Scope.APP, bound_type=None), ProvidersRegistry())
+
+
+@pytest.mark.parametrize("cached", [False, True])
+def test_unset_context_error_is_named_from_the_line_of_the_failing_call(cached: bool) -> None:
+    """INVARIANT: the argument an unset context value is named after is the one whose call raised.
+
+    The handler reads it from the traceback line, so the success path pays nothing. Each resolver
+    call sits on its own line of the generated source; a key that quotes another call, or an index
+    that prefixes another (``r1`` / ``r11``), must not shift the name.
+    """
+
+    def _creator(**kwargs: object) -> _Bag:
+        raise NotImplementedError  # pragma: no cover - an argument raises first
+
+    present = ContextProvider(_A, scope=Scope.APP, bound_type=None)
+    unset = ContextProvider(_B, scope=Scope.APP, bound_type=None)
+    kwargs: dict[str, object] = {f"k{i}": present for i in range(11)}
+    kwargs["x: r0(target),"] = unset
+
+    class _G(Group):
+        target = providers.Factory(creator=_creator, scope=Scope.APP, bound_type=_Bag, kwargs=kwargs, cache=cached)
+
+    container = Container(scope=Scope.APP, groups=[_G], context={_A: _A()})
+    with pytest.raises(exceptions.ContextValueNotSetError) as exc:
+        container.resolve_provider(_G.target)
+    assert exc.value.arg_name == "x: r0(target),"

@@ -23,9 +23,9 @@ with `open()` or by re-entering `with` / `async with`. See
 In 3.x, when a `Factory` parameter was backed by a `ContextProvider` and no context value was set,
 the parameter decided what happened: a creator default was used, a nullable `X | None` parameter got
 `None`, and only a required parameter raised `ArgumentResolutionError`. In 4.0 a `ContextProvider` is
-an ordinary dependency. With no value set it raises `ContextValueNotSetError`, resolved directly or
-as a `Factory` argument, and the parameter's default and annotation play no part. When it is raised
-for a `Factory` argument, the message and `.arg_name` name the parameter.
+an ordinary dependency. With no value set it raises `ContextValueNotSetError`, whether it is
+resolved directly or as a `Factory` argument, and the parameter's default and annotation are
+ignored. For a `Factory` argument, the message and `.arg_name` name the parameter.
 
 Optional context is declared once, on the provider: `ContextProvider(T, default=X)` returns `X`
 whenever no value is set. If you own the provider, add `default=` to it:
@@ -38,13 +38,12 @@ tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST)
 tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)
 ```
 
-If the provider belongs to an integration (`fastapi_request_provider`,
-`litestar_request_provider`, ...), it stays required. A creator parameter written
-`request: fastapi.Request | None = None` that relied on getting `None` outside a request, for
-example a factory also resolved from FastStream consumers sharing the same container, now raises
-there. Declare an app-owned optional provider for the same type, keep it out of type-based wiring
-with `bound_type=None`, and pass it explicitly. It reads the same context value as the
-integration's provider:
+An integration's provider (`fastapi_request_provider`, `litestar_request_provider`, ...) stays
+required. Suppose a factory's creator takes `request: fastapi.Request | None = None` and relies on
+getting `None` outside a request, because FastStream consumers resolve it from the same container.
+In 4.0 that resolve raises. Declare your own optional provider for the same type, keep it out of
+type-based wiring with `bound_type=None`, and pass it explicitly. It reads the same context value
+as the integration's provider:
 
 ```python
 optional_request = providers.ContextProvider(

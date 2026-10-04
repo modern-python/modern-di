@@ -185,10 +185,10 @@ class ContextValueNotSetError(ResolutionError):
         super().__init__(self._render_message())
 
     def _render_message(self) -> str:
-        required_by = "" if self.arg_name is None else f", required by argument {self.arg_name}"
+        needed_for = "" if self.arg_name is None else f", needed for argument {self.arg_name}"
         return (
-            f"No context value is set for {self.context_type!r} (scope {self.scope_name}){required_by}. "
-            "Pass context={...} to the container, call set_context(), or give the ContextProvider a default=."
+            f"No context value is set for {self.context_type!r} (scope {self.scope_name}){needed_for}. "
+            "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider."
         )
 
     def name_argument(self, arg_name: str) -> None:

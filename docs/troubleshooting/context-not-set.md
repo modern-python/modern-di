@@ -1,17 +1,17 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. A context value is required: if none was registered and the provider declares no `default=`, resolving it raises `ContextValueNotSetError`, whether it is resolved directly or injected into a `Factory` parameter. The parameter's own default or `X | None` annotation does not change that.
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. A context value is required: if none was registered and the provider declares no `default=`, resolving it raises `ContextValueNotSetError`, whether it is resolved directly or injected into a `Factory` parameter. A default or an `X | None` annotation on the parameter does not change that.
 
 ## Symptom
 
 ```
 Cannot resolve dependency chain:
   REQUEST  MyService (myapp.ctx:9)
-  caused by: No context value is set for <class 'myapp.ctx.TenantId'> (scope REQUEST), required by argument tenant. Pass context={...} to the container, call set_context(), or give the ContextProvider a default=.
+  caused by: No context value is set for <class 'myapp.ctx.TenantId'> (scope REQUEST), needed for argument tenant. Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.
 See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
 ```
 
-The top frame shows which provider failed, and the `caused by` line names the context type, the scope whose container was read, and the parameter it was needed for. A direct `container.resolve(TenantId)` raises the same error without the chain and without the `required by argument` part. Inspect `.context_type` and `.arg_name` (`None` for a direct resolve).
+The top frame shows which provider failed, and the `caused by` line names the context type, the scope whose container was read, and the parameter it was needed for. A direct `container.resolve(TenantId)` raises the same error without the chain and without the `needed for argument` part. Inspect `.context_type` and `.arg_name` (`None` for a direct resolve).
 
 ## Cause
 
@@ -52,9 +52,9 @@ Framework integrations (`modern-di-fastapi`, `modern-di-litestar`) register the 
 
 Depend on framework-injected context only inside the framework's request handling. For background tasks, build the REQUEST child container yourself and pass the necessary context.
 
-### 4. The value is legitimately optional
+### 4. The value is optional
 
-If the provider should resolve where no value is set (a handler that also runs outside a request), give it a default. `default=` is returned whenever nothing is set:
+If the provider has to resolve where no value is set, such as in a handler that also runs outside a request, give it a default. The provider returns `default=` whenever nothing is set:
 
 ```python
 tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)

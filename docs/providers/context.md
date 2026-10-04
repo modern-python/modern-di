@@ -71,31 +71,31 @@ argument. In the second case the error also names the parameter:
 ```
 Cannot resolve dependency chain:
   REQUEST  dict (myapp.deps:12)
-  caused by: No context value is set for <class 'myapp.deps.CustomContext'> (scope REQUEST), required by argument custom_context. Pass context={...} to the container, call set_context(), or give the ContextProvider a default=.
+  caused by: No context value is set for <class 'myapp.deps.CustomContext'> (scope REQUEST), needed for argument custom_context. Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.
 See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
 ```
 
-The consuming parameter's annotation and default play no part. A creator parameter written
+The consuming parameter's annotation and default are ignored: a creator parameter written
 `custom_context: CustomContext | None = None` still raises when a `ContextProvider` backs it and no
 value is set. See [ContextProvider has no value](../troubleshooting/context-not-set.md).
 
 ### Optional context: `default=`
 
-To make a context value optional, declare it on the provider. `default=` is returned, as is, whenever
-no value is set; a value that is set always wins:
+To make a context value optional, give the provider a default. It returns `default=` whenever no
+value is set, and the set value otherwise:
 
 ```python
 class Dependencies(Group):
     custom_context = providers.ContextProvider(CustomContext, scope=Scope.REQUEST, default=None)
 ```
 
-`default=` is the only way to make context optional. The default is a constant fixed when the provider
-is declared; it is not called and not copied.
+`default=` is the only way to make context optional. The provider returns the default object itself
+on every unset resolve; it does not call or copy it.
 
-To make a context value optional that a provider you don't own already supplies, such as an
-integration's `fastapi.Request`, declare a second, app-owned `ContextProvider` for the same type with
-`bound_type=None` and pass it explicitly. `bound_type=None` keeps it out of type-based wiring, so it
-does not collide with the integration's provider; both read the same context registry entry:
+When the provider belongs to someone else, such as an integration's provider for `fastapi.Request`,
+declare a second `ContextProvider` for the same type in your app and pass it explicitly.
+`bound_type=None` keeps it out of type-based wiring, so it does not collide with the integration's
+provider. Both read the same context registry entry:
 
 ```python
 import fastapi
@@ -128,8 +128,8 @@ class Dependencies(Group):
     )
 ```
 
-Inside a request `dynamic_engine` sees the real `Request`; resolved where no request is set (a
-FastStream consumer sharing the same container, say) it gets `None`. The integration's own provider
+Inside a request, `dynamic_engine` gets the real `Request`. Where no request is set, for example in
+a FastStream consumer that shares the container, it gets `None`. The integration's own provider
 stays required, so `container.resolve(fastapi.Request)` outside a request still raises.
 
 ## Context propagation

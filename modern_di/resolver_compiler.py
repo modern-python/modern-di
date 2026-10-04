@@ -18,7 +18,7 @@ import linecache
 import typing
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import redirect_step, terminal_chain
+from modern_di.dependency_graph import redirect_step
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
@@ -69,7 +69,8 @@ def resolve(container):
     try:
 {build}
     except ContextValueNotSetError as exc:
-        _name_context_argument(exc, plan, target)
+        if exc.arg_name is None:
+            exc.name_argument(arg_names[arg_lines[exc.__traceback__.tb_lineno]])
         exc.prepend_step(resolution_step())
         raise
     except _STEP_ERRORS as exc:
@@ -89,7 +90,8 @@ def build(target):
     try:
 {build}
     except ContextValueNotSetError as exc:
-        _name_context_argument(exc, plan, target)
+        if exc.arg_name is None:
+            exc.name_argument(arg_names[arg_lines[exc.__traceback__.tb_lineno]])
         exc.prepend_step(resolution_step())
         raise
     except _STEP_ERRORS as exc:
@@ -145,9 +147,8 @@ class _Shape:
             built = "(" + "".join(f"a{i}, " for i in range(self.arity)) + ")"
             star = "*"
         else:
-            build = (
-                "        kwargs = {" + ", ".join(f"{name!r}: r{i}(target)" for i, name in enumerate(self.names)) + "}"
-            )
+            calls = [f"            {name!r}: r{i}(target)," for i, name in enumerate(self.names)]
+            build = "\n".join(["        kwargs = {", *calls, "        }"])
             if self.static:
                 build += "\n        kwargs.update(static)"
             args, built, star = "**kwargs", "kwargs", "**"
@@ -160,11 +161,19 @@ _shape_ids = itertools.count()
 
 
 @functools.cache
-def _code(shape: _Shape) -> "CodeType":
+def _code(shape: _Shape) -> "tuple[CodeType, dict[int, int]]":
+    """Compile `shape`'s source; also map each resolver call's line to its argument index."""
     source = shape.source()
     filename = f"<modern_di resolver shape {next(_shape_ids)}>"
-    linecache.cache[filename] = (len(source), None, source.splitlines(keepends=True), filename)
-    return compile(source, filename, "exec")
+    lines = source.splitlines(keepends=True)
+    linecache.cache[filename] = (len(source), None, lines, filename)
+    arg_lines = {
+        lineno: i
+        for lineno, line in enumerate(lines, start=1)
+        for i in range(shape.arity)
+        if line.rstrip("\n").endswith((f" r{i}(target)", f" r{i}(target),"))
+    }
+    return compile(source, filename, "exec"), arg_lines
 
 
 def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
@@ -178,13 +187,15 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         static=bool(plan.static_kwargs),
         cached=f.cache_settings is not None,
     )
+    code, arg_lines = _code(shape)
     namespace: dict[str, typing.Any] = {
         "provider": f,
         "pid": f.provider_id,
         "scope": f.scope,
         "creator": f._creator,
         "resolution_step": f.resolution_step,
-        "plan": plan,
+        "arg_names": tuple(plan.provider_kwargs),
+        "arg_lines": arg_lines,
         "static": plan.static_kwargs,
         "UNSET": types.UNSET,
         "partial": functools.partial,
@@ -193,10 +204,9 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "CreatorCallError": exceptions.CreatorCallError,
         "ContainerClosedError": exceptions.ContainerClosedError,
         "ContextValueNotSetError": exceptions.ContextValueNotSetError,
-        "_name_context_argument": _name_context_argument,
         **{f"r{i}": registry.resolver_for(p) for i, p in enumerate(plan.provider_kwargs.values())},
     }
-    exec(_code(shape), namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
+    exec(code, namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
     resolve = namespace["resolve"]
     resolve.__qualname__ = f"resolve[{f.display_name}]"
     return resolve
@@ -289,21 +299,3 @@ def _navigate(
     except _SCOPE_ERRORS as exc:
         exc.prepend_step(resolution_step())
         raise
-
-
-def _name_context_argument(
-    error: exceptions.ContextValueNotSetError, plan: "WiringPlan", container: "Container"
-) -> None:
-    """Name the parameter an unset context value was resolved for, unless an inner factory already did."""
-    if error.arg_name is not None:
-        return
-    for name, provider in plan.provider_kwargs.items():
-        terminal = terminal_chain(provider, container)[-1]
-        if (
-            type(terminal) is ContextProvider
-            and terminal.default is types.UNSET
-            and terminal.context_type is error.context_type
-            and terminal.scope.name == error.scope_name
-        ):
-            error.name_argument(name)
-            return

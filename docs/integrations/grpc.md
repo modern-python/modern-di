@@ -149,9 +149,9 @@ class AppGroup(Group):
 ```
 
 `validate()` never constructs a provider, so the default isn't needed for
-validation. It does not make the context optional either: outside an RPC, where no
+validation, and it does not make the context optional: outside an RPC, where no
 context is set, resolving `caller` raises `ContextValueNotSetError`. For a factory
-that must also resolve outside an RPC, pass an app-owned
+that must also resolve outside an RPC, pass your own
 `ContextProvider(grpc.ServicerContext, scope=Scope.REQUEST, bound_type=None, default=None)`
 through `kwargs`; see [Optional context](../providers/context.md#optional-context-default).
 The protobuf request `Message` is not exposed as a provider
