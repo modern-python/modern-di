@@ -34,7 +34,7 @@ class ModernDIError(RuntimeError):
 
 
 class DependencyPathMixin:
-    """Breadcrumb machinery shared by :class:`ResolutionError` and the runtime scope errors.
+    """Breadcrumb machinery behind :class:`ResolutionError`.
 
     Owns `prepend_step` and the chain-rendering `_render_body` (the body `ModernDIError.__str__`
     appends the docs trailer to), so any error raised inside a resolution frame can accumulate the
@@ -46,7 +46,7 @@ class DependencyPathMixin:
     def __init__(self, message: str) -> None:
         self._base_message = message
         self.dependency_path: list[ResolutionStep] = []
-        # Mixin's own base is `object`; the real MRO (via ResolutionError/ContainerError ->
+        # Mixin's own base is `object`; the real MRO (via ResolutionError ->
         # ModernDIError -> RuntimeError) accepts the arg at runtime.
         super().__init__(message)  # ty: ignore[too-many-positional-arguments]
 

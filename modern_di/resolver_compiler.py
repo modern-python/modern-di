@@ -38,7 +38,7 @@ if typing.TYPE_CHECKING:
     Resolver: typing.TypeAlias = typing.Callable[[Container], typing.Any]
 
 _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError)
-STEP_ERRORS = (exceptions.ResolutionError, *_SCOPE_ERRORS)
+STEP_ERRORS = (exceptions.ResolutionError,)
 
 
 def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":

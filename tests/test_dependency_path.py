@@ -6,9 +6,12 @@ import pytest
 from modern_di import Container, Group, Scope, exceptions, providers
 from modern_di.exceptions import (
     ArgumentResolutionError,
+    ContainerClosedError,
     ContainerError,
     ProviderNotRegisteredError,
+    ResolutionError,
     ScopeNotInitializedError,
+    ScopeSkippedError,
 )
 
 
@@ -160,6 +163,58 @@ def test_scope_error_still_caught_as_container_error() -> None:
     with pytest.raises(ContainerError) as exc_info:
         container.find_container(Scope.REQUEST)
     assert isinstance(exc_info.value, ScopeNotInitializedError)
+
+
+def test_resolution_error_catches_scope_not_initialized() -> None:
+    class _G(Group):
+        resource = providers.Factory(scope=Scope.REQUEST, creator=ScopedResource)
+
+    container = Container(groups=[_G])
+    with pytest.raises(ResolutionError) as exc_info:
+        container.resolve(ScopedResource)
+    assert isinstance(exc_info.value, ScopeNotInitializedError)
+    assert isinstance(exc_info.value, ContainerError)
+
+
+def test_resolution_error_catches_scope_skipped() -> None:
+    class _G(Group):
+        resource = providers.Factory(scope=Scope.APP, creator=ScopedResource)
+
+    container = Container(scope=Scope.REQUEST, groups=[_G])
+    with pytest.raises(ResolutionError) as exc_info:
+        container.resolve(ScopedResource)
+    assert isinstance(exc_info.value, ScopeSkippedError)
+    assert isinstance(exc_info.value, ContainerError)
+
+
+def test_resolution_error_catches_container_closed() -> None:
+    class _G(Group):
+        resource = providers.Factory(creator=ScopedResource)
+
+    container = Container(groups=[_G])
+    container.close_sync()
+    with pytest.raises(ResolutionError) as exc_info:
+        container.resolve(ScopedResource)
+    assert isinstance(exc_info.value, ContainerClosedError)
+    assert isinstance(exc_info.value, ContainerError)
+
+
+def test_closed_ancestor_reached_through_a_dependency_renders_without_chain() -> None:
+    class _G(Group):
+        resource = providers.Factory(scope=Scope.APP, creator=ScopedResource)
+        consumer = providers.Factory(scope=Scope.REQUEST, creator=CaptiveConsumer)
+
+    app = Container(groups=[_G])
+    request = app.build_child_container(scope=Scope.REQUEST)
+    app.close_sync()
+    with pytest.raises(ContainerClosedError) as exc_info:
+        request.resolve(CaptiveConsumer)
+    assert exc_info.value.dependency_path == []
+    assert str(exc_info.value) == (
+        "Container (scope APP) is closed. Reopen it with `open()` or by re-entering `with`/`async with` "
+        "before resolving from it or from any of its child containers.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/container-closed-error/"
+    )
 
 
 def test_dependency_path_mixin_is_not_an_exception() -> None:

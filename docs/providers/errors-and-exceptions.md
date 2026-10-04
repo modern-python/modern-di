@@ -20,12 +20,15 @@ ModernDIError (RuntimeError)
 ├── ContainerError
 │   ├── InvalidChildScopeError
 │   ├── MaxScopeReachedError
-│   ├── ScopeNotInitializedError
-│   ├── ScopeSkippedError
 │   ├── InvalidScopeTypeError
-│   ├── ContainerClosedError
-│   └── ValidationFailedError
+│   ├── ValidationFailedError
+│   ├── ScopeNotInitializedError (also a ResolutionError)
+│   ├── ScopeSkippedError (also a ResolutionError)
+│   └── ContainerClosedError (also a ResolutionError)
 ├── ResolutionError
+│   ├── ScopeNotInitializedError (also a ContainerError)
+│   ├── ScopeSkippedError (also a ContainerError)
+│   ├── ContainerClosedError (also a ContainerError)
 │   ├── ProviderNotRegisteredError
 │   ├── AliasSourceNotRegisteredError
 │   ├── ArgumentResolutionError
@@ -53,7 +56,9 @@ ModernDIError (RuntimeError)
 
 ## `ContainerError`: container and scope problems
 
-Catch `ContainerError` for any container/scope failure.
+Catch `ContainerError` for any container/scope failure. `ScopeNotInitializedError`,
+`ScopeSkippedError` and `ContainerClosedError` are both a `ContainerError` and a `ResolutionError`,
+so either `except` catches them; they are described under `ResolutionError` below.
 
 - `InvalidChildScopeError` is raised when `build_child_container(scope=...)` is given a scope
   that is not deeper than the parent's (or the constructor receives a parent at an equal/shallower
@@ -62,29 +67,9 @@ Catch `ContainerError` for any container/scope failure.
 - `MaxScopeReachedError` is raised by `build_child_container()` with no explicit `scope` when the
   parent is already at the deepest scope (`STEP`), so there is no next level to advance to. See
   [Troubleshooting: MaxScopeReachedError](../troubleshooting/max-scope-reached-error.md).
-- `ScopeNotInitializedError` is raised during resolution when a provider needs a scope *deeper*
-  than the current container's, and no container at that scope exists in the chain (e.g. resolving a
-  `REQUEST`-scoped provider from the `APP` container). Like `ResolutionError`, it carries a breadcrumb
-  `dependency_path`: a runtime *captive dependency* (a shallower-scoped provider depending, directly or
-  transitively, on this deeper-scoped one) names both the capturing provider and the one that actually
-  failed, not just the two scope names. See
-  [Troubleshooting: ScopeNotInitializedError](../troubleshooting/scope-not-initialized-error.md).
-- `ScopeSkippedError` is raised during resolution when the target scope is *shallower* than the
-  current container but is missing from the scope chain (a level was skipped when building children).
-  Carries the same breadcrumb `dependency_path` as `ScopeNotInitializedError`. See
-  [Troubleshooting: ScopeSkippedError](../troubleshooting/scope-skipped-error.md).
 - `InvalidScopeTypeError` is raised by the `Container` constructor, and by a `Group` subclass
   declared as `class G(Group, scope=...)`, when `scope` is not an `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
-- `ContainerClosedError` is raised by `resolve()` / `resolve_provider()` when the call reaches a
-  closed container: the one you called, or an ancestor whose scope a child's resolve reaches back
-  into. Its `.container_scope` names the closed one. A container is open from construction and is
-  closed by `close_sync()`, `close_async()`, or leaving `with` / `async with`. It stays closed until
-  you call `container.open()` or enter it again with `with` / `async with`, which calls `open()`.
-  `build_child_container()` never checks or touches any container's open/closed state, so building
-  a child of a closed parent does not raise by itself. See
-  [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening) and
-  [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 - `ValidationFailedError` is raised only by `Container.validate()`. Catch this for validation
   results; its `.errors` attribute holds the list of individual issues (each itself a
   `ResolutionError` or `RegistrationError`), and `str()` renders them all, grouped by error kind.
@@ -102,9 +87,27 @@ Catch `ResolutionError` for any resolution failure. These carry a `dependency_pa
 accumulated as the error propagates, so the message shows the full chain from the requested type
 down to the failing dependency. `dependency_path` is a `list[ResolutionStep]`, where each
 `ResolutionStep` (importable from `modern_di.exceptions`) has a `.scope` and a `.name`; inspect it
-to render the chain programmatically. `ScopeNotInitializedError` and `ScopeSkippedError` (below) carry
-the same `dependency_path`, since they share the breadcrumb machinery.
+to render the chain programmatically.
 
+- `ScopeNotInitializedError` is raised during resolution when a provider needs a scope *deeper*
+  than the current container's, and no container at that scope exists in the chain (e.g. resolving a
+  `REQUEST`-scoped provider from the `APP` container). For a runtime *captive dependency* (a
+  shallower-scoped provider depending, directly or transitively, on this deeper-scoped one), its
+  `dependency_path` names both the capturing provider and the one that failed. See
+  [Troubleshooting: ScopeNotInitializedError](../troubleshooting/scope-not-initialized-error.md).
+- `ScopeSkippedError` is raised during resolution when the target scope is *shallower* than the
+  current container but is missing from the scope chain (a level was skipped when building children).
+  See [Troubleshooting: ScopeSkippedError](../troubleshooting/scope-skipped-error.md).
+- `ContainerClosedError` is raised by `resolve()` / `resolve_provider()` when the call reaches a
+  closed container: the one you called, or an ancestor whose scope a child's resolve reaches back
+  into. Its `.container_scope` names the closed one, and its `dependency_path` is always empty. A
+  container is open from construction and is closed by `close_sync()`, `close_async()`, or leaving
+  `with` / `async with`. It stays closed until you call `container.open()` or enter it again with
+  `with` / `async with`, which calls `open()`.
+  `build_child_container()` never checks or touches any container's open/closed state, so building
+  a child of a closed parent does not raise by itself. See
+  [Lifecycle: closing and reopening](lifecycle.md#closing-and-reopening) and
+  [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md).
 - `ProviderNotRegisteredError` is raised by `resolve(SomeType)` when no provider is registered for
   the type. The message includes "did you mean…" suggestions when a close match exists. See
   [Troubleshooting: Missing provider](../troubleshooting/missing-provider.md).
@@ -132,7 +135,8 @@ the same `dependency_path`, since they share the breadcrumb machinery.
 
 ## `RegistrationError`: declaration / registration problems
 
-Catch `RegistrationError` for declaration- and registration-time problems.
+Catch `RegistrationError` for declaration mistakes. Each is detected when the provider or group is
+declared or registered, or by `validate()`, which reports `InvalidScopeDependencyError`.
 
 - `DuplicateProviderTypeError` is raised when two providers are registered for the same bound type
   (within one group, across groups passed together, or against an already-registered type). See
