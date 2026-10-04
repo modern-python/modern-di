@@ -560,7 +560,7 @@ def test_validate_does_not_flag_optional_param_without_provider() -> None:
     container.validate()  # must not raise
 
 
-# G-3 branch (b) — a ContextProvider is FOUND for the type, value UNSET, param nullable, no default → None
+# G-3 branch (b) — a ContextProvider is FOUND for the type, value UNSET, param nullable, no default → raises
 
 
 class _OptionalCtx: ...
@@ -571,7 +571,7 @@ class _NeedsOptionalCtx:
         self.ctx = ctx
 
 
-def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
+def test_optional_param_backed_by_unset_context_provider_raises() -> None:
     ctx_provider: providers.ContextProvider[_OptionalCtx] = providers.ContextProvider(
         scope=Scope.APP, context_type=_OptionalCtx
     )
@@ -580,8 +580,16 @@ def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
     container.open()
     container.providers_registry.register(_OptionalCtx, ctx_provider)
     container.providers_registry.register(_NeedsOptionalCtx, factory)
-    obj = container.resolve(_NeedsOptionalCtx)
-    assert obj.ctx is None
+    with pytest.raises(exceptions.ContextValueNotSetError) as exc:
+        container.resolve(_NeedsOptionalCtx)
+    assert exc.value.arg_name == "ctx"
+
+    defaulted = Container(scope=Scope.APP)
+    defaulted.providers_registry.register(
+        _OptionalCtx, providers.ContextProvider(scope=Scope.APP, context_type=_OptionalCtx, default=None)
+    )
+    defaulted.providers_registry.register(_NeedsOptionalCtx, factory)
+    assert defaulted.resolve(_NeedsOptionalCtx).ctx is None
 
 
 # X-2 — creator-call TypeError (missing required args under skip_creator_parsing) wrapped in DI error

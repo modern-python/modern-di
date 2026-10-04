@@ -10,8 +10,8 @@ resolved while building a given dependency, often rendered as a dependency-chain
 
 A creator parameter has no registered provider for its annotated type, no default value, and no
 matching `kwargs` entry, so `modern-di` has nothing to inject. This also covers an unannotated
-parameter with none of those escape routes, and a `ContextProvider`-backed parameter whose context
-value is unset and required (not optional, no default).
+parameter with none of those escape routes. A `ContextProvider`-backed parameter whose context
+value is unset raises [`ContextValueNotSetError`](context-not-set.md) instead.
 
 ## Fix
 

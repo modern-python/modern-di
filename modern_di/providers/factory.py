@@ -149,11 +149,9 @@ class Factory(AbstractProvider[types.T_co]):
         return exceptions.ResolutionStep(scope=self.scope, name=self.display_name, location=self.definition_site)
 
     def _argument_resolution_error(
-        self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry | None" = None
+        self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry"
     ) -> exceptions.ArgumentResolutionError:
-        suggestions = (
-            suggester.suggest(item.arg_type, registry) if registry is not None and item.arg_type is not None else []
-        )
+        suggestions = suggester.suggest(item.arg_type, registry) if item.arg_type is not None else []
         return exceptions.ArgumentResolutionError(
             arg_name=arg_name,
             arg_type=item.arg_type,

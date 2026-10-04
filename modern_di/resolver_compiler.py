@@ -18,13 +18,12 @@ import linecache
 import typing
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import redirect_step
+from modern_di.dependency_graph import redirect_step, terminal_chain
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.providers.factory import Factory
-from modern_di.wiring import _Absent, absent_disposition
 
 
 if typing.TYPE_CHECKING:
@@ -69,6 +68,10 @@ def resolve(container):
         raise ContainerClosedError(container_scope=target.scope)
     try:
 {build}
+    except ContextValueNotSetError as exc:
+        _name_context_argument(exc, plan, target)
+        exc.prepend_step(resolution_step())
+        raise
     except _STEP_ERRORS as exc:
         exc.prepend_step(resolution_step())
         raise
@@ -85,6 +88,10 @@ _CACHED = """\
 def build(target):
     try:
 {build}
+    except ContextValueNotSetError as exc:
+        _name_context_argument(exc, plan, target)
+        exc.prepend_step(resolution_step())
+        raise
     except _STEP_ERRORS as exc:
         exc.prepend_step(resolution_step())
         raise
@@ -121,25 +128,6 @@ def resolve(container):
     return value
 """
 
-_CONTEXT_FOLD = """\
-        for name, context_scope, context_type, disposition, item in context:
-            if target.scope == context_scope:
-                holder = target
-            else:
-                holder = target._scope_map.get(context_scope)
-                if holder is None:
-                    holder = target.find_container(context_scope)
-            if holder.closed:
-                raise ContainerClosedError(container_scope=holder.scope)
-            value = holder.context_registry.find_context(context_type)
-            if value is not UNSET:
-                kwargs[name] = value
-            elif disposition is NULL:
-                kwargs[name] = None
-            elif disposition is not OMIT:
-                raise build_arg_error(arg_name=name, item=item)
-"""
-
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class _Shape:
@@ -148,7 +136,6 @@ class _Shape:
     arity: int
     names: tuple[str, ...] | None
     static: bool
-    context: bool
     cached: bool
 
     def source(self) -> str:
@@ -163,8 +150,6 @@ class _Shape:
             )
             if self.static:
                 build += "\n        kwargs.update(static)"
-            if self.context:
-                build += "\n" + _CONTEXT_FOLD.rstrip("\n")
             args, built, star = "**kwargs", "kwargs", "**"
         if self.cached:
             return _CACHED.format(build=build, built=built, star=star)
@@ -186,22 +171,11 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
     plan = f.wiring_plan(registry)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
-    static = dict(plan.static_kwargs)
-    context: list[tuple[typing.Any, ...]] = []
-    for name, (context_provider, item) in plan.context_kwargs.items():
-        override = registry.overrides.fetch_override(context_provider.provider_id)
-        if override is not types.UNSET:
-            static[name] = override
-        else:
-            context.append(
-                (name, context_provider.scope, context_provider.context_type, absent_disposition(item), item)
-            )
     positional = f.can_call_positionally(plan)
     shape = _Shape(
         arity=len(plan.provider_kwargs),
         names=None if positional else tuple(plan.provider_kwargs),
-        static=bool(static),
-        context=bool(context),
+        static=bool(plan.static_kwargs),
         cached=f.cache_settings is not None,
     )
     namespace: dict[str, typing.Any] = {
@@ -210,17 +184,16 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "scope": f.scope,
         "creator": f._creator,
         "resolution_step": f.resolution_step,
-        "build_arg_error": f._argument_resolution_error,
-        "static": static,
-        "context": tuple(context),
+        "plan": plan,
+        "static": plan.static_kwargs,
         "UNSET": types.UNSET,
-        "NULL": _Absent.NULL,
-        "OMIT": _Absent.OMIT,
         "partial": functools.partial,
         "_navigate": _navigate,
         "_STEP_ERRORS": _STEP_ERRORS,
         "CreatorCallError": exceptions.CreatorCallError,
         "ContainerClosedError": exceptions.ContainerClosedError,
+        "ContextValueNotSetError": exceptions.ContextValueNotSetError,
+        "_name_context_argument": _name_context_argument,
         **{f"r{i}": registry.resolver_for(p) for i, p in enumerate(plan.provider_kwargs.values())},
     }
     exec(_code(shape), namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
@@ -284,6 +257,7 @@ def _resolve_to_container(container: "Container") -> typing.Any:
 def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
     scope = cp.scope
     context_type = cp.context_type
+    default = cp.default
 
     def resolve(container: "Container") -> typing.Any:
         if container.scope == scope:
@@ -296,6 +270,8 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
             raise exceptions.ContainerClosedError(container_scope=target.scope)
         value = target.context_registry.find_context(context_type)
         if value is types.UNSET:
+            if default is not types.UNSET:
+                return default
             raise exceptions.ContextValueNotSetError(context_type=context_type, scope_name=scope.name)
         return value
 
@@ -313,3 +289,21 @@ def _navigate(
     except _SCOPE_ERRORS as exc:
         exc.prepend_step(resolution_step())
         raise
+
+
+def _name_context_argument(
+    error: exceptions.ContextValueNotSetError, plan: "WiringPlan", container: "Container"
+) -> None:
+    """Name the parameter an unset context value was resolved for, unless an inner factory already did."""
+    if error.arg_name is not None:
+        return
+    for name, provider in plan.provider_kwargs.items():
+        terminal = terminal_chain(provider, container)[-1]
+        if (
+            type(terminal) is ContextProvider
+            and terminal.default is types.UNSET
+            and terminal.context_type is error.context_type
+            and terminal.scope.name == error.scope_name
+        ):
+            error.name_argument(name)
+            return

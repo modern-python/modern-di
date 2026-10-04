@@ -149,9 +149,12 @@ class AppGroup(Group):
 ```
 
 `validate()` never constructs a provider, so the default isn't needed for
-validation. The `| None = None` default lets the provider resolve outside an RPC,
-where no context is set: the creator gets `None` instead of the resolve raising
-`ArgumentResolutionError`. The protobuf request `Message` is not exposed as a provider
+validation. It does not make the context optional either: outside an RPC, where no
+context is set, resolving `caller` raises `ContextValueNotSetError`. For a factory
+that must also resolve outside an RPC, pass an app-owned
+`ContextProvider(grpc.ServicerContext, scope=Scope.REQUEST, bound_type=None, default=None)`
+through `kwargs`; see [Optional context](../providers/context.md#optional-context-default).
+The protobuf request `Message` is not exposed as a provider
 (that would add a `protobuf` dependency); the request is already a servicer-method
 argument.
 

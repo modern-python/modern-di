@@ -239,13 +239,13 @@ class Handler:
 class ContextGroup(Group):
     app_dep = providers.Factory(creator=AppDep, scope=Scope.APP)
     req_ctx = providers.ContextProvider(RequestObj, scope=Scope.REQUEST)
-    # transient -> folds the runtime context value on every resolve (the non-pure kwargs path)
+    # transient -> reads the runtime context value through the ContextProvider's resolver on every resolve
     handler = providers.Factory(creator=Handler, scope=Scope.REQUEST)
 
 
 def test_g9_context_resolve(benchmark):
-    # Isolates the context-folding (non-pure kwargs) path C1-C5 never touch: a factory mixing a
-    # runtime context value with a provider dep. Container + child built in setup; only resolve timed.
+    # Isolates the context read C1-C5 never touch: a factory mixing a runtime context value with a
+    # provider dep. Container + child built in setup; only resolve timed.
     app = Container(scope=Scope.APP, groups=[ContextGroup])
     app.open()
     req = app.build_child_container(scope=Scope.REQUEST, context={RequestObj: RequestObj()})

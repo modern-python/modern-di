@@ -1,17 +1,17 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered, the outcome depends on how the provider is consumed: resolving it directly raises `ContextValueNotSetError`, while injecting it into a `Factory` parameter that has no value raises `ArgumentResolutionError`, unless that parameter has a default (the default is used; `None` is not injected) or is nullable `X | None` (then `None` is injected).
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. A context value is required: if none was registered and the provider declares no `default=`, resolving it raises `ContextValueNotSetError`, whether it is resolved directly or injected into a `Factory` parameter. The parameter's own default or `X | None` annotation does not change that.
 
 ## Symptom
 
 ```
 Cannot resolve dependency chain:
   REQUEST  MyService (myapp.ctx:9)
-  caused by: Argument tenant of type <class 'myapp.ctx.TenantId'> cannot be resolved. Trying to build dependency <class 'myapp.ctx.MyService'>.
-See: https://modern-di.modern-python.org/troubleshooting/argument-resolution-error/
+  caused by: No context value is set for <class 'myapp.ctx.TenantId'> (scope REQUEST), required by argument tenant. Pass context={...} to the container, call set_context(), or give the ContextProvider a default=.
+See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
 ```
 
-The error is an `ArgumentResolutionError` rendered as a chain: the top frame shows which provider failed, and the `caused by` line names the specific parameter that could not be wired. The parameter cannot be resolved because the `ContextProvider` for `TenantId` has no value in this container's context registry: nothing was set for that type on this container.
+The top frame shows which provider failed, and the `caused by` line names the context type, the scope whose container was read, and the parameter it was needed for. A direct `container.resolve(TenantId)` raises the same error without the chain and without the `required by argument` part. Inspect `.context_type` and `.arg_name` (`None` for a direct resolve).
 
 ## Cause
 
@@ -51,6 +51,16 @@ Make the scopes match. If the value is per-request, declare `ContextProvider(Ten
 Framework integrations (`modern-di-fastapi`, `modern-di-litestar`) register the per-request `Request`/`WebSocket` automatically. If your code expects, say, `fastapi.Request` but you're outside the framework's request lifecycle (a background task, a CLI command), no `Request` is in context and the lookup fails.
 
 Depend on framework-injected context only inside the framework's request handling. For background tasks, build the REQUEST child container yourself and pass the necessary context.
+
+### 4. The value is legitimately optional
+
+If the provider should resolve where no value is set (a handler that also runs outside a request), give it a default. `default=` is returned whenever nothing is set:
+
+```python
+tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)
+```
+
+When the provider belongs to an integration and should stay required, declare an app-owned optional provider for the same type instead; see [Optional context](../providers/context.md#optional-context-default).
 
 ## See also
 
