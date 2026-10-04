@@ -72,7 +72,7 @@ def resolve(container):
 {build}
     except ContextValueNotSetError as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        if exc.parameter_name is None:
+        if not exc.dependency_path:
             exc.name_parameter(name)
         exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
@@ -87,6 +87,9 @@ def resolve(container):
         if error is None:
             raise
         raise error from exc
+    except _STEP_ERRORS as exc:
+        exc.prepend_step(resolution_step())
+        raise
 """
 
 _CACHED = """\
@@ -95,7 +98,7 @@ def build(target):
 {build}
     except ContextValueNotSetError as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        if exc.parameter_name is None:
+        if not exc.dependency_path:
             exc.name_parameter(name)
         exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
@@ -113,6 +116,9 @@ def create(built):
         if error is None:
             raise
         raise error from exc
+    except _STEP_ERRORS as exc:
+        exc.prepend_step(resolution_step())
+        raise
 
 def resolve(container):
     if container.scope == scope:
@@ -261,6 +267,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
     scope = cp.scope
     context_type = cp.context_type
     default = cp.default
+    resolution_step = functools.partial(provider_step, cp, scope)
 
     def resolve(container: "Container") -> typing.Any:
         if container.scope == scope:
@@ -268,7 +275,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
         else:
             target = container._scope_map.get(scope)
             if target is None:
-                target = container.find_container(scope)
+                target = _navigate(container, scope, resolution_step)
         if target.closed:
             raise exceptions.ContainerClosedError(container_scope=target.scope)
         context = target.context_registry.context

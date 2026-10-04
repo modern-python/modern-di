@@ -124,8 +124,9 @@ to render the chain programmatically.
   [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 - `CreatorCallError` is raised when a creator's dependencies all resolved but argument binding
   failed while calling it (the assembled arguments don't match the signature, typically a `kwargs` /
-  `skip_creator_parsing` mismatch). Exceptions raised *inside* the creator body propagate unchanged,
-  never wrapped. The binding `TypeError` is preserved on `.original_error` (and as the `__cause__`).
+  `skip_creator_parsing` mismatch). Exceptions raised *inside* the creator body are never wrapped.
+  Most propagate unchanged; a `ResolutionError` from a `container.resolve()` call in the body gains
+  the creator's step in its chain. The binding `TypeError` is preserved on `.original_error` (and as the `__cause__`).
   See [Troubleshooting: CreatorCallError](../troubleshooting/creator-call-error.md).
 - `ContextValueNotSetError` is raised when a `ContextProvider` with no `default=` is resolved and
   no value is set, either directly (`container.resolve(SomeContextType)`) or as a `Factory`

@@ -13,6 +13,8 @@ See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
 
 The top frame shows which provider failed, and the `caused by` line names the context type, the scope whose container was read, and the parameter it was needed for. A direct `container.resolve(TenantId)` raises the same error without the chain and without the `needed for argument` part. Inspect `.context_type`, `.provider_scope`, and `.parameter_name` (the parameter, or `None` for a direct resolve).
 
+When a creator body calls `container.resolve(TenantId)` itself, the chain ends at that creator's provider and the message names no argument, because the value was not injected into a parameter.
+
 ## Cause
 
 ### 1. `set_context` was called on the wrong container (scope mismatch)
