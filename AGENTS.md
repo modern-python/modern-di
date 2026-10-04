@@ -43,7 +43,7 @@ Every module under `modern_di/` is named for what it does; read it. What a singl
 - `exceptions/` owns **every message and every glyph**. A raise site passes structured facts, never
   formatting; the class renders its own f-string and sets a `docs_slug` (its page under
   `docs/troubleshooting/`, enforced by `tests/test_docs_slug_census.py`). Add a message, a glyph, or a
-  class here, never at the raise site. Submodules split by family; `__init__` re-exports every name.
+  class here, never at the raise site. Submodules split by family; `__init__` re-exports every public name.
 - `registries/` — `providers_registry` (type → provider, plus the shared plan/resolver memos) and
   `overrides_registry` are shared tree-wide; `cache_registry` and `context_registry` are per-container.
 - `dependency_graph.py` walks `WiringPlan.edges`, so what `validate()` traverses is exactly what

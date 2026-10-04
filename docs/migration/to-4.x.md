@@ -40,7 +40,7 @@ the parameter decided what happened: a creator default was used, a nullable `X |
 `None`, and only a required parameter raised `ArgumentResolutionError`. In 4.0 a `ContextProvider` is
 an ordinary dependency. With no value set it raises `ContextValueNotSetError`, whether it is
 resolved directly or as a `Factory` argument, and the parameter's default and annotation are
-ignored. For a `Factory` argument, the message and `.arg_name` name the parameter.
+ignored. For a `Factory` argument, the message and `.parameter_name` name the parameter.
 
 Optional context is declared once, on the provider: `ContextProvider(T, default=X)` returns `X`
 whenever no value is set. If you own the provider, add `default=` to it:
@@ -80,6 +80,25 @@ A parameter with a creator default and *no* provider registered for its type beh
 the default applies. `ContextProvider.fetch_context_value()` is removed; resolve the provider
 instead, giving it a `default=` if the value may be absent. See
 [Context providers: optional context](../providers/context.md#optional-context-default).
+
+### Exception attributes are renamed
+
+`ArgumentResolutionError` names the creator parameter the same way the other errors do:
+
+- `.arg_name` is now `.parameter_name`, and `.arg_type` is now `.parameter_type`. The constructor
+  keywords are renamed to match.
+- `.bound_type` holds only the provider's bound type, and is `None` when the provider has none. In
+  3.x it held the creator in that case; read `.creator` for it now.
+- `.member_types` is stored: the union members when the parameter has no single type.
+
+`ContextValueNotSetError` stores `.provider_scope`, the provider's scope as an `IntEnum`, and
+`.parameter_name`. Neither attribute existed in 3.x, so code that only catches the error or reads
+`.context_type` is unaffected. Code that constructs it must pass `provider_scope=Scope.APP` (or
+another member) in place of the 3.x `scope_name="APP"` string.
+
+`modern_di.exceptions` no longer re-exports `DependencyPathMixin` or `SUGGESTION_HEADER`. Neither
+was meant for use outside the package. Import them from `modern_di.exceptions.base` and
+`modern_di.exceptions.rendering` if you still need them.
 
 ### The 3.x deprecations are removed
 

@@ -73,8 +73,8 @@ def test_app_factory_unresolvable() -> None:
     app_container.open()
     with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type <class 'str'> cannot be resolved") as exc:
         app_container.resolve_provider(MyGroup.app_factory_unresolvable)
-    assert exc.value.arg_name == "dep1"
-    assert exc.value.arg_type is str
+    assert exc.value.parameter_name == "dep1"
+    assert exc.value.parameter_type is str
 
 
 def test_func_with_union_factory() -> None:
@@ -367,8 +367,12 @@ def test_union_param_error_names_the_union_members() -> None:
     assert _union_creator(dep) == str(dep)  # exercise body for coverage
     container = Container(scope=Scope.APP, groups=[_UnionGroup])
     container.open()
-    with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2"):
+    with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2") as exc:
         container.resolve(str)
+    assert exc.value.parameter_type is None
+    assert exc.value.member_types == [_UnionDep1, _UnionDep2]
+    assert exc.value.bound_type is str
+    assert exc.value.creator is _union_creator
 
 
 # Q-10 — static kwargs beat a type-matched provider
@@ -582,7 +586,7 @@ def test_optional_param_backed_by_unset_context_provider_raises() -> None:
     container.providers_registry.register(_NeedsOptionalCtx, factory)
     with pytest.raises(exceptions.ContextValueNotSetError) as exc:
         container.resolve(_NeedsOptionalCtx)
-    assert exc.value.arg_name == "ctx"
+    assert exc.value.parameter_name == "ctx"
 
     defaulted = Container(scope=Scope.APP)
     defaulted.providers_registry.register(
@@ -748,8 +752,12 @@ def test_cache_true_unresolvable_raises_argument_resolution_error() -> None:
     container.open()
     with pytest.raises(ArgumentResolutionError, match="Argument dep1 of type <class 'str'> cannot be resolved") as exc:
         container.resolve_provider(G.f)
-    assert exc.value.arg_name == "dep1"
-    assert exc.value.arg_type is str
+    assert exc.value.parameter_name == "dep1"
+    assert exc.value.parameter_type is str
+    assert exc.value.member_types == []
+    assert exc.value.bound_type is None
+    assert exc.value.creator is SimpleCreator
+    assert f"Trying to build dependency {SimpleCreator}." in str(exc.value)
 
 
 def test_cache_absent_returns_fresh_instances() -> None:

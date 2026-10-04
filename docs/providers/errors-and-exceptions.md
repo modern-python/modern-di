@@ -115,7 +115,8 @@ to render the chain programmatically.
   registered provider (eagerly during `validate()`, or at resolution time). See
   [Troubleshooting: AliasSourceNotRegisteredError](../troubleshooting/alias-source-not-registered-error.md).
 - `ArgumentResolutionError` is raised when a creator parameter cannot be resolved: no provider
-  matches its annotated type, or the parameter is unannotated. See
+  matches its annotated type, or the parameter is unannotated. Inspect `.parameter_name`,
+  `.parameter_type` (or `.member_types` for a union), `.bound_type`, and `.creator`. See
   [Troubleshooting: ArgumentResolutionError](../troubleshooting/argument-resolution-error.md).
 - `CircularDependencyError` is raised when the provider graph contains a cycle (A → B → A); the
   message shows the cycle path. Raised eagerly by `validate()`, and also by a bare `resolve()` on an
@@ -130,7 +131,8 @@ to render the chain programmatically.
   no value is set, either directly (`container.resolve(SomeContextType)`) or as a `Factory`
   argument. A `Factory` parameter's own default or nullable annotation does not apply. See
   [Migration: To 4.x](../migration/to-4.x.md#context-values-are-required-unless-the-provider-sets-default).
-  Inspect `.context_type`, and `.arg_name` for the parameter (`None` for a direct resolve). See
+  Inspect `.context_type`, `.provider_scope`, and `.parameter_name` (the parameter, or `None` for a
+  direct resolve). See
   [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).
 
 ## `RegistrationError`: declaration / registration problems

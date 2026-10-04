@@ -891,4 +891,4 @@ def test_unset_context_error_is_named_from_the_line_of_the_failing_call(cached: 
     container = Container(scope=Scope.APP, groups=[_G], context={_A: _A()})
     with pytest.raises(exceptions.ContextValueNotSetError) as exc:
         container.resolve_provider(_G.target)
-    assert exc.value.arg_name == "x: r0(target),"
+    assert exc.value.parameter_name == "x: r0(target),"

@@ -13,6 +13,7 @@ from modern_di.exceptions import (
     ScopeNotInitializedError,
     ScopeSkippedError,
 )
+from modern_di.exceptions.base import DependencyPathMixin
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -219,7 +220,7 @@ def test_closed_ancestor_reached_through_a_dependency_renders_without_chain() ->
 
 def test_dependency_path_mixin_is_not_an_exception() -> None:
     # Guards the ruling: DependencyPathMixin must never become except-catchable on its own.
-    assert not issubclass(exceptions.DependencyPathMixin, BaseException)
+    assert not issubclass(DependencyPathMixin, BaseException)
 
 
 def test_breadcrumb_line_carries_definition_site() -> None:

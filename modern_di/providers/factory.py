@@ -153,9 +153,10 @@ class Factory(AbstractProvider[types.T_co]):
     ) -> exceptions.ArgumentResolutionError:
         suggestions = suggester.suggest(item.arg_type, registry) if item.arg_type is not None else []
         return exceptions.ArgumentResolutionError(
-            arg_name=arg_name,
-            arg_type=item.arg_type,
-            bound_type=self.bound_type or self._creator,
+            parameter_name=arg_name,
+            parameter_type=item.arg_type,
+            bound_type=self.bound_type,
+            creator=self._creator,
             suggestions=suggestions,
             member_types=item.args,
         )

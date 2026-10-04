@@ -13,7 +13,7 @@ This is checked eagerly during `validate()`, and again at resolve time if valida
 
 ## Fix
 
-Register (and include) a provider for the source type before defining the alias:
+Register (and include) a provider for the source type. It only has to be registered by the time the alias is first resolved:
 
 ```python
 from modern_di import Group, Scope, providers

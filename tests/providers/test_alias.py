@@ -94,6 +94,7 @@ def test_alias_missing_source_raises_on_resolve() -> None:
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository") as exc:
         container.resolve(AbstractRepository)
     assert exc.value.source_type is PostgresRepository
+    assert f"Register a provider for {PostgresRepository} before the alias is resolved." in str(exc.value)
 
 
 def test_alias_missing_source_raises_on_validate_provider() -> None:

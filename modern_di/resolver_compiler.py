@@ -72,8 +72,8 @@ def resolve(container):
 {build}
     except ContextValueNotSetError as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        if exc.arg_name is None:
-            exc.name_argument(name)
+        if exc.parameter_name is None:
+            exc.name_parameter(name)
         exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
     except _STEP_ERRORS as exc:
@@ -95,8 +95,8 @@ def build(target):
 {build}
     except ContextValueNotSetError as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        if exc.arg_name is None:
-            exc.name_argument(name)
+        if exc.parameter_name is None:
+            exc.name_parameter(name)
         exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
     except _STEP_ERRORS as exc:
@@ -281,7 +281,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
         if value is types.UNSET:
             if default is not types.UNSET:
                 return default
-            raise exceptions.ContextValueNotSetError(context_type=context_type, scope_name=scope.name)
+            raise exceptions.ContextValueNotSetError(context_type=context_type, provider_scope=scope)
         return value
 
     return resolve

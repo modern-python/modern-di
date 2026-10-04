@@ -157,7 +157,8 @@ def test_unknown_factory_kwarg_error_derives_its_own_suggestions() -> None:
 
 
 def test_context_value_not_set_error_message_and_hierarchy() -> None:
-    error = exceptions.ContextValueNotSetError(context_type=str, scope_name="APP")
+    error = exceptions.ContextValueNotSetError(context_type=str, provider_scope=Scope.APP)
+    assert error.provider_scope is Scope.APP
     assert isinstance(error, exceptions.ResolutionError)
     assert str(error) == (
         "No context value is set for <class 'str'> (scope APP). "
@@ -167,8 +168,8 @@ def test_context_value_not_set_error_message_and_hierarchy() -> None:
 
 
 def test_context_value_not_set_error_names_the_argument() -> None:
-    error = exceptions.ContextValueNotSetError(context_type=str, scope_name="REQUEST", arg_name="request")
-    assert error.arg_name == "request"
+    error = exceptions.ContextValueNotSetError(context_type=str, provider_scope=Scope.REQUEST, parameter_name="request")
+    assert error.parameter_name == "request"
     assert str(error) == (
         "No context value is set for <class 'str'> (scope REQUEST), needed for argument request. "
         "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.\n"
