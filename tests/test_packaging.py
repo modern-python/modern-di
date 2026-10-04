@@ -53,3 +53,12 @@ def test_modern_di_imports_without_typing_extensions() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "OK REQUEST" in result.stdout
+
+
+def test_package_init_imports_every_name_it_exports() -> None:
+    """Every name in `modern_di.__all__` is bound by an import in `__init__` itself."""
+    tree = ast.parse((_PKG_ROOT / "__init__.py").read_text(encoding="utf-8"))
+    imported = {
+        alias.asname or alias.name for node in tree.body if isinstance(node, ast.ImportFrom) for alias in node.names
+    }
+    assert set(modern_di.__all__) <= imported

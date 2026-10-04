@@ -2,7 +2,7 @@
 
 The differential-harness suite in ``tests/providers/test_factory.py`` characterizes each
 compiled path black-box through ``resolve_provider``. These pin what it leaves unguarded: the
-argument-ordering invariant the positional path depends on, ``Factory.can_call_positionally``'s full
+argument-ordering invariant the positional path depends on, ``Factory._can_call_positionally``'s full
 contract, the per-node frame budget, and the contracts of the generated source (shape sharing,
 source lines in tracebacks, non-identifier kwarg names, overrides compiled as constants).
 """
@@ -79,7 +79,7 @@ def _make(a: _A, b: _B, c: _C) -> _Ordered:
 
 def _plan(registry: ProvidersRegistry, owner: "providers.Factory[object]") -> WiringPlan:
     """Build ``owner``'s wiring plan the way production does (via the registry memo)."""
-    return owner.wiring_plan(registry)
+    return owner._wiring_plan(registry)
 
 
 @dataclasses.dataclass(slots=True)
@@ -175,7 +175,7 @@ def test_positional_path_binds_args_in_signature_order() -> None:
     container = Container(groups=[G])
     container.open()
     plan = _plan(container.providers_registry, G.ordered)
-    assert G.ordered.can_call_positionally(plan)  # self-guard: positional path selected
+    assert G.ordered._can_call_positionally(plan)  # self-guard: positional path selected
 
     result = container.resolve(_Ordered)
     assert isinstance(result.a, _A)
@@ -202,7 +202,7 @@ def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int
     container = Container(scope=Scope.APP, groups=[group])
     container.open()
     plan = _plan(container.providers_registry, members["bag"])
-    assert members["bag"].can_call_positionally(plan)  # self-guard: positional path selected
+    assert members["bag"]._can_call_positionally(plan)  # self-guard: positional path selected
 
     bag = container.resolve_provider(members["bag"])
     assert len(bag.values) == arity
@@ -343,7 +343,7 @@ def test_arity_rung_prepends_its_step_to_a_dependency_error(arity: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Factory.can_call_positionally — the full predicate contract, called directly
+# Factory._can_call_positionally — the full predicate contract, called directly
 # ---------------------------------------------------------------------------
 
 
@@ -358,7 +358,7 @@ def test_can_call_positionally_accepts_ordered_provider_signature() -> None:
     owner = providers.Factory(creator=_make, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert owner.can_call_positionally(_plan(registry, owner)) is True
+    assert owner._can_call_positionally(_plan(registry, owner)) is True
 
 
 def test_can_call_positionally_rejects_static_kwarg() -> None:
@@ -366,7 +366,7 @@ def test_can_call_positionally_rejects_static_kwarg() -> None:
 
     A wrong `True` silently binds arguments to the wrong parameters -- a correctness bug, not a slow
     path. Every negative case must keep `creator(**kwargs)`; widening the predicate to admit one of
-    them trades correctness for speed. The other reject-case tests for `Factory.can_call_positionally`
+    them trades correctness for speed. The other reject-case tests for `Factory._can_call_positionally`
     below share this rationale rather than repeating it.
     """
 
@@ -379,7 +379,7 @@ def test_can_call_positionally_rejects_static_kwarg() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP, kwargs={"req": _Req()})
     registry.add_providers(owner)
 
-    assert owner.can_call_positionally(_plan(registry, owner)) is False
+    assert owner._can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_can_call_positionally_accepts_a_context_provider_dependency() -> None:
@@ -394,7 +394,7 @@ def test_can_call_positionally_accepts_a_context_provider_dependency() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert owner.can_call_positionally(_plan(registry, owner)) is True
+    assert owner._can_call_positionally(_plan(registry, owner)) is True
 
 
 def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
@@ -414,7 +414,7 @@ def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert owner.can_call_positionally(_plan(registry, owner)) is False
+    assert owner._can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
@@ -437,7 +437,7 @@ def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
 
     plan = _plan(registry, owner)
     assert tuple(plan.provider_kwargs) == ("b", "a")  # overlay put `a` last
-    assert owner.can_call_positionally(plan) is False
+    assert owner._can_call_positionally(plan) is False
 
 
 def test_can_call_positionally_rejects_keyword_only_param() -> None:
@@ -456,7 +456,7 @@ def test_can_call_positionally_rejects_keyword_only_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert owner.can_call_positionally(_plan(registry, owner)) is False
+    assert owner._can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_can_call_positionally_rejects_positional_only_param() -> None:
@@ -477,7 +477,7 @@ def test_can_call_positionally_rejects_positional_only_param() -> None:
     owner = providers.Factory(creator=creator, scope=Scope.APP)
     registry.add_providers(owner)
 
-    assert owner.can_call_positionally(_plan(registry, owner)) is False
+    assert owner._can_call_positionally(_plan(registry, owner)) is False
 
 
 def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyPatch) -> None:

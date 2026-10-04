@@ -1,4 +1,3 @@
-import abc
 import enum
 import itertools
 import typing
@@ -13,7 +12,7 @@ if typing.TYPE_CHECKING:
 _provider_id_counter = itertools.count()
 
 
-class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
+class AbstractProvider(typing.Generic[types.T_co]):
     __slots__ = ("_explicit_scope", "_group_claim", "_registered", "bound_type", "provider_id")
 
     _takes_group_scope: typing.ClassVar[bool] = True
@@ -81,13 +80,13 @@ class AbstractProvider(abc.ABC, typing.Generic[types.T_co]):
         """``module:line`` of the provider's declaration when known; None by default (no creator)."""
         return None
 
-    def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
+    def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
         return {}
 
-    def redirect_target(self, container: "Container") -> "AbstractProvider[typing.Any] | None":  # noqa: ARG002
+    def _redirect_target(self, container: "Container") -> "AbstractProvider[typing.Any] | None":  # noqa: ARG002
         """Return the provider this transparently forwards to, or None if resolution terminates here."""
         return None
 
-    def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:  # noqa: ARG002
+    def _iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:  # noqa: ARG002
         """Yield validation-time issues for this provider. Default: no issues."""
         return iter(())

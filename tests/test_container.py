@@ -201,10 +201,10 @@ def test_validate_memoizes_diamond() -> None:
     class _CountingFactory(providers.Factory[Bottom]):
         __slots__ = ()
 
-        def get_dependencies(self, container: Container) -> dict[str, AbstractProvider[typing.Any]]:
+        def _get_dependencies(self, container: Container) -> dict[str, AbstractProvider[typing.Any]]:
             nonlocal call_count
             call_count += 1
-            return super().get_dependencies(container)
+            return super()._get_dependencies(container)
 
     bottom_provider = _CountingFactory(creator=Bottom)
 
@@ -969,6 +969,11 @@ def test_resolve_provider_raises_for_unhandled_provider_type() -> None:
     container.open()
     with pytest.raises(TypeError, match="no compiled resolver for provider type _UnknownProvider"):
         container.resolve_provider(provider)
+
+
+def test_abstract_provider_is_a_plain_class() -> None:
+    """`resolve_dependency` runs `isinstance(x, AbstractProvider)` per call; ABCMeta would make it Python-level."""
+    assert type(AbstractProvider) is type
 
 
 # --- validate() is the only trigger: construction, open(), resolve() and add_providers() never ----

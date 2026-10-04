@@ -51,14 +51,14 @@ Event = NodeEntered | Edge | Cycle | DependenciesError
 def terminal_chain(
     provider: "AbstractProvider[typing.Any]", container: "Container"
 ) -> "list[AbstractProvider[typing.Any]]":
-    """Follow ``redirect_target`` hops from ``provider``, ``provider`` first.
+    """Follow ``_redirect_target`` hops from ``provider``, ``provider`` first.
 
     A redirect cycle collapses the chain to the single provider the repeat was detected at, so
     ``effective_scope`` reports that provider's own scope; ``walk()`` reports the cycle itself.
     """
     chain = [provider]
     seen: set[int] = set()
-    while (nxt := provider.redirect_target(container)) is not None:
+    while (nxt := provider._redirect_target(container)) is not None:  # noqa: SLF001
         if provider.provider_id in seen:
             return [provider]
         seen.add(provider.provider_id)
@@ -174,7 +174,7 @@ class DependencyGraph:
         path.append(provider)
         yield NodeEntered(provider)
         try:
-            dependencies = provider.get_dependencies(container)
+            dependencies = provider._get_dependencies(container)  # noqa: SLF001
         except exceptions.ResolutionError as exc:
             yield DependenciesError(provider, exc)
             dependencies = {}
@@ -187,7 +187,7 @@ def collect_errors(container: "Container") -> list[Exception]:
     for event in DependencyGraph().walk(container.providers_registry, container):
         match event:
             case NodeEntered(provider):
-                errors.extend(provider.iter_validation_issues(container))
+                errors.extend(provider._iter_validation_issues(container))  # noqa: SLF001
             case DependenciesError(_, error):
                 errors.append(error)
             case Edge(parent, name, dep):
