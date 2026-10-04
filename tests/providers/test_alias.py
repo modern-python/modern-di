@@ -514,9 +514,8 @@ def test_alias_on_a_closed_container_raises() -> None:
 
 
 def test_alias_picks_up_a_source_registered_after_a_failed_resolve() -> None:
-    # The compiled alias caches nothing, so a source registered after a failed resolve is picked up next.
-    # Catches only a negative cache (remembering the miss) -- a positive one would pass too, since a
-    # registered provider can't be replaced (DuplicateProviderTypeError) and registering anything clears `_resolvers`.
+    # A missing source compiles to a raising resolver, and registering anything clears `_resolvers`,
+    # so a source registered after a failed resolve is picked up next.
     class Late: ...
 
     class LateIface: ...
@@ -533,6 +532,30 @@ def test_alias_picks_up_a_source_registered_after_a_failed_resolve() -> None:
     container.add_providers(providers.Factory(creator=Late))
 
     assert isinstance(container.resolve(LateIface), Late)
+
+
+def test_a_parent_compiled_against_a_dangling_alias_picks_up_a_late_source() -> None:
+    class Late: ...
+
+    class LateIface: ...
+
+    @dataclasses.dataclass
+    class Parent:
+        dep: LateIface
+
+    class G(Group):
+        iface = providers.Alias(source_type=Late, bound_type=LateIface)
+        parent = providers.Factory(creator=Parent)
+
+    container = Container(groups=[G])
+    container.open()
+
+    with pytest.raises(AliasSourceNotRegisteredError):
+        container.resolve(Parent)
+
+    container.add_providers(providers.Factory(creator=Late))
+
+    assert isinstance(container.resolve(Parent).dep, Late)
 
 
 def test_mutual_alias_cycle_raises_circular_dependency_at_runtime() -> None:

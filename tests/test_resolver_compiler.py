@@ -530,11 +530,11 @@ def test_resolve_costs_exactly_one_resolver_frame_per_node() -> None:
     )
 
 
-def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
-    """INVARIANT: an alias hop costs one Python frame, like any Factory dependency.
+def test_alias_hop_costs_no_resolver_frame() -> None:
+    """INVARIANT: an alias hop costs no Python frame; resolving through it is resolving its source.
 
-    The alias resolver inlines the source lookup and the source's resolver-memo read. Routing
-    through `find_source` + `find_provider` + `resolve_provider` instead costs four frames per hop.
+    An Alias compiles to its source's resolver. Giving it a resolver of its own costs a frame per
+    hop, and looking the source up per resolve costs four.
     """
 
     class _Source: ...
@@ -556,10 +556,53 @@ def test_alias_hop_costs_exactly_one_resolver_frame() -> None:
     without_alias = _count_python_calls(lambda: direct.resolve_provider(_Direct.source))
     with_alias = _count_python_calls(lambda: aliased.resolve_provider(_Aliased.iface))
 
-    assert (with_alias - without_alias) == 1, (
-        f"an alias hop costs {with_alias - without_alias} Python calls, expected 1 (its own "
-        f"resolver). Looking the source up per resolve costs four."
+    assert with_alias == without_alias, (
+        f"an alias hop costs {with_alias - without_alias} Python calls, expected 0. An Alias "
+        f"with a resolver of its own costs one; looking the source up per resolve costs four."
     )
+
+
+class _BoundSource:
+    def __init__(self) -> None:
+        caller = sys._getframe(2)  # 0: this, 1: the source's resolver, 2: its caller
+        _BoundSource.callers.append((caller.f_globals.get("provider"), caller.f_code))
+
+    callers: typing.ClassVar[list[tuple[object, _pytypes.CodeType]]] = []
+
+
+class _BoundMid: ...
+
+
+class _BoundTop: ...
+
+
+@dataclasses.dataclass(slots=True)
+class _BoundParent:
+    dep: _BoundTop
+
+
+class _BoundGroup(Group):
+    source = providers.Factory(creator=_BoundSource, scope=Scope.APP)
+    mid = providers.Alias(source_type=_BoundSource, bound_type=_BoundMid)
+    top = providers.Alias(source_type=_BoundMid, bound_type=_BoundTop)
+    parent = providers.Factory(creator=_BoundParent, scope=Scope.APP)
+
+
+def test_no_alias_frame_is_on_the_stack_during_resolve() -> None:
+    """INVARIANT: an Alias is bound to its source's resolver at compile time.
+
+    Whoever resolves through an alias chain calls the source's resolver directly: the parent's
+    generated resolver for a dependency, `Container.resolve` for a direct request.
+    """
+    container = Container(scope=Scope.APP, groups=[_BoundGroup])
+    _BoundSource.callers.clear()
+
+    container.resolve(_BoundParent)
+    container.resolve(_BoundTop)
+
+    (via_parent, _), (_, direct) = _BoundSource.callers
+    assert via_parent is _BoundGroup.parent
+    assert direct is Container.resolve.__code__
 
 
 def test_cross_scope_hop_costs_no_extra_frame() -> None:

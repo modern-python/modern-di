@@ -3,7 +3,7 @@ import threading
 import typing
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import DependencyGraph, build_cycle_error, collect_errors
+from modern_di.dependency_graph import DependencyGraph, build_cycle_error, collect_errors, redirect_hops
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -11,6 +11,7 @@ from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverrideHandle, OverridesRegistry
 from modern_di.registries.providers_registry import ProvidersRegistry
+from modern_di.resolver_compiler import STEP_ERRORS
 from modern_di.scope import Scope, _next_deeper
 
 
@@ -145,6 +146,11 @@ class Container:
             return resolver(self)
         except RecursionError as exc:
             _handle_recursion_error(registry._providers[dependency_type], self, exc)  # noqa: SLF001
+        except STEP_ERRORS as exc:
+            provider = registry.find_provider(dependency_type)
+            if provider is not None:
+                exc.prepend_step(*redirect_hops(provider, self))
+            raise
 
     def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
         """Resolve a provider reference via :meth:`resolve_provider`, or a type via :meth:`resolve`."""
@@ -168,6 +174,9 @@ class Container:
             return resolver(self)
         except RecursionError as exc:
             _handle_recursion_error(provider, self, exc)
+        except STEP_ERRORS as exc:
+            exc.prepend_step(*redirect_hops(provider, self))
+            raise
 
     def validate(self) -> None:
         """Walk the static provider graph and raise on any wiring error.

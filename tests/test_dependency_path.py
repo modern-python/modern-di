@@ -232,3 +232,67 @@ def test_validate_and_runtime_name_the_same_chain_for_one_scope_violation() -> N
     then the other is not told two different stories about the same graph.
     """
     assert _validate_chain_names() == _runtime_chain_names()
+
+
+class _EdgeIface:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _AliasFirst:
+    via_alias: _EdgeIface
+    direct: ScopedResource
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _DirectFirst:
+    direct: ScopedResource
+    via_alias: _EdgeIface
+
+
+class _TwoEdgesGroup(Group):
+    resource = providers.Factory(scope=Scope.REQUEST, creator=ScopedResource)
+    iface = providers.Alias(source_type=ScopedResource, bound_type=_EdgeIface)
+    alias_first = providers.Factory(scope=Scope.APP, creator=_AliasFirst)
+    direct_first = providers.Factory(scope=Scope.APP, creator=_DirectFirst)
+
+
+@pytest.mark.parametrize(
+    ("consumer", "expected"),
+    [
+        (_AliasFirst, ["_AliasFirst", "_EdgeIface", "ScopedResource"]),
+        (_DirectFirst, ["_DirectFirst", "ScopedResource"]),
+    ],
+)
+def test_runtime_chain_names_the_edge_that_failed(consumer: type, expected: list[str]) -> None:
+    container = Container(groups=[_TwoEdgesGroup])
+    container.open()
+    with pytest.raises(ScopeNotInitializedError) as exc_info:
+        container.resolve(consumer)
+    assert [step.name for step in exc_info.value.dependency_path] == expected
+
+
+class _DanglingIface:
+    pass
+
+
+class _DanglingSource:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _NeedsDangling:
+    dep: _DanglingIface
+
+
+class _DanglingUnderParentGroup(Group):
+    iface = providers.Alias(source_type=_DanglingSource, bound_type=_DanglingIface)
+    parent = providers.Factory(creator=_NeedsDangling)
+
+
+def test_dangling_alias_under_a_parent_names_both() -> None:
+    container = Container(groups=[_DanglingUnderParentGroup])
+    container.open()
+    with pytest.raises(exceptions.AliasSourceNotRegisteredError) as exc_info:
+        container.resolve(_NeedsDangling)
+    assert [step.name for step in exc_info.value.dependency_path] == ["_NeedsDangling", "_DanglingIface"]

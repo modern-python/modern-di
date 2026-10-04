@@ -5,7 +5,7 @@ import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import ModernDIError
-from modern_di.exceptions.rendering import ResolutionStep, _render_chain, _render_suggestion_lines
+from modern_di.exceptions.rendering import _render_chain, _render_suggestion_lines, provider_step, redirect_steps
 
 
 if typing.TYPE_CHECKING:
@@ -205,17 +205,10 @@ class InvalidScopeDependencyError(RegistrationError):
         return self.dep_chain[-1]
 
     def _render_body(self) -> str:
-        terminal_scope = self.dep_terminal.scope
         steps = [
-            ResolutionStep(
-                scope=self.provider.scope, name=self.provider.display_name, location=self.provider.definition_site
-            ),
-            # Every hop before the terminal is a redirect, so its own `scope` is a default it never
-            # declared; the scope it resolves at is the terminal's.
-            *(
-                ResolutionStep(scope=terminal_scope, name=p.display_name, location=p.definition_site)
-                for p in self.dep_chain
-            ),
+            provider_step(self.provider, self.provider.scope),
+            *redirect_steps(self.dep_chain),
+            provider_step(self.dep_terminal, self.dep_terminal.scope),
         ]
         lines = [
             "Provider at a deeper scope reached through this chain:",

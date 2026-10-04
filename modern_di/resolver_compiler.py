@@ -1,10 +1,11 @@
 """Compile one resolver per provider: the single resolve path.
 
 A ``Factory`` resolver is generated from a source template, specialised to the factory's
-:class:`_Shape`, and ``exec``'d with the factory's constants as its globals. Every other provider
-type compiles to a small closure. An overridden provider compiles to its override value, so the
-resolvers never consult the overrides registry; applying an override drops the compiled
-resolvers instead (see ``ProvidersRegistry.drop_resolvers``). Why a template and not shared
+:class:`_Shape`, and ``exec``'d with the factory's constants as its globals. An ``Alias`` compiles
+to its source's resolver, so a parent's error clause redraws the redirect hops it skipped. Every
+other provider type compiles to a small closure. An overridden provider compiles to its override
+value, so the resolvers never consult the overrides registry; applying an override drops the
+compiled resolvers instead (see ``ProvidersRegistry.drop_resolvers``). Why a template and not shared
 helpers: every all-Python single-copy design measured 25-80% slower (docs/introduction/performance.md).
 
 The template reaches into `Container._lock`/`_scope_map` and `CacheRegistry._items` to stay
@@ -18,7 +19,8 @@ import linecache
 import typing
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import redirect_step
+from modern_di.dependency_graph import redirect_hops
+from modern_di.exceptions.rendering import provider_step
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
@@ -36,7 +38,7 @@ if typing.TYPE_CHECKING:
     Resolver: typing.TypeAlias = typing.Callable[[Container], typing.Any]
 
 _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError)
-_STEP_ERRORS = (exceptions.ResolutionError, *_SCOPE_ERRORS)
+STEP_ERRORS = (exceptions.ResolutionError, *_SCOPE_ERRORS)
 
 
 def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
@@ -47,7 +49,7 @@ def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "Provid
     if type(provider) is Factory:
         return _compile_factory(provider, registry)
     if type(provider) is Alias:
-        return _compile_alias(provider)
+        return _compile_alias(provider, registry)
     if provider is container_provider:
         return _resolve_to_container
     if type(provider) is ContextProvider:
@@ -69,12 +71,14 @@ def resolve(container):
     try:
 {build}
     except ContextValueNotSetError as exc:
+        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
         if exc.arg_name is None:
-            exc.name_argument(arg_names[arg_lines[exc.__traceback__.tb_lineno]])
-        exc.prepend_step(resolution_step())
+            exc.name_argument(name)
+        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
     except _STEP_ERRORS as exc:
-        exc.prepend_step(resolution_step())
+        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
+        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
     try:
         return creator({args})
@@ -90,12 +94,14 @@ def build(target):
     try:
 {build}
     except ContextValueNotSetError as exc:
+        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
         if exc.arg_name is None:
-            exc.name_argument(arg_names[arg_lines[exc.__traceback__.tb_lineno]])
-        exc.prepend_step(resolution_step())
+            exc.name_argument(name)
+        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
     except _STEP_ERRORS as exc:
-        exc.prepend_step(resolution_step())
+        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
+        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
     return {built}
 
@@ -194,16 +200,17 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "scope": f.scope,
         "creator": f._creator,
         "resolution_step": f.resolution_step,
-        "arg_names": tuple(plan.provider_kwargs),
+        "edges": plan.provider_kwargs,
         "arg_lines": arg_lines,
         "static": plan.static_kwargs,
         "UNSET": types.UNSET,
         "partial": functools.partial,
         "_navigate": _navigate,
-        "_STEP_ERRORS": _STEP_ERRORS,
+        "_STEP_ERRORS": STEP_ERRORS,
         "CreatorCallError": exceptions.CreatorCallError,
         "ContainerClosedError": exceptions.ContainerClosedError,
         "ContextValueNotSetError": exceptions.ContextValueNotSetError,
+        "redirect_hops": redirect_hops,
         **{f"r{i}": registry.resolver_for(p) for i, p in enumerate(plan.provider_kwargs.values())},
     }
     exec(code, namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
@@ -237,25 +244,17 @@ def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") ->
     return resolve
 
 
-def _compile_alias(a: "Alias[typing.Any]") -> "Resolver":
-    """Call the source's resolver directly; a source registered later is picked up on the next resolve."""
-    # Not bound to the source's resolver at compile time: the alias step in error chains needs this frame.
+def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
+    """Compile to the source's own resolver; a missing source compiles to a resolver that raises."""
     source_type = a._source_type
-    find_source = a.find_source
+    source = registry.find_provider(source_type)
+    if source is not None:
+        return registry.resolver_for(source)
 
-    def resolve(container: "Container") -> typing.Any:
-        try:
-            registry = container.providers_registry
-            source = registry._providers.get(source_type)
-            if source is None:
-                source = find_source(container)
-            source_resolver = registry._resolvers.get(source.provider_id)
-            if source_resolver is None:
-                source_resolver = registry.resolver_for(source)
-            return source_resolver(container)
-        except _STEP_ERRORS as exc:
-            exc.prepend_step(redirect_step(a, container))
-            raise
+    def resolve(_: "Container") -> typing.Any:
+        error = exceptions.AliasSourceNotRegisteredError(source_type=source_type)
+        error.prepend_step(provider_step(a, a.scope))
+        raise error
 
     return resolve
 

@@ -147,7 +147,7 @@ class CircularDependencyError(ResolutionError):
         rendered = "\n".join(_render_chain(steps))
         super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
 
-    def prepend_step(self, step: ResolutionStep) -> None:
+    def prepend_step(self, *steps: ResolutionStep) -> None:
         """No-op: the canonical cycle (set at construction) is already self-contained.
 
         Every provider in the loop is named by ``steps``, so an outer resolution frame has nothing
