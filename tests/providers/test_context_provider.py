@@ -62,8 +62,9 @@ def test_context_provider_not_found_but_required() -> None:
         match=r"No context value is set for <class 'datetime.datetime'> \(scope APP\), needed for argument arg1",
     ) as exc:
         app_container.resolve(SomeFactory)
-    assert exc.value.arg_name == "arg1"
+    assert exc.value.parameter_name == "arg1"
     assert exc.value.context_type is datetime.datetime
+    assert exc.value.provider_scope is Scope.APP
 
 
 def test_context_provider_in_request_scope() -> None:
@@ -150,7 +151,7 @@ def test_factory_with_creator_default_raises_when_context_provider_value_unset()
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         app_container.resolve(TsHolder)
-    assert exc.value.arg_name == "ts"
+    assert exc.value.parameter_name == "ts"
 
     defaulted = Container(groups=[TsDefaultGroup])
     defaulted.open()
@@ -296,7 +297,7 @@ def test_late_app_context_required_param_raises_then_resolves_across_scopes() ->
     request.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         request.resolve(_CrossRequiredSvc)
-    assert exc.value.arg_name == "ctx"
+    assert exc.value.parameter_name == "ctx"
     value = _CrossCtx()
     app.set_context(_CrossCtx, value)
     assert request.resolve(_CrossRequiredSvc).ctx is value
@@ -418,7 +419,7 @@ def test_kwargs_context_provider_ignores_creator_default_when_unset() -> None:
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         app_container.resolve_provider(_KwargsCtxExplicitGroup.out)
-    assert exc.value.arg_name == "ctx"
+    assert exc.value.parameter_name == "ctx"
 
     defaulted = Container(groups=[_KwargsCtxDefaultedGroup])
     defaulted.open()
@@ -469,7 +470,7 @@ def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out)
     assert exc_info.value.context_type is datetime.datetime
-    assert exc_info.value.arg_name == "ctx"
+    assert exc_info.value.parameter_name == "ctx"
 
 
 def test_kwargs_context_provider_without_parsed_signature_injects_present_value() -> None:
@@ -626,7 +627,7 @@ def test_cached_factory_context_kwarg_absent_and_nullable_injects_the_provider_d
     required.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         required.resolve(_CachedNullable)
-    assert exc.value.arg_name == "ctx"
+    assert exc.value.parameter_name == "ctx"
 
 
 def test_cached_factory_context_kwarg_absent_and_required_raises() -> None:
@@ -638,7 +639,7 @@ def test_cached_factory_context_kwarg_absent_and_required_raises() -> None:
     container.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         container.resolve(_CachedRequired)
-    assert exc.value.arg_name == "ctx"
+    assert exc.value.parameter_name == "ctx"
 
 
 def test_cached_factory_context_kwarg_through_closed_holder_raises() -> None:
@@ -712,7 +713,7 @@ def test_unset_context_as_factory_argument_raises_naming_the_parameter() -> None
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve(SomeFactory)
     assert exc_info.value.context_type is datetime.datetime
-    assert exc_info.value.arg_name == "arg1"
+    assert exc_info.value.parameter_name == "arg1"
     assert "needed for argument arg1" in str(exc_info.value)
 
 
@@ -721,7 +722,7 @@ def test_direct_resolve_of_unset_context_names_no_parameter() -> None:
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
-    assert exc_info.value.arg_name is None
+    assert exc_info.value.parameter_name is None
     assert "needed for argument" not in str(exc_info.value)
 
 
@@ -787,7 +788,7 @@ def test_unset_context_error_names_the_innermost_parameter(cache: bool) -> None:
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve(_NamedOuter)
-    assert exc_info.value.arg_name == "named"
+    assert exc_info.value.parameter_name == "named"
     assert str(exc_info.value).count("_NamedOuter") == 1
     assert str(exc_info.value).count("_NamedInner") == 1
 
@@ -808,7 +809,7 @@ def test_unset_context_error_names_a_parameter_reached_through_an_alias() -> Non
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve(Holder)
-    assert exc_info.value.arg_name == "via_alias"
+    assert exc_info.value.parameter_name == "via_alias"
 
 
 def test_unset_context_error_skips_a_defaulted_provider_of_the_same_type() -> None:
@@ -825,7 +826,7 @@ def test_unset_context_error_skips_a_defaulted_provider_of_the_same_type() -> No
     app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(G.out)
-    assert exc_info.value.arg_name == "required"
+    assert exc_info.value.parameter_name == "required"
 
 
 class _StandInRequest:
@@ -921,7 +922,7 @@ def test_unset_context_error_names_the_argument_that_failed(creator: typing.Call
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(G.pair)
     assert exc_info.value.context_type is _SecondCtx
-    assert exc_info.value.arg_name == "second"
+    assert exc_info.value.parameter_name == "second"
 
 
 def test_unset_context_error_names_the_failing_one_of_two_same_type_providers() -> None:
@@ -940,7 +941,7 @@ def test_unset_context_error_names_the_failing_one_of_two_same_type_providers() 
     request = app_container.build_child_container(scope=Scope.REQUEST)
     with pytest.raises(ContextValueNotSetError) as exc_info:
         request.resolve_provider(G.pair)
-    assert exc_info.value.arg_name == "second"
+    assert exc_info.value.parameter_name == "second"
 
 
 def test_unset_context_error_names_the_failing_one_of_two_same_type_same_scope_providers() -> None:
@@ -958,4 +959,4 @@ def test_unset_context_error_names_the_failing_one_of_two_same_type_same_scope_p
     app_container.override(overridden, _FirstCtx())
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(G.pair)
-    assert exc_info.value.arg_name == "second"
+    assert exc_info.value.parameter_name == "second"

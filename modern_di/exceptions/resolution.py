@@ -1,5 +1,6 @@
 """Errors raised while resolving a provider."""
 
+import enum
 import typing
 
 from modern_di import suggester
@@ -51,43 +52,48 @@ class AliasSourceNotRegisteredError(ResolutionError):
         self.source_type = source_type
         super().__init__(
             f"Alias source type {source_type} is not registered in providers registry. "
-            f"Register a provider for {source_type} before defining the alias."
+            f"Register a provider for {source_type} before the alias is resolved."
         )
 
 
 class ArgumentResolutionError(ResolutionError):
-    """Creator parameter could not be wired. Attrs: ``arg_name``, ``arg_type``, ``bound_type``, ``suggestions``."""
+    """Creator parameter could not be wired.
+
+    Attrs: ``parameter_name``, ``parameter_type``, ``member_types`` (the union members when there is no
+    single ``parameter_type``), ``bound_type`` (``None`` when the provider has none), ``creator``,
+    ``suggestions``.
+    """
 
     docs_slug = "argument-resolution-error"
 
-    __slots__ = ("arg_name", "arg_type", "bound_type", "suggestions")
+    __slots__ = ("bound_type", "creator", "member_types", "parameter_name", "parameter_type", "suggestions")
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
-        arg_name: str,
-        arg_type: type | None,
-        bound_type: "type | typing.Callable[..., typing.Any]",
+        parameter_name: str,
+        parameter_type: type | None,
+        bound_type: type | None,
+        creator: "typing.Callable[..., typing.Any]",
         suggestions: "list[suggester.Suggestion] | None" = None,
         member_types: list[type] | None = None,
     ) -> None:
-        self.arg_name = arg_name
-        self.arg_type = arg_type
+        self.parameter_name = parameter_name
+        self.parameter_type = parameter_type
         self.bound_type = bound_type
+        self.creator = creator
+        self.member_types = member_types or []
         self.suggestions = suggestions or []
-        if arg_type is not None:
-            message = (
-                f"Argument {arg_name} of type {arg_type} cannot be resolved. Trying to build dependency {bound_type}."
-            )
-        elif member_types:
-            joined = " | ".join(getattr(t, "__name__", str(t)) for t in member_types)
-            message = (
-                f"Argument {arg_name} of type {joined} cannot be resolved. Trying to build dependency {bound_type}."
-            )
+        building = f"Trying to build dependency {creator if bound_type is None else bound_type}."
+        if parameter_type is not None:
+            message = f"Argument {parameter_name} of type {parameter_type} cannot be resolved. {building}"
+        elif self.member_types:
+            joined = " | ".join(getattr(t, "__name__", str(t)) for t in self.member_types)
+            message = f"Argument {parameter_name} of type {joined} cannot be resolved. {building}"
         else:
             message = (
-                f"Argument {arg_name} has no usable type annotation, so it cannot be resolved by type. "
-                f"Pass it via the kwargs parameter or add a type annotation. Trying to build dependency {bound_type}."
+                f"Argument {parameter_name} has no usable type annotation, so it cannot be resolved by type. "
+                f"Pass it via the kwargs parameter or add a type annotation. {building}"
             )
         if block := _render_suggestions(self.suggestions):
             message += "\n" + block
@@ -170,29 +176,29 @@ class CircularDependencyError(ResolutionError):
 class ContextValueNotSetError(ResolutionError):
     """A ``ContextProvider`` with no ``default=`` was resolved with no value set.
 
-    Inspect ``.context_type``, and ``.arg_name``: the ``Factory`` parameter it was resolved for, or
-    None for a direct resolve.
+    Inspect ``.context_type``, ``.provider_scope`` (the provider's scope), and ``.parameter_name``: the
+    ``Factory`` parameter it was resolved for, or None for a direct resolve.
     """
 
     docs_slug = "context-not-set"
 
-    __slots__ = ("arg_name", "context_type", "scope_name")
+    __slots__ = ("context_type", "parameter_name", "provider_scope")
 
-    def __init__(self, *, context_type: type, scope_name: str, arg_name: str | None = None) -> None:
+    def __init__(self, *, context_type: type, provider_scope: enum.IntEnum, parameter_name: str | None = None) -> None:
         self.context_type = context_type
-        self.scope_name = scope_name
-        self.arg_name = arg_name
+        self.provider_scope = provider_scope
+        self.parameter_name = parameter_name
         super().__init__(self._render_message())
 
     def _render_message(self) -> str:
-        needed_for = "" if self.arg_name is None else f", needed for argument {self.arg_name}"
+        needed_for = "" if self.parameter_name is None else f", needed for argument {self.parameter_name}"
         return (
-            f"No context value is set for {self.context_type!r} (scope {self.scope_name}){needed_for}. "
+            f"No context value is set for {self.context_type!r} (scope {self.provider_scope.name}){needed_for}. "
             "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider."
         )
 
-    def name_argument(self, arg_name: str) -> None:
+    def name_parameter(self, parameter_name: str) -> None:
         """Record the ``Factory`` parameter this value was resolved for and re-render the message."""
-        self.arg_name = arg_name
+        self.parameter_name = parameter_name
         self._base_message = self._render_message()
         self.args = (str(self),)

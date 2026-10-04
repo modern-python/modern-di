@@ -296,7 +296,7 @@ def test_validate_raises_on_missing_required_dependency() -> None:
         container.validate()
     [issue] = exc.value.errors
     assert isinstance(issue, ArgumentResolutionError)
-    assert issue.arg_name == "missing"
+    assert issue.parameter_name == "missing"
 
 
 def test_validate_accumulates_multiple_errors() -> None:
@@ -1043,6 +1043,12 @@ def test_validate_argument_is_rejected(validate: bool) -> None:
 
 @pytest.mark.parametrize("name", ["ValidateArgumentWarning", "ContextValueNoneWarning", "UnvalidatedContainerWarning"])
 def test_removed_warning_is_not_exported(name: str) -> None:
+    assert not hasattr(exceptions, name)
+    assert name not in exceptions.__all__
+
+
+@pytest.mark.parametrize("name", ["DependencyPathMixin", "SUGGESTION_HEADER"])
+def test_internal_helper_is_not_exported(name: str) -> None:
     assert not hasattr(exceptions, name)
     assert name not in exceptions.__all__
 

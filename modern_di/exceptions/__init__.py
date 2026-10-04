@@ -1,9 +1,6 @@
-"""Every message and every glyph modern-di renders; split by family, all re-exported here."""
+"""Every message and every glyph modern-di renders; split by family, every public name re-exported here."""
 
-from modern_di.exceptions.base import (
-    DependencyPathMixin,
-    ModernDIError,
-)
+from modern_di.exceptions.base import ModernDIError
 from modern_di.exceptions.container import (
     ContainerClosedError,
     ContainerError,
@@ -29,10 +26,7 @@ from modern_di.exceptions.registration import (
     UnknownFactoryKwargError,
     UnsupportedCreatorParameterError,
 )
-from modern_di.exceptions.rendering import (
-    SUGGESTION_HEADER,
-    ResolutionStep,
-)
+from modern_di.exceptions.rendering import ResolutionStep
 from modern_di.exceptions.resolution import (
     AliasSourceNotRegisteredError,
     ArgumentResolutionError,
@@ -45,7 +39,6 @@ from modern_di.exceptions.resolution import (
 
 
 __all__ = [
-    "SUGGESTION_HEADER",
     "AliasSourceNotRegisteredError",
     "ArgumentResolutionError",
     "AsyncFinalizerInSyncCloseError",
@@ -55,7 +48,6 @@ __all__ = [
     "ContainerError",
     "ContextValueNotSetError",
     "CreatorCallError",
-    "DependencyPathMixin",
     "DuplicateProviderTypeError",
     "FinalizerError",
     "GroupInstantiationError",

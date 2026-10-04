@@ -11,7 +11,7 @@ Cannot resolve dependency chain:
 See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
 ```
 
-The top frame shows which provider failed, and the `caused by` line names the context type, the scope whose container was read, and the parameter it was needed for. A direct `container.resolve(TenantId)` raises the same error without the chain and without the `needed for argument` part. Inspect `.context_type` and `.arg_name` (`None` for a direct resolve).
+The top frame shows which provider failed, and the `caused by` line names the context type, the scope whose container was read, and the parameter it was needed for. A direct `container.resolve(TenantId)` raises the same error without the chain and without the `needed for argument` part. Inspect `.context_type`, `.provider_scope`, and `.parameter_name` (the parameter, or `None` for a direct resolve).
 
 ## Cause
 
