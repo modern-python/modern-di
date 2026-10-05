@@ -770,10 +770,9 @@ def test_cache_absent_returns_fresh_instances() -> None:
     assert G.f.cache_settings is None
 
 
-@pytest.mark.parametrize("cache_value", [False, None])
-def test_cache_falsy_disables_caching(cache_value: bool | None) -> None:
+def test_cache_false_disables_caching() -> None:
     class G(Group):
-        f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=cache_value)
+        f = providers.Factory(creator=SimpleCreator, kwargs={"dep1": "x"}, cache=False)
 
     container = Container(groups=[G])
     container.open()
@@ -1226,12 +1225,19 @@ def test_from_type_error_returns_none_for_creator_body_typeerror() -> None:
 
 @pytest.mark.parametrize(
     ("cache", "expected"),
-    [(True, providers.CacheSettings()), (False, None), (None, None)],
+    [(True, providers.CacheSettings()), (False, None)],
 )
-def test_cache_settings_coerce(cache: bool | None, expected: providers.CacheSettings[object] | None) -> None:
-    assert providers.CacheSettings.coerce(cache) == expected
+def test_cache_settings_coerce(cache: bool, expected: providers.CacheSettings[object] | None) -> None:
+    assert providers.CacheSettings._coerce(cache) == expected
 
 
 def test_cache_settings_coerce_returns_an_instance_unchanged() -> None:
     settings: providers.CacheSettings[object] = providers.CacheSettings(clear_cache=False)
-    assert providers.CacheSettings.coerce(settings) is settings
+    assert providers.CacheSettings._coerce(settings) is settings
+
+
+@pytest.mark.parametrize("cache", [None, 1, "yes"])
+def test_factory_cache_rejects_anything_but_bool_or_cache_settings(cache: object) -> None:
+    with pytest.raises(TypeError, match=r"cache= takes a bool or a CacheSettings") as exc_info:
+        providers.Factory(SimpleCreator, cache=cache)  # ty: ignore[invalid-argument-type]
+    assert repr(cache) in str(exc_info.value)

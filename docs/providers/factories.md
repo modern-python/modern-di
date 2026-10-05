@@ -112,7 +112,7 @@ class Dependencies(Group):
 
 ## Parameters
 
-`Factory(creator, *, scope=Scope.APP, bound_type=UNSET, kwargs=None, cache=None, skip_creator_parsing=False)`.
+`Factory(creator, *, scope=Scope.APP, bound_type=UNSET, kwargs=None, cache=False, skip_creator_parsing=False)`.
 The `creator` may also be passed as a keyword (`creator=`).
 
 When creating a Factory provider, you can configure several parameters:
@@ -143,7 +143,7 @@ Use this to provide specific values for parameters or override automatically res
 
 ### cache
 
-Enables caching for the provider. Pass `cache=True` to cache with default settings (no finalizer, cache cleared on close), or `cache=providers.CacheSettings(...)` to tune the finalizer and/or `clear_cache` behavior. Absent, `None`, or `False` means a fresh instance is created on every resolve. See [Lifecycle](lifecycle.md) for how caching, finalizers, and `close_async()` fit together.
+Enables caching for the provider. Pass `cache=True` to cache with default settings (no finalizer, cache cleared on close), or `cache=providers.CacheSettings(...)` to tune the finalizer and/or `clear_cache` behavior. With `cache=False`, the default, a fresh instance is created on every resolve. Any other value, `None` included, raises `TypeError`. See [Lifecycle](lifecycle.md) for how caching, finalizers, and `close_async()` fit together.
 
 ### skip_creator_parsing
 

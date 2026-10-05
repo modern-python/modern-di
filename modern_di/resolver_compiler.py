@@ -184,10 +184,10 @@ def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool)
 
 
 def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
-    plan = f.wiring_plan(registry)
+    plan = f._wiring_plan(registry)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
-    positional = f.can_call_positionally(plan)
+    positional = f._can_call_positionally(plan)
     code, arg_lines = _code(
         len(plan.provider_kwargs),
         None if positional else tuple(plan.provider_kwargs),
@@ -199,7 +199,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "pid": f.provider_id,
         "scope": f.scope,
         "creator": f._creator,
-        "resolution_step": f.resolution_step,
+        "resolution_step": f._resolution_step,
         "edges": plan.provider_kwargs,
         "arg_lines": arg_lines,
         "static": plan.static_kwargs,
@@ -229,7 +229,7 @@ def _compile_constant(value: typing.Any) -> "Resolver":
 def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") -> "Resolver":
     """Compile a resolver that always raises for the factory's first unwireable parameter, freshly built per call."""
     scope = f.scope
-    resolution_step = f.resolution_step
+    resolution_step = f._resolution_step
     build_error = f._argument_resolution_error
     arg_name, item = plan.unwireable[0]
 

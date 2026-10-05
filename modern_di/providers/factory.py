@@ -25,11 +25,19 @@ class CacheSettings(typing.Generic[types.T_co]):
         self.is_async_finalizer = bool(self.finalizer) and inspect.iscoroutinefunction(self.finalizer)
 
     @staticmethod
-    def coerce(cache: "bool | CacheSettings[types.T] | None") -> "CacheSettings[types.T] | None":
-        """Read a ``Factory``'s ``cache`` argument: ``True`` is the defaults, ``False`` and ``None`` are off."""
+    def _coerce(cache: "bool | CacheSettings[types.T]") -> "CacheSettings[types.T] | None":
+        """Read a ``Factory``'s ``cache`` argument: ``True`` is the defaults, ``False`` is off."""
+        if isinstance(cache, CacheSettings):
+            return cache
         if cache is True:
             return CacheSettings()
-        return cache or None
+        if cache is False:
+            return None
+        msg = (
+            f"Factory cache= takes a bool or a CacheSettings; got {cache!r}. "
+            "Pass cache=False, or leave it out, for an uncached factory."
+        )
+        raise TypeError(msg)
 
 
 class Factory(AbstractProvider[types.T_co]):
@@ -49,7 +57,7 @@ class Factory(AbstractProvider[types.T_co]):
         scope: enum.IntEnum | types.UnsetType = types.UNSET,
         bound_type: type | types.UnsetType | None = types.UNSET,
         kwargs: dict[str, typing.Any] | None = None,
-        cache: bool | CacheSettings[types.T_co] | None = None,
+        cache: bool | CacheSettings[types.T_co] = False,
         skip_creator_parsing: bool = False,
     ) -> None:
         if skip_creator_parsing:
@@ -83,7 +91,7 @@ class Factory(AbstractProvider[types.T_co]):
             bound_type=parsed.return_type.arg_type if isinstance(bound_type, types.UnsetType) else bound_type,
         )
         self._creator = creator
-        self.cache_settings = CacheSettings.coerce(cache)
+        self.cache_settings = CacheSettings._coerce(cache)  # noqa: SLF001
         self._kwargs = kwargs
         self._cached_definition_site: str | types.UnsetType | None = types.UNSET
 
@@ -145,7 +153,7 @@ class Factory(AbstractProvider[types.T_co]):
             return None
         return f"{module}:{lineno}"
 
-    def resolution_step(self) -> exceptions.ResolutionStep:
+    def _resolution_step(self) -> exceptions.ResolutionStep:
         return exceptions.ResolutionStep(scope=self.scope, name=self.display_name, location=self.definition_site)
 
     def _argument_resolution_error(
@@ -161,11 +169,11 @@ class Factory(AbstractProvider[types.T_co]):
             member_types=item.args,
         )
 
-    def wiring_plan(self, registry: "ProvidersRegistry") -> WiringPlan:
+    def _wiring_plan(self, registry: "ProvidersRegistry") -> WiringPlan:
         """Return this factory's wiring plan, memoized on the tree-wide providers registry."""
         return registry.plan_for(self, self._parsed_kwargs, self._kwargs)
 
-    def can_call_positionally(self, plan: WiringPlan) -> bool:
+    def _can_call_positionally(self, plan: WiringPlan) -> bool:
         """Whether this creator can be called positionally under `plan`.
 
         True when every parsed parameter is a positional-or-keyword provider dependency, in signature
@@ -180,12 +188,12 @@ class Factory(AbstractProvider[types.T_co]):
             return False
         return not (names and self._has_positional_only_gap)
 
-    def get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
+    def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
-        return self.wiring_plan(container.providers_registry).edges
+        return self._wiring_plan(container.providers_registry).edges
 
-    def iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
+    def _iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        plan = self.wiring_plan(container.providers_registry)
+        plan = self._wiring_plan(container.providers_registry)
         for name, item in plan.unwireable:
             yield self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)

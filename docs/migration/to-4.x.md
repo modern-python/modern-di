@@ -157,6 +157,30 @@ except* exceptions.AsyncFinalizerInSyncCloseError:
     ...
 ```
 
+### `Factory(cache=)` takes only a bool or a `CacheSettings`
+
+`cache=None` raises `TypeError`, and so does any other value that is not `True`, `False` or a
+`CacheSettings`. Replace `cache=None` with `cache=False`, or drop the argument: an uncached
+factory is still the default.
+
+### Provider internals are no longer public
+
+These methods were never documented and no integration calls them. In 4.0 they are private, so
+code that calls them raises `AttributeError`:
+
+- `AbstractProvider.get_dependencies()`, `AbstractProvider.redirect_target()` and
+  `AbstractProvider.iter_validation_issues()`. Call `container.validate()` to check the graph.
+- `Factory.wiring_plan()`, `Factory.can_call_positionally()` and `Factory.resolution_step()`.
+- `Alias.find_source()`. Resolve the alias instead.
+- `CacheSettings.coerce()`. Pass `True`, `False` or a `CacheSettings` to `Factory(cache=)`.
+
+### `AbstractProvider` is a plain class
+
+`AbstractProvider` no longer derives from `abc.ABC`. It never declared an abstract method, and the
+provider set is closed. Only code that relied on `ABCMeta` is affected:
+`AbstractProvider.register(...)` raises `AttributeError`. `isinstance(x, AbstractProvider)` works
+as before for every provider, and type hints that name `AbstractProvider` need no change.
+
 ### The 3.x deprecations are removed
 
 - `Container(validate=...)` raises `TypeError`, and `ValidateArgumentWarning` is gone with it. Drop
