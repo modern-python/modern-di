@@ -173,7 +173,6 @@ def test_positional_path_binds_args_in_signature_order() -> None:
         ordered = providers.Factory(creator=_make, scope=Scope.APP)
 
     container = Container(groups=[G])
-    container.open()
     plan = _plan(container._providers_registry, G.ordered)
     assert G.ordered._can_call_positionally(plan)  # self-guard: positional path selected
 
@@ -200,7 +199,6 @@ def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int
     group = _pytypes.new_class(f"_ArityGroup{arity}", (Group,), exec_body=lambda ns: ns.update(members))
 
     container = Container(scope=Scope.APP, groups=[group])
-    container.open()
     plan = _plan(container._providers_registry, members["bag"])
     assert members["bag"]._can_call_positionally(plan)  # self-guard: positional path selected
 
@@ -242,7 +240,6 @@ def test_arity_rung_front_guards_the_override(arity: int) -> None:
     """
     group = _arity_group(arity)
     container = Container(scope=Scope.APP, groups=[group])
-    container.open()
     sentinel = object()
     container.override(group.target, sentinel)
     assert container.resolve_provider(group.target) is sentinel
@@ -259,7 +256,6 @@ def test_arity_rung_navigates_to_its_own_scope(arity: int) -> None:
     """
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
     assert isinstance(request.resolve_provider(group.target), _Bag)
 
@@ -271,7 +267,6 @@ def test_arity_rung_raises_for_a_closed_target(arity: int) -> None:
     # own `if target._closed` guard.
     group = _arity_group(arity)
     app = Container(scope=Scope.APP, groups=[group])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
     with pytest.raises(exceptions.ContainerClosedError) as exc:
@@ -299,7 +294,6 @@ def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
 
     group = _arity_group(arity, creator=_needs_one_more)
     container = Container(scope=Scope.APP, groups=[group])
-    container.open()
     with pytest.raises(exceptions.CreatorCallError):
         container.resolve_provider(group.target)
 
@@ -314,7 +308,6 @@ def test_arity_rung_reraises_a_type_error_from_inside_the_creator(arity: int) ->
 
     group = _arity_group(arity, creator=ns["_c"])
     container = Container(scope=Scope.APP, groups=[group])
-    container.open()
     with pytest.raises(TypeError, match="from inside") as exc:
         container.resolve_provider(group.target)
     assert not isinstance(exc.value, exceptions.CreatorCallError)
@@ -336,7 +329,6 @@ def test_arity_rung_prepends_its_step_to_a_dependency_error(arity: int) -> None:
     group = _pytypes.new_class(f"_DepErr{arity}", (Group,), exec_body=lambda gns: gns.update(members))
 
     container = Container(scope=Scope.APP, groups=[group])
-    container.open()
     with pytest.raises(exceptions.ScopeNotInitializedError) as exc:
         container.resolve_provider(members["shallow"])
     assert "_Shallow" in str(exc.value)
@@ -490,7 +482,6 @@ def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyP
         ordered = providers.Factory(creator=_make, scope=Scope.APP)
 
     container = Container(groups=[G])  # parse_creator already ran at G's class def
-    container.open()
     calls: list[object] = []
     real_signature = inspect.signature
 

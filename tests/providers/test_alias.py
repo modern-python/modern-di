@@ -28,7 +28,6 @@ class MyGroup(Group):
 
 def test_alias_delegates_to_source() -> None:
     container = Container(groups=[MyGroup])
-    container.open()
     concrete = container.resolve(PostgresRepository)
     abstract = container.resolve(AbstractRepository)
     assert isinstance(abstract, PostgresRepository)
@@ -41,7 +40,6 @@ def test_alias_without_caching_returns_fresh_instance_per_call() -> None:
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
     container = Container(groups=[G])
-    container.open()
     a = container.resolve(AbstractRepository)
     b = container.resolve(PostgresRepository)
     assert isinstance(a, PostgresRepository)
@@ -55,19 +53,16 @@ def test_alias_respects_source_scope() -> None:
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
     app_container = Container(groups=[G])
-    app_container.open()
     with pytest.raises(ScopeNotInitializedError):
         app_container.resolve(AbstractRepository)
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
     instance = request_container.resolve(AbstractRepository)
     assert isinstance(instance, PostgresRepository)
 
 
 def test_alias_override_does_not_affect_source() -> None:
     container = Container(groups=[MyGroup])
-    container.open()
     mock = PostgresRepository(dsn="mock-alias")
     container.override(MyGroup.abstract_repo, mock)
 
@@ -77,7 +72,6 @@ def test_alias_override_does_not_affect_source() -> None:
 
 def test_source_override_propagates_through_alias() -> None:
     container = Container(groups=[MyGroup])
-    container.open()
     mock = PostgresRepository(dsn="mock-source")
     container.override(MyGroup.repo, mock)
 
@@ -90,7 +84,6 @@ def test_alias_missing_source_raises_on_resolve() -> None:
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
     container = Container(groups=[G])
-    container.open()
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository") as exc:
         container.resolve(AbstractRepository)
     assert exc.value.source_type is PostgresRepository
@@ -102,7 +95,6 @@ def test_alias_missing_source_raises_on_validate_provider() -> None:
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
     container = Container(groups=[G])
-    container.open()
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository"):
         container.resolve_provider(G.abstract)
 
@@ -191,7 +183,6 @@ def test_alias_of_alias_resolves_to_source_and_validates() -> None:
     # all alias sources registered, so B-5 validate aggregation is not in play
     container = Container(scope=Scope.APP, groups=[_ChainGroup])
     container.validate()
-    container.open()
     impl = container.resolve(_ChainImpl)
     assert container.resolve(_ChainIfB) is impl
     assert container.resolve(_ChainIfA) is impl
@@ -199,10 +190,8 @@ def test_alias_of_alias_resolves_to_source_and_validates() -> None:
 
 def test_alias_resolved_from_child_returns_app_cached_singleton() -> None:
     container = Container(scope=Scope.APP, groups=[_ChainGroup])
-    container.open()
     app_instance = container.resolve(_ChainImpl)
     request = container.build_child_container(scope=Scope.REQUEST)
-    request.open()
     assert request.resolve(_ChainIfA) is app_instance
 
 
@@ -222,10 +211,8 @@ class _AliasScopeGroup(Group):
 
 def test_validate_does_not_flag_alias_whose_scope_is_shallower_than_source() -> None:
     app = Container(scope=Scope.APP, groups=[_AliasScopeGroup])
-    app.open()
     app.validate()  # must NOT raise for the alias->impl edge
     request = app.build_child_container(scope=Scope.REQUEST)
-    request.open()
     assert isinstance(request.resolve(_ShallowIface), _DeepImpl)  # resolution works
 
 
@@ -250,7 +237,6 @@ class _AliasChainErrGroup(Group):
 
 def test_alias_appears_in_resolution_error_chain() -> None:
     container = Container(scope=Scope.APP, groups=[_AliasChainErrGroup])
-    container.open()
     with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
         container.resolve(_AliasTargetIface)
     rendered = str(exc_info.value)
@@ -272,7 +258,6 @@ class _NullBoundAliasGroup(Group):
 
 def test_alias_null_bound_type_resolution_error_uses_repr_fallback() -> None:
     container = Container(scope=Scope.APP, groups=[_NullBoundAliasGroup])
-    container.open()
     with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
         container.resolve_provider(_NullBoundAliasGroup.iface)
     rendered = str(exc_info.value)
@@ -408,7 +393,6 @@ def test_alias_accepts_positional_source_type() -> None:
         abstract = providers.Alias(PostgresRepository, bound_type=AbstractRepository)
 
     container = Container(groups=[G])
-    container.open()
     assert isinstance(container.resolve(AbstractRepository), PostgresRepository)
 
 
@@ -504,7 +488,6 @@ def test_alias_on_a_closed_container_raises() -> None:
     # The alias hop itself carries no closed-container check; the entry `resolve` raises,
     # exactly as it does for a context provider or `container_provider`.
     container = Container(groups=[MyGroup])
-    container.open()
     container.resolve(AbstractRepository)
     container.close_sync()
 
@@ -525,7 +508,6 @@ def test_alias_picks_up_a_source_registered_after_a_failed_resolve() -> None:
         iface = providers.Alias(source_type=Late, bound_type=LateIface)
 
     container = Container(groups=[G])
-    container.open()
 
     with pytest.raises(AliasSourceNotRegisteredError):
         container.resolve(LateIface)
@@ -549,7 +531,6 @@ def test_a_parent_compiled_against_a_dangling_alias_picks_up_a_late_source() -> 
         parent = providers.Factory(creator=Parent)
 
     container = Container(groups=[G])
-    container.open()
 
     with pytest.raises(AliasSourceNotRegisteredError):
         container.resolve(Parent)
@@ -572,7 +553,6 @@ def test_mutual_alias_cycle_raises_circular_dependency_at_runtime() -> None:
         second = providers.Alias(source_type=First, bound_type=Second)
 
     container = Container(groups=[G])
-    container.open()
 
     # Asserted via `match=` rather than after the block: a RecursionError tears down the
     # trace function, so below 3.12 -- where coverage traces instead of using

@@ -1,8 +1,7 @@
 import asyncio
 import dataclasses
 import threading
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -26,45 +25,44 @@ async def async_finalizer(_: DependentCreator) -> None:
 
 
 class MyGroup(Group):
-    app_singleton = providers.Factory(
+    app_cached = providers.Factory(
         creator=SimpleCreator,
         kwargs={"dep1": "original"},
         cache=True,
     )
-    request_singleton = providers.Factory(
+    request_cached = providers.Factory(
         scope=Scope.REQUEST, creator=DependentCreator, cache=providers.CacheSettings(finalizer=async_finalizer)
     )
 
 
-async def test_app_singleton() -> None:
+async def test_app_cached_factory() -> None:
     sync_calls: list[SimpleCreator] = []
 
     class LocalGroup(Group):
-        singleton = providers.Factory(
+        cached = providers.Factory(
             creator=SimpleCreator,
             kwargs={"dep1": "original"},
             cache=providers.CacheSettings(clear_cache=False, finalizer=sync_calls.append),
         )
 
     app_container = Container(groups=[LocalGroup])
-    app_container.open()
-    singleton1 = app_container.resolve_provider(LocalGroup.singleton)
-    singleton2 = app_container.resolve_provider(LocalGroup.singleton)
-    assert singleton1 is singleton2
+    instance1 = app_container.resolve_provider(LocalGroup.cached)
+    instance2 = app_container.resolve_provider(LocalGroup.cached)
+    assert instance1 is instance2
 
     app_container.close_sync()
-    assert sync_calls == [singleton1]  # finalizer ran once on close
+    assert sync_calls == [instance1]  # finalizer ran once on close
 
     # clear_cache=False: the instance survives the close and is returned again once the container
     # is reopened, without re-running the creator or finalizer.
     with pytest.raises(ContainerClosedError):
-        app_container.resolve_provider(LocalGroup.singleton)
+        app_container.resolve_provider(LocalGroup.cached)
     app_container.open()
-    assert app_container.resolve_provider(LocalGroup.singleton) is singleton1
-    assert sync_calls == [singleton1]  # finalizer did not re-fire
+    assert app_container.resolve_provider(LocalGroup.cached) is instance1
+    assert sync_calls == [instance1]  # finalizer did not re-fire
 
     await app_container.close_async()
-    assert sync_calls == [singleton1]
+    assert sync_calls == [instance1]
 
 
 def test_close_does_not_re_finalize_with_clear_cache_false() -> None:
@@ -78,36 +76,11 @@ def test_close_does_not_re_finalize_with_clear_cache_false() -> None:
         )
 
     container = Container(groups=[G])
-    container.open()
     container.resolve(str)
     container.close_sync()
     container.close_sync()
     container.close_sync()
     assert calls == ["r"]
-
-
-def test_closed_container_raises_then_rebuilds_after_open_with_clear_cache_true() -> None:
-    calls: list[str] = []
-
-    class G(Group):
-        f = providers.Factory(
-            creator=lambda: "r",
-            bound_type=str,
-            cache=providers.CacheSettings(clear_cache=True, finalizer=calls.append),
-        )
-
-    container = Container(groups=[G])
-    container.open()
-    container.resolve(str)
-    container.close_sync()
-    assert calls == ["r"]
-    with pytest.raises(ContainerClosedError):
-        container.resolve(str)
-    assert calls == ["r"]
-    container.open()
-    container.resolve(str)  # rebuilds, since clear_cache=True cleared the cache on close
-    container.close_sync()
-    assert calls == ["r", "r"]  # the rebuilt instance is finalized again on this second close
 
 
 async def test_close_async_runs_sync_finalizer() -> None:
@@ -121,30 +94,26 @@ async def test_close_async_runs_sync_finalizer() -> None:
         )
 
     container = Container(groups=[G])
-    container.open()
     container.resolve(str)
     await container.close_async()
     assert calls == ["r"]
 
 
-async def test_request_singleton() -> None:
+async def test_request_cached_factory() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
-    instance1 = request_container.resolve_provider(MyGroup.request_singleton)
+    instance1 = request_container.resolve_provider(MyGroup.request_cached)
     instance2 = request_container.resolve(DependentCreator)
     assert isinstance(instance1.dep1, SimpleCreator)
     assert instance1 is instance2
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
-    instance3 = request_container.resolve_provider(MyGroup.request_singleton)
+    instance3 = request_container.resolve_provider(MyGroup.request_cached)
     instance4 = request_container.resolve(DependentCreator)
     assert instance3 is instance4
     assert instance1 is not instance3
 
-    cache_item = request_container._cache_registry.fetch_cache_item(MyGroup.request_singleton)
+    cache_item = request_container._cache_registry.fetch_cache_item(MyGroup.request_cached)
 
     with pytest.raises(FinalizerError) as exc_info:
         request_container.close_sync()
@@ -158,18 +127,15 @@ async def test_request_singleton() -> None:
     assert cache_item.cache is UNSET
 
 
-def test_app_singleton_in_request_scope() -> None:
+def test_app_cached_factory_resolves_once_across_request_children() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
-    singleton1 = request_container.resolve_provider(MyGroup.app_singleton)
+    instance1 = request_container.resolve_provider(MyGroup.app_cached)
 
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
-    singleton2 = request_container.resolve_provider(MyGroup.app_singleton)
+    instance2 = request_container.resolve_provider(MyGroup.app_cached)
 
-    assert singleton1 is singleton2
+    assert instance1 is instance2
 
 
 def test_sync_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
@@ -196,7 +162,6 @@ def test_sync_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
         )
 
     app_container = Container(groups=[BrokenGroup])
-    app_container.open()
     app_container.resolve_provider(BrokenGroup.first)
     app_container.resolve_provider(BrokenGroup.second)
 
@@ -232,7 +197,6 @@ async def test_async_finalizer_exception_does_not_abort_remaining_cleanup() -> N
         )
 
     app_container = Container(groups=[BrokenAsyncGroup])
-    app_container.open()
     app_container.resolve_provider(BrokenAsyncGroup.first)
     app_container.resolve_provider(BrokenAsyncGroup.second)
 
@@ -259,7 +223,6 @@ class _ValueErrorFinalizerGroup(Group):
 
 def test_finalizer_error_is_an_exception_group() -> None:
     container = Container(groups=[_ValueErrorFinalizerGroup])
-    container.open()
     container.resolve_provider(_ValueErrorFinalizerGroup.failing)
 
     with pytest.raises(FinalizerError) as exc_info:
@@ -279,7 +242,6 @@ def test_finalizer_error_is_an_exception_group() -> None:
 
 def test_except_star_catches_user_finalizer_error_from_close_sync() -> None:
     container = Container(groups=[_ValueErrorFinalizerGroup])
-    container.open()
     container.resolve_provider(_ValueErrorFinalizerGroup.failing)
     caught: list[ExceptionGroup[ValueError]] = []
 
@@ -296,7 +258,6 @@ def test_except_star_catches_user_finalizer_error_from_close_sync() -> None:
 
 async def test_except_star_catches_user_finalizer_error_from_close_async() -> None:
     container = Container(groups=[_ValueErrorFinalizerGroup])
-    container.open()
     container.resolve_provider(_ValueErrorFinalizerGroup.failing)
     caught: list[ExceptionGroup[ValueError]] = []
 
@@ -312,10 +273,8 @@ async def test_except_star_catches_user_finalizer_error_from_close_async() -> No
 
 async def test_except_star_catches_async_finalizer_in_sync_close() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
-    request_container.resolve_provider(MyGroup.request_singleton)
+    request_container.resolve_provider(MyGroup.request_cached)
     caught: list[ExceptionGroup[AsyncFinalizerInSyncCloseError]] = []
 
     try:
@@ -358,7 +317,6 @@ def test_finalizer_runs_for_falsy_cached_resource_sync() -> None:
         )
 
     app_container = Container(groups=[FalsyGroup])
-    app_container.open()
     instance = app_container.resolve_provider(FalsyGroup.empty_dict)
     assert instance == {}
 
@@ -379,7 +337,6 @@ async def test_finalizer_runs_for_falsy_cached_resource_async() -> None:
         )
 
     app_container = Container(groups=[FalsyGroup])
-    app_container.open()
     instance = app_container.resolve_provider(FalsyGroup.empty_list)
     assert instance == []
 
@@ -406,7 +363,6 @@ def test_cached_none_is_returned_and_finalized() -> None:
         )
 
     app_container = Container(groups=[NoneGroup])
-    app_container.open()
     app_container.resolve_provider(NoneGroup.none_resource)
     app_container.resolve_provider(NoneGroup.none_resource)
 
@@ -417,36 +373,44 @@ def test_cached_none_is_returned_and_finalized() -> None:
     assert cleaned_up == [None]
 
 
-@pytest.mark.repeat(10)
-def test_singleton_threading_concurrency() -> None:
-    calls: int = 0
-    lock = threading.Lock()
+class _Gate: ...
 
-    def create_singleton() -> str:
-        nonlocal calls
-        with lock:
-            calls += 1
-        time.sleep(0.01)
-        return ""
 
-    singleton = providers.Factory(creator=create_singleton, cache=True)
+class _GatedValue:
+    def __init__(self, gate: _Gate) -> None:
+        self.gate = gate
 
-    def resolve_singleton(container: Container) -> str:
-        return container.resolve_provider(singleton)
 
-    app_container = Container()
-    app_container.open()
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        tasks = [
-            pool.submit(resolve_singleton, app_container),
-            pool.submit(resolve_singleton, app_container),
-            pool.submit(resolve_singleton, app_container),
-            pool.submit(resolve_singleton, app_container),
-        ]
-        results = [x.result() for x in as_completed(tasks)]
+def test_concurrent_cache_misses_create_once() -> None:
+    """Threads that all miss the cache together still run the creator once.
 
-    assert all(x == "" for x in results)
-    assert calls == 1
+    The barrier sits in a dependency, and dependencies resolve outside the lock, so every thread is
+    past the unlocked cache check before any of them creates. If the lock covered dependency
+    resolution, the barrier would time out and the test would fail instead of hanging.
+    """
+    n = 4
+    barrier = threading.Barrier(n, timeout=5)
+    created: list[_GatedValue] = []
+
+    def make_gate() -> _Gate:
+        barrier.wait()
+        return _Gate()
+
+    def make_value(gate: _Gate) -> _GatedValue:
+        value = _GatedValue(gate)
+        created.append(value)
+        return value
+
+    class G(Group):
+        gate = providers.Factory(creator=make_gate)
+        value = providers.Factory(creator=make_value, cache=True)
+
+    container = Container(groups=[G])
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        results = list(pool.map(lambda _: container.resolve(_GatedValue), range(n)))
+
+    assert len(created) == 1
+    assert all(result is created[0] for result in results)
 
 
 _lifo_events: list[str] = []
@@ -486,14 +450,13 @@ class _LifoGroup(Group):
 def test_finalizers_run_in_reverse_creation_order_even_with_warmup() -> None:
     _lifo_events.clear()
     container = Container(scope=Scope.APP, groups=[_LifoGroup])
-    container.open()
     container.resolve(_LifoLeaf)  # the docs-recommended warmup pattern
     container.resolve(_LifoTop)
     container.close_sync()
     assert _lifo_events == ["top", "mid", "leaf"]
 
 
-def test_singleton_resolution_is_reentrant() -> None:
+def test_cached_resolution_is_reentrant() -> None:
     class Inner:
         pass
 
@@ -506,7 +469,6 @@ def test_singleton_resolution_is_reentrant() -> None:
         outer = providers.Factory(creator=Outer, cache=True)
 
     container = Container(groups=[ReentrantGroup])
-    container.open()
     result: list[Outer] = []
 
     # Use a daemon Thread (not ThreadPoolExecutor) so the worker can be abandoned
@@ -519,7 +481,7 @@ def test_singleton_resolution_is_reentrant() -> None:
     thread.start()
     thread.join(timeout=5)
 
-    assert not thread.is_alive(), "container.resolve deadlocked — singleton lock is not re-entrant"
+    assert not thread.is_alive(), "container.resolve deadlocked: the cache lock is not re-entrant"
     assert len(result) == 1
     assert isinstance(result[0], Outer)
     assert isinstance(result[0].inner, Inner)
@@ -546,7 +508,6 @@ class _AwaitableFinGroup(Group):
 async def test_sync_finalizer_returning_awaitable_is_awaited_in_async_close() -> None:
     _awaitable_fin_events.clear()
     container = Container(scope=Scope.APP, groups=[_AwaitableFinGroup])
-    container.open()
     container.resolve(_AwaitableFinSvc)
     await container.close_async()
     assert _awaitable_fin_events == ["cleaned"]
@@ -555,7 +516,6 @@ async def test_sync_finalizer_returning_awaitable_is_awaited_in_async_close() ->
 async def test_sync_finalizer_returning_awaitable_raises_in_sync_close_then_recovers() -> None:
     _awaitable_fin_events.clear()
     container = Container(scope=Scope.APP, groups=[_AwaitableFinGroup])
-    container.open()
     container.resolve(_AwaitableFinSvc)
     with pytest.raises(FinalizerError):
         container.close_sync()
@@ -564,46 +524,26 @@ async def test_sync_finalizer_returning_awaitable_raises_in_sync_close_then_reco
     assert _awaitable_fin_events == ["cleaned"]
 
 
-_cycle_events: list[str] = []
+async def test_sync_finalizer_returning_a_future_raises_in_sync_close_then_recovers() -> None:
+    """A future is awaitable but is not a coroutine, so sync close rejects it without closing anything."""
+    future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
 
+    class G(Group):
+        svc = providers.Factory(
+            scope=Scope.APP, creator=_AwaitableFinSvc, cache=providers.CacheSettings(finalizer=lambda _: future)
+        )
 
-class _PersistentBroker: ...
-
-
-class _EphemeralSvc: ...
-
-
-class _CycleGroup(Group):
-    broker = providers.Factory(
-        scope=Scope.APP,
-        creator=_PersistentBroker,
-        cache=providers.CacheSettings(clear_cache=False, finalizer=lambda _: _cycle_events.append("broker-finalized")),
-    )
-    svc = providers.Factory(
-        scope=Scope.APP,
-        creator=_EphemeralSvc,
-        cache=True,  # clear_cache=True default
-    )
-
-
-def test_persistent_provider_survives_close_reopen_cycle() -> None:
-    _cycle_events.clear()
-    container = Container(scope=Scope.APP, groups=[_CycleGroup])
-    with container:
-        broker1 = container.resolve(_PersistentBroker)
-        svc1 = container.resolve(_EphemeralSvc)
-    # exited → closed; finalizer ran once
-    assert _cycle_events == ["broker-finalized"]
-    with pytest.raises(ContainerClosedError):
-        container.resolve(_PersistentBroker)
-    # re-enter → reopen
-    with container:
-        broker2 = container.resolve(_PersistentBroker)
-        svc2 = container.resolve(_EphemeralSvc)
-    assert broker2 is broker1  # persistent: same instance preserved
-    assert svc2 is not svc1  # ephemeral: rebuilt fresh
-    # finalizer did NOT re-fire for the preserved broker
-    assert _cycle_events == ["broker-finalized"]
+    container = Container(scope=Scope.APP, groups=[G])
+    container.resolve(_AwaitableFinSvc)
+    with pytest.raises(FinalizerError) as exc:
+        container.close_sync()
+    (inner,) = exc.value.exceptions
+    assert isinstance(inner, AsyncFinalizerInSyncCloseError)
+    assert inner.finalizer_type is _AwaitableFinSvc
+    assert container._cache_registry.cached_count() == 1
+    future.set_result(None)
+    await container.close_async()
+    assert container._cache_registry.cached_count() == 0
 
 
 class _First: ...

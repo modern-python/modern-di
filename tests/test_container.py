@@ -2,8 +2,8 @@ import copy
 import dataclasses
 import gc
 import inspect
+import threading
 import typing
-import warnings
 import weakref
 
 import pytest
@@ -37,7 +37,6 @@ def test_container_prevent_copy() -> None:
 def test_container_scope_skipped() -> None:
     app_factory = providers.Factory(creator=lambda: "test")
     container = Container(scope=Scope.REQUEST)
-    container.open()
     with pytest.raises(ScopeSkippedError, match=r"No APP-scope container exists in this chain") as exc:
         container.resolve_provider(app_factory)
     assert exc.value.provider_scope == Scope.APP
@@ -45,7 +44,6 @@ def test_container_scope_skipped() -> None:
 
 def test_container_build_child() -> None:
     app_container = Container()
-    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     assert request_container.scope == Scope.REQUEST
     assert app_container.scope == Scope.APP
@@ -53,7 +51,6 @@ def test_container_build_child() -> None:
 
 def test_container_scope_limit_reached() -> None:
     step_container = Container(scope=Scope.STEP)
-    step_container.open()
     with pytest.raises(MaxScopeReachedError, match=r"Max scope of STEP is reached.") as exc:
         step_container.build_child_container()
     assert exc.value.parent_scope == Scope.STEP
@@ -61,7 +58,6 @@ def test_container_scope_limit_reached() -> None:
 
 def test_container_build_child_wrong_scope() -> None:
     app_container = Container()
-    app_container.open()
     with pytest.raises(InvalidChildScopeError, match="Scope of child container cannot be") as exc:
         app_container.build_child_container(scope=Scope.APP)
     assert exc.value.parent_scope == Scope.APP
@@ -119,7 +115,6 @@ async def test_container_async_context_manager() -> None:
 
 def test_container_repr() -> None:
     container = Container()
-    container.open()
     assert repr(container) == "Container(scope=APP, parent=None, providers=1, cached=0)"
 
     request_container = container.build_child_container(scope=Scope.REQUEST)
@@ -386,7 +381,7 @@ def test_validation_failed_error_str_renders_inner_errors() -> None:
 
 
 def test_constructor_rejects_use_lock() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unexpected keyword argument 'use_lock'"):
         Container(use_lock=False)  # ty: ignore[unknown-argument]
 
 
@@ -410,7 +405,6 @@ def test_container_provider_resolves_on_subclasses() -> None:
         svc = providers.Factory(creator=Service)
 
     container = MyContainer(groups=[G])
-    container.open()
     instance = container.resolve(Service)
     assert instance.di_container is container
 
@@ -425,7 +419,7 @@ def test_constructor_takes_only_scope_positionally() -> None:
     class G(Group):
         name = providers.Factory(creator=lambda: "r", bound_type=str)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="positional arguments"):
         Container(Scope.APP, None)  # ty: ignore[too-many-positional-arguments]
 
     assert Container(Scope.APP).scope is Scope.APP
@@ -435,7 +429,6 @@ def test_constructor_takes_only_scope_positionally() -> None:
 
 def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
     app = Container(scope=Scope.APP)
-    app.open()
     with pytest.raises(InvalidChildScopeError):
         Container(scope=Scope.APP, parent_container=app)
     request = app.build_child_container(scope=Scope.REQUEST)
@@ -508,9 +501,7 @@ async def test_closed_container_async_path_raises_by_reference() -> None:
 
 def test_resolving_through_closed_parent_via_open_child_raises() -> None:
     app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
-    app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
-    child.open()
     app.close_sync()
     with pytest.raises(ContainerClosedError) as exc:
         child.resolve(_PersistentBroker)
@@ -553,14 +544,24 @@ def test_closed_container_raises_before_running_the_creator() -> None:
     assert container._cache_registry.cached_count() == 0
 
 
-def test_explicit_open_after_close_does_not_warn() -> None:
-    container = Container(scope=Scope.APP)
-    container.open()
+def test_reopen_rebuilds_a_value_that_close_cleared() -> None:
+    class Svc: ...
+
+    finalized: list[Svc] = []
+
+    class G(Group):
+        svc = providers.Factory(creator=Svc, cache=providers.CacheSettings(finalizer=finalized.append))
+
+    container = Container(groups=[G])
+    first = container.resolve(Svc)
     container.close_sync()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")  # a deliberate reopen is silent
-        container.open()
-        assert container.resolve(Container) is container
+    assert finalized == [first]
+    with pytest.raises(ContainerClosedError):
+        container.resolve(Svc)
+    with container:
+        second = container.resolve(Svc)
+    assert second is not first
+    assert finalized == [first, second]
 
 
 def test_child_built_off_closed_parent_raises_only_when_the_parent_resolves() -> None:
@@ -571,7 +572,6 @@ def test_child_built_off_closed_parent_raises_only_when_the_parent_resolves() ->
     would break every integration that builds a request child after a shutdown/restart cycle.
     """
     app = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
-    app.open()
     app.close_sync()
     child = app.build_child_container(scope=Scope.REQUEST)
     assert child.resolve(Container) is child
@@ -603,22 +603,9 @@ def test_fresh_container_is_open() -> None:
     assert container.closed is False
 
 
-def test_construct_then_close_then_reuse_raises_until_reopened() -> None:
-    container = Container(scope=Scope.APP)
-    container.close_sync()
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
-    with pytest.raises(ContainerClosedError):
-        container.resolve(Container)
-    container.open()
-    assert container.resolve(Container) is container
-
-
 def test_fresh_container_resolves_without_open() -> None:
     container = Container(scope=Scope.APP)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")  # a never-closed container must not warn
-        assert container.resolve(Container) is container
+    assert container.resolve(Container) is container
     assert container.closed is False
 
 
@@ -629,26 +616,30 @@ def test_fresh_container_builds_child_and_child_resolves_without_open() -> None:
     assert app.closed is False  # building a child does not close the parent
 
 
-def test_build_child_off_closed_parent_is_allowed() -> None:
-    app = Container(scope=Scope.APP)
-    app.open()
-    app.close_sync()
-    child = app.build_child_container(scope=Scope.REQUEST)  # no raise: builds nothing, resolves nothing
-    assert child.scope is Scope.REQUEST
+def test_warm_cached_resolve_does_not_wait_for_the_lock() -> None:
+    """A cached value resolves while another thread holds the container lock.
+
+    The lock is taken only on a cache miss. If a warm resolve took it too, the worker would block
+    until the join timeout and the test would fail instead of hanging.
+    """
+    root = Container(scope=Scope.APP, groups=[_AppBrokerGroup])
+    warm = root.resolve(_PersistentBroker)
+    child = root.build_child_container(scope=Scope.REQUEST)
+    results: list[_PersistentBroker] = []
+    worker = threading.Thread(target=lambda: results.append(child.resolve(_PersistentBroker)), daemon=True)
+    with root._lock:
+        worker.start()
+        worker.join(timeout=5)
+        finished_while_held = not worker.is_alive()
+    worker.join(timeout=5)
+    assert finished_while_held
+    assert results[0] is warm
 
 
-def test_private_lock_and_scope_map_back_the_machinery() -> None:
+def test_private_scope_map_backs_find_container() -> None:
     root = Container()
-    root.open()
     child = root.build_child_container(scope=Scope.REQUEST)
 
-    # _lock is a reentrant lock (threading.RLock is a factory, not a type, so
-    # assert behavior, not isinstance)
-    assert root._lock is not None
-    assert root._lock.acquire()
-    assert root._lock.acquire()  # reentrant
-    root._lock.release()
-    root._lock.release()
     # The map holds ancestors only — never the container itself, which would be a reference cycle.
     # `find_container` short-circuits on its own scope, so a self-entry would be dead weight.
     assert set(child._scope_map) == {Scope.APP}
@@ -673,7 +664,6 @@ def test_closed_children_are_freed_without_the_cycle_collector() -> None:
 
     n_children = 100
     root = Container(scope=Scope.APP)
-    root.open()
     gc.collect()
     was_enabled = gc.isenabled()
     gc.disable()
@@ -683,7 +673,6 @@ def test_closed_children_are_freed_without_the_cycle_collector() -> None:
             sentinel = Sentinel()
             child = root.build_child_container(scope=Scope.REQUEST, context={Sentinel: sentinel})
             weakref.finalize(sentinel, _count, None)
-            child.open()
             child.close_sync()
             children.append(child)
         del children, child, sentinel
@@ -698,7 +687,6 @@ def test_closed_children_are_freed_without_the_cycle_collector() -> None:
 
 def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:
     container = Container(scope=Scope.APP)
-    container.open()
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
 
     container.add_providers(str_factory)
@@ -730,7 +718,6 @@ def test_add_providers_raises_on_duplicate_intra_batch() -> None:
 
 def test_add_providers_on_child_container_raises() -> None:
     root = Container(scope=Scope.APP)
-    root.open()
     child = root.build_child_container(scope=Scope.REQUEST)
     str_factory = providers.Factory(creator=lambda: "added", bound_type=str)
 
@@ -776,7 +763,6 @@ def test_resolve_dependency_with_provider_returns_same_instance_as_resolve_provi
         cached = providers.Factory(creator=lambda: "value", bound_type=str, cache=True)
 
     container = Container(groups=[G])
-    container.open()
     via_dispatch = container.resolve_dependency(G.cached)
     via_resolve_provider = container.resolve_provider(G.cached)
     assert via_dispatch is via_resolve_provider
@@ -794,7 +780,6 @@ def test_add_providers_rebuilds_stale_wiring_plan_for_optional_dependency() -> N
         inner: Inner | None = None
 
     container = Container(scope=Scope.APP)
-    container.open()
     outer_factory = providers.Factory(creator=Outer)  # not cached: second resolve rebuilds
 
     first = container.resolve_provider(outer_factory)
@@ -818,7 +803,6 @@ def test_add_providers_rebuilds_stale_wiring_plan_for_required_dependency() -> N
         inner: Inner
 
     container = Container(scope=Scope.APP)
-    container.open()
     outer_factory = providers.Factory(creator=Outer)
 
     with pytest.raises(ArgumentResolutionError):
@@ -849,7 +833,6 @@ def test_resolve_dependency_with_type_returns_same_instance_as_resolve() -> None
         cached = providers.Factory(creator=lambda: "value", bound_type=str, cache=True)
 
     container = Container(groups=[G])
-    container.open()
     via_dispatch = container.resolve_dependency(str)
     via_resolve = container.resolve(str)
     assert via_dispatch is via_resolve
@@ -864,7 +847,6 @@ def test_resolve_dependency_with_provider_returns_override() -> None:
         app_factory = providers.Factory(creator=Service)
 
     container = Container(groups=[G])
-    container.open()
     override = Service(name="override")
     container.override(G.app_factory, override)
 
@@ -898,9 +880,7 @@ def test_resolve_dependency_works_on_child_container_for_both_arms() -> None:
         request_factory = providers.Factory(scope=Scope.REQUEST, creator=lambda: "value", bound_type=str)
 
     app_container = Container(groups=[G])
-    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
 
     assert request_container.resolve_dependency(str) == "value"
     assert request_container.resolve_dependency(G.request_factory) == "value"
@@ -915,7 +895,6 @@ class _OverrideGroup(Group):
 
 def test_override_context_manager_applies_and_resets() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     mock = _OverrideSvc()
     with container.override(_OverrideGroup.svc, mock) as bound:
         assert bound is mock
@@ -925,7 +904,6 @@ def test_override_context_manager_applies_and_resets() -> None:
 
 def test_override_context_manager_restores_prior_imperative_override() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     first = _OverrideSvc()
     second = _OverrideSvc()
     container.override(_OverrideGroup.svc, first)
@@ -936,7 +914,6 @@ def test_override_context_manager_restores_prior_imperative_override() -> None:
 
 def test_override_context_manager_nested_unwinds_in_order() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     outer = _OverrideSvc()
     inner = _OverrideSvc()
     with container.override(_OverrideGroup.svc, outer):
@@ -950,7 +927,6 @@ def test_override_context_manager_nested_unwinds_in_order() -> None:
 
 def test_override_context_manager_restores_on_exception() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     mock = _OverrideSvc()
     msg = "boom"
     with pytest.raises(RuntimeError), container.override(_OverrideGroup.svc, mock):
@@ -960,7 +936,6 @@ def test_override_context_manager_restores_on_exception() -> None:
 
 def test_override_context_manager_exit_restores_snapshot_after_inner_reset() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     first = _OverrideSvc()
     second = _OverrideSvc()
     container.override(_OverrideGroup.svc, first)
@@ -973,7 +948,6 @@ def test_override_context_manager_exit_restores_snapshot_after_inner_reset() -> 
 
 def test_override_survives_root_close_sync_and_reopen() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     mock = _OverrideSvc()
     container.override(_OverrideGroup.svc, mock)
     container.close_sync()
@@ -983,7 +957,6 @@ def test_override_survives_root_close_sync_and_reopen() -> None:
 
 async def test_override_survives_root_close_async_and_reopen() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     mock = _OverrideSvc()
     container.override(_OverrideGroup.svc, mock)
     await container.close_async()
@@ -993,7 +966,6 @@ async def test_override_survives_root_close_async_and_reopen() -> None:
 
 def test_override_context_manager_exit_after_root_close_restores_prior_override() -> None:
     container = Container(groups=[_OverrideGroup])
-    container.open()
     first = _OverrideSvc()
     second = _OverrideSvc()
     container.override(_OverrideGroup.svc, first)
@@ -1012,7 +984,6 @@ def test_resolve_provider_raises_for_unhandled_provider_type() -> None:
 
     provider = _UnknownProvider(scope=Scope.APP, bound_type=None)
     container = Container()
-    container.open()
     with pytest.raises(TypeError, match="no compiled resolver for provider type _UnknownProvider"):
         container.resolve_provider(provider)
 

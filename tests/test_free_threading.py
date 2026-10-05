@@ -41,7 +41,6 @@ class _StressGroup(Group):
 
 def test_concurrent_resolution_shares_app_singletons() -> None:
     container = Container(groups=[_StressGroup])
-    container.open()
     n = 32
     barrier = threading.Barrier(n)
     top_results: list[_Top | None] = [None] * n
@@ -75,7 +74,6 @@ def test_concurrent_resolve_after_close_raises_in_every_thread() -> None:
         leaf = providers.Factory(creator=_Leaf, scope=Scope.APP, cache=True)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.open()
     container.close_sync()
     n = 8
     raised: list[BaseException] = []

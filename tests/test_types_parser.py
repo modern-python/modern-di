@@ -203,6 +203,16 @@ class ClassWithWrongAnnotations:
             ),
         ),
         (int, (SignatureItem(arg_type=int), {})),
+    ],
+)
+def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[str, SignatureItem]]) -> None:
+    parsed = parse_creator(creator)
+    assert (parsed.return_type, parsed.params) == result
+
+
+@pytest.mark.parametrize(
+    ("creator", "result"),
+    [
         (func_with_wrong_annotations, (SignatureItem(), {"arg1": SignatureItem(), "arg2": SignatureItem()})),
         (
             ClassWithWrongAnnotations,
@@ -210,8 +220,11 @@ class ClassWithWrongAnnotations:
         ),
     ],
 )
-def test_parse_creator(creator: type, result: tuple[SignatureItem | None, dict[str, SignatureItem]]) -> None:
-    parsed = parse_creator(creator)
+def test_parse_creator_with_unresolvable_annotations_warns(
+    creator: type, result: tuple[SignatureItem | None, dict[str, SignatureItem]]
+) -> None:
+    with pytest.warns(UserWarning, match="Failed to resolve type hints"):
+        parsed = parse_creator(creator)
     assert (parsed.return_type, parsed.params) == result
 
 
@@ -269,7 +282,6 @@ def test_parameterized_generic_param_supplied_via_kwargs_is_allowed() -> None:
     sentinel = [_GenericDep()]
     provider = providers.Factory(creator=_generic_param_creator, kwargs={"x": sentinel})
     container = Container(scope=Scope.APP)
-    container.open()
     container._providers_registry.register(str, provider)
     assert container.resolve(str) == str(sentinel)
 
@@ -282,7 +294,6 @@ def test_parameterized_generic_param_with_default_is_allowed() -> None:
     assert _generic_param_with_default(("a",)) == str(("a",))
     provider = providers.Factory(creator=_generic_param_with_default)
     container = Container(scope=Scope.APP)
-    container.open()
     container._providers_registry.register(str, provider)
     assert container.resolve(str) == str(())
 
