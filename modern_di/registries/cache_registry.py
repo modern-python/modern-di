@@ -69,10 +69,12 @@ class CacheItem:
         self.clear()
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
 class CacheRegistry:
-    _items: dict[int, CacheItem] = dataclasses.field(init=False, default_factory=dict)
-    _creation_order: list[CacheItem] = dataclasses.field(init=False, default_factory=list)
+    __slots__ = ("_creation_order", "_items")
+
+    def __init__(self) -> None:
+        self._items: dict[int, CacheItem] = {}
+        self._creation_order: list[CacheItem] = []
 
     def cached_count(self) -> int:
         return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
