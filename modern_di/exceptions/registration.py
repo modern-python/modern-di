@@ -216,3 +216,61 @@ class InvalidScopeDependencyError(RegistrationError):
             f"  caused by: {RuntimeError.__str__(self)}",
         ]
         return "\n".join(lines)
+
+
+def _qualified(scope: enum.IntEnum) -> str:
+    return f"{type(scope).__name__}.{scope.name}"
+
+
+class ScopeEnumMismatchError(RegistrationError):
+    """A provider depends on one whose scope has the same value but comes from another enum.
+
+    Inspect ``.provider``, ``.parameter_name``, ``.dep_chain``. Two members with one value can never
+    be in one container chain, because each child's value is higher than its parent's.
+    """
+
+    docs_slug = "scope-enum-mismatch-error"
+
+    __slots__ = ("dep_chain", "parameter_name", "provider")
+
+    def __init__(
+        self,
+        *,
+        provider: "AbstractProvider[typing.Any]",
+        parameter_name: str,
+        dep_chain: "list[AbstractProvider[typing.Any]]",
+    ) -> None:
+        self.provider = provider
+        self.parameter_name = parameter_name
+        self.dep_chain = dep_chain
+        dep_scope = self.dep_terminal.scope
+        super().__init__(
+            f"{provider.display_name} (scope {_qualified(provider.scope)}) declares parameter "
+            f"{parameter_name!r} typed as a provider of {self.dep_terminal.display_name} at scope "
+            f"{_qualified(dep_scope)}. Both scopes have the value {int(dep_scope)} but belong to different "
+            f"enums, so they can never be in one container chain. Give the dependency the same scope member "
+            f"as {provider.display_name} or a shallower one."
+        )
+
+    @property
+    def dep_provider(self) -> "AbstractProvider[typing.Any]":
+        """The dependency as declared: the type the parameter is annotated with."""
+        return self.dep_chain[0]
+
+    @property
+    def dep_terminal(self) -> "AbstractProvider[typing.Any]":
+        """The provider that actually supplies the dependency, once redirects are followed."""
+        return self.dep_chain[-1]
+
+    def _render_body(self) -> str:
+        effective_scope = self.dep_terminal.scope
+        steps = [
+            self.provider._resolution_step(),  # noqa: SLF001
+            *(p._resolution_step(effective_scope) for p in self.dep_chain),  # noqa: SLF001
+        ]
+        lines = [
+            "Provider at a same-valued scope of another enum reached through this chain:",
+            *render_chain(steps),
+            f"  caused by: {RuntimeError.__str__(self)}",
+        ]
+        return "\n".join(lines)

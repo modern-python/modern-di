@@ -42,7 +42,8 @@ ModernDIError (RuntimeError)
 │   ├── ProviderScopeFrozenError
 │   ├── UnknownFactoryKwargError
 │   ├── UnsupportedCreatorParameterError
-│   └── InvalidScopeDependencyError
+│   ├── InvalidScopeDependencyError
+│   └── ScopeEnumMismatchError
 ├── FinalizerError (also an ExceptionGroup)
 ├── AsyncFinalizerInSyncCloseError
 └── GroupInstantiationError
@@ -139,7 +140,8 @@ to render the chain programmatically.
 ## `RegistrationError`: declaration / registration problems
 
 Catch `RegistrationError` for declaration mistakes. Each is detected when the provider or group is
-declared or registered, or by `validate()`, which reports `InvalidScopeDependencyError`.
+declared or registered, or by `validate()`, which reports `InvalidScopeDependencyError` and
+`ScopeEnumMismatchError`.
 
 - `DuplicateProviderTypeError` is raised when two providers are registered for the same bound type
   (within one group, across groups passed together, or against an already-registered type). See
@@ -173,6 +175,12 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
   `validate()`. Renders the chain from the depender to the provider that supplies the dependency;
   `.dep_chain` carries that chain, with `.dep_provider` and `.dep_terminal` as its ends. See
   [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
+- `ScopeEnumMismatchError` is raised when a provider depends on another provider whose scope has
+  the same integer value but comes from a different enum, such as `Scope.SESSION` and a custom
+  `Tenancy.TENANT = 2`. Each child container's value is higher than its parent's, so the two scopes
+  can never be in one container chain. Surfaced by `validate()`. Inspect `.provider`,
+  `.parameter_name` and `.dep_chain`, with `.dep_provider` and `.dep_terminal` as its ends. See
+  [Troubleshooting: ScopeEnumMismatchError](../troubleshooting/scope-enum-mismatch-error.md).
 
 ## Direct `ModernDIError` subclasses
 

@@ -23,6 +23,7 @@ from modern_di.exceptions.registration import (
     InvalidScopeDependencyError,
     ProviderScopeFrozenError,
     RegistrationError,
+    ScopeEnumMismatchError,
     UnknownFactoryKwargError,
     UnsupportedCreatorParameterError,
 )
@@ -62,6 +63,7 @@ __all__ = [
     "RegistrationError",
     "ResolutionError",
     "ResolutionStep",
+    "ScopeEnumMismatchError",
     "ScopeNotInitializedError",
     "ScopeSkippedError",
     "UnknownFactoryKwargError",

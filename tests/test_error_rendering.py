@@ -1,3 +1,4 @@
+import enum
 import inspect
 
 import pytest
@@ -177,6 +178,10 @@ def test_context_value_not_set_error_names_the_argument() -> None:
     )
 
 
+class _RenderScope(enum.IntEnum):
+    SESSION_TWIN = 2
+
+
 class _RenderTerminal: ...
 
 
@@ -184,6 +189,28 @@ class _RenderIface: ...
 
 
 class _RenderCaptor: ...
+
+
+def test_scope_enum_mismatch_error_names_both_enum_members() -> None:
+    terminal = providers.Factory(scope=Scope.SESSION, creator=_RenderTerminal)
+    captor = providers.Factory(scope=_RenderScope.SESSION_TWIN, creator=_RenderCaptor)
+
+    error = exceptions.ScopeEnumMismatchError(provider=captor, parameter_name="dep", dep_chain=[terminal])
+
+    captor_at = f"{__name__}:{inspect.getsourcelines(_RenderCaptor)[1]}"
+    terminal_at = f"{__name__}:{inspect.getsourcelines(_RenderTerminal)[1]}"
+    assert error.dep_provider is terminal
+    assert error.dep_terminal is terminal
+    assert str(error) == (
+        "Provider at a same-valued scope of another enum reached through this chain:\n"
+        f"  SESSION_TWIN  _RenderCaptor ({captor_at})\n"
+        f"  SESSION       └─> _RenderTerminal ({terminal_at})\n"
+        "  caused by: _RenderCaptor (scope _RenderScope.SESSION_TWIN) declares parameter 'dep' typed as a "
+        "provider of _RenderTerminal at scope Scope.SESSION. Both scopes have the value 2 but belong to "
+        "different enums, so they can never be in one container chain. Give the dependency the same scope "
+        "member as _RenderCaptor or a shallower one.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/scope-enum-mismatch-error/"
+    )
 
 
 def test_invalid_scope_dependency_error_draws_the_chain_that_reached_the_terminal() -> None:

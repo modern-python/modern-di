@@ -70,6 +70,7 @@ nav:
       - Unknown factory kwarg: troubleshooting/unknown-factory-kwarg-error.md
       - Unsupported creator parameter: troubleshooting/unsupported-creator-parameter-error.md
       - Scope chain violation: troubleshooting/scope-chain.md
+      - Scope enum mismatch: troubleshooting/scope-enum-mismatch-error.md
       - Finalizer error: troubleshooting/finalizer-error.md
       - Async finalizer in sync close: troubleshooting/async-finalizer-in-sync-close-error.md
       - Group instantiation error: troubleshooting/group-instantiation-error.md
@@ -214,6 +215,7 @@ plugins:
           - troubleshooting/unknown-factory-kwarg-error.md: Diagnosing UnknownFactoryKwargError
           - troubleshooting/unsupported-creator-parameter-error.md: Diagnosing UnsupportedCreatorParameterError
           - troubleshooting/scope-chain.md: Diagnosing scope chain violation errors
+          - troubleshooting/scope-enum-mismatch-error.md: Diagnosing ScopeEnumMismatchError
           - troubleshooting/finalizer-error.md: Diagnosing FinalizerError
           - troubleshooting/async-finalizer-in-sync-close-error.md: Diagnosing AsyncFinalizerInSyncCloseError
           - troubleshooting/group-instantiation-error.md: Diagnosing GroupInstantiationError

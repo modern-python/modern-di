@@ -13,9 +13,12 @@ from modern_di import Container, Group, Scope, providers
 from modern_di._scope_algebra import deeper_members, next_deeper
 from modern_di.exceptions import (
     InvalidChildScopeError,
+    InvalidScopeDependencyError,
     MaxScopeReachedError,
+    ScopeEnumMismatchError,
     ScopeNotInitializedError,
     ScopeSkippedError,
+    ValidationFailedError,
 )
 
 
@@ -221,3 +224,136 @@ def test_scope_modules_import_only_enum(module: types.ModuleType) -> None:
     assert _module_level_imports("from . import exceptions\n") == {"exceptions"}
     # And the absolute `from x import y` form, so both `ImportFrom` branches are genuinely exercised.
     assert _module_level_imports("from enum import IntEnum\n") == {"enum"}
+
+
+class _Unregistered: ...
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _NeedsUnregistered:
+    dep: _Unregistered
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_same_valued_scope_of_another_enum_does_not_resolve_in_this_container(cache: bool) -> None:
+    class ConflictingGroup(Group):
+        svc = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=TenantService, cache=cache)
+
+    session = Container(groups=[ConflictingGroup]).build_child_container(scope=Scope.SESSION)
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST") as exc:
+        session.resolve(TenantService)
+    assert exc.value.provider_scope is ConflictingScope.LOWER_THAN_REQUEST
+    assert exc.value.dependency_path[0].scope is ConflictingScope.LOWER_THAN_REQUEST
+    assert session._cache_registry.cached_count() == 0
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_same_valued_ancestor_of_another_enum_does_not_resolve(cache: bool) -> None:
+    class ConflictingGroup(Group):
+        svc = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=TenantService, cache=cache)
+
+    session = Container(groups=[ConflictingGroup]).build_child_container(scope=Scope.SESSION)
+    request = session.build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST") as exc:
+        request.resolve(TenantService)
+    assert exc.value.provider_scope is ConflictingScope.LOWER_THAN_REQUEST
+    assert exc.value.dependency_path[0].scope is ConflictingScope.LOWER_THAN_REQUEST
+    assert session._cache_registry.cached_count() == 0
+
+
+@pytest.mark.parametrize("scope", [Scope.SESSION, Scope.REQUEST], ids=["SESSION", "REQUEST"])
+def test_context_provider_ignores_same_valued_scope_of_another_enum(scope: Scope) -> None:
+    class ConflictingGroup(Group):
+        ctx = providers.ContextProvider(TenantService, scope=ConflictingScope.LOWER_THAN_REQUEST)
+
+    session = Container(groups=[ConflictingGroup]).build_child_container(
+        scope=Scope.SESSION, context={TenantService: TenantService()}
+    )
+    container = session if scope is Scope.SESSION else session.build_child_container(scope=scope)
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST"):
+        container.resolve(TenantService)
+
+
+def test_unwireable_factory_ignores_same_valued_scope_of_another_enum() -> None:
+    class ConflictingGroup(Group):
+        svc = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=_NeedsUnregistered)
+
+    session = Container(groups=[ConflictingGroup]).build_child_container(scope=Scope.SESSION)
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST"):
+        session.resolve(_NeedsUnregistered)
+
+
+def test_find_container_matches_the_enum_member_not_its_value() -> None:
+    session = Container().build_child_container(scope=Scope.SESSION)
+    request = session.build_child_container(scope=Scope.REQUEST)
+    assert request.find_container(Scope.SESSION) is session
+    with pytest.raises(ScopeSkippedError):
+        session.find_container(ConflictingScope.LOWER_THAN_REQUEST)
+    with pytest.raises(ScopeSkippedError):
+        request.find_container(ConflictingScope.LOWER_THAN_REQUEST)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _AppSettings:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _TenantRepo:
+    settings: _AppSettings
+
+
+def test_documented_mixed_enum_tree_resolves() -> None:
+    class MixedGroup(Group):
+        settings = providers.Factory(creator=_AppSettings, cache=True)
+        repo = providers.Factory(creator=_TenantRepo, scope=MyScope.TENANT, cache=True)
+
+    app_container = Container(groups=[MixedGroup])
+    app_container.validate()
+    with app_container.build_child_container(scope=MyScope.TENANT) as tenant_container:
+        repo = tenant_container.resolve(_TenantRepo)
+        assert tenant_container.resolve(_TenantRepo) is repo
+        assert repo.settings is app_container.resolve(_AppSettings)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _Session:
+    service: TenantService
+
+
+def test_validate_reports_dependency_on_same_valued_scope_of_another_enum() -> None:
+    class MismatchGroup(Group):
+        service = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=TenantService)
+        session = providers.Factory(scope=Scope.SESSION, creator=_Session)
+
+    container = Container(groups=[MismatchGroup])
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    (issue,) = exc.value.errors
+    assert isinstance(issue, ScopeEnumMismatchError)
+    assert issue.provider is MismatchGroup.session
+    assert issue.parameter_name == "service"
+    assert issue.dep_chain == [MismatchGroup.service]
+
+
+def test_validate_accepts_dependency_on_shallower_scope_of_another_enum() -> None:
+    class MixedGroup(Group):
+        service = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=TenantService)
+        session = providers.Factory(scope=Scope.REQUEST, creator=_Session)
+
+    app_container = Container(groups=[MixedGroup])
+    app_container.validate()
+    middle = app_container.build_child_container(scope=ConflictingScope.LOWER_THAN_REQUEST)
+    request = middle.build_child_container(scope=Scope.REQUEST)
+    assert isinstance(request.resolve(_Session).service, TenantService)
+
+
+def test_validate_keeps_reporting_a_deeper_scope_of_another_enum_as_invalid_scope_dependency() -> None:
+    class DeeperGroup(Group):
+        service = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=TenantService)
+        session = providers.Factory(scope=Scope.APP, creator=_Session)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        Container(groups=[DeeperGroup]).validate()
+    (issue,) = exc.value.errors
+    assert isinstance(issue, InvalidScopeDependencyError)

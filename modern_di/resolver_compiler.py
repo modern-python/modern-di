@@ -59,11 +59,11 @@ def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "Provid
 
 
 _NAVIGATE = """\
-    if container.scope == scope:
+    if container.scope is scope:
         target = container
     else:
         target = container._scope_map.get(scope)
-        if target is None:
+        if target is None or target.scope is not scope:
             target = _navigate(container, scope, resolution_step)
     if target._closed:
         raise ContainerClosedError(container_scope=target.scope)
@@ -210,7 +210,7 @@ def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") ->
     arg_name, item = plan.unwireable[0]
 
     def resolve(container: "Container") -> typing.Any:
-        target = container if container.scope == scope else _navigate(container, scope, resolution_step)
+        target = container if container.scope is scope else _navigate(container, scope, resolution_step)
         if target._closed:
             raise exceptions.ContainerClosedError(container_scope=target.scope)
         error = build_error(arg_name=arg_name, item=item, registry=target._providers_registry)
@@ -246,11 +246,11 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
     resolution_step = cp._resolution_step
 
     def resolve(container: "Container") -> typing.Any:
-        if container.scope == scope:
+        if container.scope is scope:
             target = container
         else:
             target = container._scope_map.get(scope)
-            if target is None:
+            if target is None or target.scope is not scope:
                 target = _navigate(container, scope, resolution_step)
         if target._closed:
             raise exceptions.ContainerClosedError(container_scope=target.scope)
@@ -270,7 +270,10 @@ def _navigate(
     scope: enum.IntEnum,
     resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
 ) -> "Container":
-    """Miss path for a scope absent from `_scope_map`; the scope error carries this provider's resolution step."""
+    """Miss path for a scope absent from `_scope_map`, or held there by another enum's same-valued member.
+
+    The scope error carries this provider's resolution step.
+    """
     try:
         return container.find_container(scope)
     except _SCOPE_ERRORS as exc:

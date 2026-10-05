@@ -187,9 +187,19 @@ def collect_errors(container: "Container", registry: "ProvidersRegistry") -> lis
                 errors.append(error)
             case Edge(parent, name, dep):
                 dep_chain = terminal_chain(dep, container)
-                if dep_chain[-1].scope > effective_scope(parent, container):
+                dep_scope = dep_chain[-1].scope
+                parent_scope = effective_scope(parent, container)
+                if dep_scope > parent_scope:
                     errors.append(
                         exceptions.InvalidScopeDependencyError(
+                            provider=parent,
+                            parameter_name=name,
+                            dep_chain=dep_chain,
+                        )
+                    )
+                elif dep_scope == parent_scope and dep_scope is not parent_scope:
+                    errors.append(
+                        exceptions.ScopeEnumMismatchError(
                             provider=parent,
                             parameter_name=name,
                             dep_chain=dep_chain,

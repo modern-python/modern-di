@@ -114,6 +114,8 @@ with container.build_child_container(scope=MyScope.TENANT) as tenant_container:
 
 The child scope's integer value must be strictly greater than its parent's. When `scope=` is omitted from `build_child_container`, the auto-derived next scope only advances within the parent's own enum class. To cross enum boundaries (e.g. jump from a built-in `Scope` to `MyScope.TENANT`), pass `scope=` explicitly.
 
+A provider resolves only in a container built at the same enum member. Members of different enums that share an integer value are different scopes: with `class Tenancy(IntEnum): TENANT = 2`, a provider at `Tenancy.TENANT` does not resolve in a `Scope.SESSION` container, and raises `ScopeSkippedError` there. `validate()` reports a provider that depends on such a scope as [`ScopeEnumMismatchError`](../troubleshooting/scope-enum-mismatch-error.md). Ordering still compares integer values, which is why `MyScope.TENANT = 6` can be a child of `Scope.APP`.
+
 ## Group-level default scope
 
 When declaring providers in a `Group` subclass, you can assign a default scope to all members using the class kwarg:
