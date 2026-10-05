@@ -2,7 +2,9 @@
 
 import copy
 import enum
+import functools
 import pickle
+import threading
 import typing
 
 import pytest
@@ -169,8 +171,25 @@ def _comparable(value: object) -> object:
     return repr(value)
 
 
-def _round_trips() -> list[typing.Callable[[BaseException], BaseException]]:
-    return [lambda error: pickle.loads(pickle.dumps(error)), copy.copy, copy.deepcopy]  # noqa: S301
+def _pickle_round_trip(error: BaseException, protocol: int) -> BaseException:
+    return pickle.loads(pickle.dumps(error, protocol=protocol))  # noqa: S301
+
+
+_PROTOCOLS = range(pickle.HIGHEST_PROTOCOL + 1)
+ROUND_TRIPS: dict[str, typing.Callable[[BaseException], BaseException]] = {
+    **{f"pickle-{protocol}": functools.partial(_pickle_round_trip, protocol=protocol) for protocol in _PROTOCOLS},
+    "copy": copy.copy,
+    "deepcopy": copy.deepcopy,
+}
+
+
+def _within(seconds: float, call: typing.Callable[[], BaseException]) -> BaseException:
+    result: list[BaseException] = []
+    worker = threading.Thread(target=lambda: result.append(call()), daemon=True)
+    worker.start()
+    worker.join(seconds)
+    assert not worker.is_alive(), f"did not finish within {seconds}s"
+    return result[0]
 
 
 def test_every_modern_di_exception_has_a_builder() -> None:
@@ -180,22 +199,31 @@ def test_every_modern_di_exception_has_a_builder() -> None:
     assert set(BUILDERS) == discovered
 
 
-@pytest.mark.parametrize("round_trip", _round_trips(), ids=["pickle", "copy", "deepcopy"])
+_SLOTTED_PROVIDERS_DEGRADE = {"pickle-0", "pickle-1"}
+
+
+def _degrade_providers(state: dict[str, typing.Any]) -> dict[str, typing.Any]:
+    return {name: repr(value) if name in {"provider", "dep_chain"} else value for name, value in state.items()}
+
+
+@pytest.mark.parametrize("trip_name", ROUND_TRIPS)
 @pytest.mark.parametrize("cls", BUILDERS, ids=lambda cls: cls.__name__)
-def test_exception_round_trips(
-    cls: type[exceptions.ModernDIError], round_trip: typing.Callable[[BaseException], BaseException]
-) -> None:
+def test_exception_round_trips(cls: type[exceptions.ModernDIError], trip_name: str) -> None:
     error = BUILDERS[cls]()
     error.add_note("raised in a worker")
     assert type(error) is cls
 
-    restored = round_trip(error)
+    restored = ROUND_TRIPS[trip_name](error)
+
+    expected_state = _public_state(error)
+    if trip_name in _SLOTTED_PROVIDERS_DEGRADE:
+        expected_state = _degrade_providers(expected_state)
 
     assert type(restored) is cls
     assert str(restored) == str(error)
     assert _comparable(restored.args) == _comparable(error.args)
     assert restored.__notes__ == ["raised in a worker"]
-    assert _comparable(_public_state(restored)) == _comparable(_public_state(error))
+    assert _comparable(_public_state(restored)) == _comparable(expected_state)
 
 
 def test_dependency_path_survives_pickling() -> None:
@@ -316,3 +344,44 @@ def test_attribute_with_a_broken_repr_degrades_to_the_default_repr() -> None:
     assert str(restored) == str(error)
     assert isinstance(restored, exceptions.DuplicateProviderTypeError)
     assert restored.provider_type == object.__repr__(value)
+
+
+def _self_referencing_error() -> exceptions.ContainerClosedError:
+    error = exceptions.ContainerClosedError(container_scope=Scope.APP)
+    error.backref = error  # ty: ignore[unresolved-attribute]
+    return error
+
+
+@pytest.mark.parametrize(
+    "round_trip",
+    [trip for name, trip in ROUND_TRIPS.items() if name != "copy"],
+    ids=[name for name in ROUND_TRIPS if name != "copy"],
+)
+def test_self_reference_is_restored_as_a_self_reference(
+    round_trip: typing.Callable[[BaseException], BaseException],
+) -> None:
+    error = _self_referencing_error()
+
+    restored = _within(5, lambda: round_trip(error))
+
+    assert restored.backref is restored  # ty: ignore[unresolved-attribute]
+
+
+def test_shallow_copy_of_a_self_reference_points_at_the_original() -> None:
+    error = _self_referencing_error()
+    assert copy.copy(error).backref is error  # ty: ignore[unresolved-attribute]
+
+
+@pytest.mark.parametrize("round_trip", ROUND_TRIPS.values(), ids=ROUND_TRIPS.keys())
+def test_deeply_nested_errors_round_trip_quickly(round_trip: typing.Callable[[BaseException], BaseException]) -> None:
+    depth = 40
+    error: Exception = ValueError("root")
+    for _ in range(depth):
+        error = exceptions.CreatorCallError(creator=len, original_error=error)
+
+    restored = _within(5, lambda: round_trip(error))
+
+    for _ in range(depth):
+        assert isinstance(restored, exceptions.CreatorCallError)
+        restored = restored.original_error
+    assert type(restored) is ValueError

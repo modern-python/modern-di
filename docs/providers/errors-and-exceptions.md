@@ -9,16 +9,22 @@ The class hierarchy and each error's structured attributes (`.provider_type`, `.
 `.suggestions`, `.dependency_path`, ...) are the contract. The rendered message text is diagnostic
 output and may change in any release; read an attribute, never parse the message.
 
-Every exception pickles and copies, so it can cross a process pool or a task queue. The unpickled
-error has the same class, `str()` and `args`, and keeps each attribute whose value pickles. An
-attribute that does not, such as a lambda `creator` or a class defined inside a function, comes back
-as its `repr()` string, and a `FinalizerError` entry that does not pickle comes back as a
-`RuntimeError` holding its `repr()`. As with any Python exception, `__cause__` and the traceback are
-dropped.
-
 ```python
 from modern_di import exceptions
 ```
+
+## Pickling and copying
+
+Every exception can be pickled and copied, so it can cross a process pool or a task queue. The
+unpickled error has the same class, `str()` and `args`, and keeps each attribute whose value
+pickles. An attribute that does not, such as a lambda `creator` or a class defined inside a
+function, comes back as its `repr()` string. A `FinalizerError` entry that does not pickle comes
+back as a `RuntimeError` holding its `repr()`. As with any Python exception, `__cause__` and the
+traceback are dropped.
+
+The check that decides whether an attribute pickles runs in the process that pickles the error. A
+value that only loads there can still fail to load in another process. A class defined in
+`__main__` is the common case: the receiving process has a different `__main__`.
 
 ## Hierarchy
 
