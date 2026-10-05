@@ -20,11 +20,11 @@ from modern_di import Scope
 
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 
-# Wrong: SESSION is not deeper than SESSION
+# Broken: SESSION is not deeper than SESSION
 mid = app_container.build_child_container(scope=Scope.SESSION)
 bad = mid.build_child_container(scope=Scope.SESSION)  # raises InvalidChildScopeError
 
-# Right
+# Works
 good = mid.build_child_container(scope=Scope.REQUEST)
 ```
 

@@ -18,10 +18,10 @@ Call `add_providers()` on the root container instead:
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 
-# Wrong
+# Broken
 request_container.add_providers(late_provider)  # raises ChildContainerRegistrationError
 
-# Right
+# Works
 app_container.add_providers(late_provider)
 ```
 

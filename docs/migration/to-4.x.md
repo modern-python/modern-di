@@ -60,6 +60,10 @@ an ordinary dependency. With no value set it raises `ContextValueNotSetError`, w
 resolved directly or as a `Factory` argument, and the parameter's default and annotation are
 ignored. For a `Factory` argument, the message and `.parameter_name` name the parameter.
 
+`ContextValueNotSetError` does not subclass `ArgumentResolutionError`. An
+`except ArgumentResolutionError` clause that handled a missing context value in 3.x no longer
+catches it; catch `ContextValueNotSetError` instead, or `ResolutionError`, which covers both.
+
 Optional context is declared once, on the provider: `ContextProvider(T, default=X)` returns `X`
 whenever no value is set. If you own the provider, add `default=` to it:
 
@@ -189,3 +193,5 @@ as before for every provider, and type hints that name `AbstractProvider` need n
   `find_container(scope)` to reach an ancestor.
 - `ContextValueNoneWarning` and `UnvalidatedContainerWarning` are removed. Neither has been emitted
   since 3.0, so delete any `filterwarnings` entry or import that names them.
+- The `modern_di.exceptions.warnings` module held only these three warnings and is deleted. An
+  import from that path raises `ModuleNotFoundError`, so delete it.

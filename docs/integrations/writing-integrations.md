@@ -436,13 +436,15 @@ Each official integration is its own repository and PyPI package, mirroring the
   `ContextProvider` is registered by `setup_di`, so a service that requires it by
   type would fail `validate()` if that call were placed *before* `setup_di`.
   Demonstrate context injection in a dedicated "Framework context objects"
-  section instead. To validate a graph that references the connection object
-  *before* `setup_di` has registered its provider (a narrower, earlier check),
-  make the context parameter optional (`request: FrameworkType | None = None`)
-  so `validate()` skips it regardless of ordering, while the integration still
-  injects the real value at runtime. That is the pattern the [gRPC
-  page](grpc.md) uses and [Framework context
-  objects](../providers/context.md#framework-context-objects) documents. Follow
+  section instead, with a required parameter (`request: FrameworkType`).
+  Don't present `request: FrameworkType | None = None` as a way to make the
+  value optional. Once `setup_di` has registered the connection provider, the
+  parameter is wired to it and its default is never used, so resolving outside
+  a connection raises `ContextValueNotSetError`. For a factory that must also
+  resolve outside a connection, show an app-owned `ContextProvider` with
+  `bound_type=None, default=None` passed through `kwargs`, as the [gRPC
+  page](grpc.md#injecting-the-servicercontext) does and [Optional
+  context](../providers/context.md#optional-context-default) documents. Follow
   the example with any framework-specific sections, a tailored `## See also`
   block linking [Testing with overrides](../recipes/testing-overrides.md),
   [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and

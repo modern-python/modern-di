@@ -45,13 +45,12 @@ class Settings:
 
 
 class RpcReport:
-    def __init__(self, settings: Settings, context: grpc.ServicerContext | None = None) -> None:
+    def __init__(self, settings: Settings, context: grpc.ServicerContext) -> None:
         self._settings = settings                  # APP-scoped, injected by type
         self._context = context                    # REQUEST context object, injected by type
 
     def line(self) -> str:
-        peer = self._context.peer() if self._context is not None else "unknown"
-        return f"{self._settings.service_name} <- {peer}"
+        return f"{self._settings.service_name} <- {self._context.peer()}"
 
 
 class AppGroup(Group):
@@ -140,20 +139,38 @@ import grpc
 from modern_di import Group, Scope, providers
 
 
-def make_caller(context: grpc.ServicerContext | None = None) -> str:
-    return context.peer() if context is not None else "unknown"
+def make_caller(context: grpc.ServicerContext) -> str:
+    return context.peer()
 
 
 class AppGroup(Group):
     caller = providers.Factory(make_caller, scope=Scope.REQUEST)
 ```
 
-`validate()` never constructs a provider, so the default isn't needed for
-validation, and it does not make the context optional: outside an RPC, where no
-context is set, resolving `caller` raises `ContextValueNotSetError`. For a factory
-that must also resolve outside an RPC, pass your own
-`ContextProvider(grpc.ServicerContext, scope=Scope.REQUEST, bound_type=None, default=None)`
-through `kwargs`; see [Optional context](../providers/context.md#optional-context-default).
+The interceptor's provider has no default, so the context is required. Outside an RPC no context
+is set, and resolving `caller` raises `ContextValueNotSetError`. A parameter default such as
+`context: grpc.ServicerContext | None = None` does not change that: once the interceptor has
+registered its provider, the parameter is wired to it and the default is never used.
+
+A factory that must also resolve outside an RPC needs its own optional provider. Declare a
+`ContextProvider` for the same type with `default=None`, keep it out of type-based wiring with
+`bound_type=None`, and pass it through `kwargs`. It reads the same context value as the
+interceptor's provider. See [Optional context](../providers/context.md#optional-context-default).
+
+```python
+def make_caller(context: grpc.ServicerContext | None) -> str:
+    return context.peer() if context is not None else "unknown"
+
+
+class AppGroup(Group):
+    optional_context = providers.ContextProvider(
+        grpc.ServicerContext, scope=Scope.REQUEST, bound_type=None, default=None
+    )
+    caller = providers.Factory(
+        make_caller, scope=Scope.REQUEST, kwargs={"context": optional_context}
+    )
+```
+
 The protobuf request `Message` is not exposed as a provider
 (that would add a `protobuf` dependency); the request is already a servicer-method
 argument.

@@ -20,10 +20,10 @@ class Dependencies(Group):
     service = providers.Factory(Service, scope=Scope.APP)
 
 
-# Wrong
+# Broken
 deps = Dependencies()             # raises GroupInstantiationError
 
-# Right
+# Works
 container = Container(groups=[Dependencies])
 service = container.resolve_provider(Dependencies.service)
 ```
