@@ -99,6 +99,15 @@ the default applies. `ContextProvider.fetch_context_value()` is removed; resolve
 instead, giving it a `default=` if the value may be absent. See
 [Context providers: optional context](../providers/context.md#optional-context-default).
 
+### The container copies `context=`
+
+`Container(context=...)` and `build_child_container(context=...)` copy the dict you pass. In 3.x
+the container kept your dict, so `set_context()` wrote into it, and two containers built from the
+same dict saw each other's values. A module-level dict reused for every request leaked values set on
+one request into the next. In 4.0 `set_context()` changes only that container, and changes you make
+to your dict after building the container are not seen by it. Call `set_context()` on the container
+to add a value later.
+
 ### Exception attributes are renamed
 
 `ArgumentResolutionError` names the creator parameter the same way the other errors do:
