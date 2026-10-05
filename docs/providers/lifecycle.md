@@ -132,8 +132,8 @@ finalizer; the sync path is only a safety net.
 
 ## Closing and reopening
 
-A constructed container is **open from construction**: `closed = False` the moment `Container(...)`
-returns, with no `open()` step required before the first `resolve()` / `resolve_provider()` call.
+A constructed container is **open from construction**: `container.closed` is `False` the moment
+`Container(...)` returns, with no `open()` step required before the first `resolve()` / `resolve_provider()` call.
 `build_child_container()` never checks or touches any container's open/closed state (it only reads
 the parent's shared registries and scope map), and the returned child starts open too, same as any
 fresh container. `close_sync()` / `close_async()` run the finalizers (in reverse-creation order, as

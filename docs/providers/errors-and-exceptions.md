@@ -145,7 +145,8 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
   (within one group, across groups passed together, or against an already-registered type). See
   [Troubleshooting: Duplicate type](../troubleshooting/duplicate-type-error.md).
 - `ChildContainerRegistrationError` is raised by `Container.add_providers()` when called on a child
-  container; registration is root-only because the providers registry is shared tree-wide, so
+  container, and by `Container(...)` when `groups=` comes with `parent_container=`. Registration is
+  root-only because the providers registry is shared tree-wide, so
   registering from a child would mutate every container in the tree. Call `add_providers` on the root
   container instead. Inspect `.scope` for the offending child container's scope. See
   [Container: registering after construction](container.md#registering-providers-after-construction) and

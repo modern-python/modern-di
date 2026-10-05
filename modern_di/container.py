@@ -10,22 +10,21 @@ from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
 from modern_di.registries.cache_registry import CacheRegistry
 from modern_di.registries.context_registry import ContextRegistry
-from modern_di.registries.overrides_registry import OverrideHandle, OverridesRegistry
+from modern_di.registries.overrides_registry import OverrideHandle
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.resolver_compiler import STEP_ERRORS
 from modern_di.scope import Scope, _next_deeper
 
 
 def _handle_recursion_error(
-    provider: AbstractProvider[typing.Any], container: "Container", exc: RecursionError
+    provider: AbstractProvider[typing.Any], container: "Container", registry: ProvidersRegistry, exc: RecursionError
 ) -> typing.NoReturn:
     """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
 
     A separate call, not inlined into `resolve_provider`: the coverage tracer re-arms on the
     fresh call boundary before this raises.
     """
-    reg = container.providers_registry
-    if reg.is_validated():
+    if registry.is_validated():
         raise exc  # validated => acyclic static graph => genuine self-recursion
     cycle = DependencyGraph().find_cycle_from(provider, container)
     if cycle is None:
@@ -42,14 +41,13 @@ class Container:
     """
 
     __slots__ = (
+        "_cache_registry",
+        "_closed",
+        "_context_registry",
         "_lock",
+        "_providers_registry",
         "_scope_map",
-        "cache_registry",
-        "closed",
-        "context_registry",
-        "overrides_registry",
         "parent_container",
-        "providers_registry",
         "scope",
     )
 
@@ -69,14 +67,18 @@ class Container:
         most one instance per cache key across the tree, whichever threads resolve it.
 
         Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
-        ``IntEnum``, and :class:`~modern_di.exceptions.InvalidChildScopeError` when it is not
-        deeper than ``parent_container``'s.
+        ``IntEnum``, :class:`~modern_di.exceptions.InvalidChildScopeError` when it is not deeper
+        than ``parent_container``'s, and
+        :class:`~modern_di.exceptions.ChildContainerRegistrationError` when ``groups`` is passed
+        with ``parent_container``.
         """
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
-        self.closed = False
+        if parent_container is not None and groups:
+            raise exceptions.ChildContainerRegistrationError(scope=scope)
+        self._closed = False
         self.scope = scope
         self.parent_container = parent_container
         # Ancestors only, never self: a `scope: self` entry is a reference cycle, so no container
@@ -87,26 +89,28 @@ class Container:
             if parent_container
             else {}
         )
-        self.cache_registry = CacheRegistry()
-        self.context_registry = ContextRegistry(copy.copy(context) if context is not None else {})
-        self.providers_registry: ProvidersRegistry
-        self.overrides_registry: OverridesRegistry
+        self._cache_registry = CacheRegistry()
+        self._context_registry = ContextRegistry(copy.copy(context) if context is not None else {})
+        self._providers_registry: ProvidersRegistry
         # Inlined rather than a helper: this runs per child build (benchmark `test_g6_build_child_container`).
         if parent_container:
             # SLF001 exempts `self`/`cls` only, so it flags this same-class read; no boundary is crossed.
             self._lock = parent_container._lock  # noqa: SLF001
-            self.providers_registry = parent_container.providers_registry
-            self.overrides_registry = parent_container.overrides_registry
+            self._providers_registry = parent_container._providers_registry  # noqa: SLF001
         else:
             self._lock = threading.RLock()
-            self.providers_registry = ProvidersRegistry()
-            self.providers_registry.register(Container, container_provider)
-            self.overrides_registry = self.providers_registry.overrides
+            self._providers_registry = ProvidersRegistry()
+            self._providers_registry.register(Container, container_provider)
         if groups:
             all_providers: list[AbstractProvider[typing.Any]] = []
             for one_group in groups:
                 all_providers.extend(one_group.get_providers())
-            self.providers_registry.add_providers(*all_providers)
+            self._providers_registry.add_providers(*all_providers)
+
+    @property
+    def closed(self) -> bool:
+        """Whether this container is closed; :meth:`open` and re-entering ``with`` reopen it."""
+        return self._closed
 
     def build_child_container(
         self,
@@ -114,6 +118,13 @@ class Container:
         scope: enum.IntEnum | None = None,
         context: dict[type[typing.Any], typing.Any] | None = None,
     ) -> typing.Self:
+        """Return a new open child at ``scope``, seeded with ``context``.
+
+        The child shares this container's providers and overrides and owns its own cache and
+        context. Without ``scope`` it takes the next deeper member of the scope enum. Raises
+        :class:`~modern_di.exceptions.MaxScopeReachedError` when there is none, and
+        :class:`~modern_di.exceptions.InvalidChildScopeError` when ``scope`` is not deeper.
+        """
         if scope is None:
             scope = _next_deeper(self.scope)
             if scope is None:
@@ -122,6 +133,12 @@ class Container:
         return self.__class__(scope=scope, parent_container=self, context=context)
 
     def find_container(self, scope: enum.IntEnum) -> typing.Self:
+        """Return the container at ``scope``: this one or an ancestor.
+
+        Raises :class:`~modern_di.exceptions.ScopeNotInitializedError` when ``scope`` is deeper
+        than this container, and :class:`~modern_di.exceptions.ScopeSkippedError` when no
+        ancestor was built at ``scope``.
+        """
         if scope == self.scope:
             return self
         target = self._scope_map.get(scope)
@@ -137,16 +154,16 @@ class Container:
         Raises :class:`~modern_di.exceptions.ContainerClosedError` when this container, or the
         ancestor a provider resolves in, is closed.
         """
-        registry = self.providers_registry
+        registry = self._providers_registry
         try:
+            if self._closed:
+                raise exceptions.ContainerClosedError(container_scope=self.scope)
             resolver = registry._resolvers_by_type.get(dependency_type)  # noqa: SLF001
             if resolver is None:
                 resolver = registry.resolver_for_type(dependency_type)
-            if self.closed:
-                raise exceptions.ContainerClosedError(container_scope=self.scope)
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(registry._providers[dependency_type], self, exc)  # noqa: SLF001
+            _handle_recursion_error(registry._providers[dependency_type], self, registry, exc)  # noqa: SLF001
         except STEP_ERRORS as exc:
             provider = registry.find_provider(dependency_type)
             if provider is not None:
@@ -165,16 +182,16 @@ class Container:
         Raises :class:`~modern_di.exceptions.ContainerClosedError` when this container, or the
         ancestor the provider resolves in, is closed.
         """
-        if self.closed:
+        if self._closed:
             raise exceptions.ContainerClosedError(container_scope=self.scope)
+        registry = self._providers_registry
         try:
-            registry = self.providers_registry
             resolver = registry._resolvers.get(provider.provider_id)  # noqa: SLF001
             if resolver is None:
                 resolver = registry.resolver_for(provider)
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(provider, self, exc)
+            _handle_recursion_error(provider, self, registry, exc)
         except STEP_ERRORS as exc:
             exc.prepend_step(*redirect_hops(provider, self))
             raise
@@ -187,11 +204,11 @@ class Container:
         validates — construction, :meth:`open`, :meth:`add_providers` and :meth:`resolve` never
         do. A clean walk is memoized until the registry changes.
         """
-        reg = self.providers_registry
+        reg = self._providers_registry
         if reg.is_validated():
             return
 
-        if errors := collect_errors(self):
+        if errors := collect_errors(self, reg):
             raise exceptions.ValidationFailedError(errors=errors)
         reg.mark_validated()
 
@@ -206,17 +223,37 @@ class Container:
         """
         if self.parent_container is not None:
             raise exceptions.ChildContainerRegistrationError(scope=self.scope)
-        self.providers_registry.add_providers(*providers)
+        self._providers_registry.add_providers(*providers)
+
+    def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
+        """Return the provider registered for ``dependency_type`` anywhere in the tree, or ``None``.
+
+        A pure lookup: it ignores overrides and the closed state, and never compiles or resolves.
+        """
+        return self._providers_registry.find_provider(dependency_type)
 
     async def close_async(self) -> None:
-        self.closed = True
-        if self.cache_registry._creation_order:  # noqa: SLF001
-            await self.cache_registry.close_async()
+        """Mark this container closed, then run its finalizers, sync and async, newest first.
+
+        Overrides are kept. A resolve from inside a finalizer raises
+        :class:`~modern_di.exceptions.ContainerClosedError`. Every finalizer runs even when one
+        raises; the failures come back together as one :class:`~modern_di.exceptions.FinalizerError`.
+        """
+        self._closed = True
+        if self._cache_registry._creation_order:  # noqa: SLF001
+            await self._cache_registry.close_async()
 
     def close_sync(self) -> None:
-        self.closed = True
-        if self.cache_registry._creation_order:  # noqa: SLF001
-            self.cache_registry.close_sync()
+        """Mark this container closed, then run its sync finalizers, newest first.
+
+        Overrides are kept. A resolve from inside a finalizer raises
+        :class:`~modern_di.exceptions.ContainerClosedError`. Every finalizer runs even when one
+        raises; the failures come back together as one :class:`~modern_di.exceptions.FinalizerError`.
+        An async finalizer fails here and stays pending for a later :meth:`close_async`.
+        """
+        self._closed = True
+        if self._cache_registry._creation_order:  # noqa: SLF001
+            self._cache_registry.close_sync()
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
         """Apply an override immediately, tree-wide.
@@ -224,17 +261,22 @@ class Container:
         Use the returned handle as a context manager to restore the prior state. A test-time
         operation, not coordinated with concurrent resolves on other threads.
         """
-        prior = self.overrides_registry.fetch_override(provider.provider_id)
-        self.overrides_registry.override(provider.provider_id, override_object)
+        overrides = self._providers_registry.overrides
+        prior = overrides.fetch_override(provider.provider_id)
+        overrides.override(provider.provider_id, override_object)
         return OverrideHandle(
-            registry=self.overrides_registry,
+            registry=overrides,
             provider_id=provider.provider_id,
             prior=prior,
             override_object=override_object,
         )
 
     def reset_override(self, provider: AbstractProvider[types.T] | None = None) -> None:
-        self.overrides_registry.reset_override(provider.provider_id if provider else None)
+        """Drop the override on ``provider``, or every override when ``provider`` is ``None``.
+
+        Applies tree-wide. Resetting a provider that has no override is a no-op.
+        """
+        self._providers_registry.overrides.reset_override(provider.provider_id if provider else None)
 
     def set_context(self, context_type: type[types.T], obj: types.T) -> None:
         """Register a runtime context value on *this* container.
@@ -243,11 +285,11 @@ class Container:
         matches the ``ContextProvider``. A cached provider is built once and is not rebuilt by a
         later ``set_context``; set the context before its first resolve.
         """
-        self.context_registry.set_context(context_type, obj)
+        self._context_registry.set_context(context_type, obj)
 
     def __repr__(self) -> str:
-        n_providers = len(self.providers_registry)
-        n_cached = self.cache_registry.cached_count()
+        n_providers = len(self._providers_registry)
+        n_cached = self._cache_registry.cached_count()
         parent = self.parent_container.scope.name if self.parent_container else None
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
@@ -258,7 +300,7 @@ class Container:
         :class:`~modern_di.exceptions.ContainerClosedError` until this, or re-entering the
         container with ``with``/``async with``, reopens it.
         """
-        self.closed = False
+        self._closed = False
 
     def __enter__(self) -> typing.Self:
         self.open()

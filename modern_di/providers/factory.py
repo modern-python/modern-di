@@ -199,10 +199,11 @@ class Factory(AbstractProvider[types.T_co]):
 
     def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
-        return self._wiring_plan(container.providers_registry).edges
+        return self._wiring_plan(container._providers_registry).edges  # noqa: SLF001
 
     def _iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        plan = self._wiring_plan(container.providers_registry)
+        registry = container._providers_registry  # noqa: SLF001
+        plan = self._wiring_plan(registry)
         for name, item in plan.unwireable:
-            yield self._argument_resolution_error(arg_name=name, item=item, registry=container.providers_registry)
+            yield self._argument_resolution_error(arg_name=name, item=item, registry=registry)

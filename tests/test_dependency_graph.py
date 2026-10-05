@@ -205,7 +205,7 @@ def test_walk_emits_cycle_closed_through_kwargs_overlay() -> None:
     b = Factory(scope=Scope.APP, creator=KwCycB, kwargs={"a": a})  # kwargs edge B -> A
 
     c = Container(scope=Scope.APP)
-    c.providers_registry.add_providers(a, b)
+    c._providers_registry.add_providers(a, b)
 
     events = list(DependencyGraph().walk([a], c))
     cycles = [e for e in events if isinstance(e, Cycle)]

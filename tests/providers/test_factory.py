@@ -90,7 +90,7 @@ def test_func_with_broken_annotation() -> None:
 
     app_container = Container()
     app_container.open()
-    app_container.providers_registry.add_providers(factory)
+    app_container._providers_registry.add_providers(factory)
     with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         app_container.resolve_provider(factory)
 
@@ -217,7 +217,7 @@ def test_factory_self_reference() -> None:
 
     app_container = Container()
     app_container.open()
-    app_container.providers_registry.add_providers(first_factory, second_factory)
+    app_container._providers_registry.add_providers(first_factory, second_factory)
 
     assert app_container.resolve_provider(second_factory) == "one two"
 
@@ -233,7 +233,7 @@ def test_factory_self_reference_in_union_falls_through_to_default() -> None:
     factory = providers.Factory(creator=make)
     app_container = Container()
     app_container.open()
-    app_container.providers_registry.add_providers(factory)
+    app_container._providers_registry.add_providers(factory)
 
     result = app_container.resolve(SelfRef)
     assert isinstance(result, SelfRef)
@@ -251,7 +251,7 @@ def test_factory_self_reference_by_type_falls_through_to_default() -> None:
     factory = providers.Factory(creator=make)
     app_container = Container()
     app_container.open()
-    app_container.providers_registry.add_providers(factory)
+    app_container._providers_registry.add_providers(factory)
 
     # `nested` is typed as the factory's own bound type: it must not wire to itself,
     # and with no other provider it falls through to the creator default.
@@ -311,7 +311,7 @@ def test_factory_allows_extra_kwargs_when_creator_accepts_var_keyword() -> None:
     factory = providers.Factory(creator=make, kwargs={"anything": 1, "extra": 2})
     container = Container()
     container.open()
-    container.providers_registry.add_providers(factory)
+    container._providers_registry.add_providers(factory)
     result = container.resolve(dict)
     assert result == {"anything": 1, "extra": 2}
 
@@ -326,7 +326,7 @@ def test_factory_default_value_compared_with_is_not_eq() -> None:
     factory = providers.Factory(creator=make)
     container = Container()
     container.open()
-    container.providers_registry.add_providers(factory)
+    container._providers_registry.add_providers(factory)
     result = container.resolve(str)
     assert result == repr(unittest.mock.ANY)
 
@@ -444,7 +444,7 @@ def test_creator_raising_mid_creation_caches_nothing_and_retry_succeeds() -> Non
     with pytest.raises(RuntimeError, match="boom"):
         container.resolve(_FlakySvc)
     expected_cached_after_failure = 1  # only the dep cached; failed svc not cached
-    assert container.cache_registry.cached_count() == expected_cached_after_failure
+    assert container._cache_registry.cached_count() == expected_cached_after_failure
     retried = container.resolve(_FlakySvc)
     assert isinstance(retried, _FlakySvc)
     container.close_sync()
@@ -503,8 +503,8 @@ def test_shared_factory_wires_independently_per_registry() -> None:
     with_leaf.open()
     without_leaf.open()
 
-    assert with_leaf.providers_registry.find_provider(OptionalDepSvc) is svc_factory
-    assert without_leaf.providers_registry.find_provider(OptionalDepSvc) is svc_factory
+    assert with_leaf.find_provider(OptionalDepSvc) is svc_factory
+    assert without_leaf.find_provider(OptionalDepSvc) is svc_factory
     assert isinstance(with_leaf.resolve(OptionalDepSvc).dep, SimpleCreator)
     assert without_leaf.resolve(OptionalDepSvc).dep is None
 
@@ -532,7 +532,7 @@ def test_optional_param_injects_none_when_no_provider() -> None:
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
     container.open()
-    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    container._providers_registry.register(_NeedsOptionalSingle, factory)
     obj = container.resolve(_NeedsOptionalSingle)
     assert obj.dep is None
 
@@ -542,8 +542,8 @@ def test_optional_param_uses_provider_when_present() -> None:
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
     container.open()
-    container.providers_registry.register(_OptionalDep, dep_factory)
-    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    container._providers_registry.register(_OptionalDep, dep_factory)
+    container._providers_registry.register(_NeedsOptionalSingle, factory)
     obj = container.resolve(_NeedsOptionalSingle)
     assert isinstance(obj.dep, _OptionalDep)
 
@@ -552,7 +552,7 @@ def test_optional_multi_member_union_injects_none_when_no_provider() -> None:
     factory: providers.Factory[_NeedsOptionalUnion] = providers.Factory(creator=_NeedsOptionalUnion, scope=Scope.APP)
     container = Container(scope=Scope.APP)
     container.open()
-    container.providers_registry.register(_NeedsOptionalUnion, factory)
+    container._providers_registry.register(_NeedsOptionalUnion, factory)
     obj = container.resolve(_NeedsOptionalUnion)
     assert obj.dep is None
 
@@ -560,7 +560,7 @@ def test_optional_multi_member_union_injects_none_when_no_provider() -> None:
 def test_validate_does_not_flag_optional_param_without_provider() -> None:
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
-    container.providers_registry.register(_NeedsOptionalSingle, factory)
+    container._providers_registry.register(_NeedsOptionalSingle, factory)
     container.validate()  # must not raise
 
 
@@ -582,17 +582,17 @@ def test_optional_param_backed_by_unset_context_provider_raises() -> None:
     factory: providers.Factory[_NeedsOptionalCtx] = providers.Factory(creator=_NeedsOptionalCtx, scope=Scope.APP)
     container = Container(scope=Scope.APP)
     container.open()
-    container.providers_registry.register(_OptionalCtx, ctx_provider)
-    container.providers_registry.register(_NeedsOptionalCtx, factory)
+    container._providers_registry.register(_OptionalCtx, ctx_provider)
+    container._providers_registry.register(_NeedsOptionalCtx, factory)
     with pytest.raises(exceptions.ContextValueNotSetError) as exc:
         container.resolve(_NeedsOptionalCtx)
     assert exc.value.parameter_name == "ctx"
 
     defaulted = Container(scope=Scope.APP)
-    defaulted.providers_registry.register(
+    defaulted._providers_registry.register(
         _OptionalCtx, providers.ContextProvider(scope=Scope.APP, context_type=_OptionalCtx, default=None)
     )
-    defaulted.providers_registry.register(_NeedsOptionalCtx, factory)
+    defaulted._providers_registry.register(_NeedsOptionalCtx, factory)
     assert defaulted.resolve(_NeedsOptionalCtx).ctx is None
 
 
@@ -609,7 +609,7 @@ def test_skip_creator_parsing_missing_args_raises_di_error() -> None:
     )
     container = Container(scope=Scope.APP)
     container.open()
-    container.providers_registry.register(int, factory)
+    container._providers_registry.register(int, factory)
     with pytest.raises(exceptions.CreatorCallError) as exc_info:
         container.resolve(int)
     assert "_needs_two_args" in str(exc_info.value)
@@ -627,7 +627,7 @@ def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
     )
     container = Container(scope=Scope.APP)
     container.open()
-    container.providers_registry.register(int, factory)
+    container._providers_registry.register(int, factory)
     with pytest.raises(exceptions.CreatorCallError) as exc_info:
         container.resolve(int)
     assert "_needs_two_args" in str(exc_info.value)
@@ -647,7 +647,7 @@ def test_internal_typeerror_from_creator_body_is_not_wrapped() -> None:
     )
     container = Container(scope=Scope.APP)
     container.open()
-    container.providers_registry.register(_InternalTypeErrorService, factory)
+    container._providers_registry.register(_InternalTypeErrorService, factory)
     with pytest.raises(TypeError) as exc_info:
         container.resolve(_InternalTypeErrorService)
     assert not isinstance(exc_info.value, exceptions.CreatorCallError)
@@ -676,7 +676,7 @@ def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
     factory: providers.Factory[_NeedsUnregistered] = providers.Factory(creator=_NeedsUnregistered, scope=Scope.APP)
     container = Container(scope=Scope.APP)  # exercise resolve-time breadcrumb, not validation
     container.open()
-    container.providers_registry.register(_NeedsUnregistered, factory)
+    container._providers_registry.register(_NeedsUnregistered, factory)
 
     def _grab() -> str:
         try:
@@ -714,8 +714,8 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
     parent2: providers.Factory[_Parent2] = providers.Factory(creator=_Parent2, scope=Scope.APP)
     c2 = Container(scope=Scope.APP)  # exercise resolve-time breadcrumb, not validation
     c2.open()
-    c2.providers_registry.register(_Leaf2, leaf2)
-    c2.providers_registry.register(_Parent2, parent2)
+    c2._providers_registry.register(_Leaf2, leaf2)
+    c2._providers_registry.register(_Parent2, parent2)
 
     # Resolve parent — propagates through leaf → parent step prepended
     with contextlib.suppress(exceptions.ResolutionError):
@@ -925,7 +925,7 @@ def test_nonetype_param_with_default_uses_the_default() -> None:
     factory = providers.Factory(scope=Scope.APP, creator=Svc)
     container = Container()
     container.open()
-    container.providers_registry.add_providers(factory)
+    container._providers_registry.add_providers(factory)
 
     result = container.resolve(Svc)
     assert result.hook is None
@@ -941,7 +941,7 @@ def test_nonetype_param_without_default_injects_none() -> None:
     factory = providers.Factory(scope=Scope.APP, creator=Svc)
     container = Container()
     container.open()
-    container.providers_registry.add_providers(factory)
+    container._providers_registry.add_providers(factory)
 
     result = container.resolve(Svc)
     assert result.hook is None

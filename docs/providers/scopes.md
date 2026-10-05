@@ -36,7 +36,7 @@ with app_container.build_child_container(scope=Scope.REQUEST) as request_contain
 
 `Dependencies` here is a `Group` subclass holding the provider definitions. See the [Quick Start](../index.md) or [Resolving dependencies](../introduction/resolving.md) for how it's declared.
 
-Children share their parent's `providers_registry` (provider definitions) and `overrides_registry` (test overrides) but have their own `cache_registry` (resolved instances) and `context_registry` (runtime context values). That's why a REQUEST-scoped factory produces one instance per request: the cache lives on the request container, not the app container.
+Children share their parent's provider definitions and test overrides, and each one keeps its own resolved instances and runtime context values. That's why a REQUEST-scoped factory produces one instance per request: the cache lives on the request container, not the app container.
 
 ## The scope dependency rule
 

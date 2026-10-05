@@ -144,7 +144,7 @@ async def test_request_singleton() -> None:
     assert instance3 is instance4
     assert instance1 is not instance3
 
-    cache_item = request_container.cache_registry.fetch_cache_item(MyGroup.request_singleton)
+    cache_item = request_container._cache_registry.fetch_cache_item(MyGroup.request_singleton)
 
     with pytest.raises(FinalizerError) as exc_info:
         request_container.close_sync()
@@ -411,7 +411,7 @@ def test_cached_none_is_returned_and_finalized() -> None:
     app_container.resolve_provider(NoneGroup.none_resource)
 
     assert call_count == 1  # cached after first call, not re-created
-    assert app_container.cache_registry.cached_count() == 1
+    assert app_container._cache_registry.cached_count() == 1
 
     app_container.close_sync()
     assert cleaned_up == [None]
@@ -642,7 +642,7 @@ def test_resolve_from_a_finalizer_during_close_sync_raises_container_closed() ->
 
     assert len(errors) == 1
     assert _Built.count == 1
-    assert container.cache_registry.cached_count() == 0
+    assert container._cache_registry.cached_count() == 0
     assert container.closed is True
 
 
@@ -669,7 +669,7 @@ async def test_resolve_from_a_finalizer_during_close_async_raises_container_clos
 
     assert len(errors) == 1
     assert _Built.count == 1
-    assert container.cache_registry.cached_count() == 0
+    assert container._cache_registry.cached_count() == 0
     assert container.closed is True
 
 
@@ -694,7 +694,7 @@ def test_failed_sync_finalizer_drops_the_instance() -> None:
         container.close_sync()
 
     assert [type(e) for e in exc.value.exceptions] == [ValueError]
-    assert container.cache_registry.cached_count() == 0
+    assert container._cache_registry.cached_count() == 0
     container.open()
     assert container.resolve(_First) is not stale
 
@@ -710,7 +710,7 @@ async def test_failed_async_finalizer_drops_the_instance() -> None:
         await container.close_async()
 
     assert [type(e) for e in exc.value.exceptions] == [ValueError]
-    assert container.cache_registry.cached_count() == 0
+    assert container._cache_registry.cached_count() == 0
     container.open()
     assert container.resolve(_First) is not stale
 
@@ -747,4 +747,4 @@ async def test_cancelled_close_async_keeps_unfinalized_items_queued() -> None:
 
     assert events == ["second", "first"]
     assert slow_calls == [0, 1]
-    assert container.cache_registry.cached_count() == 0
+    assert container._cache_registry.cached_count() == 0

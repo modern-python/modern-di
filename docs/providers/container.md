@@ -70,10 +70,22 @@ context/cache), while app-scoped code reaches the app container.
 ## Registering providers after construction
 
 `container.add_providers(*providers)` registers additional providers on a **root** container after
-it's built. It is the blessed seam framework integrations use instead of reaching into
-`providers_registry` directly. Raises `ChildContainerRegistrationError` if called on a child
-container. See [Writing an integration](../integrations/writing-integrations.md#the-contract) for
+it's built. Framework integrations use it to register their connection providers. Raises
+`ChildContainerRegistrationError` if called on a child container, and so does passing `groups=`
+together with `parent_container=`. See [Writing an integration](../integrations/writing-integrations.md#the-contract) for
 the full contract.
+
+## Looking up a provider
+
+`container.find_provider(SomeType)` returns the provider registered for `SomeType`, or `None` when
+nothing is. Every container in a tree sees the same providers, so a child answers the same as its
+root. The lookup ignores overrides and the closed state, and it never resolves anything:
+
+```python
+provider = request_container.find_provider(UserRepository)
+if provider is not None:
+    repository = request_container.resolve_provider(provider)
+```
 
 ## Resolving a provider or type
 

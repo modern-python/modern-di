@@ -66,7 +66,7 @@ def resolve(container):
         target = container._scope_map.get(scope)
         if target is None:
             target = _navigate(container, scope, resolution_step)
-    if target.closed:
+    if target._closed:
         raise ContainerClosedError(container_scope=target.scope)
     try:
 {build}
@@ -127,9 +127,9 @@ def resolve(container):
         target = container._scope_map.get(scope)
         if target is None:
             target = _navigate(container, scope, resolution_step)
-    if target.closed:
+    if target._closed:
         raise ContainerClosedError(container_scope=target.scope)
-    cache_registry = target.cache_registry
+    cache_registry = target._cache_registry
     cache_item = cache_registry._items.get(pid)
     if cache_item is None:
         cache_item = cache_registry.fetch_cache_item(provider)
@@ -235,9 +235,9 @@ def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") ->
 
     def resolve(container: "Container") -> typing.Any:
         target = container if container.scope == scope else _navigate(container, scope, resolution_step)
-        if target.closed:
+        if target._closed:
             raise exceptions.ContainerClosedError(container_scope=target.scope)
-        error = build_error(arg_name=arg_name, item=item, registry=target.providers_registry)
+        error = build_error(arg_name=arg_name, item=item, registry=target._providers_registry)
         error.prepend_step(resolution_step())
         raise error
 
@@ -276,9 +276,9 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
             target = container._scope_map.get(scope)
             if target is None:
                 target = _navigate(container, scope, resolution_step)
-        if target.closed:
+        if target._closed:
             raise exceptions.ContainerClosedError(container_scope=target.scope)
-        context = target.context_registry.context
+        context = target._context_registry.context
         # Not `.get(key, UNSET)`: that skips a dict subclass's `__contains__`/`__getitem__`.
         if context_type in context:
             return context[context_type]

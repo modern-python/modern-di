@@ -107,10 +107,9 @@ def test_duplicate_type_across_two_groups_raises() -> None:
 
 def test_failed_group_registration_does_not_pollute_shared_registry() -> None:
     app = Container(scope=Scope.APP, groups=[_GroupOne])
-    child_scope = Scope.SESSION
     with pytest.raises(DuplicateProviderTypeError):
-        Container(scope=child_scope, parent_container=app, groups=[_GroupTwo])
-    assert app.providers_registry.find_provider(_ExtraSvc) is None
+        app.add_providers(*_GroupTwo.get_providers())
+    assert app.find_provider(_ExtraSvc) is None
 
 
 def test_get_named_providers_maps_each_provider_to_its_attribute_name() -> None:

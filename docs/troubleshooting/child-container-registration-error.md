@@ -2,17 +2,19 @@
 
 ## Symptom
 
-Raised from `Container.add_providers()`, naming the scope of the child container it was called on.
+Raised from `Container.add_providers()` on a child container, or from `Container(...)` when
+`groups=` is passed together with `parent_container=`. It names the child container's scope.
 
 ## Cause
 
-`add_providers()` was called on a child container rather than the root. The providers registry is
+Providers were registered on a child container rather than the root. The providers registry is
 shared tree-wide (every container in the chain points at the same registry), so registering from a
 child would silently mutate every container in the tree, so the call is disallowed.
 
 ## Fix
 
-Call `add_providers()` on the root container instead:
+Register on the root container instead, either with `groups=` when you build it or with
+`add_providers()` later:
 
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
@@ -23,6 +25,13 @@ request_container.add_providers(late_provider)  # raises ChildContainerRegistrat
 
 # Works
 app_container.add_providers(late_provider)
+
+# Wrong
+Container(scope=Scope.REQUEST, parent_container=app_container, groups=[RequestGroup])
+
+# Right
+app_container = Container(scope=Scope.APP, groups=[MyGroup, RequestGroup])
+request_container = app_container.build_child_container(scope=Scope.REQUEST)
 ```
 
 If you only have a reference to the child container at the call site, keep a reference to the root

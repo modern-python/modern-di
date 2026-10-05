@@ -429,7 +429,7 @@ def test_redirect_target_default_none() -> None:
 
 def test_alias_redirect_target_returns_source() -> None:
     container = Container(groups=[MyGroup])
-    source = container.providers_registry.find_provider(PostgresRepository)
+    source = container.find_provider(PostgresRepository)
     assert source is not None
     target = MyGroup.abstract_repo._redirect_target(container)
     assert target is not None
@@ -497,7 +497,7 @@ def test_alias_to_a_same_scope_source_validates_clean_below_app() -> None:
 
     container = Container(scope=_BelowApp.ROOT, groups=[G])
     container.validate()
-    assert container.providers_registry.is_validated() is True
+    assert container._providers_registry.is_validated() is True
 
 
 def test_alias_on_a_closed_container_raises() -> None:

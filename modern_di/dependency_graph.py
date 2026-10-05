@@ -16,6 +16,7 @@ from modern_di.providers.abstract import AbstractProvider
 
 if typing.TYPE_CHECKING:
     from modern_di import Container
+    from modern_di.registries.providers_registry import ProvidersRegistry
 
 
 class NodeEntered(NamedTuple):
@@ -181,10 +182,10 @@ class DependencyGraph:
         stack.append(iter(dependencies.items()))
 
 
-def collect_errors(container: "Container") -> list[Exception]:
-    """Walk ``container``'s provider graph once and return every wiring error in walk order."""
+def collect_errors(container: "Container", registry: "ProvidersRegistry") -> list[Exception]:
+    """Walk the graph rooted at ``registry``'s providers once; return every wiring error in walk order."""
     errors: list[Exception] = []
-    for event in DependencyGraph().walk(container.providers_registry, container):
+    for event in DependencyGraph().walk(registry, container):
         match event:
             case NodeEntered(provider):
                 errors.extend(provider._iter_validation_issues(container))  # noqa: SLF001

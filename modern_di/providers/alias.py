@@ -28,7 +28,7 @@ class Alias(AbstractProvider[types.T_co]):
         return f"Alias(source_type={self._source_type!r}, bound_type={self.bound_type!r}, scope={self.scope!r})"
 
     def _find_source(self, container: "Container") -> "AbstractProvider[types.T_co]":
-        source = container.providers_registry.find_provider(self._source_type)
+        source = container.find_provider(self._source_type)
         if source is None:
             raise exceptions.AliasSourceNotRegisteredError(source_type=self._source_type)
         return source

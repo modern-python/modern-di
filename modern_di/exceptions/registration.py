@@ -36,7 +36,7 @@ class DuplicateProviderTypeError(RegistrationError):
 
 
 class ChildContainerRegistrationError(RegistrationError):
-    """``add_providers`` was called on a child container; registration is root-only. Inspect ``.scope``."""
+    """Providers were registered on a child container, via ``add_providers`` or ``groups=``. Inspect ``.scope``."""
 
     docs_slug = "child-container-registration-error"
 
@@ -45,9 +45,9 @@ class ChildContainerRegistrationError(RegistrationError):
     def __init__(self, *, scope: enum.IntEnum) -> None:
         self.scope = scope
         super().__init__(
-            f"Container.add_providers can only be called on a root container: the providers "
-            f"registry is shared tree-wide, so registering on a child container (scope {scope.name}) "
-            "would mutate every container in the tree. Call add_providers on the root container instead."
+            f"Providers can only be registered on a root container: the providers registry is shared "
+            f"tree-wide, so registering on a child container (scope {scope.name}) would mutate every "
+            "container in the tree. Pass groups= to the root Container or call add_providers on it instead."
         )
 
 
