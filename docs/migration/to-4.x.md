@@ -59,7 +59,8 @@ only in a container built at the same enum member, and the same-valued scope of 
 `ScopeSkippedError` or `ScopeNotInitializedError`. Group default scopes compare members too: two
 groups that give one provider `Scope.SESSION` and `Tenancy.TENANT` raise `GroupScopeConflictError`.
 A group that restamps a registered provider to another enum's member with the same value now raises
-`ProviderScopeFrozenError`; 3.x accepted it silently.
+`ProviderScopeFrozenError`; 3.x accepted it silently. `validate()` reports a dependency on the
+same-valued scope of another enum as `ScopeEnumMismatchError`, since it can never resolve.
 Ordering is unchanged, so a child container still needs a higher integer value than its parent,
 whichever enum each scope comes from. If a provider relied on the old match, give it the scope
 member of the container it should resolve in. See [Custom scopes](../providers/scopes.md#custom-scopes).

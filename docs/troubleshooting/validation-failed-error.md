@@ -16,8 +16,8 @@ issue across the whole graph in one pass rather than stopping at the first one, 
 ## Fix
 
 Inspect `.errors` to see every underlying issue, or read the grouped `str()` report directly. Each
-group is one of `CircularDependencyError`, `InvalidScopeDependencyError`, `ArgumentResolutionError`,
-or `AliasSourceNotRegisteredError` today. Fix each one; their own pages cover the specific cause and
+group is one of `CircularDependencyError`, `InvalidScopeDependencyError`, `ScopeEnumMismatchError`,
+`ArgumentResolutionError`, or `AliasSourceNotRegisteredError` today. Fix each one; their own pages cover the specific cause and
 remedy:
 
 ```python
@@ -35,4 +35,4 @@ construction, not `open()`, not `resolve()`.
 ## See also
 
 - [Lifecycle: validation](../providers/lifecycle.md#validation).
-- The underlying issue kinds: [Circular dependency](circular-dependency.md), [Scope chain violation](scope-chain.md), [Argument resolution error](argument-resolution-error.md), [Alias source not registered](alias-source-not-registered-error.md).
+- The underlying issue kinds: [Circular dependency](circular-dependency.md), [Scope chain violation](scope-chain.md), [Scope enum mismatch](scope-enum-mismatch-error.md), [Argument resolution error](argument-resolution-error.md), [Alias source not registered](alias-source-not-registered-error.md).
