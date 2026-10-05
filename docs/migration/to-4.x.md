@@ -58,6 +58,8 @@ In 3.x a provider found its container by integer value, so a provider at a custo
 only in a container built at the same enum member, and the same-valued scope of another enum raises
 `ScopeSkippedError` or `ScopeNotInitializedError`. Group default scopes compare members too: two
 groups that give one provider `Scope.SESSION` and `Tenancy.TENANT` raise `GroupScopeConflictError`.
+A group that restamps a registered provider to another enum's member with the same value now raises
+`ProviderScopeFrozenError`; 3.x accepted it silently.
 Ordering is unchanged, so a child container still needs a higher integer value than its parent,
 whichever enum each scope comes from. If a provider relied on the old match, give it the scope
 member of the container it should resolve in. See [Custom scopes](../providers/scopes.md#custom-scopes).

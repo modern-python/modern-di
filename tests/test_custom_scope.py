@@ -223,10 +223,6 @@ def test_scope_modules_import_only_enum(module: types.ModuleType) -> None:
     assert _module_level_imports("from enum import IntEnum\n") == {"enum"}
 
 
-class Tenancy(enum.IntEnum):
-    TENANT = 2
-
-
 class _Unregistered: ...
 
 
@@ -237,50 +233,50 @@ class _NeedsUnregistered:
 
 @pytest.mark.parametrize("cache", [False, True])
 def test_same_valued_scope_of_another_enum_does_not_resolve_in_this_container(cache: bool) -> None:
-    class TenancyGroup(Group):
-        svc = providers.Factory(scope=Tenancy.TENANT, creator=TenantService, cache=cache)
+    class ConflictingGroup(Group):
+        svc = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=TenantService, cache=cache)
 
-    session = Container(groups=[TenancyGroup]).build_child_container(scope=Scope.SESSION)
-    with pytest.raises(ScopeSkippedError, match="TENANT") as exc:
+    session = Container(groups=[ConflictingGroup]).build_child_container(scope=Scope.SESSION)
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST") as exc:
         session.resolve(TenantService)
-    assert exc.value.provider_scope is Tenancy.TENANT
-    assert exc.value.dependency_path[0].scope is Tenancy.TENANT
+    assert exc.value.provider_scope is ConflictingScope.LOWER_THAN_REQUEST
+    assert exc.value.dependency_path[0].scope is ConflictingScope.LOWER_THAN_REQUEST
     assert session._cache_registry.cached_count() == 0
 
 
 @pytest.mark.parametrize("cache", [False, True])
 def test_same_valued_ancestor_of_another_enum_does_not_resolve(cache: bool) -> None:
-    class TenancyGroup(Group):
-        svc = providers.Factory(scope=Tenancy.TENANT, creator=TenantService, cache=cache)
+    class ConflictingGroup(Group):
+        svc = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=TenantService, cache=cache)
 
-    session = Container(groups=[TenancyGroup]).build_child_container(scope=Scope.SESSION)
+    session = Container(groups=[ConflictingGroup]).build_child_container(scope=Scope.SESSION)
     request = session.build_child_container(scope=Scope.REQUEST)
-    with pytest.raises(ScopeSkippedError, match="TENANT") as exc:
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST") as exc:
         request.resolve(TenantService)
-    assert exc.value.provider_scope is Tenancy.TENANT
-    assert exc.value.dependency_path[0].scope is Tenancy.TENANT
+    assert exc.value.provider_scope is ConflictingScope.LOWER_THAN_REQUEST
+    assert exc.value.dependency_path[0].scope is ConflictingScope.LOWER_THAN_REQUEST
     assert session._cache_registry.cached_count() == 0
 
 
 @pytest.mark.parametrize("scope", [Scope.SESSION, Scope.REQUEST], ids=["SESSION", "REQUEST"])
 def test_context_provider_ignores_same_valued_scope_of_another_enum(scope: Scope) -> None:
-    class TenancyGroup(Group):
-        ctx = providers.ContextProvider(TenantService, scope=Tenancy.TENANT)
+    class ConflictingGroup(Group):
+        ctx = providers.ContextProvider(TenantService, scope=ConflictingScope.LOWER_THAN_REQUEST)
 
-    session = Container(groups=[TenancyGroup]).build_child_container(
+    session = Container(groups=[ConflictingGroup]).build_child_container(
         scope=Scope.SESSION, context={TenantService: TenantService()}
     )
     container = session if scope is Scope.SESSION else session.build_child_container(scope=scope)
-    with pytest.raises(ScopeSkippedError, match="TENANT"):
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST"):
         container.resolve(TenantService)
 
 
 def test_unwireable_factory_ignores_same_valued_scope_of_another_enum() -> None:
-    class TenancyGroup(Group):
-        svc = providers.Factory(scope=Tenancy.TENANT, creator=_NeedsUnregistered)
+    class ConflictingGroup(Group):
+        svc = providers.Factory(scope=ConflictingScope.LOWER_THAN_REQUEST, creator=_NeedsUnregistered)
 
-    session = Container(groups=[TenancyGroup]).build_child_container(scope=Scope.SESSION)
-    with pytest.raises(ScopeSkippedError, match="TENANT"):
+    session = Container(groups=[ConflictingGroup]).build_child_container(scope=Scope.SESSION)
+    with pytest.raises(ScopeSkippedError, match="LOWER_THAN_REQUEST"):
         session.resolve(_NeedsUnregistered)
 
 
@@ -289,9 +285,9 @@ def test_find_container_matches_the_enum_member_not_its_value() -> None:
     request = session.build_child_container(scope=Scope.REQUEST)
     assert request.find_container(Scope.SESSION) is session
     with pytest.raises(ScopeSkippedError):
-        session.find_container(Tenancy.TENANT)
+        session.find_container(ConflictingScope.LOWER_THAN_REQUEST)
     with pytest.raises(ScopeSkippedError):
-        request.find_container(Tenancy.TENANT)
+        request.find_container(ConflictingScope.LOWER_THAN_REQUEST)
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
