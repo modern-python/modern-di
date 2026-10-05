@@ -437,14 +437,11 @@ Each official integration is its own repository and PyPI package, mirroring the
   type would fail `validate()` if that call were placed *before* `setup_di`.
   Demonstrate context injection in a dedicated "Framework context objects"
   section instead, with a required parameter (`request: FrameworkType`).
-  Don't present `request: FrameworkType | None = None` as a way to make the
-  value optional. Once `setup_di` has registered the connection provider, the
-  parameter is wired to it and its default is never used, so resolving outside
-  a connection raises `ContextValueNotSetError`. For a factory that must also
-  resolve outside a connection, show an app-owned `ContextProvider` with
-  `bound_type=None, default=None` passed through `kwargs`, as the [gRPC
-  page](grpc.md#injecting-the-servicercontext) does and [Optional
-  context](../providers/context.md#optional-context-default) documents. Follow
+  For a factory that must also resolve outside a connection, show an optional
+  parameter (`request: FrameworkType | None = None`), which gets `None` when no
+  connection is set, as the [gRPC page](grpc.md#injecting-the-servicercontext)
+  does and [Optional parameters](../providers/context.md#optional-parameters)
+  documents. Follow
   the example with any framework-specific sections, a tailored `## See also`
   block linking [Testing with overrides](../recipes/testing-overrides.md),
   [Lifecycle](../providers/lifecycle.md), [Scopes](../providers/scopes.md), and

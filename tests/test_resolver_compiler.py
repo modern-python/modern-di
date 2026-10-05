@@ -632,6 +632,40 @@ def test_cross_scope_hop_costs_no_extra_frame() -> None:
     )
 
 
+@pytest.mark.parametrize("cached", [False, True])
+def test_context_argument_fallback_costs_no_extra_frame(cached: bool) -> None:
+    """INVARIANT: an unset context argument that falls back costs the same calls as a set one.
+
+    The parameter's fallback is compiled into the argument's own context resolver. Checking the
+    parameter per resolve, or wrapping the context resolver, costs a frame per argument.
+    """
+
+    class _Ctx: ...
+
+    def _creator(ctx: _Ctx | None) -> object:
+        return ctx
+
+    class _G(Group):
+        ctx = providers.ContextProvider(_Ctx, scope=Scope.REQUEST)
+        out = providers.Factory(_creator, scope=Scope.REQUEST, bound_type=None, cache=cached)
+
+    app = Container(scope=Scope.APP, groups=[_G])
+
+    def resolve_in_new_child(context: dict[type, object] | None) -> "typing.Callable[[], object]":
+        child = app.build_child_container(scope=Scope.REQUEST, context=context)
+        return lambda: child.resolve_provider(_G.out)
+
+    set_value = resolve_in_new_child({_Ctx: _Ctx()})
+    unset = resolve_in_new_child(None)
+    assert isinstance(set_value(), _Ctx)  # compile before measuring
+    assert unset() is None
+
+    set_calls = _count_python_calls(resolve_in_new_child({_Ctx: _Ctx()}))
+    unset_calls = _count_python_calls(resolve_in_new_child(None))
+
+    assert unset_calls == set_calls
+
+
 def test_overridden_alias_compiles_nothing_of_its_source() -> None:
     """INVARIANT: an override short-circuits before its provider's subtree is compiled.
 

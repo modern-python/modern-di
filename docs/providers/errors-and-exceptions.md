@@ -144,9 +144,10 @@ to render the chain programmatically.
   the creator's step in its chain. The binding `TypeError` is preserved on `.original_error` (and as the `__cause__`).
   See [Troubleshooting: CreatorCallError](../troubleshooting/creator-call-error.md).
 - `ContextValueNotSetError` is raised when a `ContextProvider` with no `default=` is resolved and
-  no value is set, either directly (`container.resolve(SomeContextType)`) or as a `Factory`
-  argument. A `Factory` parameter's own default or nullable annotation does not apply. See
-  [Migration: To 4.x](../migration/to-4.x.md#context-values-are-required-unless-the-provider-sets-default).
+  no value is set, either directly (`container.resolve(SomeContextType)`) or as the argument for a
+  required `Factory` parameter. A parameter that is nullable or has a default gets that default, or
+  `None`, instead. See
+  [Migration: To 4.x](../migration/to-4.x.md#a-missing-context-value-for-a-required-parameter-raises-contextvaluenotseterror).
   Inspect `.context_type`, `.provider_scope`, and `.parameter_name` (the parameter, or `None` for a
   direct resolve). See
   [Troubleshooting: Context not set](../troubleshooting/context-not-set.md).

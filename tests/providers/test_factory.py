@@ -562,7 +562,7 @@ class _NeedsOptionalCtx:
         self.ctx = ctx
 
 
-def test_optional_param_backed_by_unset_context_provider_raises() -> None:
+def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
     ctx_provider: providers.ContextProvider[_OptionalCtx] = providers.ContextProvider(
         scope=Scope.APP, context_type=_OptionalCtx
     )
@@ -570,9 +570,7 @@ def test_optional_param_backed_by_unset_context_provider_raises() -> None:
     container = Container(scope=Scope.APP)
     container._providers_registry.register(_OptionalCtx, ctx_provider)
     container._providers_registry.register(_NeedsOptionalCtx, factory)
-    with pytest.raises(exceptions.ContextValueNotSetError) as exc:
-        container.resolve(_NeedsOptionalCtx)
-    assert exc.value.parameter_name == "ctx"
+    assert container.resolve(_NeedsOptionalCtx).ctx is None
 
     defaulted = Container(scope=Scope.APP)
     defaulted._providers_registry.register(

@@ -63,10 +63,14 @@ The provider is bound to a [scope](scopes.md) (here `Scope.REQUEST`) and the val
 
 ## When no value is set
 
-A `ContextProvider` reads its value from the context of the container at its bound scope. A context
-value is required: if nothing was supplied, resolving the provider raises `ContextValueNotSetError`,
-whether you resolve it directly (`container.resolve(CustomContext)`) or a `Factory` receives it as an
-argument. In the second case the error also names the parameter:
+A `ContextProvider` reads its value from the context of the container at its bound scope. When
+nothing was supplied, the result depends on how the value is used:
+
+- A direct resolve (`container.resolve(CustomContext)`) raises `ContextValueNotSetError`.
+- A `Factory` argument for a parameter that is nullable or has a default gets that default, or
+  `None` for an `X | None` parameter without one.
+- A `Factory` argument for a required parameter raises `ContextValueNotSetError`, and the error
+  names the parameter:
 
 ```
 Cannot resolve dependency chain:
@@ -75,62 +79,51 @@ Cannot resolve dependency chain:
 See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
 ```
 
-The consuming parameter's annotation and default are ignored: a creator parameter written
-`custom_context: CustomContext | None = None` still raises when a `ContextProvider` backs it and no
-value is set. See [ContextProvider has no value](../troubleshooting/context-not-set.md).
+A provider declared with [`default=`](#optional-context-default) returns its default in all three
+cases. See [ContextProvider has no value](../troubleshooting/context-not-set.md).
 
-### Optional context: `default=`
+### Optional parameters
 
-To make a context value optional, give the provider a default. It returns `default=` whenever no
-value is set, and the set value otherwise:
-
-```python
-class Dependencies(Group):
-    custom_context = providers.ContextProvider(CustomContext, scope=Scope.REQUEST, default=None)
-```
-
-`default=` is the only way to make context optional. The provider returns the default object itself
-on every unset resolve; it does not call or copy it.
-
-When the provider belongs to someone else, such as an integration's provider for `fastapi.Request`,
-declare a second `ContextProvider` for the same type in your app and pass it explicitly.
-`bound_type=None` keeps it out of type-based wiring, so it does not collide with the integration's
-provider. Both read the same context registry entry:
+Make the parameter optional when a creator runs both with and without the value. This works with
+an integration's provider too. With `modern-di-fastapi` set up, `fastapi.Request` is wired by type
+to the integration's provider:
 
 ```python
 import fastapi
 from modern_di import Group, Scope, providers
 
 
-def choose_engine(
-    *,
-    primary_engine: Engine,
-    replica_engine: Engine | None,
-    request: fastapi.Request | None = None,
-) -> Engine:
-    if replica_engine and request and request.method in REPLICA_METHODS:
-        return replica_engine
-    return primary_engine
+class AuditLog:
+    def __init__(self, request: fastapi.Request | None = None) -> None:
+        self.client_host = request.client.host if request and request.client else None
 
 
 class Dependencies(Group):
-    optional_request = providers.ContextProvider(
-        fastapi.Request, scope=Scope.REQUEST, bound_type=None, default=None
-    )
-    dynamic_engine = providers.Factory(
-        choose_engine,
-        scope=Scope.REQUEST,
-        kwargs={
-            "primary_engine": primary_engine,
-            "replica_engine": replica_engine,
-            "request": optional_request,
-        },
-    )
+    audit_log = providers.Factory(AuditLog, scope=Scope.REQUEST)
 ```
 
-Inside a request, `dynamic_engine` gets the real `Request`. Where no request is set, for example in
-a FastStream consumer that shares the container, it gets `None`. The integration's own provider
-stays required, so `container.resolve(fastapi.Request)` outside a request still raises.
+Inside a request, `AuditLog` gets the real `Request`. Where no request is set, for example in a
+FastStream consumer that shares the container, it gets `None`. The integration's provider stays
+required, so `container.resolve(fastapi.Request)` outside a request still raises.
+
+The parameter decides this however it is wired: by type, by a member of a union, through an
+`Alias`, or with `kwargs={...}`. It applies only to an argument that comes straight from the
+`ContextProvider`. If the parameter's provider is a `Factory` that itself needs the missing value,
+the resolve raises.
+
+### Optional context: `default=`
+
+To make a context value optional for every consumer, direct resolves and required parameters
+included, give the provider a default. It returns `default=` whenever no value is set, and the set
+value otherwise:
+
+```python
+class Dependencies(Group):
+    custom_context = providers.ContextProvider(CustomContext, scope=Scope.REQUEST, default=None)
+```
+
+The provider's default wins over a parameter's default. The provider returns the default object
+itself on every unset resolve; it does not call or copy it.
 
 ## Context propagation
 
@@ -223,10 +216,8 @@ narrower, construction-time check), make the parameter optional instead
 (`request: fastapi.Request | None = None`), so `validate()` skips it while no provider for
 `fastapi.Request` is registered; at runtime the integration still injects the real `Request`,
 since it always sets the per-request context before resolving. Once `setup_di()` has registered
-the provider, the parameter's default no longer applies: resolving the factory where no request is
-set raises `ContextValueNotSetError` (see [When no value is set](#when-no-value-is-set) above). Use
-an [app-owned optional provider](#optional-context-default) for a factory that must also work
-outside a request.
+the provider, resolving the factory where no request is set gives it `None` (see
+[Optional parameters](#optional-parameters) above).
 
 For explicit, provider-based resolution, every integration also exports the underlying
 `ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,

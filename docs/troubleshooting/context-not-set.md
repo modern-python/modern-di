@@ -1,6 +1,6 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. A context value is required: if none was registered and the provider declares no `default=`, resolving it raises `ContextValueNotSetError`, whether it is resolved directly or injected into a `Factory` parameter. A default or an `X | None` annotation on the parameter does not change that.
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered and the provider declares no `default=`, a direct resolve raises `ContextValueNotSetError`, and so does a `Factory` argument for a required parameter. A `Factory` parameter that is nullable or has a default gets that default, or `None`, instead of raising.
 
 ## Symptom
 
@@ -56,13 +56,23 @@ Depend on framework-injected context only inside the framework's request handlin
 
 ### 4. The value is optional
 
-If the provider has to resolve where no value is set, such as in a handler that also runs outside a request, give it a default. The provider returns `default=` whenever nothing is set:
+If a creator runs where no value is set, such as a handler that also runs outside a request, make its parameter optional. With no value set it gets its default, or `None` for an `X | None` parameter without one:
+
+```python
+class MyService:
+    def __init__(self, tenant: TenantId | None = None) -> None:
+        self.tenant = tenant
+```
+
+This works for an integration's provider too, which stays required for a direct resolve. It applies only to a parameter that takes the context value itself; a parameter whose provider is another `Factory` that needs the value still raises.
+
+To make the value optional for every consumer, direct resolves included, give the provider a default. The provider returns `default=` whenever nothing is set:
 
 ```python
 tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)
 ```
 
-When the provider belongs to an integration and should stay required, declare an app-owned optional provider for the same type instead; see [Optional context](../providers/context.md#optional-context-default).
+See [When no value is set](../providers/context.md#when-no-value-is-set).
 
 ## See also
 

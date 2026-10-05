@@ -6,6 +6,7 @@ import pytest
 
 from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import (
+    AliasSourceNotRegisteredError,
     ContainerClosedError,
     ContextValueNotSetError,
     ScopeNotInitializedError,
@@ -122,8 +123,9 @@ def test_factory_resolves_with_none_context_value() -> None:
     assert instance.value is None
 
 
-def test_factory_with_creator_default_raises_when_context_provider_value_unset() -> None:
+def test_factory_with_creator_default_gets_it_when_context_provider_value_unset() -> None:
     default = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+    provider_default = datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
 
     @dataclasses.dataclass(kw_only=True, slots=True)
     class TsHolder:
@@ -134,16 +136,11 @@ def test_factory_with_creator_default_raises_when_context_provider_value_unset()
         holder = providers.Factory(creator=TsHolder)
 
     class TsDefaultGroup(Group):
-        ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime, default=default)
+        ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime, default=provider_default)
         holder = providers.Factory(creator=TsHolder)
 
-    app_container = Container(groups=[TsGroup])
-    with pytest.raises(ContextValueNotSetError) as exc:
-        app_container.resolve(TsHolder)
-    assert exc.value.parameter_name == "ts"
-
-    defaulted = Container(groups=[TsDefaultGroup])
-    assert defaulted.resolve(TsHolder).ts == default
+    assert Container(groups=[TsGroup]).resolve(TsHolder).ts is default
+    assert Container(groups=[TsDefaultGroup]).resolve(TsHolder).ts is provider_default
 
 
 class _LateCtx: ...
@@ -373,11 +370,9 @@ class _KwargsCtxExplicitGroup(Group):
     out = providers.Factory(_ctx_default_creator, bound_type=None, kwargs={"ctx": ctx})
 
 
-def test_kwargs_context_provider_ignores_creator_default_when_unset() -> None:
+def test_kwargs_context_provider_falls_back_to_creator_default_when_unset() -> None:
     app_container = Container(groups=[_KwargsCtxExplicitGroup])
-    with pytest.raises(ContextValueNotSetError) as exc:
-        app_container.resolve_provider(_KwargsCtxExplicitGroup.out)
-    assert exc.value.parameter_name == "ctx"
+    assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == "default-applied"
 
     defaulted = Container(groups=[_KwargsCtxDefaultedGroup])
     assert defaulted.resolve_provider(_KwargsCtxDefaultedGroup.out) == "default-applied"
@@ -388,11 +383,8 @@ def test_kwargs_context_provider_matches_by_type_wiring() -> None:
     # declaration detail, not a behavior switch.
     by_type = Container(groups=[_KwargsCtxByTypeGroup])
     explicit = Container(groups=[_KwargsCtxExplicitGroup])
-    with pytest.raises(ContextValueNotSetError) as by_type_exc:
-        by_type.resolve_provider(_KwargsCtxByTypeGroup.out)
-    with pytest.raises(ContextValueNotSetError) as explicit_exc:
-        explicit.resolve_provider(_KwargsCtxExplicitGroup.out)
-    assert str(by_type_exc.value) == str(explicit_exc.value)
+    assert by_type.resolve_provider(_KwargsCtxByTypeGroup.out) == "default-applied"
+    assert explicit.resolve_provider(_KwargsCtxExplicitGroup.out) == "default-applied"
 
 
 def test_kwargs_context_provider_injects_present_value() -> None:
@@ -556,22 +548,20 @@ def test_transient_factory_context_kwarg_uses_override() -> None:
     assert container.resolve(_CachedNullable).ctx is sentinel
 
 
-def test_cached_factory_context_kwarg_absent_and_nullable_injects_the_provider_default() -> None:
+def test_cached_factory_context_kwarg_absent_and_nullable_injects_none() -> None:
     class G(Group):
         ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP, default=None)
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP, cache=True)
 
-    class Required(Group):
+    class NoDefault(Group):
         ctx = providers.ContextProvider(_CachedCtx, scope=Scope.APP)
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP, cache=True)
 
     container = Container(scope=Scope.APP, groups=[G])
     assert container.resolve(_CachedNullable).ctx is None
 
-    required = Container(scope=Scope.APP, groups=[Required])
-    with pytest.raises(ContextValueNotSetError) as exc:
-        required.resolve(_CachedNullable)
-    assert exc.value.parameter_name == "ctx"
+    no_default = Container(scope=Scope.APP, groups=[NoDefault])
+    assert no_default.resolve(_CachedNullable).ctx is None
 
 
 def test_cached_factory_context_kwarg_absent_and_required_raises() -> None:
@@ -1002,3 +992,316 @@ class _LookupHookContext(dict[type[typing.Any], typing.Any]):
 def test_dict_subclass_context_keeps_its_lookup_hooks() -> None:
     container = Container(groups=[MyGroup], context=_LookupHookContext())
     assert container.resolve(datetime.datetime) == datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+
+
+class _OptCtx: ...
+
+
+class _OtherCtx: ...
+
+
+_PARAM_DEFAULT = _OptCtx()
+
+
+def _positional_nullable(ctx: _OptCtx | None) -> _OptCtx | None:
+    return ctx
+
+
+def _keyword_nullable(*, ctx: _OptCtx | None) -> _OptCtx | None:
+    return ctx
+
+
+def _positional_defaulted(ctx: _OptCtx = _PARAM_DEFAULT) -> _OptCtx | None:
+    return ctx
+
+
+def _keyword_defaulted(*, ctx: _OptCtx = _PARAM_DEFAULT) -> _OptCtx | None:
+    return ctx
+
+
+def _positional_nullable_defaulted(ctx: _OptCtx | None = _PARAM_DEFAULT) -> _OptCtx | None:
+    return ctx
+
+
+def _keyword_nullable_defaulted(*, ctx: _OptCtx | None = _PARAM_DEFAULT) -> _OptCtx | None:
+    return ctx
+
+
+_FALLBACK_CASES = [
+    pytest.param(_positional_nullable, None, True, id="positional-nullable"),
+    pytest.param(_keyword_nullable, None, False, id="keyword-nullable"),
+    pytest.param(_positional_defaulted, _PARAM_DEFAULT, True, id="positional-defaulted"),
+    pytest.param(_keyword_defaulted, _PARAM_DEFAULT, False, id="keyword-defaulted"),
+    pytest.param(_positional_nullable_defaulted, _PARAM_DEFAULT, True, id="positional-nullable-defaulted"),
+    pytest.param(_keyword_nullable_defaulted, _PARAM_DEFAULT, False, id="keyword-nullable-defaulted"),
+]
+
+
+def _fallback_container(
+    creator: typing.Callable[..., object], *, cache: bool, positional: bool
+) -> tuple[Container, providers.Factory[object]]:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        out = providers.Factory(creator, bound_type=None, cache=cache)
+
+    container = Container(groups=[G])
+    assert G.out._can_call_positionally(G.out._wiring_plan(container._providers_registry)) is positional
+    return container, G.out
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize(("creator", "expected", "positional"), _FALLBACK_CASES)
+def test_unset_context_argument_falls_back_to_the_parameter(
+    creator: typing.Callable[..., object], expected: object, positional: bool, cache: bool
+) -> None:
+    container, out = _fallback_container(creator, cache=cache, positional=positional)
+    assert container.resolve_provider(out) is expected
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize(("creator", "expected", "positional"), _FALLBACK_CASES)
+def test_set_context_argument_wins_over_the_parameter_fallback(
+    creator: typing.Callable[..., object], expected: object, positional: bool, cache: bool
+) -> None:
+    container, out = _fallback_container(creator, cache=cache, positional=positional)
+    value = _OptCtx()
+    container.set_context(_OptCtx, value)
+    assert expected is not value
+    assert container.resolve_provider(out) is value
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_unset_context_argument_reads_a_late_value_on_the_next_build(cache: bool) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        out = providers.Factory(_keyword_nullable, bound_type=None, scope=Scope.REQUEST, cache=cache)
+
+    app = Container(groups=[G])
+    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is None
+    value = _OptCtx()
+    app.set_context(_OptCtx, value)
+    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is value
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize(
+    "creator", [_positional_nullable, _keyword_nullable, _positional_defaulted, _keyword_defaulted]
+)
+def test_provider_default_wins_over_the_parameter_fallback(creator: typing.Callable[..., object], cache: bool) -> None:
+    provider_default = _OptCtx()
+
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP, default=provider_default)
+        out = providers.Factory(creator, bound_type=None, cache=cache)
+
+    assert Container(groups=[G]).resolve_provider(G.out) is provider_default
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_direct_resolve_of_unset_context_still_raises_beside_a_falling_back_argument(cache: bool) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        out = providers.Factory(_keyword_nullable, bound_type=None, cache=cache)
+
+    container = Container(groups=[G])
+    assert container.resolve_provider(G.out) is None
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        container.resolve(_OptCtx)
+    assert exc_info.value.parameter_name is None
+    with pytest.raises(ContextValueNotSetError):
+        container.resolve_provider(G.ctx)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _NeedsOptCtx:
+    ctx: _OptCtx
+
+
+def _takes_nullable_inner(inner: _NeedsOptCtx | None = None) -> _NeedsOptCtx | None:
+    raise NotImplementedError  # pragma: no cover - the inner argument raises first
+
+
+def _takes_nullable_inner_by_keyword(*, inner: _NeedsOptCtx | None = None) -> _NeedsOptCtx | None:
+    raise NotImplementedError  # pragma: no cover - the inner argument raises first
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize("creator", [_takes_nullable_inner, _takes_nullable_inner_by_keyword])
+def test_only_a_direct_context_argument_falls_back(creator: typing.Callable[..., object], cache: bool) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        inner = providers.Factory(_NeedsOptCtx, cache=cache)
+        out = providers.Factory(creator, bound_type=None, cache=cache)
+
+    container = Container(groups=[G])
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        container.resolve_provider(G.out)
+    assert exc_info.value.parameter_name == "ctx"
+
+
+def _positional_union_member(ctx: _OptCtx | _OtherCtx | None) -> object:
+    return ctx
+
+
+def _keyword_union_member(*, ctx: _OptCtx | _OtherCtx | None) -> object:
+    return ctx
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize("creator", [_positional_union_member, _keyword_union_member])
+def test_unset_context_argument_wired_by_union_member_falls_back(
+    creator: typing.Callable[..., object], cache: bool
+) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        out = providers.Factory(creator, bound_type=None, cache=cache)
+
+    assert Container(groups=[G]).resolve_provider(G.out) is None
+    value = _OptCtx()
+    assert Container(groups=[G], context={_OptCtx: value}).resolve_provider(G.out) is value
+
+
+def _untyped_nullable(ctx: object | None) -> object:
+    return ctx
+
+
+def _untyped_defaulted(*, ctx: object = _PARAM_DEFAULT) -> object:
+    return ctx
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize(("creator", "expected"), [(_untyped_nullable, None), (_untyped_defaulted, _PARAM_DEFAULT)])
+def test_unset_context_argument_wired_by_kwargs_falls_back(
+    creator: typing.Callable[..., object], expected: object, cache: bool
+) -> None:
+    ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP, bound_type=None)
+
+    class G(Group):
+        out = providers.Factory(creator, bound_type=None, cache=cache, kwargs={"ctx": ctx})
+
+    assert Container(groups=[G]).resolve_provider(G.out) is expected
+
+
+class _AliasMid: ...
+
+
+class _AliasTop: ...
+
+
+def _positional_through_alias(ctx: _AliasTop | None) -> object:
+    return ctx
+
+
+_TOP_DEFAULT = _AliasTop()
+
+
+def _keyword_through_alias(*, ctx: _AliasTop = _TOP_DEFAULT) -> object:
+    return ctx
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize(
+    ("creator", "expected"), [(_positional_through_alias, None), (_keyword_through_alias, _TOP_DEFAULT)]
+)
+def test_unset_context_argument_reached_through_an_alias_chain_falls_back(
+    creator: typing.Callable[..., object], expected: object, cache: bool
+) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        mid = providers.Alias(_OptCtx, bound_type=_AliasMid)
+        top = providers.Alias(_AliasMid, bound_type=_AliasTop)
+        out = providers.Factory(creator, bound_type=None, cache=cache)
+
+    container = Container(groups=[G])
+    assert container.resolve_provider(G.out) is expected
+    with pytest.raises(ContextValueNotSetError):
+        container.resolve(_AliasTop)
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_overridden_alias_to_a_context_compiles_to_its_override(cache: bool) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        top = providers.Alias(_OptCtx, bound_type=_AliasTop)
+        out = providers.Factory(_positional_through_alias, bound_type=None, cache=cache)
+
+    container = Container(groups=[G])
+    sentinel = _AliasTop()
+    container.override(G.top, sentinel)
+    assert container.resolve_provider(G.out) is sentinel
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_nullable_argument_through_an_alias_with_no_source_still_raises(cache: bool) -> None:
+    class G(Group):
+        top = providers.Alias(_OptCtx, bound_type=_AliasTop)
+        out = providers.Factory(_positional_through_alias, bound_type=None, cache=cache)
+
+    with pytest.raises(AliasSourceNotRegisteredError):
+        Container(groups=[G]).resolve_provider(G.out)
+
+
+@pytest.mark.parametrize("cache", [False, True])
+@pytest.mark.parametrize(("creator", "expected", "positional"), _FALLBACK_CASES)
+def test_override_of_a_context_argument_applies_after_the_factory_compiled(
+    creator: typing.Callable[..., object], expected: object, positional: bool, cache: bool
+) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
+        out = providers.Factory(creator, bound_type=None, scope=Scope.REQUEST, cache=cache)
+
+    app = Container(groups=[G])
+    assert G.out._can_call_positionally(G.out._wiring_plan(app._providers_registry)) is positional
+    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is expected
+    sentinel = _OptCtx()
+    app.override(G.ctx, sentinel)
+    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is sentinel
+    app.reset_override(G.ctx)
+    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is expected
+
+
+class _Req:
+    def __init__(self, method: str) -> None:
+        self.method = method
+
+
+def _choose_engine_by_type(
+    primary_engine: _Engine,
+    replica_engine: _Engine | None,
+    request: _Req | None = None,
+) -> _Engine:
+    if replica_engine and request and request.method in _REPLICA_METHODS:
+        return replica_engine
+    return primary_engine
+
+
+_integration_req_provider = providers.ContextProvider(_Req, scope=Scope.REQUEST)
+
+
+class _TemplateGroup(Group):
+    primary_engine = providers.Factory(lambda: _Engine("primary"), bound_type=None)
+    replica_engine = providers.Factory(lambda: _Engine("replica"), bound_type=None)
+    dynamic_engine = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=_choose_engine_by_type,
+        kwargs={"primary_engine": primary_engine, "replica_engine": replica_engine},
+    )
+
+
+def _template_container() -> Container:
+    container = Container(groups=[_TemplateGroup])
+    container.add_providers(_integration_req_provider)
+    container.validate()
+    return container
+
+
+def test_optional_request_parameter_is_none_without_a_request() -> None:
+    child = _template_container().build_child_container(scope=Scope.REQUEST)
+    assert child.resolve_provider(_TemplateGroup.dynamic_engine) == _Engine("primary")
+    with pytest.raises(ContextValueNotSetError):
+        child.resolve(_Req)
+
+
+def test_optional_request_parameter_reads_the_request_when_set() -> None:
+    child = _template_container().build_child_container(scope=Scope.REQUEST, context={_Req: _Req("GET")})
+    assert child.resolve_provider(_TemplateGroup.dynamic_engine) == _Engine("replica")
