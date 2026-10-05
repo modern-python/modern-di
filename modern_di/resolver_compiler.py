@@ -9,7 +9,7 @@ applying an override drops the compiled resolvers instead (see
 ``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: see
 docs/adr/0001-resolver-hot-path-generated-source.md.
 
-The template reaches into `Container._lock`/`_scope_map` and `CacheRegistry._items` to stay
+The template reaches into `Container._scope_map` and `CacheRegistry._items` to stay
 within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
@@ -114,7 +114,7 @@ _CACHED = (
     cached = cache_item.cache
     if cached is not UNSET:
         return cached
-    value, created = cache_item.get_or_create(target._lock, resolve=partial(build, target), create=create)
+    value, created = cache_item.get_or_create(partial(build, target), create)
     if created:
         cache_registry.mark_created(cache_item)
     return value

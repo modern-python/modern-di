@@ -1,13 +1,10 @@
+import _thread
 import dataclasses
 import inspect
 import typing
 
 from modern_di import exceptions, types
 from modern_di.providers import CacheSettings, Factory
-
-
-if typing.TYPE_CHECKING:
-    import threading
 
 
 _R = typing.TypeVar("_R")
@@ -19,6 +16,7 @@ class CacheItem:
     settings: CacheSettings[typing.Any]
     cache: typing.Any = types.UNSET
     finalized: bool = False
+    lock: _thread.RLock = dataclasses.field(default_factory=_thread.RLock, repr=False, compare=False)
 
     def clear(self) -> None:
         if self.settings.clear_cache:
@@ -27,22 +25,20 @@ class CacheItem:
 
     def get_or_create(
         self,
-        lock: "threading.RLock",
         resolve: typing.Callable[[], _R],
         create: typing.Callable[[_R], _V],
     ) -> tuple[_V, bool]:
-        """Return the memoized singleton, or resolve-and-create it once under `lock`.
+        """Return the memoized singleton, or resolve-and-create it once under this item's lock.
 
-        `resolve()` runs unlocked — recursive resolution must not hold the lock; creation and
-        the store are double-checked under it. `created` is True only for the caller that built.
+        A hit never takes the lock. A miss resolves and creates under it, so concurrent misses
+        build the value and its dependencies once. `created` is True only for the caller that built.
         """
         if self.cache is not types.UNSET:
             return self.cache, False
-        resolved = resolve()
-        with lock:
+        with self.lock:
             if self.cache is not types.UNSET:
                 return self.cache, False
-            value = create(resolved)
+            value = create(resolve())
             self.cache = value
             return value, True
 

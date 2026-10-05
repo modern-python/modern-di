@@ -9,6 +9,7 @@ provider, leaving genuinely recursive (non-cyclic) creators untouched.
 import dataclasses
 import inspect
 import sys
+import threading
 
 import pytest
 
@@ -106,6 +107,46 @@ def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
         pytest.fail("expected CircularDependencyError")
     finally:
         sys.setrecursionlimit(original_limit)
+
+
+class CachedCycleGroup(Group):
+    common = providers.Factory(creator=Common, cache=True)
+    a = providers.Factory(creator=NodeA, cache=True)
+    b = providers.Factory(creator=NodeB, cache=True)
+
+
+def _resolve_in_daemon_thread(container: Container) -> BaseException | None:
+    """Resolve `NodeA` on a daemon thread under the shallow limit; return what it raised, or None if it hung."""
+    raised: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            container.resolve(NodeA)
+        except Exception as exc:  # noqa: BLE001
+            raised.append(exc)
+
+    original_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
+    try:
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+    finally:
+        sys.setrecursionlimit(original_limit)
+    return raised[0] if raised else None
+
+
+def test_cached_cycle_reenters_the_item_lock_and_raises_circular_dependency_error() -> None:
+    """A same-thread cycle through cached factories re-enters each item's lock and still raises.
+
+    The second resolve runs on another thread, so it hangs instead of raising if the first left
+    an item's lock held.
+    """
+    container = Container(groups=[CachedCycleGroup])
+    for _ in range(2):
+        exc = _resolve_in_daemon_thread(container)
+        assert isinstance(exc, exceptions.CircularDependencyError)
+        _assert_simple_cycle(exc)
 
 
 def _assert_deep_chain_cycle_is_self_contained(exc: exceptions.CircularDependencyError) -> None:

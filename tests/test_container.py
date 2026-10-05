@@ -385,14 +385,6 @@ def test_constructor_rejects_use_lock() -> None:
         Container(use_lock=False)  # ty: ignore[unknown-argument]
 
 
-def test_child_shares_the_root_lock() -> None:
-    root = Container()
-    child = root.build_child_container(scope=Scope.REQUEST)
-    grandchild = Container(scope=Scope.ACTION, parent_container=child)
-    assert child._lock is root._lock
-    assert grandchild._lock is root._lock
-
-
 def test_container_provider_resolves_on_subclasses() -> None:
     class MyContainer(Container):
         pass
@@ -616,8 +608,8 @@ def test_fresh_container_builds_child_and_child_resolves_without_open() -> None:
     assert app.closed is False  # building a child does not close the parent
 
 
-def test_warm_cached_resolve_does_not_wait_for_the_lock() -> None:
-    """A cached value resolves while another thread holds the container lock.
+def test_warm_cached_resolve_does_not_wait_for_the_item_lock() -> None:
+    """A cached value resolves while another thread holds its cache item's lock.
 
     The lock is taken only on a cache miss. If a warm resolve took it too, the worker would block
     until the join timeout and the test would fail instead of hanging.
@@ -627,7 +619,7 @@ def test_warm_cached_resolve_does_not_wait_for_the_lock() -> None:
     child = root.build_child_container(scope=Scope.REQUEST)
     results: list[_PersistentBroker] = []
     worker = threading.Thread(target=lambda: results.append(child.resolve(_PersistentBroker)), daemon=True)
-    with root._lock:
+    with root._cache_registry.fetch_cache_item(_AppBrokerGroup.broker).lock:
         worker.start()
         worker.join(timeout=5)
         finished_while_held = not worker.is_alive()

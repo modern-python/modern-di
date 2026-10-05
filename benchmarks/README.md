@@ -27,7 +27,7 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 | G13b | Batch of K=100 request cycles, 10 finalizer-less cached REQUEST providers, `await close_async()` | the async close loop when there is nothing to finalize |
 | G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
-| G15 | Concurrent first-resolve, N threads (double-checked creation lock) | free-threaded creation-lock contention |
+| G15 | Concurrent first-resolve, N threads (per-item double-checked creation lock) | free-threaded creation-lock contention |
 | G16 | Warm by-type `resolve(SomeType)`, small graph | `find_provider` lookup on the integration/`@inject` path |
 | G17 | Warm by-type `resolve(SomeType)`, 200-provider registry | lookup cost at realistic registry scale |
 | G18 | Warm resolve through an `Alias` to a cached source | the alias hop, read against G2 |

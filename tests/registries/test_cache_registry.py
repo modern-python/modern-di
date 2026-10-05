@@ -1,9 +1,10 @@
 import threading
 import typing
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from modern_di.providers import CacheSettings
+from modern_di.providers import CacheSettings, Factory
 from modern_di.registries.cache_registry import CacheItem, CacheRegistry
 from modern_di.types import UNSET
 
@@ -12,19 +13,20 @@ def _item() -> CacheItem:
     return CacheItem(settings=CacheSettings())
 
 
-def test_get_or_create_miss_calls_resolve_and_create_once_and_caches() -> None:
+def test_get_or_create_miss_resolves_and_creates_once_under_the_item_lock() -> None:
     item = _item()
     calls = {"resolve": 0, "create": 0}
 
     def resolve() -> dict[str, typing.Any]:
         calls["resolve"] += 1
+        assert item.lock._is_owned()  # ty: ignore[unresolved-attribute]
         return {"x": 1}
 
     def create(kwargs: dict[str, typing.Any]) -> tuple[str, dict[str, typing.Any]]:
         calls["create"] += 1
         return ("made", kwargs)
 
-    value, created = item.get_or_create(threading.RLock(), resolve=resolve, create=create)
+    value, created = item.get_or_create(resolve=resolve, create=create)
 
     assert created is True
     assert value == ("made", {"x": 1})
@@ -44,55 +46,81 @@ def test_get_or_create_hit_returns_cache_without_resolving() -> None:
         msg = "create must not run on a cache hit"
         raise AssertionError(msg)
 
-    value, created = item.get_or_create(threading.RLock(), resolve=resolve, create=create)
+    value, created = item.get_or_create(resolve=resolve, create=create)
 
     assert created is False
     assert value == "cached"
 
 
-def test_get_or_create_double_checks_after_lock() -> None:
-    # The inner re-check fires when the cache is UNSET at the fast read but SET
-    # by the time the lock is held (a losing thread in production). Simulate it
-    # deterministically: resolve() sets the cache as a side effect, so the
-    # post-lock re-check must return it and skip create.
+class _LosingRaceLock:
+    """Stores a value in the item while the caller waits for the lock, as a winning thread would."""
+
+    def __init__(self, item: CacheItem) -> None:
+        self._item = item
+
+    def __enter__(self) -> None:
+        self._item.cache = "won-the-race"
+
+    def __exit__(self, *_: object) -> None:
+        pass
+
+
+def test_get_or_create_double_checks_under_the_lock() -> None:
     item = _item()
-    created_calls: list[object] = []
+    item.lock = _LosingRaceLock(item)  # ty: ignore[invalid-assignment]
 
-    def resolve() -> dict[str, typing.Any]:
-        item.cache = "won-the-race"
-        return {}
+    def resolve() -> object:  # pragma: no cover - the re-check under the lock must skip resolve
+        msg = "resolve must not run when another thread already stored the value"
+        raise AssertionError(msg)
 
-    def create(kwargs: dict[str, typing.Any]) -> str:  # pragma: no cover - the post-lock re-check must skip create
-        created_calls.append(kwargs)
-        return "should-not-be-used"
+    def create(_: object) -> str:  # pragma: no cover - the re-check under the lock must skip create
+        msg = "create must not run when another thread already stored the value"
+        raise AssertionError(msg)
 
-    value, created = item.get_or_create(threading.RLock(), resolve=resolve, create=create)
+    value, created = item.get_or_create(resolve=resolve, create=create)
 
     assert created is False
     assert value == "won-the-race"
-    assert created_calls == []
 
 
-def test_get_or_create_releases_lock_and_fast_path_on_second_call() -> None:
+def test_get_or_create_releases_the_item_lock() -> None:
     item = _item()
-    lock = threading.RLock()
 
-    value, created = item.get_or_create(lock, resolve=lambda: 0, create=lambda _: "v")
+    value, created = item.get_or_create(resolve=lambda: 0, create=lambda _: "v")
     assert (value, created) == ("v", True)
-
-    # Second call hits the fast path (cache set) — returns before touching the lock.
-    value2, created2 = item.get_or_create(lock, resolve=lambda: 0, create=lambda _: "v2")
-    assert (value2, created2) == ("v", False)
 
     acquired: list[bool] = []
 
     def try_acquire() -> None:
-        acquired.append(lock.acquire(blocking=False))
+        acquired.append(item.lock.acquire(blocking=False))
 
     thread = threading.Thread(target=try_acquire)
     thread.start()
-    thread.join()
+    thread.join(timeout=5)
     assert acquired == [True]
+
+
+def test_each_cache_item_owns_its_lock() -> None:
+    registry = CacheRegistry()
+    first = registry.fetch_cache_item(Factory(creator=lambda: 1, bound_type=int, cache=True))
+    second = registry.fetch_cache_item(Factory(creator=lambda: "", bound_type=str, cache=True))
+    assert first.lock is not second.lock
+
+
+def test_concurrent_fetches_of_one_provider_share_one_item() -> None:
+    n = 8
+    registry = CacheRegistry()
+    provider = Factory(creator=lambda: 1, bound_type=int, cache=True)
+    barrier = threading.Barrier(n, timeout=5)
+
+    def fetch() -> CacheItem:
+        barrier.wait()
+        return registry.fetch_cache_item(provider)
+
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        items = [f.result(timeout=5) for f in [pool.submit(fetch) for _ in range(n)]]
+
+    assert all(item is items[0] for item in items)
 
 
 async def test_close_async_awaits_only_items_with_a_finalizer(monkeypatch: pytest.MonkeyPatch) -> None:

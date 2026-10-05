@@ -373,44 +373,136 @@ def test_cached_none_is_returned_and_finalized() -> None:
     assert cleaned_up == [None]
 
 
-class _Gate: ...
+class _Conn: ...
 
 
-class _GatedValue:
-    def __init__(self, gate: _Gate) -> None:
-        self.gate = gate
+class _Svc:
+    def __init__(self, conn: _Conn) -> None:
+        self.conn = conn
 
 
-def test_concurrent_cache_misses_create_once() -> None:
-    """Threads that all miss the cache together still run the creator once.
+class _CountingRLock:
+    """An RLock that counts the threads blocked in `acquire`, so a test can wait for contention."""
 
-    The barrier sits in a dependency, and dependencies resolve outside the lock, so every thread is
-    past the unlocked cache check before any of them creates. If the lock covered dependency
-    resolution, the barrier would time out and the test would fail instead of hanging.
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._state = threading.Condition()
+        self.waiting = 0
+
+    def __enter__(self) -> None:
+        with self._state:
+            self.waiting += 1
+            self._state.notify_all()
+        self._lock.acquire()
+        with self._state:
+            self.waiting -= 1
+
+    def __exit__(self, *_: object) -> None:
+        self._lock.release()
+
+    def wait_for_waiters(self, count: int) -> bool:
+        with self._state:
+            return self._state.wait_for(lambda: self.waiting >= count, timeout=5)
+
+
+def test_concurrent_cache_misses_build_the_value_and_its_dependencies_once() -> None:
+    """Threads that miss a cached `Svc(conn: Conn)` together build one Svc and one transient Conn.
+
+    The first Conn build waits until every other thread is blocked on the item's lock, so a
+    dependency resolved outside that lock would be built once per thread and fail the count.
     """
-    n = 4
-    barrier = threading.Barrier(n, timeout=5)
-    created: list[_GatedValue] = []
+    n = 8
+    conns: list[_Conn] = []
+    lock = _CountingRLock()
 
-    def make_gate() -> _Gate:
-        barrier.wait()
-        return _Gate()
-
-    def make_value(gate: _Gate) -> _GatedValue:
-        value = _GatedValue(gate)
-        created.append(value)
-        return value
+    def make_conn() -> _Conn:
+        conn = _Conn()
+        conns.append(conn)
+        if len(conns) == 1:
+            lock.wait_for_waiters(n - 1)
+        return conn
 
     class G(Group):
-        gate = providers.Factory(creator=make_gate)
-        value = providers.Factory(creator=make_value, cache=True)
+        conn = providers.Factory(creator=make_conn)
+        svc = providers.Factory(creator=_Svc, cache=True)
 
     container = Container(groups=[G])
-    with ThreadPoolExecutor(max_workers=n) as pool:
-        results = list(pool.map(lambda _: container.resolve(_GatedValue), range(n)))
+    container._cache_registry.fetch_cache_item(G.svc).lock = lock  # ty: ignore[invalid-assignment]
+    barrier = threading.Barrier(n, timeout=5)
 
-    assert len(created) == 1
-    assert all(result is created[0] for result in results)
+    def worker() -> _Svc:
+        barrier.wait()
+        return container.resolve(_Svc)
+
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        results = [f.result(timeout=10) for f in [pool.submit(worker) for _ in range(n)]]
+
+    assert len(conns) == 1
+    assert all(result is results[0] for result in results)
+    assert results[0].conn is conns[0]
+
+
+class _Blocked: ...
+
+
+class _Free: ...
+
+
+def test_unrelated_cached_items_are_created_concurrently() -> None:
+    """One cached creator blocked mid-creation does not block another item's creation."""
+    started = threading.Event()
+    release = threading.Event()
+
+    def make_blocked() -> _Blocked:
+        started.set()
+        release.wait(timeout=5)
+        return _Blocked()
+
+    class G(Group):
+        blocked = providers.Factory(creator=make_blocked, cache=True)
+        free = providers.Factory(creator=_Free, cache=True)
+
+    container = Container(groups=[G])
+    blocked = threading.Thread(target=container.resolve, args=(_Blocked,), daemon=True)
+    blocked.start()
+    try:
+        assert started.wait(timeout=5)
+        free: list[_Free] = []
+        worker = threading.Thread(target=lambda: free.append(container.resolve(_Free)), daemon=True)
+        worker.start()
+        worker.join(timeout=5)
+        assert not worker.is_alive(), "creating one cached item waited for another item's creation"
+    finally:
+        release.set()
+        blocked.join(timeout=5)
+    assert isinstance(free[0], _Free)
+
+
+class _OnWorker: ...
+
+
+class _ViaWorker:
+    def __init__(self, inner: _OnWorker) -> None:
+        self.inner = inner
+
+
+def test_cached_creator_resolving_a_cached_type_on_another_thread_completes() -> None:
+    """A cached creator may hand a resolve of another cached type to a worker thread and wait for it."""
+    pool = ThreadPoolExecutor(max_workers=1)
+
+    def make_via_worker(container: Container) -> _ViaWorker:
+        return _ViaWorker(pool.submit(lambda: container.resolve(_OnWorker)).result(timeout=5))
+
+    class G(Group):
+        on_worker = providers.Factory(creator=_OnWorker, cache=True)
+        via_worker = providers.Factory(creator=make_via_worker, cache=True)
+
+    container = Container(groups=[G])
+    try:
+        result = container.resolve(_ViaWorker)
+    finally:
+        pool.shutdown(wait=False)
+    assert result.inner is container.resolve(_OnWorker)
 
 
 _lifo_events: list[str] = []

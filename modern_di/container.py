@@ -1,6 +1,5 @@
 import copy
 import enum
-import threading
 import typing
 
 from modern_di import dependency_graph, exceptions, types
@@ -40,7 +39,6 @@ class Container:
         "_cache_registry",
         "_closed",
         "_context_registry",
-        "_lock",
         "_providers_registry",
         "_scope_map",
         "parent_container",
@@ -87,10 +85,8 @@ class Container:
         self._context_registry = ContextRegistry(copy.copy(context) if context is not None else {})
         self._providers_registry: ProvidersRegistry
         if parent_container:
-            self._lock = parent_container._lock  # noqa: SLF001
             self._providers_registry = parent_container._providers_registry  # noqa: SLF001
         else:
-            self._lock = threading.RLock()
             self._providers_registry = ProvidersRegistry()
             self._providers_registry.register(Container, container_provider)
         if groups:

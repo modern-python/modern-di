@@ -11,9 +11,23 @@ Every `Container` argument after `scope` is keyword-only: `Container(Scope.APP, 
 
 ### `use_lock` is removed
 
-`Container(use_lock=...)` raises `TypeError`; drop the argument. Every container tree is now
+`Container(use_lock=...)` raises `TypeError`; drop the argument. Cached factories are always
 locked, and the lock is taken only on a cache miss (see
 [Design decisions](../introduction/design-decisions.md#2-cached-factories-are-thread-safe)).
+
+### Each cached factory has its own lock
+
+In 3.x, with the default `use_lock=True`, every cached creator ran under a shared lock: the
+container's lock, or from 3.6 the lock of the whole container tree. Two cached factories that
+shared the lock were never created at the same time. In 4.0 each cached factory has its own lock
+in each container, so creators of different cached factories can run at the same time on
+different threads. If two creators share state that is not thread-safe, guard that state with
+your own lock.
+
+On a cache miss the lock is now held while the dependencies are resolved as well. Threads that
+miss together build the dependencies once, where 3.x built them once per thread and discarded all
+but one. A cached creator can also wait on another thread that resolves a different cached type,
+which deadlocked in 3.x.
 
 ### Resolving on a closed container raises
 

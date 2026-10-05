@@ -51,7 +51,7 @@ This is modern-di's Singleton. There is no separate `Singleton` provider class: 
 [Where is Singleton?](../introduction/comparison.md#where-is-singleton-cross-framework-vocabulary)
 for the full cross-framework mapping.
 
-The caching mechanism is thread-safe: when multiple threads resolve the same cached factory simultaneously, only one instance is created.
+The caching mechanism is thread-safe: when multiple threads resolve the same cached factory simultaneously, only one instance is created, and its dependencies are resolved once for it. Other threads wait for that instance; resolves of other cached factories do not.
 
 ```python
 import random
