@@ -121,7 +121,8 @@ to render the chain programmatically.
   [Troubleshooting: ArgumentResolutionError](../troubleshooting/argument-resolution-error.md).
 - `CircularDependencyError` is raised when the provider graph contains a cycle (A → B → A); the
   message shows the cycle path. Raised eagerly by `validate()`, and also by a bare `resolve()` on an
-  unvalidated cyclic graph via a runtime guard; see
+  unvalidated cyclic graph via a runtime guard. The guard covers one thread resolving: concurrent
+  first resolves of an unvalidated cyclic graph can block instead, so call `validate()` at startup. See
   [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 - `CreatorCallError` is raised when a creator's dependencies all resolved but argument binding
   failed while calling it (the assembled arguments don't match the signature, typically a `kwargs` /

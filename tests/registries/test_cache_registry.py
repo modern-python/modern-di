@@ -13,13 +13,29 @@ def _item() -> CacheItem:
     return CacheItem(settings=CacheSettings())
 
 
+def _acquirable_from_another_thread(item: CacheItem) -> bool:
+    """Whether another thread can take `item`'s lock right now; releases it again if so."""
+    acquired: list[bool] = []
+
+    def try_acquire() -> None:
+        got = item.lock.acquire(blocking=False)
+        if got:
+            item.lock.release()
+        acquired.append(got)
+
+    thread = threading.Thread(target=try_acquire)
+    thread.start()
+    thread.join(timeout=5)
+    return acquired == [True]
+
+
 def test_get_or_create_miss_resolves_and_creates_once_under_the_item_lock() -> None:
     item = _item()
     calls = {"resolve": 0, "create": 0}
 
     def resolve() -> dict[str, typing.Any]:
         calls["resolve"] += 1
-        assert item.lock._is_owned()  # ty: ignore[unresolved-attribute]
+        assert not _acquirable_from_another_thread(item)
         return {"x": 1}
 
     def create(kwargs: dict[str, typing.Any]) -> tuple[str, dict[str, typing.Any]]:
@@ -88,16 +104,7 @@ def test_get_or_create_releases_the_item_lock() -> None:
 
     value, created = item.get_or_create(resolve=lambda: 0, create=lambda _: "v")
     assert (value, created) == ("v", True)
-
-    acquired: list[bool] = []
-
-    def try_acquire() -> None:
-        acquired.append(item.lock.acquire(blocking=False))
-
-    thread = threading.Thread(target=try_acquire)
-    thread.start()
-    thread.join(timeout=5)
-    assert acquired == [True]
+    assert _acquirable_from_another_thread(item)
 
 
 def test_each_cache_item_owns_its_lock() -> None:

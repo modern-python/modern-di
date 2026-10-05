@@ -1,6 +1,6 @@
-import _thread
 import dataclasses
 import inspect
+import threading
 import typing
 
 from modern_di import exceptions, types
@@ -16,7 +16,7 @@ class CacheItem:
     settings: CacheSettings[typing.Any]
     cache: typing.Any = types.UNSET
     finalized: bool = False
-    lock: _thread.RLock = dataclasses.field(default_factory=_thread.RLock, repr=False, compare=False)
+    lock: threading.RLock = dataclasses.field(default_factory=threading.RLock, repr=False, compare=False)
 
     def clear(self) -> None:
         if self.settings.clear_cache:
@@ -88,7 +88,7 @@ class CacheRegistry:
         return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
 
     def fetch_cache_item(self, provider: Factory[typing.Any]) -> CacheItem:
-        """Return the cache slot for a cached ``provider``, creating it on first use."""
+        """Return the cache item for a cached ``provider``, creating it on first use."""
         # Get before setdefault: a bare setdefault builds a throwaway CacheItem on every hit.
         item = self._items.get(provider.provider_id)
         if item is not None:

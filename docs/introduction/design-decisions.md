@@ -10,11 +10,12 @@ Async resolution will not be added.
 
 ## 2. Cached factories are thread-safe
 
-Each cached `Factory` slot in a container has its own reentrant lock (`threading.RLock`), so concurrent resolves in multiple threads still produce exactly one instance per cache. The lock is taken only on a cache miss; a resolve that finds the instance already cached never touches it. On a miss, the dependencies are resolved and the creator is called while the lock is held, so threads that miss together build the dependencies once, and the others wait for that instance.
+Each cache item, the cached instance of one `Factory` in one container, has its own reentrant lock (`threading.RLock`), so concurrent resolves in multiple threads still produce exactly one instance per cache. The lock is taken only on a cache miss; a resolve that finds the instance already cached never touches it. On a miss, the dependencies are resolved and the creator is called while the lock is held, so threads that miss together build the dependencies once, and the others wait for that instance.
 
 ### The thread-safety boundary
 
 - Cached / singleton creation is locked per cached provider. Two threads racing to resolve the same cached provider get the same single instance, and transient dependencies of that provider are built once for it. Creations of different cached providers do not wait for each other, so a creator can hand a resolve of another cached type to a worker thread and wait for the result. A creator that waits on another thread resolving the provider it is creating, directly or through its dependencies, still deadlocks: that is a cycle.
+- Call `validate()` at startup if the graph might contain a cycle. Without it, a single thread resolving a cyclic graph gets `CircularDependencyError` from the runtime guard. Two threads that cold-resolve different providers of the same cycle at the same time can each hold one cache item's lock while waiting for the other's, and block forever.
 - Provider registration is safe. `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently, or while another thread iterates, will not corrupt the registry or raise "dict changed size during iteration".
 - Registration belongs to the setup phase. The registry is lock-guarded
   against corruption, but the supported model is to register every provider

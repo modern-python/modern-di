@@ -17,6 +17,7 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G5 | Cross-scope resolve, REQUEST -> APP dep | `find_container` traversal |
 | G6 | `build_child_container(REQUEST)` | per-request setup |
 | G7 | Full lifecycle batch: K=100 x (build REQUEST -> sync-init cached resolve -> `await close_async()`) | real per-request cost incl. async teardown |
+| G7b | One request cycle: build REQUEST -> first-resolve one cached REQUEST provider -> `close_sync()` | per-request cost of a cached item, no event loop |
 | G7c | Control: K=100 empty awaits in one loop entry | residual event-loop floor inside G7 |
 | G8 | Cold first-resolve: build root container + compile + resolve, depth 6 | construction + first-compile cost |
 | G8b | G8 with every provider `cache=True` | the cached template's cold-miss `build`/`create`, read against G8 |

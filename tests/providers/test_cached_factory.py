@@ -8,6 +8,7 @@ import pytest
 from modern_di import Container, Group, Scope, providers
 from modern_di.exceptions import AsyncFinalizerInSyncCloseError, ContainerClosedError, FinalizerError, ModernDIError
 from modern_di.types import UNSET
+from tests.helpers import cache_item
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -427,7 +428,7 @@ def test_concurrent_cache_misses_build_the_value_and_its_dependencies_once() -> 
         svc = providers.Factory(creator=_Svc, cache=True)
 
     container = Container(groups=[G])
-    container._cache_registry.fetch_cache_item(G.svc).lock = lock  # ty: ignore[invalid-assignment]
+    cache_item(container, G.svc).lock = lock  # ty: ignore[invalid-assignment]
     barrier = threading.Barrier(n, timeout=5)
 
     def worker() -> _Svc:

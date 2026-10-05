@@ -25,6 +25,7 @@ from modern_di.exceptions import (
     ValidationFailedError,
 )
 from modern_di.providers.abstract import AbstractProvider
+from tests.helpers import cache_item
 
 
 def test_container_prevent_copy() -> None:
@@ -619,7 +620,7 @@ def test_warm_cached_resolve_does_not_wait_for_the_item_lock() -> None:
     child = root.build_child_container(scope=Scope.REQUEST)
     results: list[_PersistentBroker] = []
     worker = threading.Thread(target=lambda: results.append(child.resolve(_PersistentBroker)), daemon=True)
-    with root._cache_registry.fetch_cache_item(_AppBrokerGroup.broker).lock:
+    with cache_item(root, _AppBrokerGroup.broker).lock:
         worker.start()
         worker.join(timeout=5)
         finished_while_held = not worker.is_alive()

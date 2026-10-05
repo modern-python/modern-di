@@ -39,6 +39,6 @@ inspect or iterate all providers declared on a group hierarchy.
   points, not hooks either: a compiled resolver calls its dependencies' resolvers directly, so an
   override of either sees only the top-level call.
 - Each cached `Factory` gets its own `threading.RLock` in each container that caches it, created
-  with the cache slot on the first resolve there. Building a child allocates no lock. On a cold
+  with the cache item on the first resolve there. Building a child allocates no lock. On a cold
   cache miss the factory holds its lock while it resolves its dependencies and calls the creator,
   so one instance is created per cache key. A warm resolve does not take the lock.

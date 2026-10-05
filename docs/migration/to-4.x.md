@@ -29,6 +29,11 @@ miss together build the dependencies once, where 3.x built them once per thread 
 but one. A cached creator can also wait on another thread that resolves a different cached type,
 which deadlocked in 3.x.
 
+One case that raised in 3.x can now block. If the graph has a cycle and `validate()` was never
+called, two threads that cold-resolve different providers of that cycle at the same time can each
+hold one lock and wait for the other forever. In 3.x both got `CircularDependencyError`. A single
+thread still gets that error. Call `validate()` at startup to catch cycles before serving.
+
 ### Resolving on a closed container raises
 
 In 3.x, resolving from a closed container, or through a child whose resolve reached a closed
