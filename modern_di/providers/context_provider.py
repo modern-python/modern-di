@@ -8,8 +8,9 @@ class ContextProvider(AbstractProvider[types.T_co]):
     """Provider for a runtime value passed as ``build_child_container(context={SomeType: value})``.
 
     The value is read from the context registry at this provider's scope. With none set it resolves
-    to ``default``, or raises ``ContextValueNotSetError`` when no ``default`` was given, whether
-    resolved directly or as a ``Factory`` argument.
+    to ``default``. Without a ``default``, a direct resolve raises ``ContextValueNotSetError``. So
+    does a ``Factory`` argument, unless its parameter is nullable or has a default: then the
+    argument gets the parameter's default, or ``None``.
     """
 
     __slots__ = ("context_type", "default")

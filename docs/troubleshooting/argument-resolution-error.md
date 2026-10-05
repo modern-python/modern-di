@@ -10,8 +10,8 @@ resolved while building a given dependency, often rendered as a dependency-chain
 
 A creator parameter has no registered provider for its annotated type, no default value, and no
 matching `kwargs` entry, so `modern-di` has nothing to inject. This also covers an unannotated
-parameter with none of those escape routes. A `ContextProvider`-backed parameter whose context
-value is unset raises [`ContextValueNotSetError`](context-not-set.md) instead.
+parameter with none of those escape routes. A required `ContextProvider`-backed parameter whose
+context value is unset raises [`ContextValueNotSetError`](context-not-set.md) instead.
 
 ## Fix
 
@@ -34,13 +34,11 @@ If the missing type is one a framework
 integration provides at runtime (`fastapi.Request`, `taskiq.TaskiqMessage`, …), its
 `ContextProvider` is registered by `setup_di()`, so a `container.validate()` call made
 *before* `setup_di()` runs sees no provider for it yet and raises. Call `validate()` after
-`setup_di()`, when the provider is registered. A parameter default such as
-`request: fastapi.Request | None = None` does not make the value optional: once `setup_di()`
-has registered the provider, the parameter is wired to it and the default is never used. For a
-factory that must also resolve outside a request, declare your own
-`ContextProvider(fastapi.Request, scope=Scope.REQUEST, bound_type=None, default=None)` and pass
-it through `kwargs`. See [Framework context objects](../providers/context.md#framework-context-objects)
-and [Optional context](../providers/context.md#optional-context-default).
+`setup_di()`, when the provider is registered. A factory that must also resolve outside a
+request can take `request: fastapi.Request | None = None`: once `setup_di()` has registered the
+provider, the parameter gets the request inside one and `None` outside. See
+[Framework context objects](../providers/context.md#framework-context-objects) and
+[Optional parameters](../providers/context.md#optional-parameters).
 
 Check `.suggestions` on the caught exception for a "did you mean" hint when a similarly-named type is
 registered instead.

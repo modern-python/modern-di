@@ -187,12 +187,46 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "ContainerClosedError": exceptions.ContainerClosedError,
         "ContextValueNotSetError": exceptions.ContextValueNotSetError,
         "redirect_hops": redirect_hops,
-        **{f"r{i}": registry.resolver_for(p) for i, p in enumerate(plan.provider_kwargs.values())},
+        **{
+            f"r{i}": _argument_resolver(f, name, p, registry)
+            for i, (name, p) in enumerate(plan.provider_kwargs.items())
+        },
     }
     exec(code, namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
     resolve = namespace["resolve"]
     resolve.__qualname__ = f"resolve[{f.display_name}]"
     return resolve
+
+
+def _argument_resolver(
+    f: "Factory[typing.Any]", name: str, provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
+) -> "Resolver":
+    """Resolve an argument; an unset context argument falls back to an optional parameter's default or `None`."""
+    item = f._params.get(name)
+    if item is not None and (item.default is not types.UNSET or item.is_nullable):
+        context_provider = _defaultless_context_terminal(provider, registry)
+        if context_provider is not None:
+            return _compile_context_provider(context_provider, None if item.default is types.UNSET else item.default)
+    return registry.resolver_for(provider)
+
+
+def _defaultless_context_terminal(
+    provider: "AbstractProvider[typing.Any] | None", registry: "ProvidersRegistry"
+) -> "ContextProvider[typing.Any] | None":
+    """Follow un-overridden alias redirects to a `ContextProvider` with no `default=` and no override."""
+    seen: set[int] = set()
+    while type(provider) is Alias and provider.provider_id not in seen:
+        if registry.overrides.fetch_override(provider.provider_id) is not types.UNSET:
+            return None
+        seen.add(provider.provider_id)
+        provider = registry.find_provider(provider._source_type)
+    if (
+        type(provider) is ContextProvider
+        and provider.default is types.UNSET
+        and registry.overrides.fetch_override(provider.provider_id) is types.UNSET
+    ):
+        return provider
+    return None
 
 
 def _compile_constant(value: typing.Any) -> "Resolver":
@@ -239,10 +273,12 @@ def _resolve_to_container(container: "Container") -> typing.Any:
     return container
 
 
-def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
+def _compile_context_provider(cp: "ContextProvider[typing.Any]", default: typing.Any = types.UNSET) -> "Resolver":
+    """Compile `cp`'s resolver; with no value set it returns `default`, else `cp.default`, else raises."""
     scope = cp.scope
     context_type = cp.context_type
-    default = cp.default
+    if default is types.UNSET:
+        default = cp.default
     resolution_step = cp._resolution_step
 
     def resolve(container: "Container") -> typing.Any:

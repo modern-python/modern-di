@@ -84,57 +84,34 @@ Ordering is unchanged, so a child container still needs a higher integer value t
 whichever enum each scope comes from. If a provider relied on the old match, give it the scope
 member of the container it should resolve in. See [Custom scopes](../providers/scopes.md#custom-scopes).
 
-### Context values are required unless the provider sets `default=`
+### A missing context value for a required parameter raises `ContextValueNotSetError`
 
 In 3.x, when a `Factory` parameter was backed by a `ContextProvider` and no context value was set,
-the parameter decided what happened: a creator default was used, a nullable `X | None` parameter got
-`None`, and only a required parameter raised `ArgumentResolutionError`. In 4.0 a `ContextProvider` is
-an ordinary dependency. With no value set it raises `ContextValueNotSetError`, whether it is
-resolved directly or as a `Factory` argument, and the parameter's default and annotation are
-ignored. For a `Factory` argument, the message and `.parameter_name` name the parameter.
+a required parameter raised `ArgumentResolutionError`. In 4.0 it raises `ContextValueNotSetError`,
+and the message and `.parameter_name` name the parameter. A direct resolve of the provider raises
+the same error with no parameter name.
 
 `ContextValueNotSetError` does not subclass `ArgumentResolutionError`. An
 `except ArgumentResolutionError` clause that handled a missing context value in 3.x no longer
 catches it; catch `ContextValueNotSetError` instead, or `ResolutionError`, which covers both.
 
-Optional context is declared once, on the provider: `ContextProvider(T, default=X)` returns `X`
-whenever no value is set. If you own the provider, add `default=` to it:
+A parameter that is nullable or has a default still falls back. With no value set, it gets its
+default, or `None` for an `X | None` parameter without one. A creator that takes
+`request: fastapi.Request | None = None` gets `None` when it is resolved outside a request, for
+example from a FastStream consumer that shares the container. Only an argument that comes straight
+from the `ContextProvider` falls back. If the parameter's provider is a `Factory` that needs the
+missing value, the resolve raises.
+
+`ContextProvider(T, default=X)` is new in 4.0. It returns `X` whenever no value is set, on a direct
+resolve and for every argument it backs, and it wins over a parameter's default:
 
 ```python
-# 3.x: the creator default applied when no value was set
-tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST)
-
-# 4.0
 tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)
 ```
 
-An integration's provider (`fastapi_request_provider`, `litestar_request_provider`, ...) stays
-required. Suppose a factory's creator takes `request: fastapi.Request | None = None` and relies on
-getting `None` outside a request, because FastStream consumers resolve it from the same container.
-In 4.0 that resolve raises. Declare your own optional provider for the same type, keep it out of
-type-based wiring with `bound_type=None`, and pass it explicitly. It reads the same context value
-as the integration's provider:
-
-```python
-optional_request = providers.ContextProvider(
-    fastapi.Request, scope=Scope.REQUEST, bound_type=None, default=None
-)
-
-dynamic_engine = providers.Factory(
-    choose_sa_engine,
-    scope=Scope.REQUEST,
-    kwargs={
-        "primary_engine": database_engine,
-        "replica_engine": database_replica_engine,
-        "request": optional_request,
-    },
-)
-```
-
-A parameter with a creator default and *no* provider registered for its type behaves as before:
-the default applies. `ContextProvider.fetch_context_value()` is removed; resolve the provider
-instead, giving it a `default=` if the value may be absent. See
-[Context providers: optional context](../providers/context.md#optional-context-default).
+`ContextProvider.fetch_context_value()` is removed; resolve the provider instead, giving it a
+`default=` if the value may be absent. See
+[Context providers: when no value is set](../providers/context.md#when-no-value-is-set).
 
 ### The container copies `context=`
 
