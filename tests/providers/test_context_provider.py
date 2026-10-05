@@ -960,3 +960,54 @@ def test_unset_context_error_names_the_failing_one_of_two_same_type_same_scope_p
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(G.pair)
     assert exc_info.value.parameter_name == "second"
+
+
+class _BodyCtx: ...
+
+
+class _ResolvesInBody:
+    def __init__(self, container: Container) -> None:
+        container.resolve(_BodyCtx)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _NeedsResolvesInBody:
+    inner: _ResolvesInBody
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_unset_context_resolved_in_a_creator_body_names_no_outer_argument(cache: bool) -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_BodyCtx)
+        inner = providers.Factory(_ResolvesInBody, cache=cache)
+        outer = providers.Factory(_NeedsResolvesInBody)
+
+    container = Container(groups=[G])
+    with pytest.raises(ContextValueNotSetError) as exc_info:
+        container.resolve(_NeedsResolvesInBody)
+
+    assert exc_info.value.parameter_name is None
+    assert str(exc_info.value) == (
+        "Cannot resolve dependency chain:\n"
+        f"  APP  _NeedsResolvesInBody ({G.outer.definition_site})\n"
+        f"  APP  └─> _ResolvesInBody ({G.inner.definition_site})\n"
+        f"  caused by: No context value is set for {_BodyCtx!r} (scope APP). "
+        "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/context-not-set/"
+    )
+
+
+def test_direct_resolve_from_too_shallow_a_container_names_the_context_provider() -> None:
+    class G(Group):
+        ctx = providers.ContextProvider(_BodyCtx, scope=Scope.REQUEST)
+
+    container = Container(groups=[G])
+    with pytest.raises(ScopeNotInitializedError) as exc_info:
+        container.resolve(_BodyCtx)
+
+    assert str(exc_info.value) == (
+        "Cannot resolve dependency chain:\n"
+        "  REQUEST  _BodyCtx\n"
+        "  caused by: Provider of scope REQUEST cannot be resolved in container of scope APP.\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/scope-not-initialized-error/"
+    )
