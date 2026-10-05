@@ -162,9 +162,6 @@ class Factory(AbstractProvider[types.T_co]):
             return None
         return f"{module}:{lineno}"
 
-    def _resolution_step(self) -> exceptions.ResolutionStep:
-        return exceptions.ResolutionStep(scope=self.scope, name=self.display_name, location=self.definition_site)
-
     def _argument_resolution_error(
         self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry"
     ) -> exceptions.ArgumentResolutionError:

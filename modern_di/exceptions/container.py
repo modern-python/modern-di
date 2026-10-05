@@ -2,10 +2,10 @@
 
 import enum
 
+from modern_di._scope_algebra import deeper_members
 from modern_di.exceptions.base import ModernDIError
 from modern_di.exceptions.rendering import ResolutionStep
 from modern_di.exceptions.resolution import ResolutionError
-from modern_di.scope import _deeper_members
 
 
 class ContainerError(ModernDIError):
@@ -26,7 +26,7 @@ class InvalidChildScopeError(ContainerError):
         self.child_scope = child_scope
         # Derived, not handed over: the allowed scopes are a pure function of the parent's
         # own enum class, so a raise site has nothing to add.
-        self.allowed_scopes = [member.name for member in _deeper_members(parent_scope)]
+        self.allowed_scopes = [member.name for member in deeper_members(parent_scope)]
         super().__init__(
             f"Scope of child container cannot be {child_scope.name} if parent scope is {parent_scope.name} "
             f"(child scope value must be strictly greater than parent scope value). "

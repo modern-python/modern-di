@@ -10,7 +10,6 @@ import typing
 from typing import NamedTuple
 
 from modern_di import exceptions
-from modern_di.exceptions.rendering import redirect_steps
 from modern_di.providers.abstract import AbstractProvider
 
 
@@ -76,8 +75,12 @@ def effective_scope(provider: "AbstractProvider[typing.Any]", container: "Contai
 def redirect_hops(
     provider: "AbstractProvider[typing.Any]", container: "Container"
 ) -> "list[exceptions.ResolutionStep]":
-    """Return the chain steps for the redirects between ``provider`` and its terminal, terminal excluded."""
-    return redirect_steps(terminal_chain(provider, container))
+    """Return the chain steps for the redirects between ``provider`` and its terminal, terminal excluded.
+
+    A redirect owns no lifetime of its own, so each hop is drawn at the scope the terminal resolves at.
+    """
+    *hops, terminal = terminal_chain(provider, container)
+    return [p._resolution_step(terminal.scope) for p in hops]  # noqa: SLF001
 
 
 def build_cycle_error(
@@ -94,12 +97,7 @@ def build_cycle_error(
     rotated = [*ring[lead:], *ring[:lead]]
     canonical = [*rotated, rotated[0]]
     return exceptions.CircularDependencyError(
-        steps=[
-            exceptions.ResolutionStep(
-                scope=effective_scope(p, container), name=p.display_name, location=p.definition_site
-            )
-            for p in canonical
-        ]
+        steps=[p._resolution_step(effective_scope(p, container)) for p in canonical]  # noqa: SLF001
     )
 
 

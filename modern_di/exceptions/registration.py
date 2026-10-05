@@ -5,7 +5,7 @@ import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import ModernDIError
-from modern_di.exceptions.rendering import _render_chain, _render_suggestion_lines, provider_step, redirect_steps
+from modern_di.exceptions.rendering import render_chain, render_suggestion_lines
 
 
 if typing.TYPE_CHECKING:
@@ -144,7 +144,7 @@ class UnknownFactoryKwargError(RegistrationError):
         creator_name = getattr(creator, "__name__", repr(creator))
         parts = [
             f"Factory kwargs contain unknown key(s) not in {creator_name} signature:",
-            *_render_suggestion_lines(self.suggestions),
+            *render_suggestion_lines(self.suggestions),
             f"Known parameters: {known_keys}",
         ]
         super().__init__("\n".join(parts))
@@ -205,14 +205,14 @@ class InvalidScopeDependencyError(RegistrationError):
         return self.dep_chain[-1]
 
     def _render_body(self) -> str:
+        effective_scope = self.dep_terminal.scope
         steps = [
-            provider_step(self.provider, self.provider.scope),
-            *redirect_steps(self.dep_chain),
-            provider_step(self.dep_terminal, self.dep_terminal.scope),
+            self.provider._resolution_step(),  # noqa: SLF001
+            *(p._resolution_step(effective_scope) for p in self.dep_chain),  # noqa: SLF001
         ]
         lines = [
             "Provider at a deeper scope reached through this chain:",
-            *_render_chain(steps),
+            *render_chain(steps),
             f"  caused by: {RuntimeError.__str__(self)}",
         ]
         return "\n".join(lines)

@@ -80,6 +80,12 @@ class AbstractProvider(typing.Generic[types.T_co]):
         """``module:line`` of the provider's declaration when known; None by default (no creator)."""
         return None
 
+    def _resolution_step(self, scope: enum.IntEnum | None = None) -> exceptions.ResolutionStep:
+        """Return this provider as a chain step at ``scope``, its own scope by default."""
+        return exceptions.ResolutionStep(
+            scope=self.scope if scope is None else scope, name=self.display_name, location=self.definition_site
+        )
+
     def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
         return {}
 

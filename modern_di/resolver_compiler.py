@@ -6,13 +6,14 @@ globals. An ``Alias`` compiles to its source's resolver, so a parent's error cla
 redirect hops it skipped. Every other provider type compiles to a small closure. An overridden
 provider compiles to its override value, so the resolvers never consult the overrides registry;
 applying an override drops the compiled resolvers instead (see
-``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: every all-Python
-single-copy design measured 25-80% slower (docs/introduction/performance.md).
+``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: see
+docs/adr/0001-resolver-hot-path-generated-source.md.
 
 The template reaches into `Container._lock`/`_scope_map` and `CacheRegistry._items` to stay
 within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
+import enum
 import functools
 import itertools
 import linecache
@@ -20,7 +21,6 @@ import typing
 
 from modern_di import exceptions, types
 from modern_di.dependency_graph import redirect_hops
-from modern_di.exceptions.rendering import provider_step
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
@@ -58,8 +58,7 @@ def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "Provid
     raise TypeError(msg)
 
 
-_TRANSIENT = """\
-def resolve(container):
+_NAVIGATE = """\
     if container.scope == scope:
         target = container
     else:
@@ -68,6 +67,9 @@ def resolve(container):
             target = _navigate(container, scope, resolution_step)
     if target._closed:
         raise ContainerClosedError(container_scope=target.scope)
+"""
+
+_BUILD_ARGUMENTS = """\
     try:
 {build}
     except ContextValueNotSetError as exc:
@@ -80,6 +82,9 @@ def resolve(container):
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
         exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
+"""
+
+_CALL_CREATOR = """\
     try:
         return creator({args})
     except TypeError as exc:
@@ -92,43 +97,16 @@ def resolve(container):
         raise
 """
 
-_CACHED = """\
-def build(target):
-    try:
-{build}
-    except ContextValueNotSetError as exc:
-        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        if not exc.dependency_path:
-            exc.name_parameter(name)
-        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
-        raise
-    except _STEP_ERRORS as exc:
-        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
-        raise
-    return {built}
+_TRANSIENT = "def resolve(container):\n" + _NAVIGATE + _BUILD_ARGUMENTS + _CALL_CREATOR
 
-def create(built):
-    try:
-        return creator({star}built)
-    except TypeError as exc:
-        error = CreatorCallError.from_type_error(creator=creator, exc=exc, resolution_step=resolution_step)
-        if error is None:
-            raise
-        raise error from exc
-    except _STEP_ERRORS as exc:
-        exc.prepend_step(resolution_step())
-        raise
-
-def resolve(container):
-    if container.scope == scope:
-        target = container
-    else:
-        target = container._scope_map.get(scope)
-        if target is None:
-            target = _navigate(container, scope, resolution_step)
-    if target._closed:
-        raise ContainerClosedError(container_scope=target.scope)
+_CACHED = (
+    "def build(target):\n"
+    + _BUILD_ARGUMENTS
+    + "    return {built}\n\ndef create(built):\n"
+    + _CALL_CREATOR
+    + "\ndef resolve(container):\n"
+    + _NAVIGATE
+    + """\
     cache_registry = target._cache_registry
     cache_item = cache_registry._items.get(pid)
     if cache_item is None:
@@ -141,24 +119,32 @@ def resolve(container):
         cache_registry.mark_created(cache_item)
     return value
 """
+)
 
 
-def _source(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool) -> str:
-    """Generate the resolver source for one shape: the parts of a Factory that decide it."""
+def _source(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool) -> tuple[str, dict[int, int]]:
+    """Generate the resolver source for one shape, and map each resolver call's line to its argument index."""
     if names is None:
-        build = "\n".join(f"        a{i} = r{i}(target)" for i in range(arity)) or "        pass"
+        build = [f"        a{i} = r{i}(target)" for i in range(arity)] or ["        pass"]
+        call_offset = 0
         args = ", ".join(f"a{i}" for i in range(arity))
         built = "(" + "".join(f"a{i}, " for i in range(arity)) + ")"
         star = "*"
     else:
         calls = [f"            {name!r}: r{i}(target)," for i, name in enumerate(names)]
-        build = "\n".join(["        kwargs = {", *calls, "        }"])
+        build = ["        kwargs = {", *calls, "        }"]
+        call_offset = 1
         if static:
-            build += "\n        kwargs.update(static)"
+            build.append("        kwargs.update(static)")
         args, built, star = "**kwargs", "kwargs", "**"
     if cached:
-        return _CACHED.format(build=build, built=built, star=star)
-    return _TRANSIENT.format(build=build, args=args)
+        template, args = _CACHED, f"{star}built"
+    else:
+        template = _TRANSIENT
+    # `{build}` must be the first multi-line placeholder: the lines before it are counted as-is.
+    build_line = template[: template.index("{build}")].count("\n") + 1
+    arg_lines = {build_line + call_offset + i: i for i in range(arity)}
+    return template.format(build="\n".join(build), built=built, args=args), arg_lines
 
 
 _shape_ids = itertools.count()
@@ -166,20 +152,10 @@ _shape_ids = itertools.count()
 
 @functools.cache
 def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool) -> "tuple[CodeType, dict[int, int]]":
-    """Compile one shape's source, so factories of one shape share a code object.
-
-    Also map each resolver call's line to its argument index.
-    """
-    source = _source(arity, names, static, cached)
+    """Compile one shape's source, so factories of one shape share a code object."""
+    source, arg_lines = _source(arity, names, static, cached)
     filename = f"<modern_di resolver shape {next(_shape_ids)}>"
-    lines = source.splitlines(keepends=True)
-    linecache.cache[filename] = (len(source), None, lines, filename)
-    arg_lines = {
-        lineno: i
-        for lineno, line in enumerate(lines, start=1)
-        for i in range(arity)
-        if line.rstrip("\n").endswith((f" r{i}(target)", f" r{i}(target),"))
-    }
+    linecache.cache[filename] = (len(source), None, source.splitlines(keepends=True), filename)
     return compile(source, filename, "exec"), arg_lines
 
 
@@ -253,7 +229,7 @@ def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "Re
 
     def resolve(_: "Container") -> typing.Any:
         error = exceptions.AliasSourceNotRegisteredError(source_type=source_type)
-        error.prepend_step(provider_step(a, a.scope))
+        error.prepend_step(a._resolution_step())
         raise error
 
     return resolve
@@ -267,7 +243,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
     scope = cp.scope
     context_type = cp.context_type
     default = cp.default
-    resolution_step = functools.partial(provider_step, cp, scope)
+    resolution_step = cp._resolution_step
 
     def resolve(container: "Container") -> typing.Any:
         if container.scope == scope:
@@ -291,7 +267,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]") -> "Resolver":
 
 def _navigate(
     container: "Container",
-    scope: typing.Any,
+    scope: enum.IntEnum,
     resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
 ) -> "Container":
     """Miss path for a scope absent from `_scope_map`; the scope error carries this provider's resolution step."""

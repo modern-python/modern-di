@@ -5,7 +5,7 @@ import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import DependencyPathMixin, ModernDIError
-from modern_di.exceptions.rendering import ResolutionStep, _render_chain, _render_suggestions
+from modern_di.exceptions.rendering import ResolutionStep, render_chain, render_suggestions
 
 
 class ResolutionError(DependencyPathMixin, ModernDIError):
@@ -36,7 +36,7 @@ class ProviderNotRegisteredError(ResolutionError):
         self.provider_type = provider_type
         self.suggestions = suggestions or []
         message = f"Provider of type {provider_type} is not registered in providers registry."
-        if block := _render_suggestions(self.suggestions):
+        if block := render_suggestions(self.suggestions):
             message += "\n" + block
         super().__init__(message)
 
@@ -95,7 +95,7 @@ class ArgumentResolutionError(ResolutionError):
                 f"Argument {parameter_name} has no usable type annotation, so it cannot be resolved by type. "
                 f"Pass it via the kwargs parameter or add a type annotation. {building}"
             )
-        if block := _render_suggestions(self.suggestions):
+        if block := render_suggestions(self.suggestions):
             message += "\n" + block
         super().__init__(message)
 
@@ -150,16 +150,14 @@ class CircularDependencyError(ResolutionError):
 
     def __init__(self, *, steps: list[ResolutionStep]) -> None:
         self.steps = steps
-        rendered = "\n".join(_render_chain(steps))
+        rendered = "\n".join(render_chain(steps))
         super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
 
     def prepend_step(self, *steps: ResolutionStep) -> None:
-        """No-op: the canonical cycle (set at construction) is already self-contained.
+        """No-op: the canonical cycle set at construction already names every provider in the loop.
 
-        Every provider in the loop is named by ``steps``, so an outer resolution frame has nothing
-        to add — accumulating a breadcrumb would only repeat the same nodes. This also keeps the two
-        resolve paths identical: the interpreted path unwinds through intermediate ``resolve_provider``
-        frames (each would otherwise prepend a step), while the compiled path converts once at the top.
+        An outer resolver frame that catches the error has nothing to add, and prepending its step would
+        only repeat a node of the cycle.
         """
 
     @property
