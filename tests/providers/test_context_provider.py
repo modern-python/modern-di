@@ -1,7 +1,6 @@
 import dataclasses
 import datetime
 import typing
-import warnings
 
 import pytest
 
@@ -30,7 +29,6 @@ class MyGroup(Group):
 def test_context_provider() -> None:
     now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
-    app_container.open()
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
     instance2 = app_container.resolve_provider(MyGroup.context_provider)
     assert instance1 is instance2 is now
@@ -39,7 +37,6 @@ def test_context_provider() -> None:
 def test_context_provider_set_context_after_creation() -> None:
     now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container()
-    app_container.open()
     app_container.set_context(datetime.datetime, now)
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
     instance2 = app_container.resolve_provider(MyGroup.context_provider)
@@ -48,7 +45,6 @@ def test_context_provider_set_context_after_creation() -> None:
 
 def test_context_provider_not_found() -> None:
     app_container = Container()
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
     assert exc_info.value.context_type is datetime.datetime
@@ -56,7 +52,6 @@ def test_context_provider_not_found() -> None:
 
 def test_context_provider_not_found_but_required() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     with pytest.raises(
         ContextValueNotSetError,
         match=r"No context value is set for <class 'datetime.datetime'> \(scope APP\), needed for argument arg1",
@@ -70,9 +65,7 @@ def test_context_provider_not_found_but_required() -> None:
 def test_context_provider_in_request_scope() -> None:
     now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container()
-    app_container.open()
     request_container = app_container.build_child_container(context={datetime.datetime: now}, scope=Scope.REQUEST)
-    request_container.open()
     instance1 = request_container.resolve_provider(request_context_provider)
     instance2 = request_container.resolve_provider(request_context_provider)
     assert instance1 is instance2 is now
@@ -98,7 +91,6 @@ def test_context_provider_returns_falsy_values(value: object) -> None:
     context_type = type(value)
     provider = providers.ContextProvider(scope=Scope.APP, context_type=context_type)
     app_container = Container(context={context_type: value})
-    app_container.open()
     assert app_container.resolve_provider(provider) == value
 
 
@@ -112,7 +104,6 @@ def test_factory_resolves_with_falsy_context_value() -> None:
         consumer = providers.Factory(creator=FlagConsumer)
 
     app_container = Container(groups=[FlagGroup], context={bool: False})
-    app_container.open()
     instance = app_container.resolve(FlagConsumer)
     assert instance.flag is False
 
@@ -127,7 +118,6 @@ def test_factory_resolves_with_none_context_value() -> None:
         holder = providers.Factory(creator=NoneHolder)
 
     app_container = Container(groups=[NoneGroup], context={datetime.datetime: None})
-    app_container.open()
     instance = app_container.resolve(NoneHolder)
     assert instance.value is None
 
@@ -148,13 +138,11 @@ def test_factory_with_creator_default_raises_when_context_provider_value_unset()
         holder = providers.Factory(creator=TsHolder)
 
     app_container = Container(groups=[TsGroup])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         app_container.resolve(TsHolder)
     assert exc.value.parameter_name == "ts"
 
     defaulted = Container(groups=[TsDefaultGroup])
-    defaulted.open()
     assert defaulted.resolve(TsHolder).ts == default
 
 
@@ -178,7 +166,6 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
     later `set_context` invisible to non-cached factories across scopes.
     """
     container = Container(scope=Scope.APP, groups=[_LateCtxGroup])
-    container.open()
     first = container.resolve(_NeedsLateCtx)
     assert first.ctx is None  # context unset, default applied
     value = _LateCtx()
@@ -190,9 +177,7 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
 def test_context_provider_through_closed_owning_container_raises() -> None:
     now = datetime.datetime.now(tz=datetime.UTC)
     app = Container(groups=[MyGroup], context={datetime.datetime: now})
-    app.open()
     child = app.build_child_container(scope=Scope.REQUEST)
-    child.open()
     app.close_sync()
     with pytest.raises(ContainerClosedError) as exc:
         child.resolve_provider(MyGroup.context_provider)
@@ -215,9 +200,7 @@ class _ScopedCtxGroup(Group):
 def test_context_provider_reads_registry_at_its_own_scope_not_resolving_container() -> None:
     value = _ScopedCtx()
     app = Container(scope=Scope.APP, groups=[_ScopedCtxGroup])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST, context={_ScopedCtx: _ScopedCtx()})
-    request.open()
     # context set on the CHILD must be invisible to an APP-scoped provider
     with pytest.raises(ContextValueNotSetError) as exc_info:
         request.resolve(_ScopedCtx)
@@ -270,9 +253,7 @@ class _CrossRequiredGroup(Group):
 
 def test_late_app_context_seen_by_request_factory_defaulted_param() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossDefaultGroup])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
-    request.open()
     assert request.resolve(_CrossDefaultSvc).ctx is None  # context unset at first resolve
     value = _CrossCtx()
     app.set_context(_CrossCtx, value)
@@ -281,9 +262,7 @@ def test_late_app_context_seen_by_request_factory_defaulted_param() -> None:
 
 def test_late_app_context_seen_by_request_factory_nullable_param() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossNullableGroup])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
-    request.open()
     assert request.resolve(_CrossNullableSvc).ctx is None
     value = _CrossCtx()
     app.set_context(_CrossCtx, value)
@@ -292,9 +271,7 @@ def test_late_app_context_seen_by_request_factory_nullable_param() -> None:
 
 def test_late_app_context_required_param_raises_then_resolves_across_scopes() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossRequiredGroup])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
-    request.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         request.resolve(_CrossRequiredSvc)
     assert exc.value.parameter_name == "ctx"
@@ -305,9 +282,7 @@ def test_late_app_context_required_param_raises_then_resolves_across_scopes() ->
 
 def test_override_of_context_param_applies_after_first_resolve_across_scopes() -> None:
     app = Container(scope=Scope.APP, groups=[_CrossDefaultGroup])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
-    request.open()
     assert request.resolve(_CrossDefaultSvc).ctx is None
     override_value = _CrossCtx()
     app.override(_CrossDefaultGroup.ctx, override_value)
@@ -331,7 +306,6 @@ def test_late_context_does_not_rebuild_cached_singleton() -> None:
     would turn `cache=True` into a per-resolve check.
     """
     app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
-    app.open()
     first = app.resolve(_CachedCtxSvc)
     assert first.ctx is None
     app.set_context(_CrossCtx, _CrossCtx())
@@ -343,7 +317,6 @@ def test_late_context_does_not_rebuild_cached_singleton() -> None:
 def test_cached_factory_injects_present_context_at_cold_build() -> None:
     # Context set before the first (cold) build is injected into the cached instance.
     app = Container(scope=Scope.APP, groups=[_CachedCtxGroup])
-    app.open()
     ctx = _CrossCtx()
     app.set_context(_CrossCtx, ctx)
     svc = app.resolve(_CachedCtxSvc)
@@ -352,26 +325,15 @@ def test_cached_factory_injects_present_context_at_cold_build() -> None:
 
 def test_direct_resolve_unset_context_raises() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
     assert exc_info.value.context_type is datetime.datetime
-
-
-def test_set_context_provider_direct_resolve_does_not_warn() -> None:
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
-    app_container.open()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        assert app_container.resolve_provider(MyGroup.context_provider) is now
 
 
 def test_context_provider_accepts_positional_context_type() -> None:
     provider = providers.ContextProvider(datetime.datetime)
     now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(context={datetime.datetime: now})
-    app_container.open()
     assert app_container.resolve_provider(provider) is now
 
 
@@ -385,11 +347,8 @@ def test_context_provider_override_direct_short_circuits() -> None:
     # returns the override with no ContextValueNotSetError, even with nothing in the registry.
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     app_container.override(MyGroup.context_provider, override_value)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        assert app_container.resolve_provider(MyGroup.context_provider) is override_value
+    assert app_container.resolve_provider(MyGroup.context_provider) is override_value
 
 
 _SENTINEL_DEFAULT = datetime.datetime(1999, 9, 9, tzinfo=datetime.UTC)
@@ -416,13 +375,11 @@ class _KwargsCtxExplicitGroup(Group):
 
 def test_kwargs_context_provider_ignores_creator_default_when_unset() -> None:
     app_container = Container(groups=[_KwargsCtxExplicitGroup])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         app_container.resolve_provider(_KwargsCtxExplicitGroup.out)
     assert exc.value.parameter_name == "ctx"
 
     defaulted = Container(groups=[_KwargsCtxDefaultedGroup])
-    defaulted.open()
     assert defaulted.resolve_provider(_KwargsCtxDefaultedGroup.out) == "default-applied"
 
 
@@ -430,9 +387,7 @@ def test_kwargs_context_provider_matches_by_type_wiring() -> None:
     # The same creator wired both ways agrees: how the ContextProvider reaches the parameter is a
     # declaration detail, not a behavior switch.
     by_type = Container(groups=[_KwargsCtxByTypeGroup])
-    by_type.open()
     explicit = Container(groups=[_KwargsCtxExplicitGroup])
-    explicit.open()
     with pytest.raises(ContextValueNotSetError) as by_type_exc:
         by_type.resolve_provider(_KwargsCtxByTypeGroup.out)
     with pytest.raises(ContextValueNotSetError) as explicit_exc:
@@ -443,14 +398,12 @@ def test_kwargs_context_provider_matches_by_type_wiring() -> None:
 def test_kwargs_context_provider_injects_present_value() -> None:
     now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(groups=[_KwargsCtxExplicitGroup], context={datetime.datetime: now})
-    app_container.open()
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {now!r}"
 
 
 def test_kwargs_context_provider_override_wins() -> None:
     override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
     app_container = Container(groups=[_KwargsCtxExplicitGroup])
-    app_container.open()
     app_container.override(_KwargsCtxExplicitGroup.ctx, override_value)
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {override_value!r}"
 
@@ -466,7 +419,6 @@ class _KwargsCtxNoSignatureGroup(Group):
 
 def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve() -> None:
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out)
     assert exc_info.value.context_type is datetime.datetime
@@ -478,7 +430,6 @@ def test_kwargs_context_provider_without_parsed_signature_injects_present_value(
     # returns it normally and the creator runs.
     now = datetime.datetime.now(tz=datetime.UTC)
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now})
-    app_container.open()
     assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"
 
 
@@ -502,7 +453,6 @@ def test_scope_error_through_a_context_kwarg_carries_one_breadcrumb_step(cache: 
         svc = providers.Factory(creator=Svc, scope=Scope.APP, cache=cache)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.open()
 
     with pytest.raises(ScopeNotInitializedError) as exc:
         container.resolve(Svc)
@@ -529,7 +479,6 @@ def test_context_hop_does_not_call_find_container(monkeypatch: pytest.MonkeyPatc
         svc = providers.Factory(creator=Svc, scope=Scope.REQUEST)
 
     app = Container(scope=Scope.APP, groups=[G])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST, context={Cfg: Cfg()})
 
     calls: list[object] = []
@@ -551,7 +500,6 @@ def test_context_hop_does_not_call_find_container(monkeypatch: pytest.MonkeyPatc
         wider = providers.Factory(creator=Wider, scope=Scope.REQUEST)
 
     app2 = Container(scope=Scope.APP, groups=[G2], context={AppCfg: AppCfg()})
-    app2.open()
     request2 = app2.build_child_container(scope=Scope.REQUEST)
 
     calls.clear()
@@ -592,7 +540,6 @@ def test_cached_factory_context_kwarg_uses_override() -> None:
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP, cache=True)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.open()
     sentinel = _CachedCtx()
     container.override(G.ctx, sentinel)
     assert container.resolve(_CachedNullable).ctx is sentinel
@@ -604,7 +551,6 @@ def test_transient_factory_context_kwarg_uses_override() -> None:
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.open()
     sentinel = _CachedCtx()
     container.override(G.ctx, sentinel)
     assert container.resolve(_CachedNullable).ctx is sentinel
@@ -620,11 +566,9 @@ def test_cached_factory_context_kwarg_absent_and_nullable_injects_the_provider_d
         svc = providers.Factory(creator=_CachedNullable, scope=Scope.APP, cache=True)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.open()
     assert container.resolve(_CachedNullable).ctx is None
 
     required = Container(scope=Scope.APP, groups=[Required])
-    required.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         required.resolve(_CachedNullable)
     assert exc.value.parameter_name == "ctx"
@@ -636,7 +580,6 @@ def test_cached_factory_context_kwarg_absent_and_required_raises() -> None:
         svc = providers.Factory(creator=_CachedRequired, scope=Scope.APP, cache=True)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.open()
     with pytest.raises(ContextValueNotSetError) as exc:
         container.resolve(_CachedRequired)
     assert exc.value.parameter_name == "ctx"
@@ -649,7 +592,6 @@ def test_cached_factory_context_kwarg_through_closed_holder_raises() -> None:
 
     value = _CachedCtx()
     app = Container(scope=Scope.APP, groups=[G], context={_CachedCtx: value})
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
 
@@ -664,7 +606,6 @@ def test_transient_factory_context_kwarg_through_closed_holder_raises() -> None:
 
     value = _CachedCtx()
     app = Container(scope=Scope.APP, groups=[G], context={_CachedCtx: value})
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
 
@@ -686,7 +627,6 @@ def test_direct_context_resolve_reads_the_scope_only_at_compile_time(monkeypatch
         cfg = providers.ContextProvider(Cfg, scope=Scope.REQUEST)
 
     app = Container(scope=Scope.APP, groups=[G])
-    app.open()
     request = app.build_child_container(scope=Scope.REQUEST, context={Cfg: Cfg()})
     assert isinstance(request.resolve(Cfg), Cfg)  # compile the resolver
 
@@ -709,7 +649,6 @@ def test_direct_context_resolve_reads_the_scope_only_at_compile_time(monkeypatch
 
 def test_unset_context_as_factory_argument_raises_naming_the_parameter() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve(SomeFactory)
     assert exc_info.value.context_type is datetime.datetime
@@ -719,7 +658,6 @@ def test_unset_context_as_factory_argument_raises_naming_the_parameter() -> None
 
 def test_direct_resolve_of_unset_context_names_no_parameter() -> None:
     app_container = Container(groups=[MyGroup])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
     assert exc_info.value.parameter_name is None
@@ -733,7 +671,6 @@ _PROVIDER_DEFAULT = datetime.datetime(2001, 1, 1, tzinfo=datetime.UTC)
 def test_context_provider_default_is_returned_when_unset(default: datetime.datetime | None) -> None:
     provider = providers.ContextProvider(datetime.datetime, scope=Scope.APP, default=default)
     app_container = Container()
-    app_container.open()
     assert app_container.resolve_provider(provider) is default
 
 
@@ -742,7 +679,6 @@ def test_context_provider_default_yields_to_a_set_value(default: datetime.dateti
     now = datetime.datetime.now(tz=datetime.UTC)
     provider = providers.ContextProvider(datetime.datetime, scope=Scope.APP, default=default)
     app_container = Container(context={datetime.datetime: now})
-    app_container.open()
     assert app_container.resolve_provider(provider) is now
 
 
@@ -757,7 +693,6 @@ def test_context_provider_default_reaches_a_factory_argument(default: datetime.d
         holder = providers.Factory(creator=Holder)
 
     app_container = Container(groups=[G])
-    app_container.open()
     assert app_container.resolve(Holder).ts is default
     now = datetime.datetime.now(tz=datetime.UTC)
     app_container.set_context(datetime.datetime, now)
@@ -785,7 +720,6 @@ def test_unset_context_error_names_the_innermost_parameter(cache: bool) -> None:
         outer = providers.Factory(creator=_NamedOuter, cache=cache)
 
     app_container = Container(groups=[G])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve(_NamedOuter)
     assert exc_info.value.parameter_name == "named"
@@ -806,7 +740,6 @@ def test_unset_context_error_names_a_parameter_reached_through_an_alias() -> Non
         holder = providers.Factory(creator=Holder)
 
     app_container = Container(groups=[G])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve(Holder)
     assert exc_info.value.parameter_name == "via_alias"
@@ -823,7 +756,6 @@ def test_unset_context_error_skips_a_defaulted_provider_of_the_same_type() -> No
         out = providers.Factory(creator, bound_type=None, kwargs={"optional": optional})
 
     app_container = Container(groups=[G])
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(G.out)
     assert exc_info.value.parameter_name == "required"
@@ -918,7 +850,6 @@ def test_unset_context_error_names_the_argument_that_failed(creator: typing.Call
         pair = providers.Factory(creator, bound_type=None, cache=cache)
 
     app_container = Container(groups=[G], context={_FirstCtx: _FirstCtx()})
-    app_container.open()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(G.pair)
     assert exc_info.value.context_type is _SecondCtx
@@ -1028,7 +959,6 @@ class _LeakGroup(Group):
 
 def test_set_context_on_child_does_not_leak_to_sibling_or_caller_dict() -> None:
     app = Container(scope=Scope.APP, groups=[_LeakGroup])
-    app.open()
     shared = {_SharedReq: _SharedReq()}
     first = app.build_child_container(scope=Scope.REQUEST, context=shared)
     second = app.build_child_container(scope=Scope.REQUEST, context=shared)

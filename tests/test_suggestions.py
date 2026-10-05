@@ -81,9 +81,7 @@ def test_suggestion_includes_provider_scope() -> None:
         db = providers.Factory(scope=Scope.REQUEST, creator=PostgresDatabase)
 
     container = Container(groups=[G])
-    container.open()
     request_container = container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
     with pytest.raises(ProviderNotRegisteredError) as exc_info:
         request_container.resolve(Database)
 
@@ -153,6 +151,11 @@ def test_suggest_skips_non_class_bound_type() -> None:
     assert suggester.suggest(int, [provider]) == []
 
 
+def test_suggest_skips_bound_type_without_a_name() -> None:
+    provider = providers.Factory(creator=lambda: 1, bound_type=typing.ForwardRef("Database"))  # ty: ignore[invalid-argument-type]
+    assert suggester.suggest(Database, [provider]) == []
+
+
 def test_suggest_swallows_protocol_typeerror() -> None:
     class MyProto(typing.Protocol):
         def foo(self) -> None: ...
@@ -171,7 +174,6 @@ def test_argument_resolution_subclass_suggestion() -> None:
         service = providers.Factory(creator=Service)
 
     container = Container(groups=[G])
-    container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)
 
@@ -193,7 +195,6 @@ def test_argument_resolution_baseclass_suggestion() -> None:
         service = providers.Factory(creator=Service)
 
     container = Container(groups=[G])
-    container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)
 
@@ -216,7 +217,6 @@ def test_argument_resolution_typo_suggestion() -> None:
         service = providers.Factory(creator=Service)
 
     container = Container(groups=[G])
-    container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)
 
@@ -234,7 +234,6 @@ def test_argument_resolution_no_suggestions_when_nothing_matches() -> None:
         service = providers.Factory(creator=Service)
 
     container = Container(groups=[G])
-    container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(Service)
 

@@ -38,7 +38,6 @@ class IncompleteGroup(Group):
 
 def test_chain_appears_when_arg_unresolvable() -> None:
     container = Container(groups=[IncompleteGroup])
-    container.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         container.resolve(MyService)
 
@@ -78,9 +77,7 @@ def test_chain_includes_scope_name() -> None:
         outer = providers.Factory(scope=Scope.REQUEST, creator=Outer)
 
     container = Container(groups=[CrossScope])
-    container.open()
     request = container.build_child_container(scope=Scope.REQUEST)
-    request.open()
     with pytest.raises(ArgumentResolutionError) as exc_info:
         request.resolve(Outer)
 
@@ -127,9 +124,7 @@ def test_captive_dependency_names_both_ends() -> None:
         consumer = providers.Factory(scope=Scope.APP, creator=CaptiveConsumer)
 
     app_container = Container(groups=[CaptiveGroup])
-    app_container.open()
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
-    request_container.open()
 
     with pytest.raises(ScopeNotInitializedError) as exc_info:
         request_container.resolve(CaptiveConsumer)
@@ -149,7 +144,6 @@ def test_alias_prepends_step_on_scope_error() -> None:
         alias = providers.Alias(source_type=ScopedResource, bound_type=AbstractResource)
 
     app_container = Container(groups=[AliasCaptiveGroup])
-    app_container.open()
     with pytest.raises(ScopeNotInitializedError) as exc_info:
         app_container.resolve(AbstractResource)
 
@@ -232,7 +226,6 @@ def test_breadcrumb_line_carries_definition_site() -> None:
         anchored = providers.Factory(_Anchored, scope=Scope.REQUEST)
 
     container = Container(groups=[_G])
-    container.open()
     with pytest.raises(ScopeNotInitializedError) as exc_info:
         container.resolve(_Anchored)
     lineno = inspect.getsourcelines(_Anchored)[1]
@@ -273,7 +266,6 @@ def _validate_chain_names() -> list[str]:
 
 def _runtime_chain_names() -> list[str]:
     container = Container(groups=[_AliasScopeViolationGroup])
-    container.open()
     with pytest.raises(ScopeNotInitializedError) as exc_info:
         container.resolve(_Captor)
     return [step.name for step in exc_info.value.dependency_path]
@@ -322,7 +314,6 @@ class _TwoEdgesGroup(Group):
 )
 def test_runtime_chain_names_the_edge_that_failed(consumer: type, expected: list[str]) -> None:
     container = Container(groups=[_TwoEdgesGroup])
-    container.open()
     with pytest.raises(ScopeNotInitializedError) as exc_info:
         container.resolve(consumer)
     assert [step.name for step in exc_info.value.dependency_path] == expected
@@ -348,7 +339,6 @@ class _DanglingUnderParentGroup(Group):
 
 def test_dangling_alias_under_a_parent_names_both() -> None:
     container = Container(groups=[_DanglingUnderParentGroup])
-    container.open()
     with pytest.raises(exceptions.AliasSourceNotRegisteredError) as exc_info:
         container.resolve(_NeedsDangling)
     assert [step.name for step in exc_info.value.dependency_path] == ["_NeedsDangling", "_DanglingIface"]

@@ -96,7 +96,6 @@ def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
     # `_SHALLOW_RECURSION_LIMIT` above. It mirrors the guard's own `except RecursionError` shape
     # in `resolve_provider`.
     container = Container(groups=[CycleGroup])  # exercise the runtime guard, not validation
-    container.open()
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
     try:
@@ -124,7 +123,6 @@ def _assert_deep_chain_cycle_is_self_contained(exc: exceptions.CircularDependenc
 
 def test_deep_chain_cycle_is_self_contained() -> None:
     container = Container(groups=[DeepCycleGroup])  # exercise the runtime guard, not validation
-    container.open()
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
     try:
@@ -147,7 +145,6 @@ def test_self_recursing_creator_passes_through_recursion_error() -> None:
     # The registry starts unvalidated (nothing here calls validate()), so the guard runs
     # find_cycle_from (no static cycle -> re-raise) rather than short-circuiting on the validated flag.
     container = Container(groups=[RecursiveGroup])
-    container.open()
     with pytest.raises(RecursionError):
         container.resolve(str)
 
@@ -168,7 +165,6 @@ def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytes
 
     container = Container(scope=Scope.APP, groups=[G])
     container.validate()  # marks the graph validated -> the recursion guard short-circuits below
-    container.open()
 
     def _explode(*_: object, **__: object) -> object:  # pragma: no cover - validated graph must skip find_cycle_from
         msg = "walked"
@@ -207,7 +203,6 @@ def test_cycle_error_is_canonical_and_self_contained() -> None:
         b = providers.Factory(creator=_CanonicalB, scope=Scope.APP)
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.open()
     limit = sys.getrecursionlimit()
     sys.setrecursionlimit(80)
     try:
@@ -228,7 +223,6 @@ def test_by_reference_cycle_raises_circular_dependency_error() -> None:
     # `test_by_reference_recursionerror_passes_through`, which reaches it without an overflow.
     # Same `except`-clause shape and shallow limit, per `_SHALLOW_RECURSION_LIMIT`.
     container = Container(groups=[CycleGroup])
-    container.open()
     original_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(_SHALLOW_RECURSION_LIMIT)
     try:
@@ -255,6 +249,5 @@ def test_by_reference_recursionerror_passes_through() -> None:
 
     container = Container(scope=Scope.APP, groups=[G])
     container.validate()
-    container.open()
     with pytest.raises(RecursionError):
         container.resolve_provider(G.s)
