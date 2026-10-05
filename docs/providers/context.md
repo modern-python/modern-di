@@ -109,7 +109,11 @@ required, so `container.resolve(fastapi.Request)` outside a request still raises
 The parameter decides this however it is wired: by type, by a member of a union, through an
 `Alias`, or with `kwargs={...}`. It applies only to an argument that comes straight from the
 `ContextProvider`. If the parameter's provider is a `Factory` that itself needs the missing value,
-the resolve raises.
+the resolve raises. A creator with `skip_creator_parsing=True` or a `**kwargs` signature has no
+parsed parameters, so its context arguments never fall back.
+
+A cached factory built while the value was unset keeps the fallback value for the lifetime of its
+container. A later `set_context()` does not rebuild it.
 
 ### Optional context: `default=`
 

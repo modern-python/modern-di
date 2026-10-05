@@ -204,13 +204,13 @@ def _argument_resolver(
     """Resolve an argument; an unset context argument falls back to an optional parameter's default or `None`."""
     item = f._params.get(name)
     if item is not None and (item.default is not types.UNSET or item.is_nullable):
-        context_provider = _unset_context_terminal(provider, registry)
+        context_provider = _defaultless_context_terminal(provider, registry)
         if context_provider is not None:
             return _compile_context_provider(context_provider, None if item.default is types.UNSET else item.default)
     return registry.resolver_for(provider)
 
 
-def _unset_context_terminal(
+def _defaultless_context_terminal(
     provider: "AbstractProvider[typing.Any] | None", registry: "ProvidersRegistry"
 ) -> "ContextProvider[typing.Any] | None":
     """Follow un-overridden alias redirects to a `ContextProvider` with no `default=` and no override."""

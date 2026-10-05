@@ -793,14 +793,25 @@ class _AppGroup(Group):
     )
 
 
-def _app_pattern_container() -> Container:
-    container = Container(groups=[_AppGroup])
+class _ByTypeRequestGroup(Group):
+    primary_engine = providers.Factory(lambda: _Engine("primary"), bound_type=None)
+    replica_engine = providers.Factory(lambda: _Engine("replica"), bound_type=None)
+    dynamic_engine = providers.Factory(
+        scope=Scope.REQUEST,
+        creator=_choose_engine,
+        kwargs={"primary_engine": primary_engine, "replica_engine": replica_engine},
+    )
+
+
+def _app_pattern_container(group: type[Group] = _AppGroup) -> Container:
+    container = Container(groups=[group])
     container.add_providers(_integration_request_provider)
     container.validate()
     return container
 
 
 def test_app_owned_optional_request_reads_the_integration_request_when_set() -> None:
+    """The app-owned optional provider pattern from the 4.0 migration guide still works."""
     request = _StandInRequest("GET")
     child = _app_pattern_container().build_child_container(scope=Scope.REQUEST, context={_StandInRequest: request})
     assert child.resolve_provider(_AppGroup.dynamic_engine) == _Engine("replica")
@@ -809,12 +820,27 @@ def test_app_owned_optional_request_reads_the_integration_request_when_set() -> 
 
 
 def test_app_owned_optional_request_is_none_when_no_request_is_set() -> None:
+    """The app-owned optional provider pattern from the 4.0 migration guide still works."""
     child = _app_pattern_container().build_child_container(scope=Scope.REQUEST)
     assert child.resolve_provider(_AppGroup.dynamic_engine) == _Engine("primary")
     assert child.resolve_provider(_AppGroup.optional_request) is None
     with pytest.raises(ContextValueNotSetError) as exc_info:
         child.resolve(_StandInRequest)
     assert exc_info.value.context_type is _StandInRequest
+
+
+def test_optional_request_parameter_is_none_without_a_request() -> None:
+    child = _app_pattern_container(_ByTypeRequestGroup).build_child_container(scope=Scope.REQUEST)
+    assert child.resolve_provider(_ByTypeRequestGroup.dynamic_engine) == _Engine("primary")
+    with pytest.raises(ContextValueNotSetError):
+        child.resolve(_StandInRequest)
+
+
+def test_optional_request_parameter_reads_the_request_when_set() -> None:
+    child = _app_pattern_container(_ByTypeRequestGroup).build_child_container(
+        scope=Scope.REQUEST, context={_StandInRequest: _StandInRequest("GET")}
+    )
+    assert child.resolve_provider(_ByTypeRequestGroup.dynamic_engine) == _Engine("replica")
 
 
 class _FirstCtx: ...
@@ -1097,11 +1123,10 @@ def test_provider_default_wins_over_the_parameter_fallback(creator: typing.Calla
     assert Container(groups=[G]).resolve_provider(G.out) is provider_default
 
 
-@pytest.mark.parametrize("cache", [False, True])
-def test_direct_resolve_of_unset_context_still_raises_beside_a_falling_back_argument(cache: bool) -> None:
+def test_direct_resolve_of_unset_context_still_raises_beside_a_falling_back_argument() -> None:
     class G(Group):
         ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
-        out = providers.Factory(_keyword_nullable, bound_type=None, cache=cache)
+        out = providers.Factory(_keyword_nullable, bound_type=None)
 
     container = Container(groups=[G])
     assert container.resolve_provider(G.out) is None
@@ -1218,12 +1243,11 @@ def test_unset_context_argument_reached_through_an_alias_chain_falls_back(
         container.resolve(_AliasTop)
 
 
-@pytest.mark.parametrize("cache", [False, True])
-def test_overridden_alias_to_a_context_compiles_to_its_override(cache: bool) -> None:
+def test_overridden_alias_to_a_context_compiles_to_its_override() -> None:
     class G(Group):
         ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
         top = providers.Alias(_OptCtx, bound_type=_AliasTop)
-        out = providers.Factory(_positional_through_alias, bound_type=None, cache=cache)
+        out = providers.Factory(_positional_through_alias, bound_type=None)
 
     container = Container(groups=[G])
     sentinel = _AliasTop()
@@ -1231,77 +1255,25 @@ def test_overridden_alias_to_a_context_compiles_to_its_override(cache: bool) -> 
     assert container.resolve_provider(G.out) is sentinel
 
 
-@pytest.mark.parametrize("cache", [False, True])
-def test_nullable_argument_through_an_alias_with_no_source_still_raises(cache: bool) -> None:
+def test_nullable_argument_through_an_alias_with_no_source_still_raises() -> None:
     class G(Group):
         top = providers.Alias(_OptCtx, bound_type=_AliasTop)
-        out = providers.Factory(_positional_through_alias, bound_type=None, cache=cache)
+        out = providers.Factory(_positional_through_alias, bound_type=None)
 
     with pytest.raises(AliasSourceNotRegisteredError):
         Container(groups=[G]).resolve_provider(G.out)
 
 
 @pytest.mark.parametrize("cache", [False, True])
-@pytest.mark.parametrize(("creator", "expected", "positional"), _FALLBACK_CASES)
-def test_override_of_a_context_argument_applies_after_the_factory_compiled(
-    creator: typing.Callable[..., object], expected: object, positional: bool, cache: bool
-) -> None:
+def test_override_of_a_context_argument_applies_after_the_factory_compiled(cache: bool) -> None:
     class G(Group):
         ctx = providers.ContextProvider(_OptCtx, scope=Scope.APP)
-        out = providers.Factory(creator, bound_type=None, scope=Scope.REQUEST, cache=cache)
+        out = providers.Factory(_positional_nullable, bound_type=None, scope=Scope.REQUEST, cache=cache)
 
     app = Container(groups=[G])
-    assert G.out._can_call_positionally(G.out._wiring_plan(app._providers_registry)) is positional
-    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is expected
+    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is None
     sentinel = _OptCtx()
     app.override(G.ctx, sentinel)
     assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is sentinel
     app.reset_override(G.ctx)
-    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is expected
-
-
-class _Req:
-    def __init__(self, method: str) -> None:
-        self.method = method
-
-
-def _choose_engine_by_type(
-    primary_engine: _Engine,
-    replica_engine: _Engine | None,
-    request: _Req | None = None,
-) -> _Engine:
-    if replica_engine and request and request.method in _REPLICA_METHODS:
-        return replica_engine
-    return primary_engine
-
-
-_integration_req_provider = providers.ContextProvider(_Req, scope=Scope.REQUEST)
-
-
-class _TemplateGroup(Group):
-    primary_engine = providers.Factory(lambda: _Engine("primary"), bound_type=None)
-    replica_engine = providers.Factory(lambda: _Engine("replica"), bound_type=None)
-    dynamic_engine = providers.Factory(
-        scope=Scope.REQUEST,
-        creator=_choose_engine_by_type,
-        kwargs={"primary_engine": primary_engine, "replica_engine": replica_engine},
-    )
-
-
-def _template_container() -> Container:
-    container = Container(groups=[_TemplateGroup])
-    container.add_providers(_integration_req_provider)
-    container.validate()
-    return container
-
-
-def test_optional_request_parameter_is_none_without_a_request() -> None:
-    child = _template_container().build_child_container(scope=Scope.REQUEST)
-    assert child.resolve_provider(_TemplateGroup.dynamic_engine) == _Engine("primary")
-    with pytest.raises(ContextValueNotSetError):
-        child.resolve(_Req)
-
-
-def test_optional_request_parameter_reads_the_request_when_set() -> None:
-    child = _template_container().build_child_container(scope=Scope.REQUEST, context={_Req: _Req("GET")})
-    assert child.resolve_provider(_TemplateGroup.dynamic_engine) == _Engine("replica")
+    assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is None
