@@ -1,11 +1,12 @@
 import dataclasses
 import functools
+import sys
 import typing
 import warnings
 
 import pytest
 
-from modern_di import Container, Scope, exceptions, providers, types
+from modern_di import Container, Group, Scope, exceptions, providers, types
 from modern_di.types_parser import SignatureItem, parse_creator
 
 
@@ -325,3 +326,124 @@ def test_keyword_only_signal_recorded() -> None:
     params = parse_creator(_mixed_kind_creator).params
     assert params["pos_or_kw"].is_keyword_only is False
     assert params["kw_only"].is_keyword_only is True
+
+
+class _Dep: ...
+
+
+class _OtherDep: ...
+
+
+class _NamedTupleCreator(typing.NamedTuple):
+    dep: _Dep
+    label: str = "x"
+
+
+class _NamedTupleForwardRef(typing.NamedTuple):
+    dep: "_LateDep"
+
+
+class _LateDep(_Dep): ...
+
+
+class _NewOnlyCreator:
+    def __new__(cls, dep: _Dep) -> typing.Self:
+        instance = super().__new__(cls)
+        instance.dep = dep  # ty: ignore[unresolved-attribute]
+        return instance
+
+
+class _NewOnlySubclass(_NewOnlyCreator): ...
+
+
+@pytest.mark.parametrize(
+    ("creator", "dep_type"),
+    [
+        (_NamedTupleCreator, _Dep),
+        (_NamedTupleForwardRef, _LateDep),
+        (_NewOnlyCreator, _Dep),
+        (_NewOnlySubclass, _Dep),
+    ],
+)
+def test_hints_come_from_the_callable_the_signature_reads(creator: type, dep_type: type) -> None:
+    assert parse_creator(creator).params["dep"] == SignatureItem(arg_type=dep_type)
+
+    class Dependencies(Group):
+        dep = providers.Factory(dep_type)
+        target = providers.Factory(creator)
+
+    container = Container(groups=[Dependencies])
+    assert isinstance(container.resolve(creator).dep, dep_type)  # ty: ignore[unresolved-attribute]
+
+
+_UserId = typing.NewType("_UserId", int)
+_UserIdAlias = typing.TypeAliasType("_UserIdAlias", int) if sys.version_info >= (3, 12) else None
+_NAMED_TYPE_FORMS = [
+    pytest.param(_UserId, id="NewType"),
+    pytest.param(
+        _UserIdAlias,
+        id="TypeAliasType",
+        marks=pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 type aliases need Python 3.12"),
+    ),
+]
+
+
+def _greeter_of(form: object) -> typing.Callable[..., str]:
+    def greet(user_id) -> str:  # noqa: ANN001
+        return f"u{user_id}"
+
+    greet.__annotations__ = {"user_id": form, "return": str}
+    return greet
+
+
+@pytest.mark.parametrize("form", _NAMED_TYPE_FORMS)
+def test_named_type_form_parameter_matches_provider_bound_to_it(form: type) -> None:
+    assert SignatureItem.from_type(form) == SignatureItem(arg_type=form)
+
+    class Dependencies(Group):
+        user_id = providers.Factory(lambda: 7, bound_type=form)
+        greeting = providers.Factory(_greeter_of(form))
+
+    assert Container(groups=[Dependencies]).resolve(str) == "u7"
+
+
+@pytest.mark.parametrize("form", _NAMED_TYPE_FORMS)
+def test_named_type_form_return_annotation_is_the_bound_type(form: type) -> None:
+    def make() -> int: ...  # ty: ignore[empty-body]
+
+    make.__annotations__ = {"return": form}
+    assert providers.Factory(make).bound_type is form
+
+
+@pytest.mark.parametrize("form", _NAMED_TYPE_FORMS)
+def test_unregistered_named_type_form_names_the_annotation(form: type) -> None:
+    class Dependencies(Group):
+        greeting = providers.Factory(_greeter_of(form))
+
+    with pytest.raises(exceptions.ArgumentResolutionError) as exc_info:
+        Container(groups=[Dependencies]).resolve(str)
+    assert "no usable type annotation" not in str(exc_info.value)
+    assert "_UserId" in str(exc_info.value)
+
+
+def _make_dep_or_other() -> _Dep | _OtherDep: ...  # ty: ignore[empty-body]
+def _make_optional_dep() -> _Dep | None: ...
+
+
+def test_union_return_type_without_bound_type_warns() -> None:
+    with pytest.warns(UserWarning, match="bound_type") as record:
+        provider = providers.Factory(_make_dep_or_other)
+    assert provider.bound_type is None
+    assert "_Dep | _OtherDep" in str(record[0].message)
+
+
+@pytest.mark.parametrize(
+    ("creator", "bound_type"),
+    [(_make_dep_or_other, _Dep), (_make_dep_or_other, None), (_make_optional_dep, types.UNSET)],
+)
+def test_union_return_type_is_silent_when_bound_type_is_known(
+    creator: typing.Callable[..., typing.Any], bound_type: type | None
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        providers.Factory(creator, bound_type=bound_type)

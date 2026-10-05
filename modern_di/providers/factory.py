@@ -84,6 +84,15 @@ class Factory(AbstractProvider[types.T_co]):
                         "pass the value via the kwargs parameter or give the parameter a default"
                     ),
                 )
+            if parsed.return_type.args and isinstance(bound_type, types.UnsetType):
+                members = " | ".join(getattr(t, "__name__", str(t)) for t in parsed.return_type.args)
+                warnings.warn(
+                    f"The return annotation of {creator!r} is a union of {members}, so no bound_type can be "
+                    "inferred and this provider cannot be resolved by type. Pass bound_type=OneOfThem, or "
+                    "bound_type=None to silence this warning.",
+                    UserWarning,
+                    stacklevel=2,
+                )
         self._parsed_kwargs = parsed.params
         self._has_positional_only_gap = parsed.has_positional_only_gap
         super().__init__(
