@@ -693,7 +693,7 @@ def test_failed_sync_finalizer_drops_the_instance() -> None:
     with pytest.raises(FinalizerError) as exc:
         container.close_sync()
 
-    assert [type(e) for e in exc.value.finalizer_errors] == [ValueError]
+    assert [type(e) for e in exc.value.exceptions] == [ValueError]
     assert container.cache_registry.cached_count() == 0
     container.open()
     assert container.resolve(_First) is not stale
@@ -709,7 +709,7 @@ async def test_failed_async_finalizer_drops_the_instance() -> None:
     with pytest.raises(FinalizerError) as exc:
         await container.close_async()
 
-    assert [type(e) for e in exc.value.finalizer_errors] == [ValueError]
+    assert [type(e) for e in exc.value.exceptions] == [ValueError]
     assert container.cache_registry.cached_count() == 0
     container.open()
     assert container.resolve(_First) is not stale
