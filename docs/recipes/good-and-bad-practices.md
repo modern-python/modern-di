@@ -118,8 +118,7 @@ def frozen_clock() -> Mock:
 ```
 
 Nothing catches this automatically mid-suite. `reset_override(provider)` (or `reset_override()` with no
-arguments, to clear everything) is the fix, and closing the root container clears every override
-in the shared registry as a last resort. See
+arguments, to clear everything) is the fix. Closing the root container does not clear overrides. See
 [Testing with overrides](testing-overrides.md#pitfalls).
 
 ## 6. `skip_creator_parsing=True` with no `bound_type`
