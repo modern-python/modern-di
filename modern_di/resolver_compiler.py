@@ -126,14 +126,14 @@ def _source(arity: int, names: tuple[str, ...] | None, static: bool, cached: boo
     """Generate the resolver source for one shape, and map each resolver call's line to its argument index."""
     if names is None:
         build = [f"        a{i} = r{i}(target)" for i in range(arity)] or ["        pass"]
-        first_call = 0
+        call_offset = 0
         args = ", ".join(f"a{i}" for i in range(arity))
         built = "(" + "".join(f"a{i}, " for i in range(arity)) + ")"
         star = "*"
     else:
         calls = [f"            {name!r}: r{i}(target)," for i, name in enumerate(names)]
         build = ["        kwargs = {", *calls, "        }"]
-        first_call = 1
+        call_offset = 1
         if static:
             build.append("        kwargs.update(static)")
         args, built, star = "**kwargs", "kwargs", "**"
@@ -141,8 +141,9 @@ def _source(arity: int, names: tuple[str, ...] | None, static: bool, cached: boo
         template, args = _CACHED, f"{star}built"
     else:
         template = _TRANSIENT
+    # `{build}` must be the first multi-line placeholder: the lines before it are counted as-is.
     build_line = template[: template.index("{build}")].count("\n") + 1
-    arg_lines = {build_line + first_call + i: i for i in range(arity)}
+    arg_lines = {build_line + call_offset + i: i for i in range(arity)}
     return template.format(build="\n".join(build), built=built, args=args), arg_lines
 
 

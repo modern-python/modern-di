@@ -2,10 +2,10 @@
 
 import enum
 
+from modern_di._scope_algebra import deeper_members
 from modern_di.exceptions.base import ModernDIError
 from modern_di.exceptions.rendering import ResolutionStep
 from modern_di.exceptions.resolution import ResolutionError
-from modern_di.scope import deeper_members
 
 
 class ContainerError(ModernDIError):

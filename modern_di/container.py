@@ -4,6 +4,7 @@ import threading
 import typing
 
 from modern_di import exceptions, types
+from modern_di._scope_algebra import next_deeper
 from modern_di.dependency_graph import DependencyGraph, build_cycle_error, collect_errors, redirect_hops
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
@@ -13,7 +14,7 @@ from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverrideHandle
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.resolver_compiler import STEP_ERRORS
-from modern_di.scope import Scope, next_deeper
+from modern_di.scope import Scope
 
 
 def _handle_recursion_error(

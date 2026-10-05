@@ -205,10 +205,10 @@ class InvalidScopeDependencyError(RegistrationError):
         return self.dep_chain[-1]
 
     def _render_body(self) -> str:
-        terminal_scope = self.dep_terminal.scope
+        effective_scope = self.dep_terminal.scope
         steps = [
             self.provider._resolution_step(),  # noqa: SLF001
-            *(p._resolution_step(terminal_scope) for p in self.dep_chain),  # noqa: SLF001
+            *(p._resolution_step(effective_scope) for p in self.dep_chain),  # noqa: SLF001
         ]
         lines = [
             "Provider at a deeper scope reached through this chain:",

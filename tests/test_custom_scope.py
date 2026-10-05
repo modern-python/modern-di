@@ -2,18 +2,21 @@ import ast
 import dataclasses
 import enum
 import pathlib
+import types
+import typing
 
 import pytest
 
+import modern_di._scope_algebra
 import modern_di.scope
 from modern_di import Container, Group, Scope, providers
+from modern_di._scope_algebra import deeper_members, next_deeper
 from modern_di.exceptions import (
     InvalidChildScopeError,
     MaxScopeReachedError,
     ScopeNotInitializedError,
     ScopeSkippedError,
 )
-from modern_di.scope import deeper_members, next_deeper
 
 
 class MyScope(enum.IntEnum):
@@ -115,7 +118,7 @@ def test_scope_algebra_next_deeper_is_the_shallowest_deeper_member() -> None:
     """INVARIANT: `next_deeper` returns the shallowest deeper member of the provider's own enum.
 
     Not `value + 1` -- a non-contiguous custom enum (`TENANT=6, JOB=10`) must derive `JOB` from
-    `TENANT`. Returning `None` at the deepest member (rather than raising) is what keeps `scope.py`
+    `TENANT`. Returning `None` at the deepest member (rather than raising) is what keeps `_scope_algebra.py`
     from importing `exceptions`.
     """
     assert next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB
@@ -216,16 +219,17 @@ def _module_level_imports(source: str) -> set[str]:
     return imported
 
 
-def test_scope_module_imports_only_enum() -> None:
-    """INVARIANT: `modern_di/scope.py` imports nothing but `enum`.
+@pytest.mark.parametrize("module", [modern_di.scope, modern_di._scope_algebra])
+def test_scope_modules_import_only_enum(module: types.ModuleType) -> None:
+    """INVARIANT: `modern_di/scope.py` and `modern_di/_scope_algebra.py` import nothing but `enum`.
 
     `exceptions/container.py` imports `deeper_members` to derive `InvalidChildScopeError.allowed_scopes`,
-    so a `scope.py` that imported `exceptions` would cycle. That is why `next_deeper` returns `None`
+    so a scope module that imported `exceptions` would cycle. That is why `next_deeper` returns `None`
     at the deepest member instead of raising `MaxScopeReachedError` itself.
     """
-    source = pathlib.Path(modern_di.scope.__file__).read_text(encoding="utf-8")
+    source = pathlib.Path(typing.cast("str", module.__file__)).read_text(encoding="utf-8")
     imported = _module_level_imports(source)
-    assert imported == {"enum"}, f"scope.py grew imports: {sorted(imported)}"
+    assert imported == {"enum"}, f"{module.__name__} grew imports: {sorted(imported)}"
 
     # Prove the extractor itself would catch a relative import of the forbidden dependency -- the
     # assertion above is only trustworthy if this branch is real, not a no-op.
