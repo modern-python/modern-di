@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 
 import pytest
 
@@ -348,3 +349,41 @@ def test_group_scope_does_not_stamp_the_container_provider() -> None:
 
     assert providers.container_provider.scope is Scope.APP
     assert RequestGroup.get_named_providers()["current"] is providers.container_provider
+
+
+class _Tenancy(enum.IntEnum):
+    TENANT = 2
+
+
+class _Root(enum.IntEnum):
+    ROOT = 1
+
+
+def test_group_scope_conflict_tells_apart_same_valued_scopes_of_different_enums() -> None:
+    shared = providers.Factory(_Svc)
+
+    class GroupA(Group, scope=Scope.SESSION):
+        svc = shared
+
+    with pytest.raises(GroupScopeConflictError) as exc_info:
+
+        class GroupB(Group, scope=_Tenancy.TENANT):
+            svc = shared
+
+    assert exc_info.value.first_scope is Scope.SESSION
+    assert exc_info.value.second_scope is _Tenancy.TENANT
+
+
+def test_registered_provider_scope_frozen_against_same_valued_scope_of_another_enum() -> None:
+    shared = providers.Factory(_Svc)
+
+    class PlainGroup(Group):
+        svc = shared
+
+    Container(scope=Scope.APP, groups=[PlainGroup]).resolve_provider(shared)
+    with pytest.raises(ProviderScopeFrozenError):
+
+        class ScopedGroup(Group, scope=_Root.ROOT):
+            svc = shared
+
+    assert shared.scope is Scope.APP

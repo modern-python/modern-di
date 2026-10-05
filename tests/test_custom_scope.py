@@ -221,3 +221,97 @@ def test_scope_modules_import_only_enum(module: types.ModuleType) -> None:
     assert _module_level_imports("from . import exceptions\n") == {"exceptions"}
     # And the absolute `from x import y` form, so both `ImportFrom` branches are genuinely exercised.
     assert _module_level_imports("from enum import IntEnum\n") == {"enum"}
+
+
+class Tenancy(enum.IntEnum):
+    TENANT = 2
+
+
+class _Unregistered: ...
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _NeedsUnregistered:
+    dep: _Unregistered
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_same_valued_scope_of_another_enum_does_not_resolve_in_this_container(cache: bool) -> None:
+    class TenancyGroup(Group):
+        svc = providers.Factory(scope=Tenancy.TENANT, creator=TenantService, cache=cache)
+
+    session = Container(groups=[TenancyGroup]).build_child_container(scope=Scope.SESSION)
+    with pytest.raises(ScopeSkippedError, match="TENANT") as exc:
+        session.resolve(TenantService)
+    assert exc.value.provider_scope is Tenancy.TENANT
+    assert exc.value.dependency_path[0].scope is Tenancy.TENANT
+    assert session._cache_registry.cached_count() == 0
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_same_valued_ancestor_of_another_enum_does_not_resolve(cache: bool) -> None:
+    class TenancyGroup(Group):
+        svc = providers.Factory(scope=Tenancy.TENANT, creator=TenantService, cache=cache)
+
+    session = Container(groups=[TenancyGroup]).build_child_container(scope=Scope.SESSION)
+    request = session.build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(ScopeSkippedError, match="TENANT") as exc:
+        request.resolve(TenantService)
+    assert exc.value.provider_scope is Tenancy.TENANT
+    assert exc.value.dependency_path[0].scope is Tenancy.TENANT
+    assert session._cache_registry.cached_count() == 0
+
+
+@pytest.mark.parametrize("scope", [Scope.SESSION, Scope.REQUEST], ids=["SESSION", "REQUEST"])
+def test_context_provider_ignores_same_valued_scope_of_another_enum(scope: Scope) -> None:
+    class TenancyGroup(Group):
+        ctx = providers.ContextProvider(TenantService, scope=Tenancy.TENANT)
+
+    session = Container(groups=[TenancyGroup]).build_child_container(
+        scope=Scope.SESSION, context={TenantService: TenantService()}
+    )
+    container = session if scope is Scope.SESSION else session.build_child_container(scope=scope)
+    with pytest.raises(ScopeSkippedError, match="TENANT"):
+        container.resolve(TenantService)
+
+
+def test_unwireable_factory_ignores_same_valued_scope_of_another_enum() -> None:
+    class TenancyGroup(Group):
+        svc = providers.Factory(scope=Tenancy.TENANT, creator=_NeedsUnregistered)
+
+    session = Container(groups=[TenancyGroup]).build_child_container(scope=Scope.SESSION)
+    with pytest.raises(ScopeSkippedError, match="TENANT"):
+        session.resolve(_NeedsUnregistered)
+
+
+def test_find_container_matches_the_enum_member_not_its_value() -> None:
+    session = Container().build_child_container(scope=Scope.SESSION)
+    request = session.build_child_container(scope=Scope.REQUEST)
+    assert request.find_container(Scope.SESSION) is session
+    with pytest.raises(ScopeSkippedError):
+        session.find_container(Tenancy.TENANT)
+    with pytest.raises(ScopeSkippedError):
+        request.find_container(Tenancy.TENANT)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _AppSettings:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _TenantRepo:
+    settings: _AppSettings
+
+
+def test_documented_mixed_enum_tree_resolves() -> None:
+    class MixedGroup(Group):
+        settings = providers.Factory(creator=_AppSettings, cache=True)
+        repo = providers.Factory(creator=_TenantRepo, scope=MyScope.TENANT, cache=True)
+
+    app_container = Container(groups=[MixedGroup])
+    app_container.validate()
+    with app_container.build_child_container(scope=MyScope.TENANT) as tenant_container:
+        repo = tenant_container.resolve(_TenantRepo)
+        assert tenant_container.resolve(_TenantRepo) is repo
+        assert repo.settings is app_container.resolve(_AppSettings)

@@ -131,10 +131,10 @@ class Container:
         than this container, and :class:`~modern_di.exceptions.ScopeSkippedError` when no
         ancestor was built at ``scope``.
         """
-        if scope == self.scope:
+        if scope is self.scope:
             return self
         target = self._scope_map.get(scope)
-        if target is None:
+        if target is None or target.scope is not scope:
             if scope > self.scope:
                 raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)
             raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope)

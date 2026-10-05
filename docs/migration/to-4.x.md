@@ -51,6 +51,17 @@ error raised by `resolve()` and `resolve_provider()`. `except ContainerError` st
 handles these three errors; reorder the clauses if the `ContainerError` handler should run. See
 [Errors and exceptions](../providers/errors-and-exceptions.md).
 
+### Scopes match by enum member
+
+In 3.x a provider found its container by integer value, so a provider at a custom
+`Tenancy.TENANT = 2` resolved and cached in a `Scope.SESSION` container. In 4.0 a provider resolves
+only in a container built at the same enum member, and the same-valued scope of another enum raises
+`ScopeSkippedError` or `ScopeNotInitializedError`. Group default scopes compare members too: two
+groups that give one provider `Scope.SESSION` and `Tenancy.TENANT` raise `GroupScopeConflictError`.
+Ordering is unchanged, so a child container still needs a higher integer value than its parent,
+whichever enum each scope comes from. If a provider relied on the old match, give it the scope
+member of the container it should resolve in. See [Custom scopes](../providers/scopes.md#custom-scopes).
+
 ### Context values are required unless the provider sets `default=`
 
 In 3.x, when a `Factory` parameter was backed by a `ContextProvider` and no context value was set,
