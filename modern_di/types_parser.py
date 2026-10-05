@@ -15,7 +15,7 @@ _NAMED_TYPE_FORMS = (typing.NewType,) if sys.version_info < (3, 12) else (typing
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class SignatureItem:
     arg_type: type | None = None
-    args: list[type] = dataclasses.field(default_factory=list)
+    member_types: list[type] = dataclasses.field(default_factory=list)
     is_nullable: bool = False
     default: object = UNSET
     raw_annotation: object = None
@@ -44,7 +44,7 @@ class SignatureItem:
                 result["is_nullable"] = True
 
             if len(non_none_members) > 1:
-                result["args"] = non_none_members
+                result["member_types"] = non_none_members
             else:
                 result["arg_type"] = non_none_members[0]
 
@@ -92,11 +92,14 @@ class ParsedCreator:
 
     ``has_positional_only_gap`` is True when a positional-only-with-default parameter was dropped
     from ``params``, so the map is no longer a faithful positional prefix of the signature.
+    ``accepts_any_kwargs`` is True when the creator takes ``**kwargs`` or its signature cannot be
+    read, so no ``kwargs={...}`` key can be called unknown.
     """
 
     return_type: SignatureItem
     params: dict[str, SignatureItem]
     has_positional_only_gap: bool
+    accepts_any_kwargs: bool
 
 
 def _class_type_hints(creator: type) -> dict[str, typing.Any]:
@@ -114,7 +117,10 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
         sig = inspect.signature(creator)
     except (ValueError, TypeError):
         return ParsedCreator(
-            return_type=SignatureItem.from_type(typing.cast(type, creator)), params={}, has_positional_only_gap=False
+            return_type=SignatureItem.from_type(typing.cast(type, creator)),
+            params={},
+            has_positional_only_gap=False,
+            accepts_any_kwargs=True,
         )
 
     is_class = isinstance(creator, type)
@@ -131,8 +137,12 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
 
     param_hints = {}
     has_positional_only_gap = False
+    accepts_any_kwargs = False
     for param_name, param in sig.parameters.items():
-        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            accepts_any_kwargs = True
+            continue
+        if param.kind is inspect.Parameter.VAR_POSITIONAL:
             continue
         item = _parse_parameter(creator, param_name, param, type_hints)
         if item is None:
@@ -149,4 +159,9 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
     else:
         return_sig = SignatureItem()
 
-    return ParsedCreator(return_type=return_sig, params=param_hints, has_positional_only_gap=has_positional_only_gap)
+    return ParsedCreator(
+        return_type=return_sig,
+        params=param_hints,
+        has_positional_only_gap=has_positional_only_gap,
+        accepts_any_kwargs=accepts_any_kwargs,
+    )

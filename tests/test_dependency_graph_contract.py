@@ -82,7 +82,7 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
         msg = "re-walked"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(dependency_graph.DependencyGraph, "walk", _explode)
+    monkeypatch.setattr(dependency_graph, "walk", _explode)
     container.validate()  # short-circuited on the registry's validated flag -> no walk
 
 
@@ -100,10 +100,10 @@ def test_runtime_guard_converts_unvalidated_cycle() -> None:
 def test_validate_walks_the_same_edges_resolve_follows() -> None:
     """INVARIANT: the graph validate() walks is the graph resolve() follows.
 
-    Edges come from `WiringPlan.edges`, a view derived from the same buckets resolve() reads, so a
-    provider named in a declaration-time `kwargs={...}` is an edge like any type-matched one.
-    Assembling the validation edge set separately would let the two drift, and a cycle routed
-    through a `kwargs=` provider would surface as a bare RecursionError instead.
+    Edges come from `WiringPlan.provider_kwargs`, the same bucket resolve() reads, so a provider
+    named in a declaration-time `kwargs={...}` is an edge like any type-matched one. Assembling the
+    validation edge set separately would let the two drift, and a cycle routed through a `kwargs=`
+    provider would surface as a bare RecursionError instead.
     """
 
     class _Leaf: ...
@@ -115,7 +115,7 @@ def test_validate_walks_the_same_edges_resolve_follows() -> None:
     class G(Group):
         leaf = Factory(scope=Scope.REQUEST, creator=_Leaf)
         # Named via kwargs, not type-matched: the by-type pass skips a name present in kwargs,
-        # so this edge exists only if the overlay pass feeds it into WiringPlan.edges.
+        # so this edge exists only if the overlay pass feeds it into WiringPlan.provider_kwargs.
         root = Factory(scope=Scope.APP, creator=_Root, kwargs={"leaf": leaf})
 
     container = Container(scope=Scope.APP, groups=[G])

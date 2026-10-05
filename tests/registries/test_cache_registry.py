@@ -9,7 +9,7 @@ from modern_di.types import UNSET
 
 
 def _item() -> CacheItem:
-    return CacheItem(settings=None)
+    return CacheItem(settings=CacheSettings())
 
 
 def test_get_or_create_miss_calls_resolve_and_create_once_and_caches() -> None:
@@ -108,9 +108,8 @@ async def test_close_async_awaits_only_items_with_a_finalizer(monkeypatch: pytes
     registry = CacheRegistry()
     plain = CacheItem(settings=CacheSettings(), cache="plain")
     persistent = CacheItem(settings=CacheSettings(clear_cache=False), cache="persistent")
-    bare = CacheItem(settings=None, cache="bare")
     with_finalizer = CacheItem(settings=CacheSettings(finalizer=finalized.append), cache="finalized")
-    for item in (plain, persistent, bare, with_finalizer):
+    for item in (plain, persistent, with_finalizer):
         registry.mark_created(item)
 
     await registry.close_async()
@@ -119,5 +118,4 @@ async def test_close_async_awaits_only_items_with_a_finalizer(monkeypatch: pytes
     assert finalized == ["finalized"]
     assert plain.cache is UNSET
     assert persistent.cache == "persistent"
-    assert bare.cache == "bare"
     assert registry._creation_order == []

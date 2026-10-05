@@ -76,10 +76,8 @@ def test_wiring_plan_partitioning() -> None:
     )
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,
-        kwargs=owner._kwargs,
+        owner,
         registry=registry,
-        owner=owner,
     )
 
     # a) type-matched provider → provider_kwargs
@@ -91,7 +89,7 @@ def test_wiring_plan_partitioning() -> None:
 
     # c) ContextProvider param → provider_kwargs, and an edge like any other
     assert plan.provider_kwargs["req"] is ctx_req
-    assert plan.edges["req"] is ctx_req
+    assert plan.provider_kwargs["req"] is ctx_req
 
     # d) defaulted param → omitted from both buckets
     assert "with_default" not in plan.provider_kwargs
@@ -107,10 +105,8 @@ def test_wiring_plan_nullable_no_default_goes_to_static_kwargs() -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_NullableNoDefaultCreator)
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,
-        kwargs=None,
+        owner,
         registry=registry,
-        owner=owner,
     )
 
     assert "nullable" in plan.static_kwargs
@@ -134,10 +130,8 @@ def test_wiring_plan_unwireable_no_raise() -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_UnwirableCreator)
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,
-        kwargs=None,
+        owner,
         registry=registry,
-        owner=owner,
     )
 
     # build returns normally (no raise)
@@ -176,21 +170,19 @@ def test_wiring_plan_edges_include_static_supplied_providers() -> None:
     )
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,
-        kwargs=owner._kwargs,
+        owner,
         registry=registry,
-        owner=owner,
     )
 
     # `x` is supplied via the kwargs overlay: resolved live AND visible to validate().
     assert "x" in plan.provider_kwargs
-    assert plan.edges["x"] is factory_a
+    assert plan.provider_kwargs["x"] is factory_a
 
     # `y` is type-matched → an edge like any other.
-    assert plan.edges["y"] is factory_b
+    assert plan.provider_kwargs["y"] is factory_b
 
     # The edge set is exactly what the runtime resolves — however the edge was declared.
-    assert set(plan.edges) == {"x", "y"}
+    assert set(plan.provider_kwargs) == {"x", "y"}
 
     assert plan.unwireable == []
 
@@ -215,7 +207,8 @@ def test_wiring_plan_edges_include_static_supplied_providers() -> None:
 )
 def test_parameter_without_provider_precedence(item: SignatureItem, expected: str) -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_ServiceA)
-    plan = WiringPlan.build(parsed_kwargs={"p": item}, kwargs=None, registry=ProvidersRegistry(), owner=owner)
+    owner._params = {"p": item}
+    plan = WiringPlan.build(owner, registry=ProvidersRegistry())
     outcome = {
         "omitted": ({}, {}, []),
         "none": ({}, {"p": None}, []),
@@ -232,14 +225,15 @@ def test_parameter_without_provider_precedence(item: SignatureItem, expected: st
 def test_parameter_without_provider_default_wins_over_nullable() -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_ServiceA)
     item = SignatureItem(default=None, is_nullable=True)
-    plan = WiringPlan.build(parsed_kwargs={"p": item}, kwargs=None, registry=ProvidersRegistry(), owner=owner)
+    owner._params = {"p": item}
+    plan = WiringPlan.build(owner, registry=ProvidersRegistry())
     # default is not UNSET (it is None), so omitted regardless of is_nullable
     assert plan.static_kwargs == {}
     assert plan.unwireable == []
 
 
 # ---------------------------------------------------------------------------
-# Test: find_dep_provider — union-args branch (arg_type is None)
+# Test: find_dep_provider — union-members branch (arg_type is None)
 # ---------------------------------------------------------------------------
 
 
@@ -252,9 +246,9 @@ class _UnionTypeB:
 
 
 def test_find_dep_provider_union_args_matches_first_registered() -> None:
-    """When arg_type is None (union member), find_dep_provider falls through to args list.
+    """When arg_type is None (union member), find_dep_provider falls through to member_types.
 
-    A SignatureItem with args=[_UnionTypeA, _UnionTypeB] and no arg_type (the
+    A SignatureItem with member_types=[_UnionTypeA, _UnionTypeB] and no arg_type (the
     union-member branch) should resolve to the provider registered for the first
     matching member — and appear in provider_kwargs/dependencies accordingly.
     """
@@ -264,8 +258,8 @@ def test_find_dep_provider_union_args_matches_first_registered() -> None:
 
     owner = providers.Factory(scope=Scope.APP, creator=_UnionTypeA)
 
-    # Manually craft a SignatureItem with args but no arg_type (union member scenario)
-    item = SignatureItem(arg_type=None, args=[_UnionTypeA, _UnionTypeB])
+    # Manually craft a SignatureItem with member_types but no arg_type (union member scenario)
+    item = SignatureItem(arg_type=None, member_types=[_UnionTypeA, _UnionTypeB])
 
     result = find_dep_provider(registry, owner, item)
     # factory_a is registered for _UnionTypeA; it is not `owner`, so it must be returned
@@ -279,7 +273,7 @@ def test_find_dep_provider_union_args_skips_owner() -> None:
     registry.add_providers(factory_a)
 
     # owner IS factory_a — should be skipped
-    item = SignatureItem(arg_type=None, args=[_UnionTypeA])
+    item = SignatureItem(arg_type=None, member_types=[_UnionTypeA])
     result = find_dep_provider(registry, factory_a, item)
     assert result is None
 
@@ -292,7 +286,7 @@ class _OrderedDeps:
 def test_provider_kwargs_preserves_signature_order() -> None:
     """provider_kwargs iterates in signature order — the invariant the positional fast path depends on.
 
-    _positional_names gates on tuple(provider_kwargs) == tuple(parsed_kwargs), then the resolver
+    _positional_names gates on tuple(provider_kwargs) == tuple(params), then the resolver
     builds its positional tuple from provider_kwargs. If build stopped preserving order, the gate
     would silently de-select the positional path.
     """
@@ -305,11 +299,9 @@ def test_provider_kwargs_preserves_signature_order() -> None:
     owner = providers.Factory(scope=Scope.APP, creator=_OrderedDeps)
 
     plan = WiringPlan.build(
-        parsed_kwargs=owner._parsed_kwargs,
-        kwargs=owner._kwargs,
+        owner,
         registry=registry,
-        owner=owner,
     )
 
     assert tuple(plan.provider_kwargs) == ("first", "second", "third")
-    assert tuple(plan.provider_kwargs) == tuple(owner._parsed_kwargs)
+    assert tuple(plan.provider_kwargs) == tuple(owner._params)

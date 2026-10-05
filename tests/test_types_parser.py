@@ -26,8 +26,8 @@ if typing.TYPE_CHECKING:
         (dict[str, typing.Any], SignatureItem(raw_annotation=dict[str, typing.Any])),
         (typing.Optional[str], SignatureItem(arg_type=str, is_nullable=True)),  # noqa: UP045
         (str | None, SignatureItem(arg_type=str, is_nullable=True)),
-        (str | int, SignatureItem(args=[str, int])),
-        (typing.Union[str | int], SignatureItem(args=[str, int])),  # noqa: UP007
+        (str | int, SignatureItem(member_types=[str, int])),
+        (typing.Union[str | int], SignatureItem(member_types=[str, int])),  # noqa: UP007
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
         (GenericClass[str], SignatureItem(raw_annotation=GenericClass[str])),
         (GenericClass[str] | None, SignatureItem(arg_type=GenericClass, is_nullable=True)),

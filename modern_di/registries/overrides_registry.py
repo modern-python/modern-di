@@ -60,7 +60,7 @@ class OverrideHandle(typing.Generic[types.T]):
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        if isinstance(self._prior, types.UnsetType):
+        if self._prior is types.UNSET:
             self._registry.reset_override(self._provider_id)
         else:
             self._registry.override(self._provider_id, self._prior)

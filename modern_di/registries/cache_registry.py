@@ -16,12 +16,12 @@ _V = typing.TypeVar("_V")
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class CacheItem:
-    settings: CacheSettings[typing.Any] | None
+    settings: CacheSettings[typing.Any]
     cache: typing.Any = types.UNSET
     finalized: bool = False
 
     def clear(self) -> None:
-        if self.settings and self.settings.clear_cache:
+        if self.settings.clear_cache:
             self.cache = types.UNSET
             self.finalized = False
 
@@ -46,10 +46,14 @@ class CacheItem:
             self.cache = value
             return value, True
 
+    def _pending_finalizer(self) -> typing.Callable[[typing.Any], typing.Awaitable[None] | None] | None:
+        """Return the finalizer still owed to the cached value, or None when nothing is owed."""
+        return None if self.cache is types.UNSET or self.finalized else self.settings.finalizer
+
     async def close_async(self) -> None:
-        if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
+        if (finalizer := self._pending_finalizer()) is not None:
             try:
-                result = self.settings.finalizer(self.cache)
+                result = finalizer(self.cache)
                 if inspect.isawaitable(result):
                     await result
             except Exception:
@@ -60,11 +64,11 @@ class CacheItem:
         self.clear()
 
     def close_sync(self) -> None:
-        if self.cache is not types.UNSET and not self.finalized and self.settings and self.settings.finalizer:
+        if (finalizer := self._pending_finalizer()) is not None:
             if self.settings.is_async_finalizer:
                 raise exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=type(self.cache))
             try:
-                result = self.settings.finalizer(self.cache)
+                result = finalizer(self.cache)
             except Exception:
                 self.clear()
                 raise
@@ -87,12 +91,14 @@ class CacheRegistry:
     def cached_count(self) -> int:
         return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
 
-    def fetch_cache_item(self, provider: Factory[types.T_co]) -> CacheItem:
+    def fetch_cache_item(self, provider: Factory[typing.Any]) -> CacheItem:
+        """Return the cache slot for a cached ``provider``, creating it on first use."""
         # Get before setdefault: a bare setdefault builds a throwaway CacheItem on every hit.
         item = self._items.get(provider.provider_id)
         if item is not None:
             return item
-        return self._items.setdefault(provider.provider_id, CacheItem(settings=provider.cache_settings))
+        settings = typing.cast("CacheSettings[typing.Any]", provider.cache_settings)
+        return self._items.setdefault(provider.provider_id, CacheItem(settings=settings))
 
     def mark_created(self, cache_item: CacheItem) -> None:
         """Record creation completion; close finalizes in reverse of this order (LIFO)."""
@@ -101,8 +107,7 @@ class CacheRegistry:
     async def close_async(self) -> None:
         finalizer_errors: list[Exception] = []
         for cache_item in reversed(self._creation_order):
-            settings = cache_item.settings
-            if settings is None or settings.finalizer is None:
+            if cache_item.settings.finalizer is None:
                 cache_item.clear()
                 continue
             try:

@@ -3,9 +3,8 @@ import enum
 import threading
 import typing
 
-from modern_di import exceptions, types
+from modern_di import dependency_graph, exceptions, types
 from modern_di._scope_algebra import next_deeper
-from modern_di.dependency_graph import DependencyGraph, build_cycle_error, collect_errors, redirect_hops
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
@@ -20,17 +19,13 @@ from modern_di.scope import Scope
 def _handle_recursion_error(
     provider: AbstractProvider[typing.Any], container: "Container", registry: ProvidersRegistry, exc: RecursionError
 ) -> typing.NoReturn:
-    """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged.
-
-    A separate call, not inlined into `resolve_provider`: the coverage tracer re-arms on the
-    fresh call boundary before this raises.
-    """
+    """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged."""
     if registry.is_validated():
         raise exc  # validated => acyclic static graph => genuine self-recursion
-    cycle = DependencyGraph().find_cycle_from(provider, container)
+    cycle = dependency_graph.find_cycle_from(provider, container)
     if cycle is None:
         raise exc
-    raise build_cycle_error(cycle, container) from exc
+    raise dependency_graph.build_cycle_error(cycle, container) from exc
 
 
 class Container:
@@ -82,9 +77,7 @@ class Container:
         self._closed = False
         self.scope = scope
         self.parent_container = parent_container
-        # Ancestors only, never self: a `scope: self` entry is a reference cycle, so no container
-        # would ever be freed by refcounting.
-        # SLF001 exempts `self`/`cls` only, so it flags this same-class read; no boundary is crossed.
+        # Ancestors only: a `scope: self` entry is a reference cycle that refcounting never frees.
         self._scope_map: dict[enum.IntEnum, typing.Self] = (
             {**parent_container._scope_map, parent_container.scope: parent_container}  # noqa: SLF001
             if parent_container
@@ -93,9 +86,7 @@ class Container:
         self._cache_registry = CacheRegistry()
         self._context_registry = ContextRegistry(copy.copy(context) if context is not None else {})
         self._providers_registry: ProvidersRegistry
-        # Inlined rather than a helper: this runs per child build (benchmark `test_g6_build_child_container`).
         if parent_container:
-            # SLF001 exempts `self`/`cls` only, so it flags this same-class read; no boundary is crossed.
             self._lock = parent_container._lock  # noqa: SLF001
             self._providers_registry = parent_container._providers_registry  # noqa: SLF001
         else:
@@ -168,7 +159,7 @@ class Container:
         except STEP_ERRORS as exc:
             provider = registry.find_provider(dependency_type)
             if provider is not None:
-                exc.prepend_step(*redirect_hops(provider, self))
+                exc.prepend_step(*dependency_graph.redirect_hops(provider, self))
             raise
 
     def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
@@ -194,7 +185,7 @@ class Container:
         except RecursionError as exc:
             _handle_recursion_error(provider, self, registry, exc)
         except STEP_ERRORS as exc:
-            exc.prepend_step(*redirect_hops(provider, self))
+            exc.prepend_step(*dependency_graph.redirect_hops(provider, self))
             raise
 
     def validate(self) -> None:
@@ -209,7 +200,7 @@ class Container:
         if reg.is_validated():
             return
 
-        if errors := collect_errors(self, reg):
+        if errors := dependency_graph.collect_errors(self, reg):
             raise exceptions.ValidationFailedError(errors=errors)
         reg.mark_validated()
 

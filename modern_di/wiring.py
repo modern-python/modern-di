@@ -24,7 +24,7 @@ def find_dep_provider(
         if provider is owner:
             return None
         return provider
-    for x in item.args:
+    for x in item.member_types:
         provider = registry.find_provider(x)
         if provider is not None and provider is not owner:
             return provider
@@ -35,33 +35,21 @@ def find_dep_provider(
 class WiringPlan:
     """Immutable result of partitioning a creator's parameters into wiring buckets.
 
-    ``pure_provider`` means no static kwargs, so the call can be built from ``provider_kwargs``
-    alone. ``unwireable`` holds records rather than pre-built exceptions: a plan is memoized, and
-    ``prepend_step`` mutates the error it is called on.
+    ``provider_kwargs`` holds every provider the plan resolves, so it is also the edge set the
+    dependency graph walks. ``unwireable`` holds records rather than pre-built exceptions: a plan
+    is memoized, and ``prepend_step`` mutates the error it is called on.
     """
 
     provider_kwargs: dict[str, "AbstractProvider[typing.Any]"]
     static_kwargs: dict[str, typing.Any]
     unwireable: "list[tuple[str, SignatureItem]]"
-    pure_provider: bool
-
-    @property
-    def edges(self) -> dict[str, "AbstractProvider[typing.Any]"]:
-        """Every provider this plan resolves: the bucket ``resolve()`` reads."""
-        return self.provider_kwargs
 
     @classmethod
-    def build(
-        cls,
-        *,
-        parsed_kwargs: dict[str, SignatureItem],
-        kwargs: dict[str, typing.Any] | None,
-        registry: "ProvidersRegistry",
-        owner: "Factory[typing.Any]",
-    ) -> "WiringPlan":
-        """Partition *parsed_kwargs* by type, then overlay ``kwargs={...}``. Never raises."""
+    def build(cls, owner: "Factory[typing.Any]", *, registry: "ProvidersRegistry") -> "WiringPlan":
+        """Partition ``owner``'s parameters by type, then overlay its ``kwargs={...}``. Never raises."""
+        kwargs = owner._kwargs  # noqa: SLF001
         provider_kwargs, static_kwargs, unwireable = cls._wire_by_type(
-            parsed_kwargs=parsed_kwargs,
+            params=owner._params,  # noqa: SLF001
             kwargs=kwargs,
             registry=registry,
             owner=owner,
@@ -77,13 +65,12 @@ class WiringPlan:
             provider_kwargs=provider_kwargs,
             static_kwargs=static_kwargs,
             unwireable=unwireable,
-            pure_provider=not static_kwargs,
         )
 
     @staticmethod
     def _wire_by_type(
         *,
-        parsed_kwargs: dict[str, SignatureItem],
+        params: dict[str, SignatureItem],
         kwargs: dict[str, typing.Any] | None,
         registry: "ProvidersRegistry",
         owner: "Factory[typing.Any]",
@@ -92,7 +79,7 @@ class WiringPlan:
         dict[str, typing.Any],
         "list[tuple[str, SignatureItem]]",
     ]:
-        """Bucket each parsed parameter by type; a name in ``kwargs={...}`` is left to the overlay.
+        """Bucket each parameter by type; a name in ``kwargs={...}`` is left to the overlay.
 
         A parameter with no provider is omitted when it has a default, gets ``None`` when nullable,
         and is unwireable otherwise.
@@ -101,7 +88,7 @@ class WiringPlan:
         static_kwargs: dict[str, typing.Any] = {}
         unwireable: list[tuple[str, SignatureItem]] = []
 
-        for name, item in parsed_kwargs.items():
+        for name, item in params.items():
             if kwargs and name in kwargs:
                 continue
             provider = find_dep_provider(registry, owner, item)

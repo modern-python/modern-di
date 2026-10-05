@@ -101,89 +101,85 @@ def build_cycle_error(
     )
 
 
-class DependencyGraph:
-    """Stateless walker over the static provider graph rooted at a container's registry."""
+def walk(
+    roots: "typing.Iterable[AbstractProvider[typing.Any]]",
+    container: "Container",
+) -> "typing.Iterator[Event]":
+    """Pre-order DFS from each root; bookkeeping is shared across roots, keyed on ``provider_id``."""
+    visiting: set[int] = set()
+    visited: set[int] = set()
+    for root in roots:
+        yield from _walk_from(root, container, visiting, visited)
 
-    def walk(
-        self,
-        roots: "typing.Iterable[AbstractProvider[typing.Any]]",
-        container: "Container",
-    ) -> "typing.Iterator[Event]":
-        """Pre-order DFS from each root; bookkeeping is shared across roots, keyed on ``provider_id``."""
-        visiting: set[int] = set()
-        visited: set[int] = set()
-        for root in roots:
-            yield from self._walk_from(root, container, visiting, visited)
 
-    def find_cycle_from(
-        self,
-        start: "AbstractProvider[typing.Any]",
-        container: "Container",
-    ) -> "list[AbstractProvider[typing.Any]] | None":
-        """Return the first cycle reachable from ``start``, or None when that subgraph is acyclic."""
-        for event in self.walk([start], container):
-            if isinstance(event, Cycle):
-                return event.providers
-        return None
+def find_cycle_from(
+    start: "AbstractProvider[typing.Any]",
+    container: "Container",
+) -> "list[AbstractProvider[typing.Any]] | None":
+    """Return the first cycle reachable from ``start``, or None when that subgraph is acyclic."""
+    for event in walk([start], container):
+        if isinstance(event, Cycle):
+            return event.providers
+    return None
 
-    def _walk_from(
-        self,
-        start: "AbstractProvider[typing.Any]",
-        container: "Container",
-        visiting: set[int],
-        visited: set[int],
-    ) -> "typing.Iterator[Event]":
-        """Explicit-stack DFS from ``start``; skip immediately if already seen."""
-        if start.provider_id in visited or start.provider_id in visiting:
-            return
 
-        path: list[AbstractProvider[typing.Any]] = []
-        stack: list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]] = []
-        yield from self._enter(start, container, visiting, path, stack)
+def _walk_from(
+    start: "AbstractProvider[typing.Any]",
+    container: "Container",
+    visiting: set[int],
+    visited: set[int],
+) -> "typing.Iterator[Event]":
+    """Explicit-stack DFS from ``start``; skip immediately if already seen."""
+    if start.provider_id in visited or start.provider_id in visiting:
+        return
 
-        while stack:
-            try:
-                name, dep = next(stack[-1])
-            except StopIteration:
-                finished = path.pop()
-                stack.pop()
-                visiting.discard(finished.provider_id)
-                visited.add(finished.provider_id)
-                continue
+    path: list[AbstractProvider[typing.Any]] = []
+    stack: list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]] = []
+    yield from _enter(start, container, visiting, path, stack)
 
-            yield Edge(path[-1], name, dep)
-            if dep.provider_id in visiting:
-                cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep.provider_id)
-                yield Cycle([*path[cycle_start:], path[cycle_start]])
-                continue
-            if dep.provider_id in visited:
-                continue
-            yield from self._enter(dep, container, visiting, path, stack)
-
-    def _enter(
-        self,
-        provider: "AbstractProvider[typing.Any]",
-        container: "Container",
-        visiting: set[int],
-        path: "list[AbstractProvider[typing.Any]]",
-        stack: "list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]]",
-    ) -> "typing.Iterator[Event]":
-        """Push ``provider`` onto the active path; a ``ResolutionError`` from it becomes ``DependenciesError``."""
-        visiting.add(provider.provider_id)
-        path.append(provider)
-        yield NodeEntered(provider)
+    while stack:
         try:
-            dependencies = provider._get_dependencies(container)  # noqa: SLF001
-        except exceptions.ResolutionError as exc:
-            yield DependenciesError(provider, exc)
-            dependencies = {}
-        stack.append(iter(dependencies.items()))
+            name, dep = next(stack[-1])
+        except StopIteration:
+            finished = path.pop()
+            stack.pop()
+            visiting.discard(finished.provider_id)
+            visited.add(finished.provider_id)
+            continue
+
+        yield Edge(path[-1], name, dep)
+        if dep.provider_id in visiting:
+            cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep.provider_id)
+            yield Cycle([*path[cycle_start:], path[cycle_start]])
+            continue
+        if dep.provider_id in visited:
+            continue
+        yield from _enter(dep, container, visiting, path, stack)
+
+
+def _enter(
+    provider: "AbstractProvider[typing.Any]",
+    container: "Container",
+    visiting: set[int],
+    path: "list[AbstractProvider[typing.Any]]",
+    stack: "list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]]",
+) -> "typing.Iterator[Event]":
+    """Push ``provider`` onto the active path; a ``ResolutionError`` from it becomes ``DependenciesError``."""
+    visiting.add(provider.provider_id)
+    path.append(provider)
+    yield NodeEntered(provider)
+    try:
+        dependencies = provider._get_dependencies(container)  # noqa: SLF001
+    except exceptions.ResolutionError as exc:
+        yield DependenciesError(provider, exc)
+        dependencies = {}
+    stack.append(iter(dependencies.items()))
 
 
 def collect_errors(container: "Container", registry: "ProvidersRegistry") -> list[Exception]:
     """Walk the graph rooted at ``registry``'s providers once; return every wiring error in walk order."""
     errors: list[Exception] = []
-    for event in DependencyGraph().walk(registry, container):
+    for event in walk(registry, container):
         match event:
             case NodeEntered(provider):
                 errors.extend(provider._iter_validation_issues(container))  # noqa: SLF001

@@ -46,7 +46,7 @@ Every module under `modern_di/` is named for what it does; read it. What a singl
   class here, never at the raise site. Submodules split by family; `__init__` re-exports every public name.
 - `registries/` — `providers_registry` (type → provider, plus the shared plan/resolver memos) and
   `overrides_registry` are shared tree-wide; `cache_registry` and `context_registry` are per-container.
-- `dependency_graph.py` walks `WiringPlan.edges`, so what `validate()` traverses is exactly what
+- `dependency_graph.py` walks `WiringPlan.provider_kwargs`, so what `validate()` traverses is exactly what
   `resolve()` follows. Explicit-stack, never recursive: a caller runs it inside a `RecursionError`
   handler near CPython's stack limit.
 - `types.py` — `UNSET` is load-bearing on the resolve path: the miss marker for both the override

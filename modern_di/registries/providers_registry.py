@@ -11,7 +11,6 @@ from modern_di.wiring import WiringPlan
 if typing.TYPE_CHECKING:
     from modern_di import Container
     from modern_di.providers.factory import Factory
-    from modern_di.types_parser import SignatureItem
 
 
 class ProvidersRegistry:
@@ -61,12 +60,7 @@ class ProvidersRegistry:
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
         return self._providers.get(dependency_type)
 
-    def plan_for(
-        self,
-        provider: "Factory[typing.Any]",
-        parsed_kwargs: "dict[str, SignatureItem]",
-        kwargs: dict[str, typing.Any] | None,
-    ) -> "WiringPlan":
+    def plan_for(self, provider: "Factory[typing.Any]") -> "WiringPlan":
         """Return `provider`'s memoized wiring plan, building it on a miss.
 
         The memo is tree-wide and dropped on every registry mutation.
@@ -76,11 +70,15 @@ class ProvidersRegistry:
         if cached is not None:
             return cached
         generation = self._generation
-        plan = WiringPlan.build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=self, owner=provider)
+        plan = WiringPlan.build(provider, registry=self)
+        self._publish(self._plans, provider_id, plan, generation)
+        return plan
+
+    def _publish(self, memo: dict[typing.Any, typing.Any], key: object, value: object, generation: int) -> None:
+        """Store `value` in `memo` unless a mutation bumped the generation since `generation` was read."""
         with self._lock:
             if self._generation == generation:
-                self._plans[provider_id] = plan
-        return plan
+                memo[key] = value
 
     def _building_set(self) -> set[int]:
         """Return this thread's in-flight-compile set; per-thread, so a concurrent compile is not a cycle."""
@@ -109,11 +107,7 @@ class ProvidersRegistry:
             resolver = compile_resolver(provider, self)
         finally:
             building.discard(pid)
-        with self._lock:
-            # Publish only if no mutation landed while we compiled; memoizing a resolver built
-            # against the old registry would strand it past the `_invalidate()` meant to drop it.
-            if self._generation == generation:
-                self._resolvers[pid] = resolver
+        self._publish(self._resolvers, pid, resolver, generation)
         return resolver
 
     def resolver_for_type(self, dependency_type: type) -> "typing.Callable[[Container], typing.Any]":
@@ -125,17 +119,13 @@ class ProvidersRegistry:
                 provider_type=dependency_type, suggestions=suggester.suggest(dependency_type, self)
             )
         resolver = self.resolver_for(provider)
-        with self._lock:
-            if self._generation == generation:
-                self._resolvers_by_type[dependency_type] = resolver
+        self._publish(self._resolvers_by_type, dependency_type, resolver, generation)
         return resolver
 
     def drop_resolvers(self) -> None:
         """Drop the compiled resolvers — the overrides changed. Plans and the validation flag survive."""
         with self._lock:
-            self._resolvers.clear()
-            self._resolvers_by_type.clear()
-            self._generation += 1
+            self._drop_resolvers()
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
         with self._lock:
@@ -159,8 +149,7 @@ class ProvidersRegistry:
                 if provider_type in self._providers:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
-            # Over `args`, not `new_providers`: a reference-only provider never enters
-            # `_providers`, but its resolver is still compiled and still captures its scope.
+            # Over `args`: a reference-only provider never enters `_providers` but is still compiled.
             for provider in args:
                 provider.mark_registered()
             self._invalidate()
@@ -168,7 +157,11 @@ class ProvidersRegistry:
     def _invalidate(self) -> None:
         """Drop every memo and the validation flag — the registry changed. Called under `self._lock`."""
         self._plans.clear()
+        self._validated = False
+        self._drop_resolvers()
+
+    def _drop_resolvers(self) -> None:
+        """Drop both resolver memos and bump the generation. Called under `self._lock`."""
         self._resolvers.clear()
         self._resolvers_by_type.clear()
-        self._validated = False
         self._generation += 1

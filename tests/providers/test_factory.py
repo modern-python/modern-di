@@ -980,7 +980,7 @@ def _cov_pos_only_creator(prefix: str = "P", /, dep: _CovLeaf = None) -> _CovPos
 
 
 def test_positional_only_with_default_stays_on_kwargs_path() -> None:
-    # `prefix` is positional-only WITH a default: the parser drops it from _parsed_kwargs, leaving
+    # `prefix` is positional-only WITH a default: the parser drops it from _params, leaving
     # names == ("dep",) -- a clean-looking prefix. The positional-only guard in _positional_names
     # must reject it, or `creator(dep_instance)` would bind dep to `prefix` and swallow the "P".
     assert _cov_pos_only_creator(dep=_CovLeaf()) == _CovPosOnlyResult(prefix="P", dep=_CovLeaf())  # exercise body
