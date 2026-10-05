@@ -2,6 +2,7 @@
 
 import typing
 
+from modern_di.exceptions import _pickling
 from modern_di.exceptions.rendering import ResolutionStep, render_chain
 
 
@@ -27,10 +28,21 @@ class ModernDIError(RuntimeError):
         return RuntimeError.__str__(self)
 
     def __str__(self) -> str:
+        if (frozen := _pickling.frozen_message(self)) is not None:
+            return frozen
         body = self._render_body()
         if self.docs_slug is None:
             return body
         return f"{body}\nSee: {_TROUBLESHOOTING_BASE_URL}/{self.docs_slug}/"
+
+    def __reduce_ex__(self, protocol: typing.SupportsIndex) -> tuple[typing.Any, ...]:
+        return _pickling.reduce_error(self, int(protocol))
+
+    def __copy__(self) -> typing.Self:
+        return _pickling.copy_error(self)
+
+    def __deepcopy__(self, memo: dict[int, typing.Any]) -> typing.Self:
+        return _pickling.deepcopy_error(self, memo)
 
 
 class DependencyPathMixin:
