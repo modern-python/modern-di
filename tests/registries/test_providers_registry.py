@@ -10,7 +10,6 @@ from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries import providers_registry as pr_mod
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
-from modern_di.types_parser import SignatureItem
 
 
 def test_providers_registry_find_provider_not_found() -> None:
@@ -278,14 +277,8 @@ def test_mutation_during_plan_build_does_not_strand_a_stale_plan(monkeypatch: py
     may_publish = threading.Event()
     real_build = pr_mod.WiringPlan.build
 
-    def hold_open(
-        *,
-        parsed_kwargs: "dict[str, SignatureItem]",
-        kwargs: "dict[str, typing.Any] | None",
-        registry: ProvidersRegistry,
-        owner: "providers.Factory[typing.Any]",
-    ) -> pr_mod.WiringPlan:
-        plan = real_build(parsed_kwargs=parsed_kwargs, kwargs=kwargs, registry=registry, owner=owner)
+    def hold_open(owner: "providers.Factory[typing.Any]", *, registry: ProvidersRegistry) -> pr_mod.WiringPlan:
+        plan = real_build(owner, registry=registry)
         if owner is svc:
             built.set()
             may_publish.wait(5)

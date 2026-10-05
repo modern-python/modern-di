@@ -27,17 +27,11 @@ class Alias(AbstractProvider[types.T_co]):
     def __repr__(self) -> str:
         return f"Alias(source_type={self._source_type!r}, bound_type={self.bound_type!r}, scope={self.scope!r})"
 
-    def _find_source(self, container: "Container") -> "AbstractProvider[types.T_co]":
-        source = container.find_provider(self._source_type)
+    def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
+        source = self._redirect_target(container)
         if source is None:
             raise exceptions.AliasSourceNotRegisteredError(source_type=self._source_type)
-        return source
-
-    def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
-        return {"source": self._find_source(container)}
+        return {"source": source}
 
     def _redirect_target(self, container: "Container") -> "AbstractProvider[typing.Any] | None":
-        try:
-            return self._find_source(container)
-        except exceptions.AliasSourceNotRegisteredError:
-            return None
+        return container.find_provider(self._source_type)

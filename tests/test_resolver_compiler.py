@@ -466,7 +466,7 @@ def test_can_call_positionally_rejects_positional_only_param() -> None:
     a correctness bug, not a slow path.
     """
 
-    # rule 4: `prefix` is positional-only WITH a default, dropped from parsed_kwargs so the
+    # rule 4: `prefix` is positional-only WITH a default, dropped from params so the
     # remaining names look like a clean prefix ("dep",) -- but a positional call would bind
     # `dep` to the `prefix` slot. The parser's has_positional_only_gap flag must reject it.
     def creator(prefix: str = "P", /, dep: _A = None) -> _Ordered:  # ty: ignore[invalid-parameter-default]

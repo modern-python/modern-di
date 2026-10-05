@@ -174,7 +174,7 @@ def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytes
         msg = "walked"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(dependency_graph.DependencyGraph, "find_cycle_from", _explode)
+    monkeypatch.setattr(dependency_graph, "find_cycle_from", _explode)
     with pytest.raises(RecursionError):
         container.resolve(SelfRec)
 

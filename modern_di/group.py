@@ -6,12 +6,12 @@ from modern_di.providers.abstract import AbstractProvider
 
 
 class Group:
-    def __new__(cls, *_: typing.Any, **__: typing.Any) -> typing.Self:  # noqa: ANN401
+    def __new__(cls, *_: object, **__: object) -> typing.Self:
         raise exceptions.GroupInstantiationError(group_name=cls.__name__)
 
     _default_scope: typing.ClassVar["enum.IntEnum | None"] = None
 
-    def __init_subclass__(cls, scope: "enum.IntEnum | None" = None, **kwargs: typing.Any) -> None:  # noqa: ANN401
+    def __init_subclass__(cls, scope: "enum.IntEnum | None" = None, **kwargs: object) -> None:
         """Record a group-default scope and stamp it onto scope-defaulted providers in this class body."""
         super().__init_subclass__(**kwargs)
         if scope is not None:

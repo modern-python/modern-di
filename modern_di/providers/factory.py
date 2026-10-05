@@ -46,7 +46,7 @@ class Factory(AbstractProvider[types.T_co]):
         "_creator",
         "_has_positional_only_gap",
         "_kwargs",
-        "_parsed_kwargs",
+        "_params",
         "cache_settings",
     )
 
@@ -60,40 +60,10 @@ class Factory(AbstractProvider[types.T_co]):
         cache: bool | CacheSettings[types.T_co] = False,
         skip_creator_parsing: bool = False,
     ) -> None:
-        if skip_creator_parsing:
-            if bound_type is types.UNSET:
-                warnings.warn(
-                    "skip_creator_parsing=True without an explicit bound_type means this provider "
-                    "cannot be resolved by type. Pass bound_type=MyClass if you need type resolution.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            parsed = ParsedCreator(return_type=SignatureItem(), params={}, has_positional_only_gap=False)
-        else:
-            parsed = parse_creator(creator)
-            if kwargs:
-                self._validate_kwargs_against_signature(creator, kwargs, parsed.params)
-            for param_name, item in parsed.params.items():
-                if item.raw_annotation is None or item.default is not types.UNSET or (kwargs and param_name in kwargs):
-                    continue
-                raise exceptions.UnsupportedCreatorParameterError(
-                    creator=creator,
-                    parameter_name=param_name,
-                    reason=(
-                        f"parameterized generic annotation {item.raw_annotation!r} cannot be resolved by type; "
-                        "pass the value via the kwargs parameter or give the parameter a default"
-                    ),
-                )
-            if parsed.return_type.args and isinstance(bound_type, types.UnsetType):
-                members = " | ".join(getattr(t, "__name__", str(t)) for t in parsed.return_type.args)
-                warnings.warn(
-                    f"The return annotation of {creator!r} is a union of {members}, so no bound_type can be "
-                    "inferred and this provider cannot be resolved by type. Pass bound_type=OneOfThem, or "
-                    "bound_type=None to silence this warning.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-        self._parsed_kwargs = parsed.params
+        parsed = self._parse_creator(
+            creator, bound_type=bound_type, kwargs=kwargs, skip_creator_parsing=skip_creator_parsing
+        )
+        self._params = parsed.params
         self._has_positional_only_gap = parsed.has_positional_only_gap
         super().__init__(
             scope=scope,
@@ -105,18 +75,47 @@ class Factory(AbstractProvider[types.T_co]):
         self._cached_definition_site: str | types.UnsetType | None = types.UNSET
 
     @staticmethod
-    def _validate_kwargs_against_signature(
+    def _parse_creator(
         creator: typing.Callable[..., typing.Any],
-        kwargs: dict[str, typing.Any],
-        parsed_kwargs: dict[str, SignatureItem],
+        *,
+        bound_type: type | types.UnsetType | None,
+        kwargs: dict[str, typing.Any] | None,
+        skip_creator_parsing: bool,
+    ) -> ParsedCreator:
+        """Parse and check ``creator`` for ``__init__``; warnings point at the ``Factory(...)`` call."""
+        if skip_creator_parsing:
+            if bound_type is types.UNSET:
+                warnings.warn(
+                    "skip_creator_parsing=True without an explicit bound_type means this provider "
+                    "cannot be resolved by type. Pass bound_type=MyClass if you need type resolution.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            return ParsedCreator(
+                return_type=SignatureItem(), params={}, has_positional_only_gap=False, accepts_any_kwargs=True
+            )
+        parsed = parse_creator(creator)
+        if kwargs:
+            Factory._reject_unknown_kwargs(creator, kwargs, parsed)
+        Factory._reject_unresolvable_generics(creator, kwargs, parsed)
+        if parsed.return_type.member_types and bound_type is types.UNSET:
+            members = " | ".join(getattr(t, "__name__", str(t)) for t in parsed.return_type.member_types)
+            warnings.warn(
+                f"The return annotation of {creator!r} is a union of {members}, so no bound_type can be "
+                "inferred and this provider cannot be resolved by type. Pass bound_type=OneOfThem, or "
+                "bound_type=None to silence this warning.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return parsed
+
+    @staticmethod
+    def _reject_unknown_kwargs(
+        creator: typing.Callable[..., typing.Any], kwargs: dict[str, typing.Any], parsed: ParsedCreator
     ) -> None:
-        try:
-            sig = inspect.signature(creator)
-        except (ValueError, TypeError):
+        if parsed.accepts_any_kwargs:
             return
-        if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
-            return
-        known = set(parsed_kwargs)
+        known = set(parsed.params)
         unknown = sorted(set(kwargs) - known)
         if not unknown:
             return
@@ -125,6 +124,22 @@ class Factory(AbstractProvider[types.T_co]):
             unknown_keys=unknown,
             known_keys=sorted(known),
         )
+
+    @staticmethod
+    def _reject_unresolvable_generics(
+        creator: typing.Callable[..., typing.Any], kwargs: dict[str, typing.Any] | None, parsed: ParsedCreator
+    ) -> None:
+        for param_name, item in parsed.params.items():
+            if item.raw_annotation is None or item.default is not types.UNSET or (kwargs and param_name in kwargs):
+                continue
+            raise exceptions.UnsupportedCreatorParameterError(
+                creator=creator,
+                parameter_name=param_name,
+                reason=(
+                    f"parameterized generic annotation {item.raw_annotation!r} cannot be resolved by type; "
+                    "pass the value via the kwargs parameter or give the parameter a default"
+                ),
+            )
 
     def __repr__(self) -> str:
         return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"
@@ -172,12 +187,12 @@ class Factory(AbstractProvider[types.T_co]):
             bound_type=self.bound_type,
             creator=self._creator,
             suggestions=suggestions,
-            member_types=item.args,
+            member_types=item.member_types,
         )
 
     def _wiring_plan(self, registry: "ProvidersRegistry") -> WiringPlan:
         """Return this factory's wiring plan, memoized on the tree-wide providers registry."""
-        return registry.plan_for(self, self._parsed_kwargs, self._kwargs)
+        return registry.plan_for(self)
 
     def _can_call_positionally(self, plan: WiringPlan) -> bool:
         """Whether this creator can be called positionally under `plan`.
@@ -185,18 +200,18 @@ class Factory(AbstractProvider[types.T_co]):
         True when every parsed parameter is a positional-or-keyword provider dependency, in signature
         order, with nothing omitted, added, keyword-only or positional-only.
         """
-        if not plan.pure_provider:
+        if plan.static_kwargs:
             return False
-        names = tuple(self._parsed_kwargs)
+        names = tuple(self._params)
         if tuple(plan.provider_kwargs) != names:
             return False
-        if any(item.is_keyword_only for item in self._parsed_kwargs.values()):
+        if any(item.is_keyword_only for item in self._params.values()):
             return False
         return not (names and self._has_positional_only_gap)
 
     def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
-        return self._wiring_plan(container._providers_registry).edges  # noqa: SLF001
+        return self._wiring_plan(container._providers_registry).provider_kwargs  # noqa: SLF001
 
     def _iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
