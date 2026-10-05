@@ -545,58 +545,23 @@ def test_closed_container_raises_before_running_the_creator() -> None:
 
 
 def test_reopen_rebuilds_a_value_that_close_cleared() -> None:
-    calls: list[str] = []
+    class Svc: ...
+
+    finalized: list[Svc] = []
 
     class G(Group):
-        f = providers.Factory(
-            creator=lambda: "r",
-            bound_type=str,
-            cache=providers.CacheSettings(clear_cache=True, finalizer=calls.append),
-        )
+        svc = providers.Factory(creator=Svc, cache=providers.CacheSettings(finalizer=finalized.append))
 
     container = Container(groups=[G])
-    container.resolve(str)
+    first = container.resolve(Svc)
     container.close_sync()
-    assert calls == ["r"]
+    assert finalized == [first]
     with pytest.raises(ContainerClosedError):
-        container.resolve(str)
-    assert calls == ["r"]
-    container.open()
-    container.resolve(str)
-    container.close_sync()
-    assert calls == ["r", "r"]
-
-
-_reopen_events: list[str] = []
-
-
-class _EphemeralSvc: ...
-
-
-class _ReopenGroup(Group):
-    broker = providers.Factory(
-        scope=Scope.APP,
-        creator=_PersistentBroker,
-        cache=providers.CacheSettings(clear_cache=False, finalizer=lambda _: _reopen_events.append("broker-finalized")),
-    )
-    svc = providers.Factory(scope=Scope.APP, creator=_EphemeralSvc, cache=True)
-
-
-def test_persistent_value_survives_close_and_reenter() -> None:
-    _reopen_events.clear()
-    container = Container(scope=Scope.APP, groups=[_ReopenGroup])
+        container.resolve(Svc)
     with container:
-        broker1 = container.resolve(_PersistentBroker)
-        svc1 = container.resolve(_EphemeralSvc)
-    assert _reopen_events == ["broker-finalized"]
-    with pytest.raises(ContainerClosedError):
-        container.resolve(_PersistentBroker)
-    with container:
-        broker2 = container.resolve(_PersistentBroker)
-        svc2 = container.resolve(_EphemeralSvc)
-    assert broker2 is broker1
-    assert svc2 is not svc1
-    assert _reopen_events == ["broker-finalized"]
+        second = container.resolve(Svc)
+    assert second is not first
+    assert finalized == [first, second]
 
 
 def test_child_built_off_closed_parent_raises_only_when_the_parent_resolves() -> None:
@@ -661,12 +626,12 @@ def test_warm_cached_resolve_does_not_wait_for_the_lock() -> None:
     warm = root.resolve(_PersistentBroker)
     child = root.build_child_container(scope=Scope.REQUEST)
     results: list[_PersistentBroker] = []
-    worker = threading.Thread(target=lambda: results.append(child.resolve(_PersistentBroker)))
+    worker = threading.Thread(target=lambda: results.append(child.resolve(_PersistentBroker)), daemon=True)
     with root._lock:
         worker.start()
         worker.join(timeout=5)
         finished_while_held = not worker.is_alive()
-    worker.join()
+    worker.join(timeout=5)
     assert finished_while_held
     assert results[0] is warm
 
