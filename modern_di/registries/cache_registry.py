@@ -89,7 +89,7 @@ class CacheRegistry:
         self._creation_order.append(cache_item)
 
     async def close_async(self) -> None:
-        finalizer_errors: list[BaseException] = []
+        finalizer_errors: list[Exception] = []
         for cache_item in reversed(self._creation_order):
             settings = cache_item.settings
             if settings is None or settings.finalizer is None:
@@ -104,7 +104,7 @@ class CacheRegistry:
             raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=True)
 
     def close_sync(self) -> None:
-        finalizer_errors: list[BaseException] = []
+        finalizer_errors: list[Exception] = []
         remaining: list[CacheItem] = []
         for cache_item in reversed(self._creation_order):
             try:

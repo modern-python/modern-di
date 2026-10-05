@@ -73,14 +73,26 @@ Closing a container runs its finalizers in reverse-creation order (creation orde
 
 Closing keeps going when a finalizer fails: one that raises does not abort the others. Every
 finalizer runs; the exceptions are collected and re-raised together as a single `FinalizerError`
-once cleanup finishes. Its `.finalizer_errors` attribute holds the list of underlying exceptions,
-and `.is_async` records whether `close_sync()` or `close_async()` raised it. So a broken finalizer
-can't leak a resource that a later finalizer would have closed.
+once cleanup finishes. `FinalizerError` is an `ExceptionGroup`: `.exceptions` holds the underlying
+exceptions as a tuple, and `.is_async` records whether `close_sync()` or `close_async()` raised it.
+So a broken finalizer can't leak a resource that a later finalizer would have closed.
+
+Because it is an exception group, `except*` catches the finalizer errors by type. `except
+FinalizerError` and `except ModernDIError` still catch the whole group:
+
+```python
+try:
+    container.close_sync()
+except* ConnectionError as group:
+    # group is a FinalizerError holding only the ConnectionErrors; .is_async is kept
+    for err in group.exceptions:
+        print("cleanup failed:", err)
+```
 
 Calling `close_sync()` on a cached resource with an async finalizer is recoverable. `close_sync()`
 cannot await, so when it reaches such a resource it produces an `AsyncFinalizerInSyncCloseError`,
-delivered *wrapped inside* the aggregated `FinalizerError` (as an entry in `.finalizer_errors`), since
-sync close aggregates like any other failure. The resource's cache entry is **retained**
+delivered inside the aggregated `FinalizerError` (as an entry in `.exceptions`), since sync close
+aggregates like any other failure. The resource's cache entry is **retained**
 rather than discarded, so the resource is not lost: a later `await container.close_async()` finalizes
 it correctly and completes the cleanup.
 
@@ -90,8 +102,7 @@ container.resolve(AsyncResource)
 
 try:
     container.close_sync()
-except exceptions.FinalizerError as exc:
-    # exc.finalizer_errors contains an AsyncFinalizerInSyncCloseError;
+except* exceptions.AsyncFinalizerInSyncCloseError:
     # the cache was kept, nothing was finalized yet.
     ...
 
