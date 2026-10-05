@@ -1059,3 +1059,16 @@ def test_caller_dict_changes_after_construction_are_not_seen() -> None:
     shared[_LeakedUser] = _LeakedUser()
 
     assert container.resolve_provider(_LeakGroup.app_user) is None
+
+
+class _LookupHookContext(dict[type[typing.Any], typing.Any]):
+    def __contains__(self, key: object) -> bool:
+        return key is datetime.datetime or super().__contains__(key)
+
+    def __getitem__(self, key: type[typing.Any]) -> datetime.datetime:
+        return datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+
+
+def test_dict_subclass_context_keeps_its_lookup_hooks() -> None:
+    container = Container(groups=[MyGroup], context=_LookupHookContext())
+    assert container.resolve(datetime.datetime) == datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)

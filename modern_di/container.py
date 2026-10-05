@@ -1,3 +1,4 @@
+import copy
 import enum
 import threading
 import typing
@@ -87,7 +88,7 @@ class Container:
             else {}
         )
         self.cache_registry = CacheRegistry()
-        self.context_registry = ContextRegistry(context.copy() if context else {})
+        self.context_registry = ContextRegistry(copy.copy(context) if context is not None else {})
         self.providers_registry: ProvidersRegistry
         self.overrides_registry: OverridesRegistry
         # Inlined rather than a helper: this runs per child build (benchmark `test_g6_build_child_container`).
