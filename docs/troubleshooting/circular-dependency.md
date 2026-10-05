@@ -31,6 +31,11 @@ re-walks the static graph from the failing provider, and, since a cycle is reach
 `RecursionError`. A creator that merely recurses on its own, with no actual cycle in the provider
 graph, still raises the original `RecursionError` unchanged. This guard runs on every resolve, whether or not `validate()` was ever called.
 
+The guard covers resolution on one thread. Each cached factory locks its cache item while it is
+created, so two threads that cold-resolve different providers of the same cycle at the same time
+can each hold one of those locks and wait for the other forever, and neither reaches the guard.
+If the graph might have a cycle, call `validate()` at startup, before any thread resolves.
+
 ### Cycle detection with `validate()`
 
 Calling `validate()` up front finds the *same* cycle earlier, and finds *every* issue in the graph

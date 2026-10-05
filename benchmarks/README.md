@@ -17,6 +17,7 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G5 | Cross-scope resolve, REQUEST -> APP dep | `find_container` traversal |
 | G6 | `build_child_container(REQUEST)` | per-request setup |
 | G7 | Full lifecycle batch: K=100 x (build REQUEST -> sync-init cached resolve -> `await close_async()`) | real per-request cost incl. async teardown |
+| G7b | One request cycle: build REQUEST -> first-resolve one cached REQUEST provider -> `close_sync()` | per-request cost of a cached item, no event loop |
 | G7c | Control: K=100 empty awaits in one loop entry | residual event-loop floor inside G7 |
 | G8 | Cold first-resolve: build root container + compile + resolve, depth 6 | construction + first-compile cost |
 | G8b | G8 with every provider `cache=True` | the cached template's cold-miss `build`/`create`, read against G8 |
@@ -27,7 +28,7 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 | G13b | Batch of K=100 request cycles, 10 finalizer-less cached REQUEST providers, `await close_async()` | the async close loop when there is nothing to finalize |
 | G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
-| G15 | Concurrent first-resolve, N threads (double-checked creation lock) | free-threaded creation-lock contention |
+| G15 | Concurrent first-resolve, N threads (per-item double-checked creation lock) | free-threaded creation-lock contention |
 | G16 | Warm by-type `resolve(SomeType)`, small graph | `find_provider` lookup on the integration/`@inject` path |
 | G17 | Warm by-type `resolve(SomeType)`, 200-provider registry | lookup cost at realistic registry scale |
 | G18 | Warm resolve through an `Alias` to a cached source | the alias hop, read against G2 |

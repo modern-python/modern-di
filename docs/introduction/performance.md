@@ -322,6 +322,12 @@ resolver, so a hop through an alias runs no frame of its own (−33% on an alias
 now matches a plain cached resolve). An error that crosses an alias still shows the alias in its
 chain: the parent puts the hop back when it adds its own step.
 
+4.0 also replaced the tree lock from #541 with one lock per cache item (#569), so creating one
+cached factory no longer waits for another. A child build still allocates no lock, because the
+lock comes with the cache item. The cost moved to the first resolve of a cached factory in each
+container. A request that resolves one request-scoped cached factory pays about 120 ns to
+allocate its lock: +7.7% on G7b, one request cycle with a sync close, and +4.6% on G7.
+
 ## Reproduce it yourself
 
 ```bash

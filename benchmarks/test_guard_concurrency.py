@@ -10,8 +10,8 @@ needed). Two sub-cases:
   across N threads. The cached-hit path is lock-free, so on a free-threaded build (PEP 703) the
   batch time should *drop* as N rises (throughput scales); under the GIL it stays flat.
 - G15 concurrent first-resolve: N threads each race to resolve the *same* K cold singletons, so
-  they contend on the double-checked creation lock (`CacheItem.get_or_create`). Singleton
-  creation is serialized by design, so this is expected *not* to scale even free-threaded — the
+  they contend on each item's double-checked creation lock (`CacheItem.get_or_create`). Creating
+  one singleton is serialized by design, so this is expected *not* to scale even free-threaded: the
   measured cost is the contention itself (the known trade-off vs lock-free-slot rivals).
 
 Read the batch-time-vs-thread-count trend, not the absolutes. The GIL vs free-threaded comparison
@@ -124,10 +124,12 @@ _REQUEST_PROVIDERS = [getattr(_REQUEST_GROUP, f"r{i}") for i in range(_K_COLD)]
 
 @pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
 def test_g15b_concurrent_first_resolve_sibling_children(benchmark, n_threads):
-    # Each thread builds its OWN REQUEST child and first-resolves K cached providers in it, so
-    # every creation is a cold miss in a container no other thread touches. With a lock per
-    # container these creations never contend; with one lock per tree they serialize. This is the
-    # scenario G15 does not cover -- G15 races on one root, whose lock is shared either way.
+    """Each thread builds its own REQUEST child and first-resolves K cached providers in it.
+
+    Every creation is a cold miss in a container no other thread touches. Each cache item has its
+    own lock, so these creations never contend; under a lock shared by the tree they would
+    serialize. G15 does not cover this: it races on one root's items, whose locks are shared.
+    """
     check = Container(scope=Scope.APP, groups=[_REQUEST_GROUP])
     check.open()
     probe = check.build_child_container(scope=Scope.REQUEST)

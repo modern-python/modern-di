@@ -7,13 +7,14 @@ child -> sync-init cached resolve -> async finalize via close_async()) repeated
 K times per loop entry to isolate DI work from the ~27us event-loop entry cost.
 Divide G7's number by 100 for per-request cost. G7c is the control (K=100 empty
 awaits on the same shape) so the residual loop overhead is visible (~15% at K=100).
+G7b is one request cycle with a synchronous close, so no event loop is in the number.
 See benchmarks/README.md.
 """
 
 import asyncio
 import dataclasses
 
-from benchmarks._pinned import ITER_UNDER_1US, ROUNDS
+from benchmarks._pinned import ITER_UNDER_1US, ITER_UNDER_2US, ROUNDS
 from modern_di import Container, Group, Scope, providers
 
 
@@ -115,6 +116,34 @@ def test_g7c_event_loop_floor_control(benchmark):
         benchmark(_run_batch)
     finally:
         loop.close()
+
+
+# --- G7b: one request cycle, cached REQUEST provider without a finalizer, sync close ---
+@dataclasses.dataclass(slots=True)
+class RequestService:
+    pass
+
+
+class RequestCycleGroup(Group):
+    svc = providers.Factory(creator=RequestService, scope=Scope.REQUEST, cache=True)
+
+
+def test_g7b_request_cycle_sync(benchmark):
+    """Build a REQUEST child, first-resolve one cached REQUEST provider, close it synchronously.
+
+    Every cycle creates a fresh cache item and its lock, so this is where a per-item cost lands.
+    """
+    app = Container(scope=Scope.APP, groups=[RequestCycleGroup])
+    app.open()
+
+    def _one_request() -> RequestService:
+        req = app.build_child_container(scope=Scope.REQUEST)
+        svc = req.resolve_provider(RequestCycleGroup.svc)
+        req.close_sync()
+        return svc
+
+    result = benchmark.pedantic(_one_request, rounds=ROUNDS, iterations=ITER_UNDER_2US)
+    assert isinstance(result, RequestService)
 
 
 # --- G13: teardown at scale -- 10 cached REQUEST resources, sync finalizers ---
