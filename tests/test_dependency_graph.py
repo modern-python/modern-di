@@ -1,4 +1,4 @@
-"""Event-stream tests for ``dependency_graph.walk`` — the module's test surface is the event SEQUENCE."""
+"""Event-stream tests for ``dependency_graph.walk``: the module's test surface is the event SEQUENCE."""
 
 from modern_di import Container, Scope
 from modern_di.dependency_graph import (

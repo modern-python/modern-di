@@ -87,8 +87,7 @@ def test_wiring_plan_partitioning() -> None:
     # b) static kwarg literal → static_kwargs
     assert plan.static_kwargs.get("svc_b") == "static-literal"
 
-    # c) ContextProvider param → provider_kwargs, and an edge like any other
-    assert plan.provider_kwargs["req"] is ctx_req
+    # c) ContextProvider param → provider_kwargs, like any other dependency
     assert plan.provider_kwargs["req"] is ctx_req
 
     # d) defaulted param → omitted from both buckets
@@ -233,7 +232,7 @@ def test_parameter_without_provider_default_wins_over_nullable() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test: find_dep_provider — union-members branch (arg_type is None)
+# Test: find_dep_provider, union-members branch (arg_type is None)
 # ---------------------------------------------------------------------------
 
 
@@ -245,7 +244,7 @@ class _UnionTypeB:
     pass
 
 
-def test_find_dep_provider_union_args_matches_first_registered() -> None:
+def test_find_dep_provider_union_members_matches_first_registered() -> None:
     """When arg_type is None (union member), find_dep_provider falls through to member_types.
 
     A SignatureItem with member_types=[_UnionTypeA, _UnionTypeB] and no arg_type (the
@@ -266,7 +265,7 @@ def test_find_dep_provider_union_args_matches_first_registered() -> None:
     assert result is factory_a
 
 
-def test_find_dep_provider_union_args_skips_owner() -> None:
+def test_find_dep_provider_union_members_skips_owner() -> None:
     """When the only union member matching a registered provider IS the owner, returns None."""
     factory_a = providers.Factory(scope=Scope.APP, creator=_UnionTypeA)
     registry = ProvidersRegistry()
@@ -286,7 +285,7 @@ class _OrderedDeps:
 def test_provider_kwargs_preserves_signature_order() -> None:
     """provider_kwargs iterates in signature order — the invariant the positional fast path depends on.
 
-    _positional_names gates on tuple(provider_kwargs) == tuple(params), then the resolver
+    _can_call_positionally gates on tuple(provider_kwargs) == tuple(params), then the resolver
     builds its positional tuple from provider_kwargs. If build stopped preserving order, the gate
     would silently de-select the positional path.
     """

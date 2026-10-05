@@ -13,6 +13,10 @@ if typing.TYPE_CHECKING:
     from modern_di.providers.factory import Factory
 
 
+_K = typing.TypeVar("_K")
+_V = typing.TypeVar("_V")
+
+
 class ProvidersRegistry:
     """Type → provider, plus the tree-wide plan and resolver memos.
 
@@ -74,7 +78,7 @@ class ProvidersRegistry:
         self._publish(self._plans, provider_id, plan, generation)
         return plan
 
-    def _publish(self, memo: dict[typing.Any, typing.Any], key: object, value: object, generation: int) -> None:
+    def _publish(self, memo: dict[_K, _V], key: _K, value: _V, generation: int) -> None:
         """Store `value` in `memo` unless a mutation bumped the generation since `generation` was read."""
         with self._lock:
             if self._generation == generation:

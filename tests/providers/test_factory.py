@@ -275,6 +275,25 @@ def test_factory_skip_creator_parsing_without_bound_type_warns() -> None:
         providers.Factory(creator=str, skip_creator_parsing=True)
 
 
+def _union_return_creator() -> int | str:
+    return 0  # pragma: no cover - never called; only its return annotation is read
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        pytest.param(lambda: providers.Factory(creator=str, skip_creator_parsing=True), id="skip_creator_parsing"),
+        pytest.param(lambda: providers.Factory(creator=_union_return_creator), id="union_return"),
+    ],
+)
+def test_factory_warning_points_at_the_factory_call(build: typing.Callable[[], object]) -> None:
+    with pytest.warns(UserWarning, match="bound_type") as record:
+        build()
+    assert len(record) == 1
+    assert record[0].filename == __file__
+    assert record[0].lineno == inspect.getsourcelines(build)[1]
+
+
 def test_factory_skip_creator_parsing_with_bound_type_no_warning() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -981,7 +1000,7 @@ def _cov_pos_only_creator(prefix: str = "P", /, dep: _CovLeaf = None) -> _CovPos
 
 def test_positional_only_with_default_stays_on_kwargs_path() -> None:
     # `prefix` is positional-only WITH a default: the parser drops it from _params, leaving
-    # names == ("dep",) -- a clean-looking prefix. The positional-only guard in _positional_names
+    # names == ("dep",) -- a clean-looking prefix. The positional-only guard in _can_call_positionally
     # must reject it, or `creator(dep_instance)` would bind dep to `prefix` and swallow the "P".
     assert _cov_pos_only_creator(dep=_CovLeaf()) == _CovPosOnlyResult(prefix="P", dep=_CovLeaf())  # exercise body
 
