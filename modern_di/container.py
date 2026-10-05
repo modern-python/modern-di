@@ -13,7 +13,7 @@ from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverrideHandle
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.resolver_compiler import STEP_ERRORS
-from modern_di.scope import Scope, _next_deeper
+from modern_di.scope import Scope, next_deeper
 
 
 def _handle_recursion_error(
@@ -126,7 +126,7 @@ class Container:
         :class:`~modern_di.exceptions.InvalidChildScopeError` when ``scope`` is not deeper.
         """
         if scope is None:
-            scope = _next_deeper(self.scope)
+            scope = next_deeper(self.scope)
             if scope is None:
                 raise exceptions.MaxScopeReachedError(parent_scope=self.scope)
 

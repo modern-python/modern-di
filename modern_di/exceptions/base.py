@@ -2,7 +2,7 @@
 
 import typing
 
-from modern_di.exceptions.rendering import ResolutionStep, _render_chain
+from modern_di.exceptions.rendering import ResolutionStep, render_chain
 
 
 _TROUBLESHOOTING_BASE_URL = "https://modern-di.modern-python.org/troubleshooting"
@@ -61,7 +61,7 @@ class DependencyPathMixin:
 
         lines = [
             "Cannot resolve dependency chain:",
-            *_render_chain(self.dependency_path),
+            *render_chain(self.dependency_path),
             f"  caused by: {self._base_message}",
         ]
         return "\n".join(lines)

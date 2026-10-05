@@ -2,13 +2,8 @@
 
 import dataclasses
 import enum
-import typing
 
 from modern_di import suggester
-
-
-if typing.TYPE_CHECKING:
-    from modern_di.providers.abstract import AbstractProvider
 
 
 SUGGESTION_HEADER = "Did you mean:"
@@ -19,7 +14,7 @@ class ResolutionStep:
     """One entry in a chain-shaped error: a provider, as this module needs to draw it.
 
     Used both for a :class:`ResolutionError`'s ``dependency_path`` and for a
-    :class:`CircularDependencyError`'s cycle, so both render through ``_render_chain``.
+    :class:`CircularDependencyError`'s cycle, so both render through ``render_chain``.
 
     Attributes:
         scope: the scope of the provider at this step of the chain.
@@ -33,21 +28,7 @@ class ResolutionStep:
     location: str | None = None
 
 
-def provider_step(provider: "AbstractProvider[typing.Any]", scope: enum.IntEnum) -> ResolutionStep:
-    """Draw `provider` as a chain step at `scope`."""
-    return ResolutionStep(scope=scope, name=provider.display_name, location=provider.definition_site)
-
-
-def redirect_steps(chain: "list[AbstractProvider[typing.Any]]") -> list[ResolutionStep]:
-    """Draw every hop of a redirect chain except its terminal, at the scope the terminal resolves at.
-
-    A redirect owns no lifetime of its own, so its declared scope is a default it never resolves at.
-    """
-    scope = chain[-1].scope
-    return [provider_step(p, scope) for p in chain[:-1]]
-
-
-def _render_chain(steps: "list[ResolutionStep]") -> list[str]:
+def render_chain(steps: "list[ResolutionStep]") -> list[str]:
     """Draw a provider chain as an indented arrow tree, one line per step.
 
     The single home of the chain glyphs — used by every chain-shaped error, so a
@@ -62,7 +43,7 @@ def _render_chain(steps: "list[ResolutionStep]") -> list[str]:
     return lines
 
 
-def _render_suggestion_lines(suggestions: "list[suggester.Suggestion]") -> list[str]:
+def render_suggestion_lines(suggestions: "list[suggester.Suggestion]") -> list[str]:
     """Draw each suggestion as a bullet. The single home of the suggestion glyphs."""
     lines = []
     for suggestion in suggestions:
@@ -76,8 +57,8 @@ def _scope_detail(scope: enum.IntEnum | None) -> str | None:
     return None if scope is None else f"scope={scope.name}"
 
 
-def _render_suggestions(suggestions: "list[suggester.Suggestion]") -> str:
+def render_suggestions(suggestions: "list[suggester.Suggestion]") -> str:
     """Render the full ``Did you mean:`` block, or an empty string when there is nothing to suggest."""
     if not suggestions:
         return ""
-    return "\n".join([SUGGESTION_HEADER, *_render_suggestion_lines(suggestions)])
+    return "\n".join([SUGGESTION_HEADER, *render_suggestion_lines(suggestions)])

@@ -13,7 +13,7 @@ from modern_di.exceptions import (
     ScopeNotInitializedError,
     ScopeSkippedError,
 )
-from modern_di.scope import _deeper_members, _next_deeper
+from modern_di.scope import deeper_members, next_deeper
 
 
 class MyScope(enum.IntEnum):
@@ -106,22 +106,22 @@ def test_scope_algebra_answers_deeper_members_for_any_int_enum() -> None:
     algebra expressed as methods on `Scope` would apply to the five built-in members and nothing
     else. Free functions are what make custom scopes work at all.
     """
-    assert _deeper_members(MyScope.TENANT) == [MyScope.BACKGROUND_JOB]
-    assert _deeper_members(MyScope.BACKGROUND_JOB) == []
-    assert _deeper_members(Scope.ACTION) == [Scope.STEP]
+    assert deeper_members(MyScope.TENANT) == [MyScope.BACKGROUND_JOB]
+    assert deeper_members(MyScope.BACKGROUND_JOB) == []
+    assert deeper_members(Scope.ACTION) == [Scope.STEP]
 
 
 def test_scope_algebra_next_deeper_is_the_shallowest_deeper_member() -> None:
-    """INVARIANT: `_next_deeper` returns the shallowest deeper member of the provider's own enum.
+    """INVARIANT: `next_deeper` returns the shallowest deeper member of the provider's own enum.
 
     Not `value + 1` -- a non-contiguous custom enum (`TENANT=6, JOB=10`) must derive `JOB` from
     `TENANT`. Returning `None` at the deepest member (rather than raising) is what keeps `scope.py`
     from importing `exceptions`.
     """
-    assert _next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB
-    assert _next_deeper(Scope.APP) is Scope.SESSION
-    assert _next_deeper(GappedScope.BACKGROUND_JOB) is None
-    assert _next_deeper(Scope.STEP) is None
+    assert next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB
+    assert next_deeper(Scope.APP) is Scope.SESSION
+    assert next_deeper(GappedScope.BACKGROUND_JOB) is None
+    assert next_deeper(Scope.STEP) is None
 
 
 def test_caching_isolated_across_tenant_containers() -> None:
@@ -174,12 +174,12 @@ def test_auto_derive_at_deepest_gapped_scope_raises_max() -> None:
 
 
 def test_next_deeper_memo_does_not_collide_across_enums_sharing_a_value() -> None:
-    # _next_deeper is memoized. IntEnum members compare/hash by integer value, so MyScope.TENANT
+    # next_deeper is memoized. IntEnum members compare/hash by integer value, so MyScope.TENANT
     # and GappedScope.TENANT (both == 6) would collide under a bare-member cache key — the memo
     # keys on (type, member) to keep each enum's own answer. Both orders, to catch either the
     # first or second call being served a foreign result.
-    assert _next_deeper(MyScope.TENANT) is MyScope.BACKGROUND_JOB  # 6 -> 7 (contiguous)
-    assert _next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB  # 6 -> 10 (gapped), not 7
+    assert next_deeper(MyScope.TENANT) is MyScope.BACKGROUND_JOB  # 6 -> 7 (contiguous)
+    assert next_deeper(GappedScope.TENANT) is GappedScope.BACKGROUND_JOB  # 6 -> 10 (gapped), not 7
 
 
 def test_build_child_container_rejects_zero_valued_custom_scope() -> None:
@@ -219,8 +219,8 @@ def _module_level_imports(source: str) -> set[str]:
 def test_scope_module_imports_only_enum() -> None:
     """INVARIANT: `modern_di/scope.py` imports nothing but `enum`.
 
-    `exceptions/container.py` imports `_deeper_members` to derive `InvalidChildScopeError.allowed_scopes`,
-    so a `scope.py` that imported `exceptions` would cycle. That is why `_next_deeper` returns `None`
+    `exceptions/container.py` imports `deeper_members` to derive `InvalidChildScopeError.allowed_scopes`,
+    so a `scope.py` that imported `exceptions` would cycle. That is why `next_deeper` returns `None`
     at the deepest member instead of raising `MaxScopeReachedError` itself.
     """
     source = pathlib.Path(modern_di.scope.__file__).read_text(encoding="utf-8")

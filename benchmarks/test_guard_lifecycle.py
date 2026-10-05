@@ -39,7 +39,7 @@ def test_g6_build_child_container(benchmark):
 
 
 def test_g6b_build_child_container_auto_scope(benchmark):
-    # Default path: no explicit scope -> auto-increment via _next_deeper. G6 passes an explicit
+    # Default path: no explicit scope -> auto-increment via next_deeper. G6 passes an explicit
     # scope and never exercises it; this guards the memoized auto-increment step against regressing.
     app = Container(scope=Scope.APP, groups=[BuildGroup])
     app.open()

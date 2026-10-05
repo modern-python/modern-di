@@ -284,7 +284,7 @@ def test_validate_and_runtime_name_the_same_chain_for_one_scope_violation() -> N
 
     Broken by any error that reports a redirect-mediated violation from only one end of the
     chain: naming the bound type without its terminal, or the terminal without the hops that
-    reached it. The two paths share `_render_chain` precisely so a reader who hits one and
+    reached it. The two paths share `render_chain` precisely so a reader who hits one and
     then the other is not told two different stories about the same graph.
     """
     assert _validate_chain_names() == _runtime_chain_names()
