@@ -52,7 +52,7 @@ class ScopedGroup(Group, scope=Scope.REQUEST):
     svc = providers.Factory(SomeService)
 ```
 
-Inspect `.provider_name`, `.group_name`, `.current_scope`, and `.new_scope` on the exception to see
+Inspect `.provider`, `.group_name`, `.current_scope`, and `.new_scope` on the exception to see
 exactly which provider and group collided.
 
 Note the difference from

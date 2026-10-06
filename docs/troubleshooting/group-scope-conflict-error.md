@@ -36,7 +36,7 @@ class GroupB(Group, scope=Scope.ACTION):
     svc = providers.Factory(SomeService)
 ```
 
-Inspect `.provider_name`, `.first_group`/`.first_scope`, and `.second_group`/`.second_scope` on
+Inspect `.provider`, `.first_group`/`.first_scope`, and `.second_group`/`.second_scope` on
 the exception to see exactly which provider and groups collided.
 
 ## See also

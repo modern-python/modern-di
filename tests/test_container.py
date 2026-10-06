@@ -3,6 +3,7 @@ import dataclasses
 import gc
 import inspect
 import threading
+import traceback
 import typing
 import weakref
 
@@ -41,6 +42,29 @@ def test_container_scope_skipped() -> None:
     with pytest.raises(ScopeSkippedError, match=r"No APP-scope container exists in this chain") as exc:
         container.resolve_provider(app_factory)
     assert exc.value.provider_scope == Scope.APP
+
+
+def test_scope_skipped_error_names_the_root_of_the_chain() -> None:
+    app_factory = providers.Factory(creator=lambda: "test")
+    request_container = Container(scope=Scope.SESSION).build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(ScopeSkippedError) as exc:
+        request_container.resolve_provider(app_factory)
+    assert (
+        "No APP-scope container exists in this chain, which starts at SESSION. Build the root container at scope APP."
+    ) in str(exc.value)
+    assert exc.value.root_scope is Scope.SESSION
+
+
+def test_scope_skipped_error_for_a_scope_skipped_mid_chain() -> None:
+    request_factory = providers.Factory(scope=Scope.REQUEST, creator=lambda: "test")
+    action_container = Container().build_child_container(scope=Scope.ACTION)
+    with pytest.raises(ScopeSkippedError) as exc:
+        action_container.resolve_provider(request_factory)
+    assert (
+        "No REQUEST-scope container exists in this chain, which runs from APP to ACTION. "
+        "Add a container at scope REQUEST to the chain."
+    ) in str(exc.value)
+    assert exc.value.root_scope is Scope.APP
 
 
 def test_container_build_child() -> None:
@@ -141,7 +165,8 @@ def test_cycle_path_carries_definition_sites() -> None:
     container = Container(groups=[CycleGroup])
     with pytest.raises(ValidationFailedError) as exc_info:
         container.validate()
-    rendered = str(exc_info.value)
+    [issue] = exc_info.value.exceptions
+    rendered = str(issue)
     lineno = inspect.getsourcelines(CycleA)[1]
     assert f"({CycleA.__module__}:{lineno})" in rendered
 
@@ -150,7 +175,7 @@ def test_validate_detects_cycle() -> None:
     container = Container(groups=[CycleGroup])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    [issue] = exc.value.errors
+    [issue] = exc.value.exceptions
     assert isinstance(issue, CircularDependencyError)
     cycle = issue.cycle_path
     assert cycle[0] == cycle[-1]
@@ -242,11 +267,11 @@ def test_validate_raises_on_inverted_scope_dependency() -> None:
     container = Container(groups=[G])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    [issue] = exc.value.errors
+    [issue] = exc.value.exceptions
     assert isinstance(issue, InvalidScopeDependencyError)
     assert issue.parameter_name == "inner"
     assert issue.provider.scope == Scope.APP
-    assert issue.dep_provider.scope == Scope.REQUEST
+    assert issue.dependency_provider.scope == Scope.REQUEST
 
 
 def test_validate_raises_on_inverted_scope_dependency_supplied_via_kwargs() -> None:
@@ -268,11 +293,11 @@ def test_validate_raises_on_inverted_scope_dependency_supplied_via_kwargs() -> N
 
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    [issue] = exc.value.errors
+    [issue] = exc.value.exceptions
     assert isinstance(issue, InvalidScopeDependencyError)
     assert issue.parameter_name == "inner"
     assert issue.provider.scope == Scope.APP
-    assert issue.dep_provider.scope == Scope.REQUEST
+    assert issue.dependency_provider.scope == Scope.REQUEST
 
 
 def test_validate_raises_on_missing_required_dependency() -> None:
@@ -290,7 +315,7 @@ def test_validate_raises_on_missing_required_dependency() -> None:
     container = Container(groups=[G])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    [issue] = exc.value.errors
+    [issue] = exc.value.exceptions
     assert isinstance(issue, ArgumentResolutionError)
     assert issue.parameter_name == "missing"
 
@@ -322,7 +347,7 @@ def test_validate_accumulates_multiple_errors() -> None:
     container = Container(groups=[G])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    error_types = {type(e) for e in exc.value.errors}
+    error_types = {type(e) for e in exc.value.exceptions}
     assert InvalidScopeDependencyError in error_types
     assert ArgumentResolutionError in error_types
     assert CircularDependencyError in error_types
@@ -357,7 +382,7 @@ def test_validate_detects_cycle_across_scopes() -> None:
     container = Container(groups=[CrossScopeCycleGroup])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    [issue] = exc.value.errors
+    [issue] = exc.value.exceptions
     assert isinstance(issue, CircularDependencyError)
 
 
@@ -372,13 +397,16 @@ def test_validate_handles_factory_with_static_kwargs() -> None:
     Container(groups=[G]).validate()  # must not raise
 
 
-def test_validation_failed_error_str_renders_inner_errors() -> None:
+def test_validation_failed_error_details_come_from_the_traceback_tree() -> None:
     container = Container(groups=[CycleGroup])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    rendered = str(exc.value)
-    assert "found 1 issue(s)" in rendered
-    assert "Circular dependency detected" in rendered
+    assert str(exc.value) == (
+        "Container.validate() found 1 issue(s): CircularDependencyError (1)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/"
+    )
+    formatted = "".join(traceback.format_exception(exc.value))
+    assert formatted.count("Circular dependency detected") == 1
 
 
 def test_constructor_rejects_use_lock() -> None:
@@ -717,7 +745,7 @@ def test_add_providers_on_child_container_raises() -> None:
     with pytest.raises(ChildContainerRegistrationError, match="root") as exc:
         child.add_providers(str_factory)
     assert isinstance(exc.value, exceptions.RegistrationError)
-    assert exc.value.scope is Scope.REQUEST
+    assert exc.value.container_scope is Scope.REQUEST
 
 
 def test_child_constructor_with_groups_raises() -> None:
@@ -725,7 +753,7 @@ def test_child_constructor_with_groups_raises() -> None:
 
     with pytest.raises(ChildContainerRegistrationError, match="groups= to the root") as exc:
         Container(scope=Scope.REQUEST, parent_container=root, groups=[_AppBrokerGroup])
-    assert exc.value.scope is Scope.REQUEST
+    assert exc.value.container_scope is Scope.REQUEST
     assert root.find_provider(_PersistentBroker) is None
 
 

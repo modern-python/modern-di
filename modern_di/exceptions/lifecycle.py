@@ -37,16 +37,16 @@ def _cleanup_message(finalizer_errors: Sequence[Exception], *, is_async: bool) -
 
 
 class AsyncFinalizerInSyncCloseError(ModernDIError):
-    """Raised when ``close_sync`` encounters a cached resource with an async finalizer."""
+    """``close_sync`` reached a cached instance whose finalizer is async. Inspect ``.instance_type``."""
 
     docs_slug = "async-finalizer-in-sync-close-error"
 
-    __slots__ = ("finalizer_type",)
+    __slots__ = ("instance_type",)
 
-    def __init__(self, *, finalizer_type: type) -> None:
-        self.finalizer_type = finalizer_type
+    def __init__(self, *, instance_type: type) -> None:
+        self.instance_type = instance_type
         super().__init__(
-            f"Cannot run async finalizer for {finalizer_type.__name__} during sync close. "
+            f"Cannot run async finalizer for {instance_type.__name__} during sync close. "
             "Use `await container.close_async()` (or `async with container:`) instead."
         )
 

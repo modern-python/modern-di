@@ -86,7 +86,7 @@ def test_invalid_child_scope_uses_parent_enum_for_allowed_list() -> None:
         tenant_container.build_child_container(scope=MyScope.TENANT)
     # allowed_scopes must be drawn from the parent's own enum class (MyScope),
     # not the standard Scope enum.
-    assert exc.value.allowed_scopes == ["BACKGROUND_JOB"]
+    assert exc.value.allowed_scopes == [MyScope.BACKGROUND_JOB]
 
 
 def test_invalid_child_scope_with_conflicting_value() -> None:
@@ -329,11 +329,11 @@ def test_validate_reports_dependency_on_same_valued_scope_of_another_enum() -> N
     container = Container(groups=[MismatchGroup])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    (issue,) = exc.value.errors
+    (issue,) = exc.value.exceptions
     assert isinstance(issue, ScopeEnumMismatchError)
     assert issue.provider is MismatchGroup.session
     assert issue.parameter_name == "service"
-    assert issue.dep_chain == [MismatchGroup.service]
+    assert issue.dependency_chain == [MismatchGroup.service]
 
 
 def test_validate_accepts_dependency_on_shallower_scope_of_another_enum() -> None:
@@ -355,5 +355,5 @@ def test_validate_keeps_reporting_a_deeper_scope_of_another_enum_as_invalid_scop
 
     with pytest.raises(ValidationFailedError) as exc:
         Container(groups=[DeeperGroup]).validate()
-    (issue,) = exc.value.errors
+    (issue,) = exc.value.exceptions
     assert isinstance(issue, InvalidScopeDependencyError)

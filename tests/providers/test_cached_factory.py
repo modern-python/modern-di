@@ -286,7 +286,7 @@ async def test_except_star_catches_async_finalizer_in_sync_close() -> None:
     assert len(caught) == 1
     (inner,) = caught[0].exceptions
     assert isinstance(inner, AsyncFinalizerInSyncCloseError)
-    assert inner.finalizer_type is DependentCreator
+    assert inner.instance_type is DependentCreator
     await request_container.close_async()
 
 
@@ -632,7 +632,7 @@ async def test_sync_finalizer_returning_a_future_raises_in_sync_close_then_recov
         container.close_sync()
     (inner,) = exc.value.exceptions
     assert isinstance(inner, AsyncFinalizerInSyncCloseError)
-    assert inner.finalizer_type is _AwaitableFinSvc
+    assert inner.instance_type is _AwaitableFinSvc
     assert container._cache_registry.cached_count() == 1
     future.set_result(None)
     await container.close_async()

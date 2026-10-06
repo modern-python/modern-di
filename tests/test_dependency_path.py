@@ -260,8 +260,8 @@ def _validate_chain_names() -> list[str]:
     container = Container(groups=[_AliasScopeViolationGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    (issue,) = [e for e in exc_info.value.errors if isinstance(e, exceptions.InvalidScopeDependencyError)]
-    return [issue.provider.display_name, *(p.display_name for p in issue.dep_chain)]
+    (issue,) = [e for e in exc_info.value.exceptions if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    return [issue.provider.display_name, *(p.display_name for p in issue.dependency_chain)]
 
 
 def _runtime_chain_names() -> list[str]:

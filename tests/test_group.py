@@ -232,6 +232,7 @@ def test_group_scope_shared_provider_conflicting_scopes_raises() -> None:
         class GroupB(Group, scope=Scope.ACTION):
             svc = shared
 
+    assert exc_info.value.provider is shared
     assert exc_info.value.first_scope is Scope.REQUEST
     assert exc_info.value.second_scope is Scope.ACTION
 
@@ -267,6 +268,7 @@ def test_group_cannot_change_scope_of_registered_provider() -> None:
         class ScopedGroup(Group, scope=Scope.REQUEST):
             svc = shared
 
+    assert exc_info.value.provider is shared
     assert exc_info.value.current_scope is Scope.APP
     assert exc_info.value.new_scope is Scope.REQUEST
     assert shared.scope is Scope.APP  # unchanged: the raise happens before the mutation

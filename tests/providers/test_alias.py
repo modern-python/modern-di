@@ -113,7 +113,7 @@ def test_alias_participates_in_cycle_detection() -> None:
     container = Container(groups=[G])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    [issue] = exc.value.errors
+    [issue] = exc.value.exceptions
     assert isinstance(issue, CircularDependencyError)
     assert "Concrete" in str(issue)
 
@@ -155,7 +155,7 @@ def test_validate_aggregates_dangling_alias_into_validation_failed_error() -> No
     container = Container(scope=Scope.APP, groups=[_DanglingAliasGroup])
     with pytest.raises(ValidationFailedError) as exc_info:
         container.validate()
-    errors = exc_info.value.errors
+    errors = exc_info.value.exceptions
     assert any(isinstance(e, AliasSourceNotRegisteredError) for e in errors)
     min_expected_errors = 2
     assert len(errors) >= min_expected_errors, "validate() must aggregate all issues, not stop at the first"
@@ -285,25 +285,25 @@ def test_validate_flags_shallow_caller_depending_through_alias_on_deeper_source(
     container = Container(scope=Scope.APP, groups=[_XfourGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
-    assert "REQUEST" in str(exc_info.value)
+    (issue,) = [e for e in exc_info.value.exceptions if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    assert "REQUEST" in str(issue)
 
 
 def test_alias_scope_violation_names_the_source_behind_the_alias() -> None:
     """INVARIANT: the provider owning the offending scope is recoverable without parsing the message.
 
     Broken by reporting the edge in terms of the bound type alone. Through an alias the declared
-    type carries no scope of its own, so a consumer left with only `.dep_provider` would have to
+    type carries no scope of its own, so a consumer left with only `.dependency_provider` would have to
     read the source type back out of a repr to learn which declaration to change.
     """
     container = Container(scope=Scope.APP, groups=[_XfourGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
 
-    (issue,) = [e for e in exc_info.value.errors if isinstance(e, exceptions.InvalidScopeDependencyError)]
-    assert issue.dep_provider is _XfourGroup.iface
-    assert issue.dep_terminal is _XfourGroup.deep
-    assert issue.dep_chain == [_XfourGroup.iface, _XfourGroup.deep]
+    (issue,) = [e for e in exc_info.value.exceptions if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    assert issue.dependency_provider is _XfourGroup.iface
+    assert issue.dependency_terminal is _XfourGroup.deep
+    assert issue.dependency_chain == [_XfourGroup.iface, _XfourGroup.deep]
     assert _XfourDeep.__name__ in str(issue)
 
 
@@ -354,8 +354,8 @@ def test_validate_follows_alias_of_alias_to_terminal_scope() -> None:
     container = Container(scope=Scope.APP, groups=[_AliasOfAliasGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
-    assert "REQUEST" in str(exc_info.value)
+    (issue,) = [e for e in exc_info.value.exceptions if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    assert "REQUEST" in str(issue)
 
 
 class _MutualA: ...
@@ -376,7 +376,7 @@ def test_terminal_chain_handles_mutual_alias_cycle() -> None:
     # validate() also reports the cycle separately.
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    assert any(isinstance(e, exceptions.CircularDependencyError) for e in exc_info.value.errors)
+    assert any(isinstance(e, exceptions.CircularDependencyError) for e in exc_info.value.exceptions)
 
 
 class _DepSrc: ...
@@ -462,7 +462,7 @@ def test_inversion_through_a_registered_alias_still_raises() -> None:
     container = Container(scope=_BelowApp.ROOT, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.exceptions)
 
 
 def test_alias_source_registered_via_add_providers_surfaces_inversion() -> None:
@@ -470,7 +470,7 @@ def test_alias_source_registered_via_add_providers_surfaces_inversion() -> None:
     container.add_providers(providers.Factory(scope=_BelowApp.REQ, creator=_LateConcrete))  # registers quietly
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.errors)
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.exceptions)
 
 
 def test_alias_to_a_same_scope_source_validates_clean_below_app() -> None:

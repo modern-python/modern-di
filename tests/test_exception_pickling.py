@@ -81,7 +81,7 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
         exceptions.ScopeNotInitializedError(provider_scope=Scope.REQUEST, container_scope=Scope.APP)
     ),
     exceptions.ScopeSkippedError: lambda: exceptions.ScopeSkippedError(
-        provider_scope=Scope.APP, container_scope=Scope.REQUEST
+        provider_scope=Scope.APP, container_scope=Scope.REQUEST, root_scope=Scope.SESSION
     ),
     exceptions.InvalidScopeTypeError: lambda: exceptions.InvalidScopeTypeError(scope_value="app"),
     exceptions.ContainerClosedError: _closed_container_error,
@@ -94,21 +94,23 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
     exceptions.FinalizerError: lambda: exceptions.FinalizerError(
         finalizer_errors=[
             ValueError("close failed"),
-            exceptions.AsyncFinalizerInSyncCloseError(finalizer_type=Database),
+            exceptions.AsyncFinalizerInSyncCloseError(instance_type=Database),
         ],
         is_async=False,
     ),
     exceptions.AsyncFinalizerInSyncCloseError: lambda: exceptions.AsyncFinalizerInSyncCloseError(
-        finalizer_type=Database
+        instance_type=Database
     ),
     exceptions.GroupInstantiationError: lambda: exceptions.GroupInstantiationError(group_name="Dependencies"),
     exceptions.DuplicateProviderTypeError: lambda: exceptions.DuplicateProviderTypeError(provider_type=Database),
-    exceptions.ChildContainerRegistrationError: lambda: exceptions.ChildContainerRegistrationError(scope=Scope.REQUEST),
+    exceptions.ChildContainerRegistrationError: lambda: exceptions.ChildContainerRegistrationError(
+        container_scope=Scope.REQUEST
+    ),
     exceptions.ProviderScopeFrozenError: lambda: exceptions.ProviderScopeFrozenError(
-        provider_name="database", group_name="Dependencies", current_scope=Scope.APP, new_scope=Scope.REQUEST
+        provider=_request_provider, group_name="Dependencies", current_scope=Scope.APP, new_scope=Scope.REQUEST
     ),
     exceptions.GroupScopeConflictError: lambda: exceptions.GroupScopeConflictError(
-        provider_name="database",
+        provider=_request_provider,
         first_group="First",
         first_scope=Scope.APP,
         second_group="Second",
@@ -121,10 +123,10 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
         creator=make_repository, parameter_name="args", reason="variadic parameters are not supported"
     ),
     exceptions.InvalidScopeDependencyError: lambda: exceptions.InvalidScopeDependencyError(
-        provider=_app_provider, parameter_name="database", dep_chain=[_request_provider]
+        provider=_app_provider, parameter_name="database", dependency_chain=[_request_provider]
     ),
     exceptions.ScopeEnumMismatchError: lambda: exceptions.ScopeEnumMismatchError(
-        provider=_app_provider, parameter_name="database", dep_chain=[_tenant_provider]
+        provider=_app_provider, parameter_name="database", dependency_chain=[_tenant_provider]
     ),
     exceptions.ProviderNotRegisteredError: lambda: _with_path(
         exceptions.ProviderNotRegisteredError(provider_type=Database, suggestions=_SUGGESTIONS)
@@ -193,7 +195,11 @@ def _within(seconds: float, call: typing.Callable[[], BaseException]) -> BaseExc
 
 
 def test_every_modern_di_exception_has_a_builder() -> None:
-    discovered = {cls for cls in _all_subclasses(exceptions.ModernDIError) if cls.__module__.startswith("modern_di.")}
+    discovered = {
+        cls
+        for cls in _all_subclasses(exceptions.ModernDIError)
+        if cls.__module__.startswith("modern_di.") and not cls.__name__.startswith("_")
+    }
     exported = {obj for obj in vars(exceptions).values() if isinstance(obj, type) and issubclass(obj, BaseException)}
     assert discovered <= exported
     assert set(BUILDERS) == discovered
@@ -203,7 +209,7 @@ _SLOTTED_PROVIDERS_DEGRADE = {"pickle-0", "pickle-1"}
 
 
 def _degrade_providers(state: dict[str, typing.Any]) -> dict[str, typing.Any]:
-    return {name: repr(value) if name in {"provider", "dep_chain"} else value for name, value in state.items()}
+    return {name: repr(value) if name in {"provider", "dependency_chain"} else value for name, value in state.items()}
 
 
 @pytest.mark.parametrize("trip_name", ROUND_TRIPS)
@@ -251,6 +257,16 @@ def test_unpickled_finalizer_error_still_splits() -> None:
     assert [type(e) for e in rest.exceptions] == [ValueError]
 
 
+def test_unpickled_validation_failed_error_still_splits() -> None:
+    error = BUILDERS[exceptions.ValidationFailedError]()
+    restored = pickle.loads(pickle.dumps(error))  # noqa: S301
+    matched, rest = restored.split(exceptions.CircularDependencyError)
+    assert isinstance(matched, exceptions.ValidationFailedError)
+    assert isinstance(rest, exceptions.ValidationFailedError)
+    assert [type(e) for e in rest.exceptions] == [exceptions.ProviderNotRegisteredError]
+    assert str(rest).startswith("Container.validate() found 1 issue(s): ProviderNotRegisteredError (1)\n")
+
+
 def _local_creator_error() -> exceptions.ModernDIError:
     return exceptions.UnsupportedCreatorParameterError(
         creator=lambda: None, parameter_name="args", reason="variadic parameters are not supported"
@@ -276,7 +292,7 @@ def _local_scope_error() -> exceptions.ModernDIError:
 def _local_provider_error() -> exceptions.ModernDIError:
     provider = providers.Factory(scope=Scope.APP, creator=lambda database: Repository())  # noqa: ARG005
     return exceptions.InvalidScopeDependencyError(
-        provider=provider, parameter_name="database", dep_chain=[_request_provider]
+        provider=provider, parameter_name="database", dependency_chain=[_request_provider]
     )
 
 

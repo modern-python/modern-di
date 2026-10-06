@@ -80,38 +80,23 @@ def test_circular_dependency_error_renders_cycle_as_arrow_chain() -> None:
     )
 
 
-def test_validation_failed_error_groups_by_kind_and_indents_multiline() -> None:
-    # Sub-errors (here CircularDependencyError, which carries its own docs_slug) render
-    # trailer-free inside the grouped report — only the outer ValidationFailedError report
-    # carries a trailer, and it is the report's own final line. Repeating each sub-error's
-    # "See: ..." line would be noise (same URL N times for N errors of one kind) and would
-    # break "one trailer, always last line."
+def test_validation_failed_error_is_one_line_with_kinds_and_counts() -> None:
     cycle = exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")])
-    boom = RuntimeError("boom")
-    error = exceptions.ValidationFailedError(errors=[boom, cycle])
-    assert error.errors == [boom, cycle]  # list content preserved, order as given
+    error = exceptions.ValidationFailedError(errors=[RuntimeError("boom"), cycle, RuntimeError()])
     assert str(error) == (
-        "Container.validate() found 2 issue(s): CircularDependencyError, RuntimeError\n"
-        "\n"
-        "CircularDependencyError (1):\n"
-        "  - Circular dependency detected:\n"
-        "      APP  A\n"
-        "      APP  └─> B\n"
-        "      APP      └─> A\n"
-        "    Check your provider graph for unintended cycles.\n"
-        "\n"
-        "RuntimeError (1):\n"
-        "  - boom\n"
+        "Container.validate() found 3 issue(s): CircularDependencyError (1), RuntimeError (2)\n"
         "See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/"
     )
 
 
-def test_validation_failed_error_renders_message_less_sub_error() -> None:
-    error = exceptions.ValidationFailedError(errors=[RuntimeError()])
-    assert str(error) == (
-        "Container.validate() found 1 issue(s): RuntimeError\n\nRuntimeError (1):\n  -\n"
-        "See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/"
-    )
+def test_split_validation_failed_error_counts_only_its_own_issues() -> None:
+    cycle = exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")])
+    error = exceptions.ValidationFailedError(errors=[RuntimeError("boom"), cycle, RuntimeError()])
+    matched, rest = error.split(exceptions.CircularDependencyError)
+    assert isinstance(matched, exceptions.ValidationFailedError)
+    assert isinstance(rest, exceptions.ValidationFailedError)
+    assert matched.message == "Container.validate() found 1 issue(s): CircularDependencyError (1)"
+    assert rest.message == "Container.validate() found 2 issue(s): RuntimeError (2)"
 
 
 def test_duplicate_provider_type_error_url_unchanged_by_mechanism() -> None:
@@ -129,7 +114,7 @@ def test_invalid_child_scope_error_derives_the_allowed_scopes() -> None:
     # allowed_scopes is a pure function of parent_scope, so the error derives it rather than
     # being handed it — the same comprehension used to be written out at two raise sites.
     error = exceptions.InvalidChildScopeError(parent_scope=Scope.REQUEST, child_scope=Scope.APP)
-    assert error.allowed_scopes == ["ACTION", "STEP"]
+    assert error.allowed_scopes == [Scope.ACTION, Scope.STEP]
     assert "Possible scopes are ['ACTION', 'STEP']." in str(error)
 
 
@@ -195,12 +180,12 @@ def test_scope_enum_mismatch_error_names_both_enum_members() -> None:
     terminal = providers.Factory(scope=Scope.SESSION, creator=_RenderTerminal)
     captor = providers.Factory(scope=_RenderScope.SESSION_TWIN, creator=_RenderCaptor)
 
-    error = exceptions.ScopeEnumMismatchError(provider=captor, parameter_name="dep", dep_chain=[terminal])
+    error = exceptions.ScopeEnumMismatchError(provider=captor, parameter_name="dep", dependency_chain=[terminal])
 
     captor_at = f"{__name__}:{inspect.getsourcelines(_RenderCaptor)[1]}"
     terminal_at = f"{__name__}:{inspect.getsourcelines(_RenderTerminal)[1]}"
-    assert error.dep_provider is terminal
-    assert error.dep_terminal is terminal
+    assert error.dependency_provider is terminal
+    assert error.dependency_terminal is terminal
     assert str(error) == (
         "Provider at a same-valued scope of another enum reached through this chain:\n"
         f"  SESSION_TWIN  _RenderCaptor ({captor_at})\n"
@@ -218,12 +203,14 @@ def test_invalid_scope_dependency_error_draws_the_chain_that_reached_the_termina
     iface = providers.Alias(source_type=_RenderTerminal, bound_type=_RenderIface)
     captor = providers.Factory(scope=Scope.APP, creator=_RenderCaptor)
 
-    error = exceptions.InvalidScopeDependencyError(provider=captor, parameter_name="dep", dep_chain=[iface, terminal])
+    error = exceptions.InvalidScopeDependencyError(
+        provider=captor, parameter_name="dep", dependency_chain=[iface, terminal]
+    )
 
     captor_at = f"{__name__}:{inspect.getsourcelines(_RenderCaptor)[1]}"
     terminal_at = f"{__name__}:{inspect.getsourcelines(_RenderTerminal)[1]}"
-    assert error.dep_provider is iface
-    assert error.dep_terminal is terminal
+    assert error.dependency_provider is iface
+    assert error.dependency_terminal is terminal
     # The alias hop draws at REQUEST, the scope it resolves at, not the APP its own `.scope` reports.
     assert iface.scope is Scope.APP
     assert str(error) == (

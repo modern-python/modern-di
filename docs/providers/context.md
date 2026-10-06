@@ -208,7 +208,7 @@ container.validate()
 Nothing validates automatically, so the ordering above is what matters: `fastapi.Request`'s
 `ContextProvider` only exists once `setup_di()` has registered it, so calling
 `container.validate()` before that line would raise
-[`ValidationFailedError`](../troubleshooting/validation-failed-error.md), and its `.errors` would
+[`ValidationFailedError`](../troubleshooting/validation-failed-error.md), and its `.exceptions` would
 carry an [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) for the
 required `request` parameter, since the provider isn't there yet. Call `validate()` after
 `setup_di()`, as above, and a required parameter validates cleanly. See [Writing an

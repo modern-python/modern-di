@@ -171,6 +171,62 @@ except* exceptions.AsyncFinalizerInSyncCloseError:
     ...
 ```
 
+### `ValidationFailedError` is an `ExceptionGroup`
+
+`ValidationFailedError` now subclasses `ExceptionGroup` as well as `ContainerError`, so `except*`
+can catch the issues inside it by type.
+
+- `.errors` is removed. Read `.exceptions`, which is a tuple where `.errors` was a list.
+- `except ValidationFailedError`, `except ContainerError` and `except ModernDIError` still catch it.
+- `str()` is one line naming each kind of issue with its count, such as
+  `Container.validate() found 3 issue(s): ArgumentResolutionError (2), CircularDependencyError (1)`,
+  plus the troubleshooting link. In 3.x it held every issue's full message. A traceback, or
+  `logger.exception`, now shows each issue in full below that line. To get the messages yourself,
+  read `str(error)` for each `error` in `.exceptions`.
+
+```python
+# 3.x
+try:
+    container.validate()
+except exceptions.ValidationFailedError as exc:
+    errors = exc.errors
+
+# 4.0
+try:
+    container.validate()
+except exceptions.ValidationFailedError as exc:
+    errors = exc.exceptions
+
+# 4.0, by type
+try:
+    container.validate()
+except* exceptions.ArgumentResolutionError:
+    ...
+```
+
+### More exception attributes are renamed
+
+- `ChildContainerRegistrationError.scope` is now `.container_scope`, the name every other error
+  uses for a container's scope. The constructor keyword is renamed to match.
+- `AsyncFinalizerInSyncCloseError.finalizer_type` is now `.instance_type`, the type of the cached
+  instance whose finalizer is async. The constructor keyword is renamed to match.
+- `InvalidChildScopeError.allowed_scopes` holds scope enum members where it held their names. Read
+  `[scope.name for scope in exc.allowed_scopes]` for the 3.x list. The message is unchanged.
+- `InvalidScopeDependencyError.dep_chain`, `.dep_provider` and `.dep_terminal` are now
+  `.dependency_chain`, `.dependency_provider` and `.dependency_terminal`. The constructor keyword
+  `dep_chain=` is now `dependency_chain=`.
+- `ProviderScopeFrozenError.provider_name` and `GroupScopeConflictError.provider_name` are replaced
+  by `.provider`, the provider object, as on `InvalidScopeDependencyError`. Read
+  `exc.provider.display_name` for the 3.x string. The constructors take `provider=` in place of
+  `provider_name=`, and the messages are unchanged.
+
+### `ScopeSkippedError` names the root of the chain
+
+`ScopeSkippedError` stores `.root_scope`, the scope of the root container of the chain it was raised
+in, and its message names that root. In 3.x the message said the chain started at the resolving
+container's scope, which was wrong whenever that container was a child. Code that constructs the
+error must pass `root_scope=`.
+
 ### `Factory(cache=)` takes only a bool or a `CacheSettings`
 
 `cache=None` raises `TypeError`, and so does any other value that is not `True`, `False` or a

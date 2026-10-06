@@ -54,7 +54,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
             first_scope, first_group = self._group_claim
             if first_scope is not scope:
                 raise exceptions.GroupScopeConflictError(
-                    provider_name=self.display_name,
+                    provider=self,
                     first_group=first_group,
                     first_scope=first_scope,
                     second_group=group_name,
@@ -63,7 +63,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
             return
         if self._registered and self.scope is not scope:
             raise exceptions.ProviderScopeFrozenError(
-                provider_name=self.display_name,
+                provider=self,
                 group_name=group_name,
                 current_scope=self.scope,
                 new_scope=scope,
