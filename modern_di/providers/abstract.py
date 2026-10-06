@@ -7,7 +7,7 @@ from modern_di.scope import Scope
 
 
 if typing.TYPE_CHECKING:
-    from modern_di import Container
+    from modern_di.registries.providers_registry import ProvidersRegistry
 
 _provider_id_counter = itertools.count()
 
@@ -22,12 +22,14 @@ class AbstractProvider(typing.Generic[types.T_co]):
         self,
         *,
         scope: enum.IntEnum | types.UnsetType,
-        bound_type: type | None,
+        bound_type: type | types.UnsetType | None,
+        inferred_bound_type: type | None = None,
     ) -> None:
+        """Set the shared state; an unset ``bound_type`` falls back to ``inferred_bound_type``."""
         self._explicit_scope: enum.IntEnum | None = scope if isinstance(scope, enum.IntEnum) else None
         self._group_claim: tuple[enum.IntEnum, str] | None = None
         self._registered = False
-        self._bound_type = bound_type
+        self._bound_type = inferred_bound_type if isinstance(bound_type, types.UnsetType) else bound_type
         self._provider_id = next(_provider_id_counter)
 
     @property
@@ -96,13 +98,13 @@ class AbstractProvider(typing.Generic[types.T_co]):
             scope=self.scope if scope is None else scope, name=self.display_name, location=self.definition_site
         )
 
-    def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
+    def _get_dependencies(self, registry: "ProvidersRegistry") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
         return {}
 
-    def _redirect_target(self, container: "Container") -> "AbstractProvider[typing.Any] | None":  # noqa: ARG002
+    def _redirect_target(self, registry: "ProvidersRegistry") -> "AbstractProvider[typing.Any] | None":  # noqa: ARG002
         """Return the provider this transparently forwards to, or None if resolution terminates here."""
         return None
 
-    def _iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:  # noqa: ARG002
+    def _iter_validation_issues(self, registry: "ProvidersRegistry") -> typing.Iterable[Exception]:  # noqa: ARG002
         """Yield validation-time issues for this provider. Default: no issues."""
         return iter(())

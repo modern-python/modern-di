@@ -9,8 +9,9 @@ applying an override drops the compiled resolvers instead (see
 ``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: see
 docs/adr/0001-resolver-hot-path-generated-source.md.
 
-The template reaches into `Container._scope`, `Container._scope_map` and `CacheRegistry._items` to stay
-within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
+The template reaches into the `Container` slots `_scope`, `_scope_map`, `_closed`, `_cache_items` and
+`_creation_order` to stay within that frame budget. No linter sees the template, so those reaches are
+outside every suppression here.
 """
 
 import enum
@@ -20,7 +21,8 @@ import linecache
 import typing
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import redirect_hops
+from modern_di.cache import fetch_cache_item
+from modern_di.dependency_graph import redirect_hops, terminal_chain
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
@@ -38,7 +40,6 @@ if typing.TYPE_CHECKING:
     Resolver: typing.TypeAlias = typing.Callable[[Container], typing.Any]
 
 _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError)
-STEP_ERRORS = (exceptions.ResolutionError,)
 
 
 def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
@@ -76,11 +77,11 @@ _BUILD_ARGUMENTS = """\
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
         if not exc.dependency_path:
             exc._name_parameter(name)
-        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], target))
+        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], registry))
         raise
-    except _STEP_ERRORS as exc:
+    except ResolutionError as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], target))
+        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], registry))
         raise
 """
 
@@ -92,7 +93,7 @@ _CALL_CREATOR = """\
         if error is None:
             raise
         raise error from exc
-    except _STEP_ERRORS as exc:
+    except ResolutionError as exc:
         exc._prepend_step(resolution_step())
         raise
 """
@@ -107,16 +108,16 @@ _CACHED = (
     + "\ndef resolve(container):\n"
     + _NAVIGATE
     + """\
-    cache_registry = target._cache_registry
-    cache_item = cache_registry._items.get(pid)
+    cache_items = target._cache_items
+    cache_item = cache_items.get(pid)
     if cache_item is None:
-        cache_item = cache_registry.fetch_cache_item(provider)
+        cache_item = fetch_cache_item(cache_items, provider)
     cached = cache_item.cache
     if cached is not UNSET:
         return cached
-    value, created = cache_item.get_or_create(partial(build, target), create)
+    value, created = cache_item.get_or_create(build, target, create)
     if created:
-        cache_registry.mark_created(cache_item)
+        target._creation_order.append(cache_item)
     return value
 """
 )
@@ -159,8 +160,36 @@ def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool)
     return compile(source, filename, "exec"), arg_lines
 
 
+def _navigate(
+    container: "Container",
+    scope: enum.IntEnum,
+    resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
+) -> "Container":
+    """Miss path for a scope absent from `_scope_map`, or held there by another enum's same-valued member.
+
+    The scope error carries this provider's resolution step.
+    """
+    try:
+        return container.find_container(scope)
+    except _SCOPE_ERRORS as exc:
+        exc._prepend_step(resolution_step())
+        raise
+
+
+_FACTORY_GLOBALS: dict[str, typing.Any] = {
+    "UNSET": types.UNSET,
+    "fetch_cache_item": fetch_cache_item,
+    "_navigate": _navigate,
+    "ResolutionError": exceptions.ResolutionError,
+    "CreatorCallError": exceptions.CreatorCallError,
+    "ContainerClosedError": exceptions.ContainerClosedError,
+    "ContextValueNotSetError": exceptions.ContextValueNotSetError,
+    "redirect_hops": redirect_hops,
+}
+
+
 def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
-    plan = f._wiring_plan(registry)
+    plan = registry.plan_for(f)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
     positional = f._can_call_positionally(plan)
@@ -170,28 +199,18 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         bool(plan.static_kwargs),
         f.cache_settings is not None,
     )
-    namespace: dict[str, typing.Any] = {
-        "provider": f,
-        "pid": f.provider_id,
-        "scope": f.scope,
-        "creator": f._creator,
-        "resolution_step": f._resolution_step,
-        "edges": plan.provider_kwargs,
-        "arg_lines": arg_lines,
-        "static": plan.static_kwargs,
-        "UNSET": types.UNSET,
-        "partial": functools.partial,
-        "_navigate": _navigate,
-        "_STEP_ERRORS": STEP_ERRORS,
-        "CreatorCallError": exceptions.CreatorCallError,
-        "ContainerClosedError": exceptions.ContainerClosedError,
-        "ContextValueNotSetError": exceptions.ContextValueNotSetError,
-        "redirect_hops": redirect_hops,
-        **{
-            f"r{i}": _argument_resolver(f, name, p, registry)
-            for i, (name, p) in enumerate(plan.provider_kwargs.items())
-        },
-    }
+    namespace = _FACTORY_GLOBALS.copy()
+    namespace["provider"] = f
+    namespace["pid"] = f.provider_id
+    namespace["scope"] = f.scope
+    namespace["creator"] = f._creator
+    namespace["resolution_step"] = f._resolution_step
+    namespace["edges"] = plan.provider_kwargs
+    namespace["arg_lines"] = arg_lines
+    namespace["static"] = plan.static_kwargs
+    namespace["registry"] = registry
+    for i, (name, p) in enumerate(plan.provider_kwargs.items()):
+        namespace[f"r{i}"] = _argument_resolver(f, name, p, registry)
     exec(code, namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
     resolve = namespace["resolve"]
     resolve.__qualname__ = f"resolve[{f.display_name}]"
@@ -211,21 +230,15 @@ def _argument_resolver(
 
 
 def _defaultless_context_terminal(
-    provider: "AbstractProvider[typing.Any] | None", registry: "ProvidersRegistry"
+    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
 ) -> "ContextProvider[typing.Any] | None":
-    """Follow un-overridden alias redirects to a `ContextProvider` with no `default=` and no override."""
-    seen: set[int] = set()
-    while type(provider) is Alias and provider.provider_id not in seen:
-        if registry.overrides.fetch_override(provider.provider_id) is not types.UNSET:
-            return None
-        seen.add(provider.provider_id)
-        provider = registry.find_provider(provider._source_type)
-    if (
-        type(provider) is ContextProvider
-        and provider.default is types.UNSET
-        and registry.overrides.fetch_override(provider.provider_id) is types.UNSET
-    ):
-        return provider
+    """Follow un-overridden redirects to a `ContextProvider` with no `default=` and no override."""
+    chain = terminal_chain(provider, registry)
+    if any(registry.overrides.fetch_override(p.provider_id) is not types.UNSET for p in chain):
+        return None
+    terminal = chain[-1]
+    if type(terminal) is ContextProvider and terminal.default is types.UNSET:
+        return terminal
     return None
 
 
@@ -290,7 +303,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]", default: typing
                 target = _navigate(container, scope, resolution_step)
         if target._closed:
             raise exceptions.ContainerClosedError(container_scope=target._scope)
-        context = target._context_registry.context
+        context = target._context
         # Not `.get(key, UNSET)`: that skips a dict subclass's `__contains__`/`__getitem__`.
         if context_type in context:
             return context[context_type]
@@ -299,19 +312,3 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]", default: typing
         raise exceptions.ContextValueNotSetError(context_type=context_type, provider_scope=scope)
 
     return resolve
-
-
-def _navigate(
-    container: "Container",
-    scope: enum.IntEnum,
-    resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
-) -> "Container":
-    """Miss path for a scope absent from `_scope_map`, or held there by another enum's same-valued member.
-
-    The scope error carries this provider's resolution step.
-    """
-    try:
-        return container.find_container(scope)
-    except _SCOPE_ERRORS as exc:
-        exc._prepend_step(resolution_step())
-        raise

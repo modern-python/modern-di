@@ -2,29 +2,26 @@ import copy
 import enum
 import typing
 
-from modern_di import dependency_graph, exceptions, types
+from modern_di import cache, dependency_graph, exceptions, types
 from modern_di._scope_algebra import next_deeper
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
-from modern_di.registries.cache_registry import CacheRegistry
-from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverrideHandle
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.resolver_compiler import STEP_ERRORS
 from modern_di.scope import Scope
 
 
 def _handle_recursion_error(
-    provider: AbstractProvider[typing.Any], container: "Container", registry: ProvidersRegistry, exc: RecursionError
+    provider: AbstractProvider[typing.Any] | None, registry: ProvidersRegistry, exc: RecursionError
 ) -> typing.NoReturn:
     """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged."""
-    if registry.is_validated():
+    if provider is None or registry.is_validated():
         raise exc  # validated => acyclic static graph => genuine self-recursion
-    cycle = dependency_graph.find_cycle_from(provider, container)
+    cycle = dependency_graph.find_cycle_from(provider, registry)
     if cycle is None:
         raise exc
-    raise dependency_graph.build_cycle_error(cycle, container) from exc
+    raise dependency_graph.build_cycle_error(cycle, registry) from exc
 
 
 class Container:
@@ -36,9 +33,10 @@ class Container:
     """
 
     __slots__ = (
-        "_cache_registry",
+        "_cache_items",
         "_closed",
-        "_context_registry",
+        "_context",
+        "_creation_order",
         "_parent_container",
         "_providers_registry",
         "_scope",
@@ -62,6 +60,8 @@ class Container:
         Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
         ``IntEnum``.
         """
+        if not isinstance(scope, enum.IntEnum):
+            raise exceptions.InvalidScopeTypeError(scope_value=scope)
         self._set_state(scope, None, {}, context, ProvidersRegistry())
         self._providers_registry.register(Container, container_provider)
         if groups:
@@ -104,10 +104,16 @@ class Container:
             scope = next_deeper(self._scope)
             if scope is None:
                 raise exceptions.MaxScopeReachedError(parent_scope=self._scope)
+        elif not isinstance(scope, enum.IntEnum):
+            raise exceptions.InvalidScopeTypeError(scope_value=scope)
+        elif scope <= self._scope:
+            raise exceptions.InvalidChildScopeError(parent_scope=self._scope, child_scope=scope)
         cls = type(self)
         child: typing.Self = cls.__new__(cls)
         # Ancestors only: a `scope: self` entry is a reference cycle that refcounting never frees.
-        child._set_state(scope, self, {**self._scope_map, self._scope: self}, context, self._providers_registry)
+        scope_map = self._scope_map.copy()
+        scope_map[self._scope] = self
+        child._set_state(scope, self, scope_map, context, self._providers_registry)
         return child
 
     def _set_state(
@@ -118,17 +124,19 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None,
         providers_registry: ProvidersRegistry,
     ) -> None:
-        """Check ``scope`` and set every slot of an open container; ``parent`` is ``None`` for a root."""
-        if not isinstance(scope, enum.IntEnum):
-            raise exceptions.InvalidScopeTypeError(scope_value=scope)
-        if parent is not None and scope <= parent.scope:
-            raise exceptions.InvalidChildScopeError(parent_scope=parent.scope, child_scope=scope)
+        """Set every slot of an open container; ``parent`` is ``None`` for a root."""
         self._closed = False
         self._scope = scope
         self._parent_container = parent
         self._scope_map = scope_map
-        self._cache_registry = CacheRegistry()
-        self._context_registry = ContextRegistry(copy.copy(context) if context is not None else {})
+        self._cache_items: dict[int, cache.CacheItem] = {}
+        self._creation_order: list[cache.CacheItem] = []
+        if context is None:
+            self._context = {}
+        elif type(context) is dict:
+            self._context = context.copy()
+        else:
+            self._context = copy.copy(context)
         self._providers_registry = providers_registry
 
     def find_container(self, scope: enum.IntEnum) -> typing.Self:
@@ -163,11 +171,11 @@ class Container:
                 resolver = registry.resolver_for_type(dependency_type)
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(registry._providers[dependency_type], self, registry, exc)  # noqa: SLF001
-        except STEP_ERRORS as exc:
+            _handle_recursion_error(registry.find_provider(dependency_type), registry, exc)
+        except exceptions.ResolutionError as exc:
             provider = registry.find_provider(dependency_type)
             if provider is not None:
-                exc._prepend_step(*dependency_graph.redirect_hops(provider, self))  # noqa: SLF001
+                exc._prepend_step(*dependency_graph.redirect_hops(provider, registry))  # noqa: SLF001
             raise
 
     def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
@@ -191,9 +199,9 @@ class Container:
                 resolver = registry.resolver_for(provider)
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(provider, self, registry, exc)
-        except STEP_ERRORS as exc:
-            exc._prepend_step(*dependency_graph.redirect_hops(provider, self))  # noqa: SLF001
+            _handle_recursion_error(provider, registry, exc)
+        except exceptions.ResolutionError as exc:
+            exc._prepend_step(*dependency_graph.redirect_hops(provider, registry))  # noqa: SLF001
             raise
 
     def validate(self) -> None:
@@ -208,7 +216,7 @@ class Container:
         if reg.is_validated():
             return
 
-        if errors := dependency_graph.collect_errors(self, reg):
+        if errors := dependency_graph.collect_errors(reg):
             raise exceptions.ValidationFailedError(errors=errors)
         reg.mark_validated()
 
@@ -240,8 +248,8 @@ class Container:
         raises; the failures come back together as one :class:`~modern_di.exceptions.FinalizerError`.
         """
         self._closed = True
-        if self._cache_registry._creation_order:  # noqa: SLF001
-            await self._cache_registry.close_async()
+        if self._creation_order:
+            await cache.close_async(self._creation_order)
 
     def close_sync(self) -> None:
         """Mark this container closed, then run its sync finalizers, newest first.
@@ -252,8 +260,8 @@ class Container:
         An async finalizer fails here and stays pending for a later :meth:`close_async`.
         """
         self._closed = True
-        if self._cache_registry._creation_order:  # noqa: SLF001
-            self._cache_registry.close_sync()
+        if self._creation_order:
+            cache.close_sync(self._creation_order)
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
         """Apply an override immediately, tree-wide.
@@ -285,11 +293,11 @@ class Container:
         matches the ``ContextProvider``. A cached provider is built once and is not rebuilt by a
         later ``set_context``; set the context before its first resolve.
         """
-        self._context_registry.set_context(context_type, obj)
+        self._context[context_type] = obj
 
     def __repr__(self) -> str:
         n_providers = len(self._providers_registry)
-        n_cached = self._cache_registry.cached_count()
+        n_cached = cache.cached_count(self._cache_items)
         parent = self.parent_container.scope.name if self.parent_container else None
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 

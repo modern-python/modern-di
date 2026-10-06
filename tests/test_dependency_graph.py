@@ -1,6 +1,8 @@
 """Event-stream tests for ``dependency_graph.walk``: the module's test surface is the event SEQUENCE."""
 
-from modern_di import Container, Scope
+import typing
+
+from modern_di import Scope
 from modern_di.dependency_graph import (
     Cycle,
     DependenciesError,
@@ -13,7 +15,14 @@ from modern_di.dependency_graph import (
     walk,
 )
 from modern_di.group import Group
-from modern_di.providers import Alias, Factory
+from modern_di.providers import AbstractProvider, Alias, Factory
+from modern_di.registries.providers_registry import ProvidersRegistry
+
+
+def _registry(*providers: AbstractProvider[typing.Any]) -> ProvidersRegistry:
+    registry = ProvidersRegistry()
+    registry.add_providers(*providers)
+    return registry
 
 
 class Leaf: ...
@@ -37,8 +46,8 @@ def test_walk_emits_node_then_edge_then_child() -> None:
         root = Factory(scope=Scope.APP, creator=Root)
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    events = list(walk([G.root, G.leaf], c))
+    registry = _registry(*G.get_providers())
+    events = list(walk([G.root, G.leaf], registry))
     kinds = [type(e).__name__ for e in events]
     assert kinds[0] == "NodeEntered"
     assert "Edge" in kinds
@@ -51,8 +60,8 @@ def test_walk_full_sequence_preorder() -> None:
         root = Factory(scope=Scope.APP, creator=Root)
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    events = list(walk([G.root], c))
+    registry = _registry(*G.get_providers())
+    events = list(walk([G.root], registry))
     assert events == [
         NodeEntered(G.root),
         Edge(G.root, "leaf", G.leaf),
@@ -65,8 +74,8 @@ def test_walk_emits_cycle_closing_on_first_node() -> None:
         a = Factory(scope=Scope.APP, creator=CycA)
         b = Factory(scope=Scope.APP, creator=CycB)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    cycles = [e for e in walk([G.a], c) if isinstance(e, Cycle)]
+    registry = _registry(*G.get_providers())
+    cycles = [e for e in walk([G.a], registry) if isinstance(e, Cycle)]
     assert cycles
     assert cycles[0].providers[0].provider_id == cycles[0].providers[-1].provider_id
 
@@ -76,8 +85,8 @@ def test_walk_cycle_edge_precedes_cycle_and_no_descent() -> None:
         a = Factory(scope=Scope.APP, creator=CycA)
         b = Factory(scope=Scope.APP, creator=CycB)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    events = list(walk([G.a], c))
+    registry = _registry(*G.get_providers())
+    events = list(walk([G.a], registry))
     assert events == [
         NodeEntered(G.a),
         Edge(G.a, "b", G.b),
@@ -101,8 +110,8 @@ def test_walk_visited_dep_not_re_entered() -> None:
         right = Factory(scope=Scope.APP, creator=R)
         shared = Factory(scope=Scope.APP, creator=Shared)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    events = list(walk([G.left, G.right], c))
+    registry = _registry(*G.get_providers())
+    events = list(walk([G.left, G.right], registry))
     # Shared is a dep of both roots but entered exactly once.
     assert sum(isinstance(e, NodeEntered) and e.provider is G.shared for e in events) == 1
     # Both roots still emit the Edge to the shared dep; the second finds it visited, no re-descent.
@@ -115,9 +124,9 @@ def test_walk_root_already_visited_is_skipped_entirely() -> None:
         root = Factory(scope=Scope.APP, creator=Root)
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G])
+    registry = _registry(*G.get_providers())
     # leaf appears as a dep of root (first root) AND as a later root; the later root is skipped.
-    events = list(walk([G.root, G.leaf], c))
+    events = list(walk([G.root, G.leaf], registry))
     assert sum(isinstance(e, NodeEntered) and e.provider is G.leaf for e in events) == 1
 
 
@@ -125,8 +134,8 @@ def test_find_cycle_from_returns_none_when_acyclic() -> None:
     class G(Group):
         leaf = Factory(scope=Scope.APP, creator=Leaf)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    assert find_cycle_from(G.leaf, c) is None
+    registry = _registry(*G.get_providers())
+    assert find_cycle_from(G.leaf, registry) is None
 
 
 def test_find_cycle_from_returns_loop() -> None:
@@ -134,8 +143,8 @@ def test_find_cycle_from_returns_loop() -> None:
         a = Factory(scope=Scope.APP, creator=CycA)
         b = Factory(scope=Scope.APP, creator=CycB)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    cycle = find_cycle_from(G.a, c)
+    registry = _registry(*G.get_providers())
+    cycle = find_cycle_from(G.a, registry)
     assert cycle == [G.a, G.b, G.a]
 
 
@@ -151,9 +160,9 @@ def test_terminal_chain_follows_every_alias_hop() -> None:
         mid = Alias(source_type=ChainTerminal, bound_type=ChainMid)
         top = Alias(source_type=ChainMid, bound_type=ChainTop)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    assert terminal_chain(G.top, c) == [G.top, G.mid, G.terminal]
-    assert effective_scope(G.top, c) == Scope.REQUEST
+    registry = _registry(*G.get_providers())
+    assert terminal_chain(G.top, registry) == [G.top, G.mid, G.terminal]
+    assert effective_scope(G.top, registry) == Scope.REQUEST
 
 
 def test_terminal_chain_alias_cycle_falls_back_to_the_starting_provider() -> None:
@@ -165,9 +174,9 @@ def test_terminal_chain_alias_cycle_falls_back_to_the_starting_provider() -> Non
         a = Alias(source_type=MutualY, bound_type=MutualX)
         b = Alias(source_type=MutualX, bound_type=MutualY)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    assert terminal_chain(G.a, c) == [G.a]
-    assert effective_scope(G.a, c) == G.a.scope
+    registry = _registry(*G.get_providers())
+    assert terminal_chain(G.a, registry) == [G.a]
+    assert effective_scope(G.a, registry) == G.a.scope
 
 
 def test_walk_dangling_dep_emits_dependencies_error() -> None:
@@ -179,8 +188,8 @@ def test_walk_dangling_dep_emits_dependencies_error() -> None:
         # Bound under Marker, sourced from the unregistered Missing -> get_dependencies raises.
         alias = Alias(Missing, bound_type=Marker)
 
-    c = Container(scope=Scope.APP, groups=[G])
-    events = list(walk([G.alias], c))
+    registry = _registry(*G.get_providers())
+    events = list(walk([G.alias], registry))
     assert isinstance(events[0], NodeEntered)
     assert events[0].provider is G.alias
     assert isinstance(events[1], DependenciesError)
@@ -205,10 +214,9 @@ def test_walk_emits_cycle_closed_through_kwargs_overlay() -> None:
     a = Factory(scope=Scope.APP, creator=KwCycA)
     b = Factory(scope=Scope.APP, creator=KwCycB, kwargs={"a": a})  # kwargs edge B -> A
 
-    c = Container(scope=Scope.APP)
-    c.add_providers(a, b)
+    registry = _registry(a, b)
 
-    events = list(walk([a], c))
+    events = list(walk([a], registry))
     cycles = [e for e in events if isinstance(e, Cycle)]
     assert len(cycles) == 1
     assert [p.display_name for p in cycles[0].providers] == ["KwCycA", "KwCycB", "KwCycA"]
@@ -230,7 +238,7 @@ def test_build_cycle_error_rotates_to_minimum_provider_id() -> None:
 
     # Seed the ring at the higher-id node, closing back to itself last -- the shape `Cycle.providers`
     # is in (first node repeated last), regardless of which provider the walk happened to start from.
-    error = build_cycle_error([second, first, second], Container(scope=Scope.APP))
+    error = build_cycle_error([second, first, second], ProvidersRegistry())
 
     # Rotated to the minimum-provider_id node (`first`), not left seeded at `second`.
     assert error.cycle_path == ["RingFirst", "RingSecond", "RingFirst"]

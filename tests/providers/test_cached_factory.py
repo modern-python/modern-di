@@ -114,7 +114,7 @@ async def test_request_cached_factory() -> None:
     assert instance3 is instance4
     assert instance1 is not instance3
 
-    cache_item = request_container._cache_registry.fetch_cache_item(MyGroup.request_cached)
+    item = cache_item(request_container, MyGroup.request_cached)
 
     with pytest.raises(FinalizerError) as exc_info:
         request_container.close_sync()
@@ -122,10 +122,10 @@ async def test_request_cached_factory() -> None:
     assert len(exc_info.value.exceptions) == 1
     assert isinstance(exc_info.value.exceptions[0], AsyncFinalizerInSyncCloseError)
 
-    assert cache_item.cache is not UNSET  # preserved — user can still recover via close_async
+    assert item.cache is not UNSET  # preserved — user can still recover via close_async
     await request_container.close_async()
 
-    assert cache_item.cache is UNSET
+    assert item.cache is UNSET
 
 
 def test_app_cached_factory_resolves_once_across_request_children() -> None:
@@ -368,7 +368,7 @@ def test_cached_none_is_returned_and_finalized() -> None:
     app_container.resolve_provider(NoneGroup.none_resource)
 
     assert call_count == 1  # cached after first call, not re-created
-    assert app_container._cache_registry.cached_count() == 1
+    assert "cached=1" in repr(app_container)
 
     app_container.close_sync()
     assert cleaned_up == [None]
@@ -628,16 +628,18 @@ async def test_sync_finalizer_returning_a_future_raises_in_sync_close_then_recov
         )
 
     container = Container(scope=Scope.APP, groups=[G])
-    container.resolve(_AwaitableFinSvc)
+    instance = container.resolve(_AwaitableFinSvc)
     with pytest.raises(FinalizerError) as exc:
         container.close_sync()
     (inner,) = exc.value.exceptions
     assert isinstance(inner, AsyncFinalizerInSyncCloseError)
     assert inner.instance_type is _AwaitableFinSvc
-    assert container._cache_registry.cached_count() == 1
+    container.open()
+    assert container.resolve(_AwaitableFinSvc) is instance
     future.set_result(None)
     await container.close_async()
-    assert container._cache_registry.cached_count() == 0
+    container.open()
+    assert container.resolve(_AwaitableFinSvc) is not instance
 
 
 class _First: ...
@@ -676,8 +678,10 @@ def test_resolve_from_a_finalizer_during_close_sync_raises_container_closed() ->
 
     assert len(errors) == 1
     assert _Built.count == 1
-    assert container._cache_registry.cached_count() == 0
     assert container.closed is True
+    container.open()
+    container.resolve(_Built)
+    assert _Built.count == 1 + 1  # rebuilt: the close dropped the cached instance
 
 
 async def test_resolve_from_a_finalizer_during_close_async_raises_container_closed() -> None:
@@ -703,8 +707,10 @@ async def test_resolve_from_a_finalizer_during_close_async_raises_container_clos
 
     assert len(errors) == 1
     assert _Built.count == 1
-    assert container._cache_registry.cached_count() == 0
     assert container.closed is True
+    container.open()
+    container.resolve(_Built)
+    assert _Built.count == 1 + 1  # rebuilt: the close dropped the cached instance
 
 
 def _failing_finalizer(_: _First) -> None:
@@ -728,7 +734,6 @@ def test_failed_sync_finalizer_drops_the_instance() -> None:
         container.close_sync()
 
     assert [type(e) for e in exc.value.exceptions] == [ValueError]
-    assert container._cache_registry.cached_count() == 0
     container.open()
     assert container.resolve(_First) is not stale
 
@@ -744,7 +749,6 @@ async def test_failed_async_finalizer_drops_the_instance() -> None:
         await container.close_async()
 
     assert [type(e) for e in exc.value.exceptions] == [ValueError]
-    assert container._cache_registry.cached_count() == 0
     container.open()
     assert container.resolve(_First) is not stale
 
@@ -767,8 +771,8 @@ async def test_cancelled_close_async_keeps_unfinalized_items_queued() -> None:
         second = providers.Factory(creator=_Second, cache=providers.CacheSettings(finalizer=slow_finalizer))
 
     container = Container(groups=[SlowGroup])
-    container.resolve(_First)
-    container.resolve(_Second)
+    first = container.resolve(_First)
+    second = container.resolve(_Second)
 
     with pytest.raises(TimeoutError):
         await asyncio.wait_for(container.close_async(), timeout=0.05)
@@ -781,7 +785,9 @@ async def test_cancelled_close_async_keeps_unfinalized_items_queued() -> None:
 
     assert events == ["second", "first"]
     assert slow_calls == [0, 1]
-    assert container._cache_registry.cached_count() == 0
+    container.open()
+    assert container.resolve(_First) is not first
+    assert container.resolve(_Second) is not second
 
 
 async def test_close_async_after_a_cancelled_close_does_not_refinalize_closed_items() -> None:

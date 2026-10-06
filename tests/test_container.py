@@ -27,6 +27,7 @@ from modern_di.exceptions import (
     ValidationFailedError,
 )
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.registries.providers_registry import ProvidersRegistry
 from tests.helpers import cache_item
 
 
@@ -223,10 +224,10 @@ def test_validate_memoizes_diamond() -> None:
     class _CountingFactory(providers.Factory[Bottom]):
         __slots__ = ()
 
-        def _get_dependencies(self, container: Container) -> dict[str, AbstractProvider[typing.Any]]:
+        def _get_dependencies(self, registry: ProvidersRegistry) -> dict[str, AbstractProvider[typing.Any]]:
             nonlocal call_count
             call_count += 1
-            return super()._get_dependencies(container)
+            return super()._get_dependencies(registry)
 
     bottom_provider = _CountingFactory(creator=Bottom)
 
@@ -367,7 +368,7 @@ def test_collect_errors_returns_flat_list_in_walk_order() -> None:
         svc = providers.Factory(creator=_NeedsMissing)
 
     container = Container(scope=Scope.APP, groups=[G])
-    errors = collect_errors(container, container._providers_registry)
+    errors = collect_errors(container._providers_registry)
 
     # Root order is registration order (a, b, svc): the cycle closes while walking from root
     # `a`, so it is appended before `svc`'s missing dependency is reached.
@@ -579,7 +580,7 @@ def test_resolving_through_closed_parent_via_open_child_raises() -> None:
         child.resolve(_PersistentBroker)
     assert exc.value.container_scope is Scope.APP
     assert app.closed is True
-    assert app._cache_registry.cached_count() == 0
+    assert "cached=0" in repr(app)
 
 
 async def test_async_context_manager_reopens() -> None:
@@ -613,7 +614,7 @@ def test_closed_container_raises_before_running_the_creator() -> None:
     with pytest.raises(ContainerClosedError):
         container.resolve(str)
     assert calls == []
-    assert container._cache_registry.cached_count() == 0
+    assert "cached=0" in repr(container)
 
 
 def test_reopen_rebuilds_a_value_that_close_cleared() -> None:

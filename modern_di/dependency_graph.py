@@ -14,16 +14,17 @@ from modern_di.providers.abstract import AbstractProvider
 
 
 if typing.TYPE_CHECKING:
-    from modern_di import Container
     from modern_di.registries.providers_registry import ProvidersRegistry
 
 
+@typing.final
 class NodeEntered(NamedTuple):
     """A provider was reached for the first time, before its dependencies are read."""
 
     provider: "AbstractProvider[typing.Any]"
 
 
+@typing.final
 class Edge(NamedTuple):
     """A dependency edge from ``parent`` to ``dep`` via parameter ``name``."""
 
@@ -32,12 +33,14 @@ class Edge(NamedTuple):
     dep: "AbstractProvider[typing.Any]"
 
 
+@typing.final
 class Cycle(NamedTuple):
     """A cycle closing on the active path; ``providers`` repeats the first node last."""
 
     providers: "list[AbstractProvider[typing.Any]]"
 
 
+@typing.final
 class DependenciesError(NamedTuple):
     """Reading ``provider``'s dependencies raised; it is then treated as having none."""
 
@@ -49,7 +52,7 @@ Event = NodeEntered | Edge | Cycle | DependenciesError
 
 
 def terminal_chain(
-    provider: "AbstractProvider[typing.Any]", container: "Container"
+    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
 ) -> "list[AbstractProvider[typing.Any]]":
     """Follow ``_redirect_target`` hops from ``provider``, ``provider`` first.
 
@@ -58,7 +61,7 @@ def terminal_chain(
     """
     chain = [provider]
     seen: set[int] = set()
-    while (nxt := provider._redirect_target(container)) is not None:  # noqa: SLF001
+    while (nxt := provider._redirect_target(registry)) is not None:  # noqa: SLF001
         if provider.provider_id in seen:
             return [provider]
         seen.add(provider.provider_id)
@@ -67,25 +70,25 @@ def terminal_chain(
     return chain
 
 
-def effective_scope(provider: "AbstractProvider[typing.Any]", container: "Container") -> enum.IntEnum:
+def effective_scope(provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry") -> enum.IntEnum:
     """Return the scope a provider actually resolves at: its terminal's, once redirects are followed."""
-    return terminal_chain(provider, container)[-1].scope
+    return terminal_chain(provider, registry)[-1].scope
 
 
 def redirect_hops(
-    provider: "AbstractProvider[typing.Any]", container: "Container"
+    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
 ) -> "list[exceptions.ResolutionStep]":
     """Return the chain steps for the redirects between ``provider`` and its terminal, terminal excluded.
 
     A redirect owns no lifetime of its own, so each hop is drawn at the scope the terminal resolves at.
     """
-    *hops, terminal = terminal_chain(provider, container)
+    *hops, terminal = terminal_chain(provider, registry)
     return [p._resolution_step(terminal.scope) for p in hops]  # noqa: SLF001
 
 
 def build_cycle_error(
     providers: "list[AbstractProvider[typing.Any]]",
-    container: "Container",
+    registry: "ProvidersRegistry",
 ) -> "exceptions.CircularDependencyError":
     """Build a ``CircularDependencyError`` from a cycle's providers (first node repeated last).
 
@@ -97,27 +100,28 @@ def build_cycle_error(
     rotated = [*ring[lead:], *ring[:lead]]
     canonical = [*rotated, rotated[0]]
     return exceptions.CircularDependencyError(
-        steps=[p._resolution_step(effective_scope(p, container)) for p in canonical]  # noqa: SLF001
+        steps=[p._resolution_step(effective_scope(p, registry)) for p in canonical]  # noqa: SLF001
     )
 
 
 def walk(
     roots: "typing.Iterable[AbstractProvider[typing.Any]]",
-    container: "Container",
+    registry: "ProvidersRegistry",
 ) -> "typing.Iterator[Event]":
     """Pre-order DFS from each root; bookkeeping is shared across roots, keyed on ``provider_id``."""
     visiting: set[int] = set()
     visited: set[int] = set()
     for root in roots:
-        yield from _walk_from(root, container, visiting, visited)
+        if root.provider_id not in visited:
+            yield from _walk_from(root, registry, visiting, visited)
 
 
 def find_cycle_from(
     start: "AbstractProvider[typing.Any]",
-    container: "Container",
+    registry: "ProvidersRegistry",
 ) -> "list[AbstractProvider[typing.Any]] | None":
     """Return the first cycle reachable from ``start``, or None when that subgraph is acyclic."""
-    for event in walk([start], container):
+    for event in walk([start], registry):
         if isinstance(event, Cycle):
             return event.providers
     return None
@@ -125,17 +129,14 @@ def find_cycle_from(
 
 def _walk_from(
     start: "AbstractProvider[typing.Any]",
-    container: "Container",
+    registry: "ProvidersRegistry",
     visiting: set[int],
     visited: set[int],
 ) -> "typing.Iterator[Event]":
-    """Explicit-stack DFS from ``start``; skip immediately if already seen."""
-    if start.provider_id in visited or start.provider_id in visiting:
-        return
-
+    """Explicit-stack DFS from an unvisited ``start``."""
     path: list[AbstractProvider[typing.Any]] = []
     stack: list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]] = []
-    yield from _enter(start, container, visiting, path, stack)
+    yield from _enter(start, registry, visiting, path, stack)
 
     while stack:
         try:
@@ -154,12 +155,12 @@ def _walk_from(
             continue
         if dep.provider_id in visited:
             continue
-        yield from _enter(dep, container, visiting, path, stack)
+        yield from _enter(dep, registry, visiting, path, stack)
 
 
 def _enter(
     provider: "AbstractProvider[typing.Any]",
-    container: "Container",
+    registry: "ProvidersRegistry",
     visiting: set[int],
     path: "list[AbstractProvider[typing.Any]]",
     stack: "list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]]",
@@ -169,44 +170,42 @@ def _enter(
     path.append(provider)
     yield NodeEntered(provider)
     try:
-        dependencies = provider._get_dependencies(container)  # noqa: SLF001
+        dependencies = provider._get_dependencies(registry)  # noqa: SLF001
     except exceptions.ResolutionError as exc:
         yield DependenciesError(provider, exc)
         dependencies = {}
     stack.append(iter(dependencies.items()))
 
 
-def collect_errors(container: "Container", registry: "ProvidersRegistry") -> list[Exception]:
+def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
     """Walk the graph rooted at ``registry``'s providers once; return every wiring error in walk order."""
     errors: list[Exception] = []
-    for event in walk(registry, container):
-        match event:
-            case NodeEntered(provider):
-                errors.extend(provider._iter_validation_issues(container))  # noqa: SLF001
-            case DependenciesError(_, error):
-                errors.append(error)
-            case Edge(parent, name, dep):
-                dependency_chain = terminal_chain(dep, container)
-                dependency_scope = dependency_chain[-1].scope
-                parent_scope = effective_scope(parent, container)
-                if dependency_scope > parent_scope:
-                    errors.append(
-                        exceptions.InvalidScopeDependencyError(
-                            provider=parent,
-                            parameter_name=name,
-                            dependency_chain=dependency_chain,
-                        )
+    for event in walk(roots=registry, registry=registry):
+        if type(event) is Edge:
+            parent, name, dep = event
+            dependency_chain = terminal_chain(dep, registry)
+            dependency_scope = dependency_chain[-1].scope
+            parent_scope = effective_scope(parent, registry)
+            if dependency_scope > parent_scope:
+                errors.append(
+                    exceptions.InvalidScopeDependencyError(
+                        provider=parent,
+                        parameter_name=name,
+                        dependency_chain=dependency_chain,
                     )
-                elif dependency_scope == parent_scope and dependency_scope is not parent_scope:
-                    errors.append(
-                        exceptions.ScopeEnumMismatchError(
-                            provider=parent,
-                            parameter_name=name,
-                            dependency_chain=dependency_chain,
-                        )
+                )
+            elif dependency_scope == parent_scope and dependency_scope is not parent_scope:
+                errors.append(
+                    exceptions.ScopeEnumMismatchError(
+                        provider=parent,
+                        parameter_name=name,
+                        dependency_chain=dependency_chain,
                     )
-            case Cycle(providers):
-                errors.append(build_cycle_error(providers, container))
-            case _:
-                typing.assert_never(event)
+                )
+        elif type(event) is NodeEntered:
+            errors.extend(event.provider._iter_validation_issues(registry))  # noqa: SLF001
+        elif type(event) is DependenciesError:
+            errors.append(event.error)
+        else:
+            errors.append(build_cycle_error(event.providers, registry))
     return errors

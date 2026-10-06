@@ -1,12 +1,13 @@
 import dataclasses
 import functools
+import inspect
 import sys
 import typing
 
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers, types
-from modern_di.types_parser import SignatureItem, parse_creator
+from modern_di.types_parser import SignatureItem, _signature, parse_creator
 
 
 class GenericClass(typing.Generic[types.T]): ...
@@ -21,15 +22,16 @@ if typing.TYPE_CHECKING:
     [
         (int, SignatureItem(arg_type=int)),
         (typing.Annotated[int, None], SignatureItem(arg_type=int)),
-        (list[int], SignatureItem(raw_annotation=list[int])),
-        (dict[str, typing.Any], SignatureItem(raw_annotation=dict[str, typing.Any])),
+        (list[int], SignatureItem(unresolvable_generic=list[int])),
+        (dict[str, typing.Any], SignatureItem(unresolvable_generic=dict[str, typing.Any])),
         (typing.Optional[str], SignatureItem(arg_type=str, is_nullable=True)),  # noqa: UP045
         (str | None, SignatureItem(arg_type=str, is_nullable=True)),
         (str | int, SignatureItem(member_types=[str, int])),
         (typing.Union[str | int], SignatureItem(member_types=[str, int])),  # noqa: UP007
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
-        (GenericClass[str], SignatureItem(raw_annotation=GenericClass[str])),
+        (GenericClass[str], SignatureItem(unresolvable_generic=GenericClass[str])),
         (GenericClass[str] | None, SignatureItem(arg_type=GenericClass, is_nullable=True)),
+        (typing.Generic, SignatureItem(unresolvable_generic=typing.Generic)),
         # `None` is the degenerate nullable: a union with zero non-None members.
         (type(None), SignatureItem(is_nullable=True)),
     ],
@@ -147,7 +149,7 @@ class ClassWithWrongAnnotations:
                 SignatureItem(is_nullable=True),
                 {
                     "arg1": SignatureItem(arg_type=str),
-                    "arg2": SignatureItem(raw_annotation=tuple[int, ...], default=()),
+                    "arg2": SignatureItem(unresolvable_generic=tuple[int, ...], default=()),
                 },
             ),
         ),
@@ -276,6 +278,16 @@ def test_parameterized_generic_param_without_default_raises_at_declaration() -> 
     with pytest.raises(exceptions.UnsupportedCreatorParameterError, match=r"list\[.*_GenericDep\]") as exc_info:
         providers.Factory(creator=_generic_param_creator)
     assert "skip_creator_parsing" not in str(exc_info.value)
+
+
+def _bare_generic_param_creator(x: typing.Generic) -> str:  # ty: ignore[invalid-type-form]
+    return str(x)
+
+
+def test_bare_generic_param_without_default_raises_at_declaration() -> None:
+    assert _bare_generic_param_creator(1) == "1"
+    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match=r"typing\.Generic"):
+        providers.Factory(creator=_bare_generic_param_creator)
 
 
 def test_parameterized_generic_param_supplied_via_kwargs_is_allowed() -> None:
@@ -455,3 +467,135 @@ def test_union_return_type_is_silent_when_bound_type_is_known(
     creator: typing.Callable[..., typing.Any], bound_type: type | None
 ) -> None:
     providers.Factory(creator, bound_type=bound_type)
+
+
+class _PlainInit:
+    def __init__(self, dep: _Dep, label: str = "x") -> None:
+        """Never called: these classes exist for their signatures."""
+
+
+class _InheritsInit(_PlainInit):
+    """Inherits its ``__init__``."""
+
+
+@dataclasses.dataclass(slots=True)
+class _SlotsDataclass:
+    dep: _Dep
+
+
+class _GeneratedInit:
+    __init__ = eval("lambda self, dep: None")  # noqa: S307  # an attrs-style generated __init__
+
+
+class _StarArgsInit:
+    def __init__(*args: object, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _NoSelfInit:
+    def __init__() -> None:
+        """Never called."""
+
+
+class _WrappedInit:
+    @functools.wraps(_PlainInit.__init__)
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        """Never called."""
+
+
+class _SignatureOverride:
+    __signature__ = inspect.Signature([inspect.Parameter("dep", inspect.Parameter.KEYWORD_ONLY, annotation=_Dep)])
+
+    def __init__(self, **kwargs: object) -> None:
+        """Never called."""
+
+
+class _InitOverNew(_NewOnlyCreator):
+    def __init__(self, dep: _Dep, label: str) -> None:
+        """Never called."""
+
+
+class _InitBesideNew:
+    def __new__(cls, *args: object, **kwargs: object) -> typing.Self:  # noqa: ARG004
+        return super().__new__(cls)
+
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _CallingMeta(type):
+    def __call__(cls, other: _OtherDep) -> object:
+        return other
+
+
+class _MetaCall(metaclass=_CallingMeta):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _PlainMeta(type):
+    """A metaclass with no ``__call__``."""
+
+
+class _MetaNoCall(metaclass=_PlainMeta):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _GenericInit(typing.Generic[types.T]):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _InitError(Exception):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _StaticInit:
+    __init__ = staticmethod(lambda dep: None)  # noqa: ARG005
+
+
+class _NoInit:
+    """Defines neither ``__new__`` nor ``__init__``."""
+
+
+@pytest.mark.parametrize(
+    "creator",
+    [
+        _PlainInit,
+        _InheritsInit,
+        SomeDataClass,
+        _SlotsDataclass,
+        _GeneratedInit,
+        _StarArgsInit,
+        _NoSelfInit,
+        _WrappedInit,
+        _SignatureOverride,
+        _NamedTupleCreator,
+        _NewOnlyCreator,
+        _NewOnlySubclass,
+        _InitOverNew,
+        _InitBesideNew,
+        _MetaCall,
+        _MetaNoCall,
+        _GenericInit,
+        _InitError,
+        _StaticInit,
+        _NoInit,
+        _UserId,
+        _greeter_of(int),
+        functools.partial(_PlainInit, label="y"),
+    ],
+)
+def test_class_signature_matches_inspect_signature(creator: typing.Callable[..., object]) -> None:
+    """INVARIANT: `_signature` reads the same signature `inspect.signature` does, error included."""
+    try:
+        expected: object = inspect.signature(creator)
+    except ValueError as exc:
+        expected = (ValueError, str(exc))
+    try:
+        actual: object = _signature(creator)
+    except ValueError as exc:
+        actual = (ValueError, str(exc))
+    assert actual == expected

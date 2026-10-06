@@ -210,7 +210,7 @@ def test_context_provider_reads_registry_at_its_own_scope_not_resolving_containe
 # --- set_context cross-scope staleness (2026-06-14 deep audit) ---
 #
 # An APP-scoped ContextProvider consumed by a deeper (REQUEST) scoped Factory:
-# the factory's compiled kwargs live in the request child's cache_registry, so a
+# the factory's compiled kwargs live in the request child's cache, so a
 # late app.set_context must still be picked up by subsequent resolves from that
 # child. Context values are resolved live, not baked in at first resolve.
 
@@ -1071,7 +1071,7 @@ def _fallback_container(
         out = providers.Factory(creator, bound_type=None, cache=cache)
 
     container = Container(groups=[G])
-    assert G.out._can_call_positionally(G.out._wiring_plan(container._providers_registry)) is positional
+    assert G.out._can_call_positionally(container._providers_registry.plan_for(G.out)) is positional
     return container, G.out
 
 
