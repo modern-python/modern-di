@@ -46,9 +46,10 @@ Every module under `modern_di/` is named for what it does; read it. What a singl
   `docs/troubleshooting/`, enforced by `tests/test_docs_slug_census.py`). Add a message, a glyph, or a
   class here, never at the raise site. Submodules split by family; `__init__` re-exports every public name.
 - `registries/` — `providers_registry` (type → provider, plus the shared plan/resolver memos) and
-  `overrides_registry` are shared tree-wide. Cache and context are per-container and live in the
-  container's own slots: `cache_registry` holds `CacheItem` and the module functions that fetch an
-  item and close a container's items, and the context is a plain dict.
+  `overrides_registry` are shared tree-wide.
+- `cache.py` — `CacheItem` and the functions over a container's own cache items and creation order
+  (fetch, count, close). Cache and context are per-container and live in the container's slots; the
+  context is a plain dict.
 - `dependency_graph.py` walks `WiringPlan.provider_kwargs`, so what `validate()` traverses is exactly what
   `resolve()` follows. Explicit-stack, never recursive: a caller runs it inside a `RecursionError`
   handler near CPython's stack limit.

@@ -77,6 +77,11 @@ def fetch_cache_item(items: dict[int, CacheItem], provider: Factory[typing.Any])
     return items.setdefault(provider_id, CacheItem(settings=settings))
 
 
+def cached_count(items: dict[int, CacheItem]) -> int:
+    """Return how many of ``items`` hold a value."""
+    return sum(1 for item in items.values() if item.cache is not types.UNSET)
+
+
 async def close_async(creation_order: list[CacheItem]) -> None:
     """Close every item newest first and empty ``creation_order``; failures raise together at the end."""
     finalizer_errors: list[Exception] = []

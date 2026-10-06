@@ -1,8 +1,8 @@
 import typing
 
 from modern_di import Container
+from modern_di.cache import CacheItem, fetch_cache_item
 from modern_di.providers import Factory
-from modern_di.registries.cache_registry import CacheItem, fetch_cache_item
 
 
 def cache_item(container: Container, provider: Factory[typing.Any]) -> CacheItem:

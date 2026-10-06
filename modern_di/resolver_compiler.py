@@ -20,13 +20,13 @@ import linecache
 import typing
 
 from modern_di import exceptions, types
+from modern_di.cache import fetch_cache_item
 from modern_di.dependency_graph import redirect_hops, terminal_chain
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.providers.factory import Factory
-from modern_di.registries.cache_registry import fetch_cache_item
 
 
 if typing.TYPE_CHECKING:

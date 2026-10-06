@@ -2,8 +2,8 @@ import threading
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
+from modern_di.cache import CacheItem, close_async, fetch_cache_item
 from modern_di.providers import CacheSettings, Factory
-from modern_di.registries.cache_registry import CacheItem, close_async, fetch_cache_item
 from modern_di.types import UNSET
 
 

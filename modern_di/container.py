@@ -2,13 +2,11 @@ import copy
 import enum
 import typing
 
-from modern_di import dependency_graph, exceptions, types
+from modern_di import cache, dependency_graph, exceptions, types
 from modern_di._scope_algebra import next_deeper
 from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
-from modern_di.registries import cache_registry
-from modern_di.registries.cache_registry import CacheItem
 from modern_di.registries.overrides_registry import OverrideHandle
 from modern_di.registries.providers_registry import ProvidersRegistry
 from modern_di.scope import Scope
@@ -131,8 +129,8 @@ class Container:
         self._scope = scope
         self._parent_container = parent
         self._scope_map = scope_map
-        self._cache_items: dict[int, CacheItem] = {}
-        self._creation_order: list[CacheItem] = []
+        self._cache_items: dict[int, cache.CacheItem] = {}
+        self._creation_order: list[cache.CacheItem] = []
         if context is None:
             self._context = {}
         elif type(context) is dict:
@@ -251,7 +249,7 @@ class Container:
         """
         self._closed = True
         if self._creation_order:
-            await cache_registry.close_async(self._creation_order)
+            await cache.close_async(self._creation_order)
 
     def close_sync(self) -> None:
         """Mark this container closed, then run its sync finalizers, newest first.
@@ -263,7 +261,7 @@ class Container:
         """
         self._closed = True
         if self._creation_order:
-            cache_registry.close_sync(self._creation_order)
+            cache.close_sync(self._creation_order)
 
     def override(self, provider: AbstractProvider[types.T], override_object: types.T) -> OverrideHandle[types.T]:
         """Apply an override immediately, tree-wide.
@@ -299,7 +297,7 @@ class Container:
 
     def __repr__(self) -> str:
         n_providers = len(self._providers_registry)
-        n_cached = sum(1 for item in self._cache_items.values() if item.cache is not types.UNSET)
+        n_cached = cache.cached_count(self._cache_items)
         parent = self.parent_container.scope.name if self.parent_container else None
         return f"Container(scope={self.scope.name}, parent={parent}, providers={n_providers}, cached={n_cached})"
 
