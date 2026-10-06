@@ -36,10 +36,7 @@ class DuplicateProviderTypeError(RegistrationError):
 
 
 class ChildContainerRegistrationError(RegistrationError):
-    """Providers were registered on a child container, via ``add_providers`` or ``groups=``.
-
-    Inspect ``.container_scope``.
-    """
+    """Providers were registered on a child container via ``add_providers``. Inspect ``.container_scope``."""
 
     docs_slug = "child-container-registration-error"
 

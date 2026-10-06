@@ -82,8 +82,9 @@ so either `except` catches them; they are described under `ResolutionError` belo
 - `MaxScopeReachedError` is raised by `build_child_container()` with no explicit `scope` when the
   parent is already at the deepest scope (`STEP`), so there is no next level to advance to. See
   [Troubleshooting: MaxScopeReachedError](../troubleshooting/max-scope-reached-error.md).
-- `InvalidScopeTypeError` is raised by the `Container` constructor, and by a `Group` subclass
-  declared as `class G(Group, scope=...)`, when `scope` is not an `enum.IntEnum`. See
+- `InvalidScopeTypeError` is raised by the `Container` constructor, by `build_child_container()`,
+  and by a `Group` subclass declared as `class G(Group, scope=...)`, when `scope` is not an
+  `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
 - `ValidationFailedError` is raised only by `Container.validate()`. Catch this for validation
   results. It is an `ExceptionGroup`: `.exceptions` holds the individual issues (each itself a
@@ -164,8 +165,7 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
   (within one group, across groups passed together, or against an already-registered type). See
   [Troubleshooting: Duplicate type](../troubleshooting/duplicate-type-error.md).
 - `ChildContainerRegistrationError` is raised by `Container.add_providers()` when called on a child
-  container, and by `Container(...)` when `groups=` comes with `parent_container=`. Registration is
-  root-only because the providers registry is shared tree-wide, so
+  container. Registration is root-only because the providers registry is shared tree-wide, so
   registering from a child would mutate every container in the tree. Call `add_providers` on the root
   container instead. Inspect `.container_scope` for the offending child container's scope. See
   [Container: registering after construction](container.md#registering-providers-after-construction) and

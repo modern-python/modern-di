@@ -285,7 +285,7 @@ def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
 
     # The parser reads `__signature__`/`__annotations__`; the real callable requires `extra`, so
     # the positional call fails at the binding boundary (no inner traceback frame) -- which is
-    # exactly what `CreatorCallError.from_type_error` converts.
+    # exactly what `CreatorCallError._from_type_error` converts.
     params = [
         inspect.Parameter(f"p{i}", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=t)
         for i, t in enumerate([_P0, _P1, _P2][:arity])

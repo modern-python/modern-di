@@ -48,7 +48,7 @@ class ModernDIError(RuntimeError):
 class DependencyPathMixin:
     """Breadcrumb machinery behind :class:`ResolutionError`.
 
-    Owns `prepend_step` and the chain-rendering `_render_body` (the body `ModernDIError.__str__`
+    Owns `_prepend_step` and the chain-rendering `_render_body` (the body `ModernDIError.__str__`
     appends the docs trailer to), so any error raised inside a resolution frame can accumulate the
     chain of provider names as it propagates back up to the caller. With an empty `dependency_path`
     (the error never passed through a resolution frame) `_render_body` returns the base message
@@ -62,7 +62,7 @@ class DependencyPathMixin:
         # ModernDIError -> RuntimeError) accepts the arg at runtime.
         super().__init__(message)  # ty: ignore[too-many-positional-arguments]
 
-    def prepend_step(self, *steps: ResolutionStep) -> None:
+    def _prepend_step(self, *steps: ResolutionStep) -> None:
         """Put `steps` in front of the chain, in the order given."""
         self.dependency_path[:0] = steps
         self.args = (str(self),)

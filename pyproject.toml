@@ -51,6 +51,9 @@ lint = [
 [tool.ty.src]
 exclude = ["benchmarks/comparative"]
 
+[tool.ty.rules]
+unused-ignore-comment = "error"
+
 [tool.ruff]
 fix = true
 unsafe-fixes = true

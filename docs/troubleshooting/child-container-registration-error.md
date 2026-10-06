@@ -2,8 +2,7 @@
 
 ## Symptom
 
-Raised from `Container.add_providers()` on a child container, or from `Container(...)` when
-`groups=` is passed together with `parent_container=`. It names the child container's scope.
+Raised from `Container.add_providers()` on a child container. It names the child container's scope.
 
 ## Cause
 
@@ -25,13 +24,6 @@ request_container.add_providers(late_provider)  # raises ChildContainerRegistrat
 
 # Works
 app_container.add_providers(late_provider)
-
-# Wrong
-Container(scope=Scope.REQUEST, parent_container=app_container, groups=[RequestGroup])
-
-# Right
-app_container = Container(scope=Scope.APP, groups=[MyGroup, RequestGroup])
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
 ```
 
 If you only have a reference to the child container at the call site, keep a reference to the root

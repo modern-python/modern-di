@@ -13,7 +13,7 @@ _provider_id_counter = itertools.count()
 
 
 class AbstractProvider(typing.Generic[types.T_co]):
-    __slots__ = ("_explicit_scope", "_group_claim", "_registered", "bound_type", "provider_id")
+    __slots__ = ("_bound_type", "_explicit_scope", "_group_claim", "_provider_id", "_registered")
 
     _takes_group_scope: typing.ClassVar[bool] = True
     """Whether a Group-level default scope applies. False when the effective scope is derived."""
@@ -27,8 +27,18 @@ class AbstractProvider(typing.Generic[types.T_co]):
         self._explicit_scope: enum.IntEnum | None = scope if isinstance(scope, enum.IntEnum) else None
         self._group_claim: tuple[enum.IntEnum, str] | None = None
         self._registered = False
-        self.bound_type = bound_type
-        self.provider_id: typing.Final = next(_provider_id_counter)
+        self._bound_type = bound_type
+        self._provider_id = next(_provider_id_counter)
+
+    @property
+    def bound_type(self) -> type | None:
+        """The type this provider is registered under, or ``None`` when it resolves by reference only."""
+        return self._bound_type
+
+    @property
+    def provider_id(self) -> int:
+        """A process-unique id."""
+        return self._provider_id
 
     @property
     def scope(self) -> enum.IntEnum:
@@ -39,7 +49,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
             return self._group_claim[0]
         return Scope.APP
 
-    def mark_registered(self) -> None:
+    def _mark_registered(self) -> None:
         """Latch this provider as registered; freezes `scope` against a later Group re-stamp."""
         self._registered = True
 

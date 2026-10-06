@@ -2,6 +2,22 @@
 
 Lower-level public surface for library authors and advanced use-cases.
 
+## What is public
+
+Import public names from four modules, and only from them:
+
+- `modern_di`: `Container`, `Group`, `Scope`, `OverrideHandle` (what `override()` returns),
+  `Suggestion` (an element of an error's `.suggestions`), `UNSET` and its type `UnsetType`, plus
+  the three submodules below.
+- `modern_di.providers`: the provider types, `CacheSettings` and `container_provider`.
+- `modern_di.exceptions`: every error class.
+- `modern_di.integrations`: the building blocks for framework integrations.
+
+Every other module is internal and can change in any release, even one that defines an exported
+name. That covers `modern_di.container`, `modern_di.group`, `modern_di.scope`, `modern_di.types`,
+`modern_di.suggester`, the `modern_di.registries` and `modern_di.providers` submodules, and the
+rest. Names that start with an underscore are internal wherever they are.
+
 ## Supported extension points
 
 ### `Group.get_providers()`
@@ -9,7 +25,8 @@ Lower-level public surface for library authors and advanced use-cases.
 `Group.get_providers()` is a classmethod that traverses the MRO (excluding `Group` and
 `object`) and collects every class attribute that is an `AbstractProvider` instance, respecting
 MRO override order (subclass attribute shadows parent attribute of the same name). Use it to
-inspect or iterate all providers declared on a group hierarchy.
+inspect or iterate all providers declared on a group hierarchy. `Group.get_named_providers()`
+returns the same providers as a dict keyed by attribute name.
 
 !!! note "The provider set is closed: `AbstractProvider` is not an extension point"
     `Factory`, `Alias`, `ContextProvider`, and the pre-built `container_provider` are the
@@ -20,16 +37,13 @@ inspect or iterate all providers declared on a group hierarchy.
     `validate()` does not catch it. Compose behavior in a creator function, or use `Alias`,
     instead of introducing a provider type.
 
-### `CacheSettings.is_async_finalizer`
-
-`CacheSettings.is_async_finalizer` is a computed bool field set at construction time via
-`inspect.iscoroutinefunction(finalizer)`. The cache registry uses it to decide whether to
-`await` the finalizer during `close_async()` or treat it as sync.
-
 ## Container navigation
 
-- `parent_container` is a constructor kwarg: the direct parent of a child container, or `None` for
-  a root. Passing a `scope ≤ parent.scope` raises `InvalidChildScopeError`.
+- `parent_container` is a read-only property: the container a child was built from, or `None` for a
+  root. `scope` is read-only too. `Container(...)` builds a root; children come only from
+  `build_child_container()`, which raises `InvalidChildScopeError` for a `scope` that is not deeper.
+- `build_child_container()` on a `Container` subclass returns an instance of that subclass. It does
+  not call the subclass's `__init__`, so state that `__init__` sets exists on the root only.
 - `find_container(scope)` returns `self` when `scope` is the container's own scope, otherwise the
   ancestor container at that scope, and raises `ScopeNotInitializedError` or `ScopeSkippedError`
   when no ancestor has it. Each container records its ancestors by scope when it is built, and the

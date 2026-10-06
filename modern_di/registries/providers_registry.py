@@ -136,7 +136,7 @@ class ProvidersRegistry:
             if provider_type in self._providers:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers[provider_type] = provider
-            provider.mark_registered()
+            provider._mark_registered()  # noqa: SLF001
             self._invalidate()
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
@@ -155,7 +155,7 @@ class ProvidersRegistry:
             self._providers.update(new_providers)
             # Over `args`: a reference-only provider never enters `_providers` but is still compiled.
             for provider in args:
-                provider.mark_registered()
+                provider._mark_registered()  # noqa: SLF001
             self._invalidate()
 
     def _invalidate(self) -> None:

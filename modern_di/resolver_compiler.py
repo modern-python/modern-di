@@ -9,7 +9,7 @@ applying an override drops the compiled resolvers instead (see
 ``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: see
 docs/adr/0001-resolver-hot-path-generated-source.md.
 
-The template reaches into `Container._scope_map` and `CacheRegistry._items` to stay
+The template reaches into `Container._scope`, `Container._scope_map` and `CacheRegistry._items` to stay
 within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
@@ -59,14 +59,14 @@ def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "Provid
 
 
 _NAVIGATE = """\
-    if container.scope is scope:
+    if container._scope is scope:
         target = container
     else:
         target = container._scope_map.get(scope)
-        if target is None or target.scope is not scope:
+        if target is None or target._scope is not scope:
             target = _navigate(container, scope, resolution_step)
     if target._closed:
-        raise ContainerClosedError(container_scope=target.scope)
+        raise ContainerClosedError(container_scope=target._scope)
 """
 
 _BUILD_ARGUMENTS = """\
@@ -75,12 +75,12 @@ _BUILD_ARGUMENTS = """\
     except ContextValueNotSetError as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
         if not exc.dependency_path:
-            exc.name_parameter(name)
-        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
+            exc._name_parameter(name)
+        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
     except _STEP_ERRORS as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        exc.prepend_step(resolution_step(), *redirect_hops(edges[name], target))
+        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], target))
         raise
 """
 
@@ -88,12 +88,12 @@ _CALL_CREATOR = """\
     try:
         return creator({args})
     except TypeError as exc:
-        error = CreatorCallError.from_type_error(creator=creator, exc=exc, resolution_step=resolution_step)
+        error = CreatorCallError._from_type_error(creator=creator, exc=exc, resolution_step=resolution_step)
         if error is None:
             raise
         raise error from exc
     except _STEP_ERRORS as exc:
-        exc.prepend_step(resolution_step())
+        exc._prepend_step(resolution_step())
         raise
 """
 
@@ -244,11 +244,11 @@ def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") ->
     arg_name, item = plan.unwireable[0]
 
     def resolve(container: "Container") -> typing.Any:
-        target = container if container.scope is scope else _navigate(container, scope, resolution_step)
+        target = container if container._scope is scope else _navigate(container, scope, resolution_step)
         if target._closed:
-            raise exceptions.ContainerClosedError(container_scope=target.scope)
+            raise exceptions.ContainerClosedError(container_scope=target._scope)
         error = build_error(arg_name=arg_name, item=item, registry=target._providers_registry)
-        error.prepend_step(resolution_step())
+        error._prepend_step(resolution_step())
         raise error
 
     return resolve
@@ -263,7 +263,7 @@ def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "Re
 
     def resolve(_: "Container") -> typing.Any:
         error = exceptions.AliasSourceNotRegisteredError(source_type=source_type)
-        error.prepend_step(a._resolution_step())
+        error._prepend_step(a._resolution_step())
         raise error
 
     return resolve
@@ -282,14 +282,14 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]", default: typing
     resolution_step = cp._resolution_step
 
     def resolve(container: "Container") -> typing.Any:
-        if container.scope is scope:
+        if container._scope is scope:
             target = container
         else:
             target = container._scope_map.get(scope)
-            if target is None or target.scope is not scope:
+            if target is None or target._scope is not scope:
                 target = _navigate(container, scope, resolution_step)
         if target._closed:
-            raise exceptions.ContainerClosedError(container_scope=target.scope)
+            raise exceptions.ContainerClosedError(container_scope=target._scope)
         context = target._context_registry.context
         # Not `.get(key, UNSET)`: that skips a dict subclass's `__contains__`/`__getitem__`.
         if context_type in context:
@@ -313,5 +313,5 @@ def _navigate(
     try:
         return container.find_container(scope)
     except _SCOPE_ERRORS as exc:
-        exc.prepend_step(resolution_step())
+        exc._prepend_step(resolution_step())
         raise

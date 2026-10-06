@@ -336,7 +336,7 @@ def test_context_provider_accepts_positional_context_type() -> None:
 
 def test_context_provider_rejects_context_type_passed_twice() -> None:
     with pytest.raises(TypeError, match="context_type"):
-        providers.ContextProvider(datetime.datetime, context_type=datetime.datetime)  # ty: ignore[parameter-already-assigned]
+        providers.ContextProvider(datetime.datetime, context_type=datetime.datetime)  # ty: ignore[no-matching-overload]
 
 
 def test_context_provider_override_direct_short_circuits() -> None:
@@ -1277,3 +1277,11 @@ def test_override_of_a_context_argument_applies_after_the_factory_compiled(cache
     assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is sentinel
     app.reset_override(G.ctx)
     assert app.build_child_container(scope=Scope.REQUEST).resolve_provider(G.out) is None
+
+
+@pytest.mark.parametrize("attribute", ["bound_type", "context_type", "default"])
+def test_context_provider_attributes_are_read_only(attribute: str) -> None:
+    provider = providers.ContextProvider(int, default=0)
+    with pytest.raises(AttributeError):
+        setattr(provider, attribute, None)
+    assert (provider.bound_type, provider.context_type, provider.default) == (int, int, 0)

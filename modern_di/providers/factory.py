@@ -15,14 +15,15 @@ if typing.TYPE_CHECKING:
     from modern_di.registries.providers_registry import ProvidersRegistry
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
-class CacheSettings(typing.Generic[types.T_co]):
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class CacheSettings(typing.Generic[types.T_contra]):
     clear_cache: bool = True
-    finalizer: typing.Callable[[types.T_co], typing.Awaitable[None] | None] | None = None
-    is_async_finalizer: bool = dataclasses.field(init=False)
+    finalizer: typing.Callable[[types.T_contra], typing.Awaitable[None] | None] | None = None
+    _is_async_finalizer: bool = dataclasses.field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        self.is_async_finalizer = bool(self.finalizer) and inspect.iscoroutinefunction(self.finalizer)
+        is_async = bool(self.finalizer) and inspect.iscoroutinefunction(self.finalizer)
+        object.__setattr__(self, "_is_async_finalizer", is_async)
 
     @staticmethod
     def _coerce(cache: "bool | CacheSettings[types.T]") -> "CacheSettings[types.T] | None":
@@ -42,12 +43,12 @@ class CacheSettings(typing.Generic[types.T_co]):
 
 class Factory(AbstractProvider[types.T_co]):
     __slots__ = (
+        "_cache_settings",
         "_cached_definition_site",
         "_creator",
         "_has_positional_only_gap",
         "_kwargs",
         "_params",
-        "cache_settings",
     )
 
     def __init__(  # noqa: PLR0913
@@ -70,7 +71,7 @@ class Factory(AbstractProvider[types.T_co]):
             bound_type=parsed.return_type.arg_type if isinstance(bound_type, types.UnsetType) else bound_type,
         )
         self._creator = creator
-        self.cache_settings = CacheSettings._coerce(cache)  # noqa: SLF001
+        self._cache_settings: CacheSettings[typing.Any] | None = CacheSettings._coerce(cache)  # noqa: SLF001
         self._kwargs = kwargs
         self._cached_definition_site: str | types.UnsetType | None = types.UNSET
 
@@ -140,6 +141,11 @@ class Factory(AbstractProvider[types.T_co]):
                     "pass the value via the kwargs parameter or give the parameter a default"
                 ),
             )
+
+    @property
+    def cache_settings(self) -> CacheSettings[typing.Any] | None:
+        """The cache configuration, or ``None`` for an uncached factory."""
+        return self._cache_settings
 
     def __repr__(self) -> str:
         return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"
