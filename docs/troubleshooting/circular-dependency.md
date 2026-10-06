@@ -7,15 +7,18 @@ This error occurs when providers form a dependency cycle, meaning A depends on B
 When you see this error:
 
 ```
-Container.validate() found 1 issue(s): CircularDependencyError
-
-CircularDependencyError (1):
-  - Circular dependency detected:
-      APP  ServiceA (myapp.cycle:6)
-      APP  └─> ServiceB (myapp.cycle:10)
-      APP      └─> ServiceA (myapp.cycle:6)
-    Check your provider graph for unintended cycles.
-See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/
+  + Exception Group Traceback (most recent call last):
+  |   ...
+  | modern_di.exceptions.container.ValidationFailedError: Container.validate() found 1 issue(s): CircularDependencyError (1)
+  | See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/
+  +-+---------------- 1 ----------------
+    | modern_di.exceptions.resolution.CircularDependencyError: Circular dependency detected:
+    |   APP  ServiceA (myapp.cycle:6)
+    |   APP  └─> ServiceB (myapp.cycle:10)
+    |   APP      └─> ServiceA (myapp.cycle:6)
+    | Check your provider graph for unintended cycles.
+    | See: https://modern-di.modern-python.org/troubleshooting/circular-dependency/
+    +------------------------------------
 ```
 
 It means the listed providers form a cycle that cannot be resolved. Each hop in the arrow chain may also end with a pointer to where that provider was declared (module and line number), making it easier to locate the offending provider in a large codebase.

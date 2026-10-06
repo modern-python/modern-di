@@ -2,17 +2,21 @@
 
 ## Symptom
 
-`container.validate()` raises `ValidationFailedError`, and one of its groups is
+`container.validate()` raises `ValidationFailedError`, and one of its `.exceptions` is a
 `ScopeEnumMismatchError`:
 
 ```
-Container.validate() found 1 issue(s): ScopeEnumMismatchError
-
-ScopeEnumMismatchError (1):
-  - Provider at a same-valued scope of another enum reached through this chain:
-      SESSION  UserSession (myapp.providers:15)
-      TENANT   └─> TenantSettings (myapp.providers:11)
-      caused by: UserSession (scope Scope.SESSION) declares parameter 'settings' typed as a provider of TenantSettings at scope Tenancy.TENANT. Both scopes have the value 2 but belong to different enums, so they can never be in one container chain. Give the dependency the same scope member as UserSession or a shallower one.
+  + Exception Group Traceback (most recent call last):
+  |   ...
+  | modern_di.exceptions.container.ValidationFailedError: Container.validate() found 1 issue(s): ScopeEnumMismatchError (1)
+  | See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/
+  +-+---------------- 1 ----------------
+    | modern_di.exceptions.registration.ScopeEnumMismatchError: Provider at a same-valued scope of another enum reached through this chain:
+    |   SESSION  UserSession (myapp.providers:15)
+    |   TENANT   └─> TenantSettings (myapp.providers:11)
+    |   caused by: UserSession (scope Scope.SESSION) declares parameter 'settings' typed as a provider of TenantSettings at scope Tenancy.TENANT. Both scopes have the value 2 but belong to different enums, so they can never be in one container chain. Give the dependency the same scope member as UserSession or a shallower one.
+    | See: https://modern-di.modern-python.org/troubleshooting/scope-enum-mismatch-error/
+    +------------------------------------
 ```
 
 ## Cause

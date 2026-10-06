@@ -1,5 +1,6 @@
 """Container and scope errors."""
 
+import collections
 import enum
 import typing
 from collections.abc import Sequence
@@ -141,8 +142,7 @@ class ValidationFailedError(ContainerError, ExceptionGroup[Exception]):
     """``validate()`` found one or more issues.
 
     An ``ExceptionGroup``: ``.exceptions`` holds the underlying errors, so ``except*`` can catch them
-    by type. ``str()`` renders them grouped by kind without their own docs trailers, so this error's
-    trailer stays the report's only and final line.
+    by type, and a traceback shows each of them below this error's one-line summary.
     """
 
     docs_slug = "validation-failed-error"
@@ -156,24 +156,13 @@ class ValidationFailedError(ContainerError, ExceptionGroup[Exception]):
         super().__init__(self.message, errors)
 
     def _render_body(self) -> str:
-        lines = [self.message]
-        by_kind: dict[str, list[Exception]] = {}
-        for error in self.exceptions:
-            by_kind.setdefault(type(error).__name__, []).append(error)
-        for kind in sorted(by_kind):
-            errors = by_kind[kind]
-            lines.append(f"\n{kind} ({len(errors)}):")
-            for error in errors:
-                rendered = error._render_body() if isinstance(error, ModernDIError) else str(error)  # noqa: SLF001
-                first, *rest = rendered.splitlines() or [""]
-                lines.append(f"  - {first}".rstrip())
-                lines.extend(f"    {line}" for line in rest)
-        return "\n".join(lines)
+        return self.message
 
     def derive(self, excs: Sequence[Exception]) -> "ValidationFailedError":
         return ValidationFailedError(errors=excs)
 
 
 def _validation_message(errors: Sequence[Exception]) -> str:
-    kinds = ", ".join(sorted({type(e).__name__ for e in errors}))
+    counts = collections.Counter(type(error).__name__ for error in errors)
+    kinds = ", ".join(f"{kind} ({counts[kind]})" for kind in sorted(counts))
     return f"Container.validate() found {len(errors)} issue(s): {kinds}"

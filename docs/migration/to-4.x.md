@@ -177,9 +177,12 @@ except* exceptions.AsyncFinalizerInSyncCloseError:
 can catch the issues inside it by type.
 
 - `.errors` is removed. Read `.exceptions`, which is a tuple where `.errors` was a list.
-- `except ValidationFailedError`, `except ContainerError` and `except ModernDIError` still catch it,
-  and `str()` renders the same grouped report.
-- A traceback now also lists each issue below the report.
+- `except ValidationFailedError`, `except ContainerError` and `except ModernDIError` still catch it.
+- `str()` is one line naming each kind of issue with its count, such as
+  `Container.validate() found 3 issue(s): ArgumentResolutionError (2), CircularDependencyError (1)`,
+  plus the troubleshooting link. In 3.x it held every issue's full message. A traceback, or
+  `logger.exception`, now shows each issue in full below that line. To get the messages yourself,
+  read `str(error)` for each `error` in `.exceptions`.
 
 ```python
 # 3.x

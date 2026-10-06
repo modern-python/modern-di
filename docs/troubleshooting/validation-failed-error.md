@@ -2,9 +2,31 @@
 
 ## Symptom
 
-Raised by `Container.validate()`, rendering a report grouped by
-error class name, with the count of each kind and every individual issue indented underneath. It is
-an `ExceptionGroup`, so a traceback also shows each issue below the report.
+Raised by `Container.validate()`. Its message is one line naming each kind of issue with its count,
+followed by a link to this page. It is an `ExceptionGroup`, so a traceback shows each issue in full
+below that line:
+
+```
+  + Exception Group Traceback (most recent call last):
+  |   ...
+  | modern_di.exceptions.container.ValidationFailedError: Container.validate() found 2 issue(s): ArgumentResolutionError (1), InvalidScopeDependencyError (1)
+  | See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/
+  +-+---------------- 1 ----------------
+    | modern_di.exceptions.resolution.ArgumentResolutionError: Argument missing of type <class 'myapp.Missing'> cannot be resolved. Trying to build dependency <class 'myapp.NeedsMissing'>.
+    | Did you mean:
+    |   - NeedsMissing (similar name, scope=APP)
+    | See: https://modern-di.modern-python.org/troubleshooting/argument-resolution-error/
+    +---------------- 2 ----------------
+    | modern_di.exceptions.registration.InvalidScopeDependencyError: Provider at a deeper scope reached through this chain:
+    |   APP      Shallow
+    |   REQUEST  └─> Deep
+    |   caused by: Shallow (scope APP) declares parameter 'deep' typed as a provider of Deep at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
+    | See: https://modern-di.modern-python.org/troubleshooting/scope-chain/
+    +------------------------------------
+```
+
+`logger.exception` prints the same tree. A plain `print(exc)` or `str(exc)` gives only the summary
+line.
 
 ## Cause
 
@@ -16,8 +38,7 @@ may hold several distinct exception types at once.
 
 ## Fix
 
-Inspect `.exceptions` to see every underlying issue, or read the grouped `str()` report directly. Each
-group is one of `CircularDependencyError`, `InvalidScopeDependencyError`, `ScopeEnumMismatchError`,
+Inspect `.exceptions` to see every underlying issue, or read the traceback. Each issue is one of `CircularDependencyError`, `InvalidScopeDependencyError`, `ScopeEnumMismatchError`,
 `ArgumentResolutionError`, or `AliasSourceNotRegisteredError` today. Fix each one; their own pages cover the specific cause and
 remedy:
 

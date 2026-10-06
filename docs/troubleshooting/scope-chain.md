@@ -7,13 +7,17 @@ This error fires when a provider depends on another provider at a deeper (shorte
 You'll see something like:
 
 ```
-Container.validate() found 1 issue(s): InvalidScopeDependencyError
-
-InvalidScopeDependencyError (1):
-  - Provider at a deeper scope reached through this chain:
-      APP      UserCache (myapp.providers:10)
-      REQUEST  └─> Session (myapp.providers:4)
-      caused by: UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
+  + Exception Group Traceback (most recent call last):
+  |   ...
+  | modern_di.exceptions.container.ValidationFailedError: Container.validate() found 1 issue(s): InvalidScopeDependencyError (1)
+  | See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/
+  +-+---------------- 1 ----------------
+    | modern_di.exceptions.registration.InvalidScopeDependencyError: Provider at a deeper scope reached through this chain:
+    |   APP      UserCache (myapp.providers:10)
+    |   REQUEST  └─> Session (myapp.providers:4)
+    |   caused by: UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
+    | See: https://modern-di.modern-python.org/troubleshooting/scope-chain/
+    +------------------------------------
 ```
 
 The fix is always to make the depender's scope equal to or shorter than the dependee's. In the example above, `UserCache` is APP-scoped and should be REQUEST-scoped.
@@ -25,12 +29,12 @@ The chain is the same arrow tree `ScopeNotInitializedError` and `ScopeSkippedErr
 An [`Alias`](../providers/alias.md) declares no scope of its own, so the type on the parameter is not the type that owns the offending scope. The chain names every hop and draws each one at the scope it actually resolves at:
 
 ```
-InvalidScopeDependencyError (1):
-  - Provider at a deeper scope reached through this chain:
-      APP      UserCache (myapp.providers:10)
-      REQUEST  └─> Repository
-      REQUEST      └─> Session (myapp.providers:4)
-      caused by: UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
+modern_di.exceptions.registration.InvalidScopeDependencyError: Provider at a deeper scope reached through this chain:
+  APP      UserCache (myapp.providers:10)
+  REQUEST  └─> Repository
+  REQUEST      └─> Session (myapp.providers:4)
+  caused by: UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
+See: https://modern-di.modern-python.org/troubleshooting/scope-chain/
 ```
 
 `Repository` is the alias and `Session` is what supplies it. Programmatically, `.dependency_provider` is the alias, `.dependency_terminal` is the source, and `.dependency_chain` is every hop between them.

@@ -87,8 +87,8 @@ so either `except` catches them; they are described under `ResolutionError` belo
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
 - `ValidationFailedError` is raised only by `Container.validate()`. Catch this for validation
   results. It is an `ExceptionGroup`: `.exceptions` holds the individual issues (each itself a
-  `ResolutionError` or `RegistrationError`), `except*` catches them by type, and `str()` renders
-  them all, grouped by error kind.
+  `ResolutionError` or `RegistrationError`), and `except*` catches them by type. `str()` is one
+  line with the count of each kind; a traceback shows every issue in full below it.
   Nothing validates automatically (not construction, not `open()`, not `add_providers`, not
   `resolve()`), so call `validate()` explicitly whenever you want the whole graph checked; an
   integration that registers its own providers after construction (via `add_providers`) should call

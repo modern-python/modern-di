@@ -3,6 +3,7 @@ import dataclasses
 import gc
 import inspect
 import threading
+import traceback
 import typing
 import weakref
 
@@ -164,7 +165,8 @@ def test_cycle_path_carries_definition_sites() -> None:
     container = Container(groups=[CycleGroup])
     with pytest.raises(ValidationFailedError) as exc_info:
         container.validate()
-    rendered = str(exc_info.value)
+    [issue] = exc_info.value.exceptions
+    rendered = str(issue)
     lineno = inspect.getsourcelines(CycleA)[1]
     assert f"({CycleA.__module__}:{lineno})" in rendered
 
@@ -395,13 +397,16 @@ def test_validate_handles_factory_with_static_kwargs() -> None:
     Container(groups=[G]).validate()  # must not raise
 
 
-def test_validation_failed_error_str_renders_inner_errors() -> None:
+def test_validation_failed_error_details_come_from_the_traceback_tree() -> None:
     container = Container(groups=[CycleGroup])
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()
-    rendered = str(exc.value)
-    assert "found 1 issue(s)" in rendered
-    assert "Circular dependency detected" in rendered
+    assert str(exc.value) == (
+        "Container.validate() found 1 issue(s): CircularDependencyError (1)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/"
+    )
+    formatted = "".join(traceback.format_exception(exc.value))
+    assert formatted.count("Circular dependency detected") == 1
 
 
 def test_constructor_rejects_use_lock() -> None:

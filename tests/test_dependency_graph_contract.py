@@ -95,7 +95,7 @@ def test_except_star_catches_one_kind_of_validation_issue() -> None:
 
     assert [type(error) for error in caught] == [exceptions.ArgumentResolutionError]
     assert [type(error) for error in rest.value.exceptions] == [exceptions.InvalidScopeDependencyError]
-    assert str(rest.value).startswith("Container.validate() found 1 issue(s): InvalidScopeDependencyError\n")
+    assert str(rest.value).startswith("Container.validate() found 1 issue(s): InvalidScopeDependencyError (1)\n")
 
 
 def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch) -> None:

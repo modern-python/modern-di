@@ -168,19 +168,29 @@ class UnsupportedCreatorParameterError(RegistrationError):
         super().__init__(f"Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}")
 
 
-class _DependencyChainMixin:
-    """The attributes and chain rendering shared by the two errors about a provider's dependency chain.
+class _DependencyChainError(RegistrationError):
+    """Base of the two errors about a provider's dependency chain; never raised itself.
 
     ``dependency_chain`` runs from the declared dependency to the provider that actually supplies
     it, following redirects; ``.dependency_provider`` and ``.dependency_terminal`` are its ends.
     """
 
-    __slots__ = ()
-
     _chain_headline: typing.ClassVar[str]
-    provider: "AbstractProvider[typing.Any]"
-    parameter_name: str
-    dependency_chain: "list[AbstractProvider[typing.Any]]"
+    _message: typing.Callable[[], str]
+
+    __slots__ = ("dependency_chain", "parameter_name", "provider")
+
+    def __init__(
+        self,
+        *,
+        provider: "AbstractProvider[typing.Any]",
+        parameter_name: str,
+        dependency_chain: "list[AbstractProvider[typing.Any]]",
+    ) -> None:
+        self.provider = provider
+        self.parameter_name = parameter_name
+        self.dependency_chain = dependency_chain
+        super().__init__(self._message())
 
     @property
     def dependency_provider(self) -> "AbstractProvider[typing.Any]":
@@ -201,12 +211,12 @@ class _DependencyChainMixin:
         lines = [
             self._chain_headline,
             *render_chain(steps),
-            f"  caused by: {RuntimeError.__str__(self)}",  # ty: ignore[invalid-argument-type]
+            f"  caused by: {RuntimeError.__str__(self)}",
         ]
         return "\n".join(lines)
 
 
-class InvalidScopeDependencyError(_DependencyChainMixin, RegistrationError):
+class InvalidScopeDependencyError(_DependencyChainError):
     """A provider depends on a deeper-scoped one. Inspect ``.provider``, ``.parameter_name``, ``.dependency_chain``.
 
     ``.dependency_provider`` and ``.dependency_terminal`` are the ends of ``.dependency_chain``. The
@@ -217,21 +227,12 @@ class InvalidScopeDependencyError(_DependencyChainMixin, RegistrationError):
     docs_slug = "scope-chain"
     _chain_headline = "Provider at a deeper scope reached through this chain:"
 
-    __slots__ = ("dependency_chain", "parameter_name", "provider")
+    __slots__ = ()
 
-    def __init__(
-        self,
-        *,
-        provider: "AbstractProvider[typing.Any]",
-        parameter_name: str,
-        dependency_chain: "list[AbstractProvider[typing.Any]]",
-    ) -> None:
-        self.provider = provider
-        self.parameter_name = parameter_name
-        self.dependency_chain = dependency_chain
-        super().__init__(
-            f"{provider.display_name} (scope {provider.scope.name}) declares parameter "
-            f"{parameter_name!r} typed as a provider of {self.dependency_terminal.display_name} at deeper "
+    def _message(self) -> str:
+        return (
+            f"{self.provider.display_name} (scope {self.provider.scope.name}) declares parameter "
+            f"{self.parameter_name!r} typed as a provider of {self.dependency_terminal.display_name} at deeper "
             f"scope {self.dependency_terminal.scope.name}. A provider cannot depend on a deeper-scoped provider."
         )
 
@@ -240,33 +241,27 @@ def _qualified(scope: enum.IntEnum) -> str:
     return f"{type(scope).__name__}.{scope.name}"
 
 
-class ScopeEnumMismatchError(_DependencyChainMixin, RegistrationError):
+class ScopeEnumMismatchError(_DependencyChainError):
     """A provider depends on one whose scope has the same value but comes from another enum.
 
     Inspect ``.provider``, ``.parameter_name``, ``.dependency_chain``. Two members with one value can
     never be in one container chain, because each child's value is higher than its parent's.
+    ``.dependency_provider`` and ``.dependency_terminal`` are the ends of ``.dependency_chain``; they
+    differ only when the dependency is reached through an ``Alias``.
     """
 
     docs_slug = "scope-enum-mismatch-error"
     _chain_headline = "Provider at a same-valued scope of another enum reached through this chain:"
 
-    __slots__ = ("dependency_chain", "parameter_name", "provider")
+    __slots__ = ()
 
-    def __init__(
-        self,
-        *,
-        provider: "AbstractProvider[typing.Any]",
-        parameter_name: str,
-        dependency_chain: "list[AbstractProvider[typing.Any]]",
-    ) -> None:
-        self.provider = provider
-        self.parameter_name = parameter_name
-        self.dependency_chain = dependency_chain
-        dep_scope = self.dependency_terminal.scope
-        super().__init__(
+    def _message(self) -> str:
+        provider = self.provider
+        dependency_scope = self.dependency_terminal.scope
+        return (
             f"{provider.display_name} (scope {_qualified(provider.scope)}) declares parameter "
-            f"{parameter_name!r} typed as a provider of {self.dependency_terminal.display_name} at scope "
-            f"{_qualified(dep_scope)}. Both scopes have the value {int(dep_scope)} but belong to different "
-            f"enums, so they can never be in one container chain. Give the dependency the same scope member "
-            f"as {provider.display_name} or a shallower one."
+            f"{self.parameter_name!r} typed as a provider of {self.dependency_terminal.display_name} at scope "
+            f"{_qualified(dependency_scope)}. Both scopes have the value {int(dependency_scope)} but belong to "
+            f"different enums, so they can never be in one container chain. Give the dependency the same scope "
+            f"member as {provider.display_name} or a shallower one."
         )

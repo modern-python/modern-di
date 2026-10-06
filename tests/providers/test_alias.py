@@ -285,8 +285,8 @@ def test_validate_flags_shallow_caller_depending_through_alias_on_deeper_source(
     container = Container(scope=Scope.APP, groups=[_XfourGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.exceptions)
-    assert "REQUEST" in str(exc_info.value)
+    (issue,) = [e for e in exc_info.value.exceptions if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    assert "REQUEST" in str(issue)
 
 
 def test_alias_scope_violation_names_the_source_behind_the_alias() -> None:
@@ -354,8 +354,8 @@ def test_validate_follows_alias_of_alias_to_terminal_scope() -> None:
     container = Container(scope=Scope.APP, groups=[_AliasOfAliasGroup])
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
-    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in exc_info.value.exceptions)
-    assert "REQUEST" in str(exc_info.value)
+    (issue,) = [e for e in exc_info.value.exceptions if isinstance(e, exceptions.InvalidScopeDependencyError)]
+    assert "REQUEST" in str(issue)
 
 
 class _MutualA: ...

@@ -80,38 +80,23 @@ def test_circular_dependency_error_renders_cycle_as_arrow_chain() -> None:
     )
 
 
-def test_validation_failed_error_groups_by_kind_and_indents_multiline() -> None:
-    # Sub-errors (here CircularDependencyError, which carries its own docs_slug) render
-    # trailer-free inside the grouped report — only the outer ValidationFailedError report
-    # carries a trailer, and it is the report's own final line. Repeating each sub-error's
-    # "See: ..." line would be noise (same URL N times for N errors of one kind) and would
-    # break "one trailer, always last line."
+def test_validation_failed_error_is_one_line_with_kinds_and_counts() -> None:
     cycle = exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")])
-    boom = RuntimeError("boom")
-    error = exceptions.ValidationFailedError(errors=[boom, cycle])
-    assert error.exceptions == (boom, cycle)
+    error = exceptions.ValidationFailedError(errors=[RuntimeError("boom"), cycle, RuntimeError()])
     assert str(error) == (
-        "Container.validate() found 2 issue(s): CircularDependencyError, RuntimeError\n"
-        "\n"
-        "CircularDependencyError (1):\n"
-        "  - Circular dependency detected:\n"
-        "      APP  A\n"
-        "      APP  └─> B\n"
-        "      APP      └─> A\n"
-        "    Check your provider graph for unintended cycles.\n"
-        "\n"
-        "RuntimeError (1):\n"
-        "  - boom\n"
+        "Container.validate() found 3 issue(s): CircularDependencyError (1), RuntimeError (2)\n"
         "See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/"
     )
 
 
-def test_validation_failed_error_renders_message_less_sub_error() -> None:
-    error = exceptions.ValidationFailedError(errors=[RuntimeError()])
-    assert str(error) == (
-        "Container.validate() found 1 issue(s): RuntimeError\n\nRuntimeError (1):\n  -\n"
-        "See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/"
-    )
+def test_split_validation_failed_error_counts_only_its_own_issues() -> None:
+    cycle = exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")])
+    error = exceptions.ValidationFailedError(errors=[RuntimeError("boom"), cycle, RuntimeError()])
+    matched, rest = error.split(exceptions.CircularDependencyError)
+    assert isinstance(matched, exceptions.ValidationFailedError)
+    assert isinstance(rest, exceptions.ValidationFailedError)
+    assert matched.message == "Container.validate() found 1 issue(s): CircularDependencyError (1)"
+    assert rest.message == "Container.validate() found 2 issue(s): RuntimeError (2)"
 
 
 def test_duplicate_provider_type_error_url_unchanged_by_mechanism() -> None:

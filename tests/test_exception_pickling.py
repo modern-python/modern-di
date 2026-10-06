@@ -195,7 +195,11 @@ def _within(seconds: float, call: typing.Callable[[], BaseException]) -> BaseExc
 
 
 def test_every_modern_di_exception_has_a_builder() -> None:
-    discovered = {cls for cls in _all_subclasses(exceptions.ModernDIError) if cls.__module__.startswith("modern_di.")}
+    discovered = {
+        cls
+        for cls in _all_subclasses(exceptions.ModernDIError)
+        if cls.__module__.startswith("modern_di.") and not cls.__name__.startswith("_")
+    }
     exported = {obj for obj in vars(exceptions).values() if isinstance(obj, type) and issubclass(obj, BaseException)}
     assert discovered <= exported
     assert set(BUILDERS) == discovered
@@ -260,7 +264,7 @@ def test_unpickled_validation_failed_error_still_splits() -> None:
     assert isinstance(matched, exceptions.ValidationFailedError)
     assert isinstance(rest, exceptions.ValidationFailedError)
     assert [type(e) for e in rest.exceptions] == [exceptions.ProviderNotRegisteredError]
-    assert str(rest).startswith("Container.validate() found 1 issue(s): ProviderNotRegisteredError\n")
+    assert str(rest).startswith("Container.validate() found 1 issue(s): ProviderNotRegisteredError (1)\n")
 
 
 def _local_creator_error() -> exceptions.ModernDIError:
