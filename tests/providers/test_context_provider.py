@@ -737,7 +737,7 @@ def test_unset_context_error_names_a_parameter_reached_through_an_alias() -> Non
 
 def test_unset_context_error_skips_a_defaulted_provider_of_the_same_type() -> None:
     def creator(*, optional: _NamedCtx | None, required: _NamedCtx) -> str:
-        raise NotImplementedError  # pragma: no cover - the required argument raises first
+        raise NotImplementedError
 
     optional = providers.ContextProvider(_NamedCtx, scope=Scope.APP, bound_type=None, default=None)
 
@@ -850,11 +850,11 @@ class _SecondCtx: ...
 
 
 def _positional_pair(first: _FirstCtx, second: _SecondCtx) -> str:
-    raise NotImplementedError  # pragma: no cover - the second argument raises first
+    raise NotImplementedError
 
 
 def _keyword_pair(*, first: _FirstCtx, second: _SecondCtx) -> str:
-    raise NotImplementedError  # pragma: no cover - the second argument raises first
+    raise NotImplementedError
 
 
 @pytest.mark.parametrize("cache", [False, True])
@@ -874,7 +874,7 @@ def test_unset_context_error_names_the_argument_that_failed(creator: typing.Call
 
 def test_unset_context_error_names_the_failing_one_of_two_same_type_providers() -> None:
     def creator(*, first: _FirstCtx, second: _FirstCtx) -> str:
-        raise NotImplementedError  # pragma: no cover - the second argument raises first
+        raise NotImplementedError
 
     present = providers.ContextProvider(_FirstCtx, scope=Scope.APP, bound_type=None)
     absent = providers.ContextProvider(_FirstCtx, scope=Scope.REQUEST, bound_type=None)
@@ -893,7 +893,7 @@ def test_unset_context_error_names_the_failing_one_of_two_same_type_providers() 
 
 def test_unset_context_error_names_the_failing_one_of_two_same_type_same_scope_providers() -> None:
     def creator(*, first: _FirstCtx, second: _FirstCtx) -> str:
-        raise NotImplementedError  # pragma: no cover - the second argument raises first
+        raise NotImplementedError
 
     overridden = providers.ContextProvider(_FirstCtx, scope=Scope.APP, bound_type=None)
     unset = providers.ContextProvider(_FirstCtx, scope=Scope.APP, bound_type=None)
@@ -1143,11 +1143,11 @@ class _NeedsOptCtx:
 
 
 def _takes_nullable_inner(inner: _NeedsOptCtx | None = None) -> _NeedsOptCtx | None:
-    raise NotImplementedError  # pragma: no cover - the inner argument raises first
+    raise NotImplementedError
 
 
 def _takes_nullable_inner_by_keyword(*, inner: _NeedsOptCtx | None = None) -> _NeedsOptCtx | None:
-    raise NotImplementedError  # pragma: no cover - the inner argument raises first
+    raise NotImplementedError
 
 
 @pytest.mark.parametrize("cache", [False, True])

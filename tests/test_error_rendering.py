@@ -124,8 +124,6 @@ def test_unknown_factory_kwarg_error_derives_its_own_suggestions() -> None:
     def creator(timeout: int, retries: int) -> int:
         return timeout + retries
 
-    assert creator(1, retries=2) == creator(2, retries=1)  # exercise the body; only __name__ is read below
-
     error = exceptions.UnknownFactoryKwargError(
         creator=creator, unknown_keys=["timout", "zzz"], known_keys=["retries", "timeout"]
     )

@@ -29,6 +29,8 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G13b | Batch of K=100 request cycles, 10 finalizer-less cached REQUEST providers, `await close_async()` | the async close loop when there is nothing to finalize |
 | G14 | Concurrent cached-hit throughput, N threads (lock-free read) | free-threaded read scaling |
 | G15 | Concurrent first-resolve, N threads (per-item double-checked creation lock) | free-threaded creation-lock contention |
+| G15b | Concurrent first-resolve, N threads, each in its own REQUEST child | that sibling children's creations do not contend |
+| G15c | Control: an empty job on the G14/G15 worker pool, N threads | barrier floor inside every G14/G15/G15b batch |
 | G16 | Warm by-type `resolve(SomeType)`, small graph | `find_provider` lookup on the integration/`@inject` path |
 | G17 | Warm by-type `resolve(SomeType)`, 200-provider registry | lookup cost at realistic registry scale |
 | G18 | Warm resolve through an `Alias` to a cached source | the alias hop, read against G2 |
@@ -91,9 +93,14 @@ threshold this low workable at all.
 
 ### Concurrency (G14/G15)
 
-G14/G15 use a custom N-thread harness (`test_guard_concurrency.py`) — pytest-benchmark
-times a parallel batch of worker threads released together behind a barrier,
-parametrized over thread count `{1, 2, 4}` so the scaling trend shows within one run.
+G14, G15 and G15b use a custom N-thread harness (`test_guard_concurrency.py`). pytest-benchmark
+times a parallel batch: one job run by each of N persistent worker threads, released together
+behind a barrier and parametrized over thread count `{1, 2, 4}` so the scaling trend shows within
+one run. The workers start once per benchmark, outside the timed call, so thread start-up and
+join are not in the number; G15c times an empty job on the same pool, which is the floor left in
+every batch. G15 compiles its resolvers once and empties the cache in an untimed per-round
+setup, so each round times creation and nothing else. Each scenario asserts on what the timed
+batch resolved.
 The GIL vs free-threaded (PEP 703) comparison comes from running the file under each
 build (same version/arch):
 

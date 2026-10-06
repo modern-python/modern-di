@@ -19,6 +19,7 @@ jobs:
 
   pytest:
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.prerelease }}
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +29,12 @@ jobs:
           - "3.13"
           - "3.14"
           - "3.14t"
+        prerelease: [false]
+        include:
+          - python-version: "3.15"
+            prerelease: true
+          - python-version: "3.15t"
+            prerelease: true
     steps:
       - uses: actions/checkout@v6
       - uses: extractions/setup-just@v4
@@ -39,12 +46,12 @@ jobs:
       - run: uv python pin ${{ matrix.python-version }}
       - run: just install
       - name: Confirm the interpreter is free-threaded
-        if: matrix.python-version == '3.14t'
+        if: endsWith(matrix.python-version, 't')
         run: uv run --no-sync python -c "import sys; assert not sys._is_gil_enabled(), 'GIL is enabled on a t-build'"
       - run: just test-ci
-      - name: Stress the concurrency test (free-threaded only)
-        if: matrix.python-version == '3.14t'
-        run: just test tests/test_free_threading.py --count=50 -W error::RuntimeWarning
+      - name: Stress the thread-race tests (free-threaded only)
+        if: endsWith(matrix.python-version, 't')
+        run: just test-race --count=50
 
   docs:
     runs-on: ubuntu-latest

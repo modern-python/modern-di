@@ -67,7 +67,6 @@ ignore = [
     "D203",   # conflicts with D211
     "D213",   # conflicts with D212
     "COM812", # conflicts with the formatter
-    "ISC001", # conflicts with the formatter
     "CPY001", # no per-file copyright header
     "FBT",    # boolean positional arguments are fine
     "TCH",    # imports stay real; TYPE_CHECKING-only imports break runtime introspection
@@ -79,21 +78,34 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 # The resolver compiler reads `Factory._creator` and friends by design (one compiler, closed provider
 # set), and every resolver returns `typing.Any`.
 "modern_di/resolver_compiler.py" = ["SLF001", "ANN401"]
-# White-box tests assert on container and registry internals; that is what they are for.
-"tests/**" = ["S101", "SLF001"]
+"tests/**" = ["S101"]
+# White-box tests that assert on container and registry internals with no public equivalent.
+"tests/helpers.py" = ["SLF001"]
+"tests/providers/test_alias.py" = ["SLF001"]
+"tests/providers/test_cached_factory.py" = ["SLF001"]
+"tests/providers/test_context_provider.py" = ["SLF001"]
+"tests/providers/test_factory.py" = ["SLF001"]
+"tests/registries/test_cache_registry.py" = ["SLF001"]
+"tests/registries/test_providers_registry.py" = ["SLF001"]
+"tests/test_container.py" = ["SLF001"]
+"tests/test_custom_scope.py" = ["SLF001"]
+"tests/test_exception_pickling.py" = ["SLF001"]
+"tests/test_free_threading.py" = ["SLF001"]
+"tests/test_resolver_compiler.py" = ["SLF001"]
+"tests/test_wiring.py" = ["SLF001"]
 # Guard-tier benchmarks are pytest tests too: they assert on the measured ratios.
 "benchmarks/**" = ["S101"]
 
 [tool.pytest.ini_options]
-addopts = ""
 testpaths = ["tests"]
 asyncio_mode = "auto"
 filterwarnings = ["error"]
+markers = ["thread_race: races threads; CI repeats it 50 times on the free-threaded build"]
 pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage]
-run.concurrency = ["thread"]
-run.omit = ["benchmarks/*"]
-report.exclude_also = ["if typing.TYPE_CHECKING:"]
+run.source = ["modern_di"]
+run.branch = true
+report.exclude_also = ["if typing.TYPE_CHECKING:", "typing.assert_never\\("]
 report.fail_under = 100

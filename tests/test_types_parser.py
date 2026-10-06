@@ -2,7 +2,6 @@ import dataclasses
 import functools
 import sys
 import typing
-import warnings
 
 import pytest
 
@@ -257,11 +256,12 @@ def test_partial_creator_does_not_crash() -> None:
     # supported Python. On <=3.13 get_type_hints raises TypeError (warn-skipped); on 3.14+ it
     # returns {} (parsed cleanly). Either way construction succeeds.
     partial = functools.partial(_partial_target, y=1)
-    assert partial(x=2) == _partial_target(x=2, y=1)  # exercise _partial_target body for coverage
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
+    if sys.version_info >= (3, 14):
         provider = providers.Factory(creator=partial, bound_type=int)
-    assert provider is not None
+    else:
+        with pytest.warns(UserWarning, match="skip_creator_parsing"):
+            provider = providers.Factory(creator=partial, bound_type=int)
+    assert provider.bound_type is int
 
 
 class _GenericDep: ...
@@ -282,7 +282,7 @@ def test_parameterized_generic_param_supplied_via_kwargs_is_allowed() -> None:
     sentinel = [_GenericDep()]
     provider = providers.Factory(creator=_generic_param_creator, kwargs={"x": sentinel})
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(str, provider)
+    container.add_providers(provider)
     assert container.resolve(str) == str(sentinel)
 
 
@@ -294,7 +294,7 @@ def test_parameterized_generic_param_with_default_is_allowed() -> None:
     assert _generic_param_with_default(("a",)) == str(("a",))
     provider = providers.Factory(creator=_generic_param_with_default)
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(str, provider)
+    container.add_providers(provider)
     assert container.resolve(str) == str(())
 
 
@@ -333,7 +333,6 @@ def _mixed_kind_creator(pos_or_kw: int, *, kw_only: int) -> int:
 def test_keyword_only_signal_recorded() -> None:
     # A keyword-only parameter records is_keyword_only=True; a positional-or-keyword one records
     # False. This is the only param-kind signal the compiled positional fast path consults.
-    assert _mixed_kind_creator(1, kw_only=2) == 1 + 2  # exercise the creator body for coverage
     params = parse_creator(_mixed_kind_creator).params
     assert params["pos_or_kw"].is_keyword_only is False
     assert params["kw_only"].is_keyword_only is True
@@ -455,6 +454,4 @@ def test_union_return_type_without_bound_type_warns() -> None:
 def test_union_return_type_is_silent_when_bound_type_is_known(
     creator: typing.Callable[..., typing.Any], bound_type: type | None
 ) -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        providers.Factory(creator, bound_type=bound_type)
+    providers.Factory(creator, bound_type=bound_type)

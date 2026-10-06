@@ -1,10 +1,11 @@
 # ruff: noqa: ANN001, ANN201
 """Guard tier — concurrent-resolution throughput (custom N-thread harness).
 
-pytest-benchmark measures single-thread wall time, so these time a *parallel batch* (N worker
-threads released together behind a barrier) as one unit, parametrized over thread count so the
-scaling curve is visible **within a single interpreter run** (no cross-interpreter comparison
-needed). Two sub-cases:
+pytest-benchmark measures single-thread wall time, so these time a *parallel batch* (one job run
+by each of N persistent worker threads, released together behind a barrier) as one unit,
+parametrized over thread count so the scaling curve is visible **within a single interpreter run**
+(no cross-interpreter comparison needed). The workers are started once per benchmark, outside the
+timed call, so a batch costs two barrier crossings and no thread start-up. Sub-cases:
 
 - G14 concurrent cached-hit: a fixed total number of reads of a warm cached singleton, split
   across N threads. The cached-hit path is lock-free, so on a free-threaded build (PEP 703) the
@@ -13,6 +14,9 @@ needed). Two sub-cases:
   they contend on each item's double-checked creation lock (`CacheItem.get_or_create`). Creating
   one singleton is serialized by design, so this is expected *not* to scale even free-threaded: the
   measured cost is the contention itself (the known trade-off vs lock-free-slot rivals).
+- G15b concurrent first-resolve in sibling children: the same K cold misses, each thread in its
+  own REQUEST child, so no two threads share a cache item.
+- G15c control: an empty job on the same pool, the harness floor inside every batch above.
 
 Read the batch-time-vs-thread-count trend, not the absolutes. The GIL vs free-threaded comparison
 comes from running the whole file under each build (same version/arch), e.g.:
@@ -25,6 +29,7 @@ guards; treat them as guidance. See benchmarks/README.md.
 
 import dataclasses
 import threading
+import typing
 
 import pytest
 
@@ -32,21 +37,62 @@ from modern_di import Container, Group, Scope, providers
 
 
 _THREAD_COUNTS = [1, 2, 4]
+_TIMEOUT = 30
 
 
-def _run_parallel(worker, n_threads: int) -> None:
-    # Release all threads together (barrier) so the work overlaps maximally.
-    barrier = threading.Barrier(n_threads)
+class _WorkerPool:
+    """N persistent threads that each run the current job once per ``run``."""
 
-    def _target() -> None:
-        barrier.wait()
-        worker()
+    def __init__(self, n_threads: int) -> None:
+        self._start = threading.Barrier(n_threads + 1, timeout=_TIMEOUT)
+        self._done = threading.Barrier(n_threads + 1, timeout=_TIMEOUT)
+        self._job: typing.Callable[[int], object] = lambda _: None
+        self._stopping = False
+        self._errors: list[BaseException] = []
+        self.results: list[object] = [None] * n_threads
+        self._threads = [threading.Thread(target=self._loop, args=(i,), daemon=True) for i in range(n_threads)]
+        for thread in self._threads:
+            thread.start()
 
-    threads = [threading.Thread(target=_target) for _ in range(n_threads)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    def _loop(self, index: int) -> None:
+        while True:
+            try:
+                self._start.wait()
+            except threading.BrokenBarrierError:
+                return
+            if self._stopping:
+                return
+            try:
+                self.results[index] = self._job(index)
+            except BaseException as exc:  # noqa: BLE001
+                self._errors.append(exc)
+            try:
+                self._done.wait()
+            except threading.BrokenBarrierError:
+                return
+
+    def run(self, job: typing.Callable[[int], object]) -> None:
+        self._job = job
+        self._start.wait()
+        self._done.wait()
+        if self._errors:
+            raise self._errors[0]
+
+    def stop(self) -> None:
+        self._stopping = True
+        if not (self._start.broken or self._done.broken):
+            self._start.wait()
+        self._start.abort()
+        self._done.abort()
+        for thread in self._threads:
+            thread.join(timeout=_TIMEOUT)
+
+
+@pytest.fixture
+def pool(n_threads: int) -> typing.Iterator[_WorkerPool]:
+    worker_pool = _WorkerPool(n_threads)
+    yield worker_pool
+    worker_pool.stop()
 
 
 # --- G14: concurrent cached-hit (lock-free read path, fixed total work) -----
@@ -63,19 +109,20 @@ _TOTAL_READS = 8000
 
 
 @pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
-def test_g14_concurrent_cached_hit(benchmark, n_threads):
+def test_g14_concurrent_cached_hit(benchmark, n_threads, pool):
     # Fixed total reads split across N threads: batch time drops with N iff the read path scales.
     container = Container(scope=Scope.APP, groups=[CachedGroup])
-    container.open()
     warm = container.resolve_provider(CachedGroup.obj)
     reads_per_thread = _TOTAL_READS // n_threads
 
-    def _worker() -> None:
+    def _job(_: int) -> object:
+        result = None
         for _ in range(reads_per_thread):
-            container.resolve_provider(CachedGroup.obj)
+            result = container.resolve_provider(CachedGroup.obj)
+        return result
 
-    benchmark(_run_parallel, _worker, n_threads)
-    assert container.resolve_provider(CachedGroup.obj) is warm  # same cached instance
+    benchmark(pool.run, _job)
+    assert all(result is warm for result in pool.results)
 
 
 # --- G15: concurrent first-resolve (creation under the double-checked lock) --
@@ -90,26 +137,28 @@ _COLD_PROVIDERS = [getattr(_COLD_GROUP, f"c{i}") for i in range(_K_COLD)]
 
 
 @pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
-def test_g15_concurrent_first_resolve(benchmark, n_threads):
+def test_g15_concurrent_first_resolve(benchmark, pool):
     # All N threads race to first-resolve the SAME K cold singletons -> contention on each
-    # creation lock. Fresh container per round (untimed setup) so every round actually creates.
-    check = Container(scope=Scope.APP, groups=[_COLD_GROUP])
-    check.open()
-    assert all(check.resolve_provider(p) is not None for p in _COLD_PROVIDERS)
+    # creation lock. Resolvers are compiled once up front; the untimed per-round setup only empties
+    # the cache, so every round creates and none compiles.
+    container = Container(scope=Scope.APP, groups=[_COLD_GROUP])
+    for provider in _COLD_PROVIDERS:
+        container.resolve_provider(provider)
 
-    def _setup() -> "tuple[tuple[Container], dict[str, object]]":
-        container = Container(scope=Scope.APP, groups=[_COLD_GROUP])
+    def _setup() -> None:
+        container.close_sync()
         container.open()
-        return (container,), {}
 
-    def _batch(container) -> None:
-        def _worker() -> None:
-            for provider in _COLD_PROVIDERS:
-                container.resolve_provider(provider)
+    def _job(_: int) -> list[object]:
+        return [container.resolve_provider(provider) for provider in _COLD_PROVIDERS]
 
-        _run_parallel(_worker, n_threads)
-
-    benchmark.pedantic(_batch, setup=_setup, rounds=120, iterations=1)
+    benchmark.pedantic(pool.run, args=(_job,), setup=_setup, rounds=120, iterations=1)
+    first = typing.cast("list[object]", pool.results[0])
+    assert [type(obj) for obj in first] == _COLD_TYPES
+    assert all(
+        all(mine is theirs for mine, theirs in zip(typing.cast("list[object]", result), first, strict=True))
+        for result in pool.results
+    )
 
 
 # --- G15b: concurrent first-resolve in sibling children ---------------------
@@ -123,29 +172,32 @@ _REQUEST_PROVIDERS = [getattr(_REQUEST_GROUP, f"r{i}") for i in range(_K_COLD)]
 
 
 @pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
-def test_g15b_concurrent_first_resolve_sibling_children(benchmark, n_threads):
+def test_g15b_concurrent_first_resolve_sibling_children(benchmark, n_threads, pool):
     """Each thread builds its own REQUEST child and first-resolves K cached providers in it.
 
     Every creation is a cold miss in a container no other thread touches. Each cache item has its
     own lock, so these creations never contend; under a lock shared by the tree they would
     serialize. G15 does not cover this: it races on one root's items, whose locks are shared.
     """
-    check = Container(scope=Scope.APP, groups=[_REQUEST_GROUP])
-    check.open()
-    probe = check.build_child_container(scope=Scope.REQUEST)
-    assert all(probe.resolve_provider(p) is not None for p in _REQUEST_PROVIDERS)
+    container = Container(scope=Scope.APP, groups=[_REQUEST_GROUP])
+    with container.build_child_container(scope=Scope.REQUEST) as probe:
+        for provider in _REQUEST_PROVIDERS:
+            probe.resolve_provider(provider)
 
-    def _setup() -> "tuple[tuple[Container], dict[str, object]]":
-        container = Container(scope=Scope.APP, groups=[_REQUEST_GROUP])
-        container.open()
-        return (container,), {}
+    def _job(_: int) -> list[object]:
+        child = container.build_child_container(scope=Scope.REQUEST)
+        return [child.resolve_provider(provider) for provider in _REQUEST_PROVIDERS]
 
-    def _batch(container) -> None:
-        def _worker() -> None:
-            child = container.build_child_container(scope=Scope.REQUEST)
-            for provider in _REQUEST_PROVIDERS:
-                child.resolve_provider(provider)
+    benchmark.pedantic(pool.run, args=(_job,), rounds=120, iterations=1)
+    results = [typing.cast("list[object]", result) for result in pool.results]
+    assert all([type(obj) for obj in result] == _REQUEST_TYPES for result in results)
+    assert len({id(obj) for result in results for obj in result}) == n_threads * _K_COLD
 
-        _run_parallel(_worker, n_threads)
 
-    benchmark.pedantic(_batch, setup=_setup, rounds=120, iterations=1)
+# --- G15c: control, the harness floor ----------------------------------------
+@pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
+def test_g15c_worker_pool_floor_control(benchmark, n_threads, pool):
+    # Harness floor: the same batch with an empty job, so the barrier cost inside every
+    # G14/G15/G15b number is visible in the same run.
+    benchmark.pedantic(pool.run, args=(lambda index: index,), rounds=120, iterations=1)
+    assert pool.results == list(range(n_threads))

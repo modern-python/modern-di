@@ -103,7 +103,7 @@ def test_unvalidated_cycle_raises_circular_dependency_error() -> None:
         container.resolve(NodeA)
     except exceptions.CircularDependencyError as exc:
         _assert_simple_cycle(exc)
-    else:  # pragma: no cover - runs only if the cycle guard stops raising
+    else:
         pytest.fail("expected CircularDependencyError")
     finally:
         sys.setrecursionlimit(original_limit)
@@ -170,7 +170,7 @@ def test_deep_chain_cycle_is_self_contained() -> None:
         container.resolve(Root)
     except exceptions.CircularDependencyError as exc:
         _assert_deep_chain_cycle_is_self_contained(exc)
-    else:  # pragma: no cover - runs only if the cycle guard stops raising
+    else:
         pytest.fail("expected CircularDependencyError")
     finally:
         sys.setrecursionlimit(original_limit)
@@ -207,7 +207,7 @@ def test_validated_graph_reraises_recursionerror_without_walk(monkeypatch: pytes
     container = Container(scope=Scope.APP, groups=[G])
     container.validate()  # marks the graph validated -> the recursion guard short-circuits below
 
-    def _explode(*_: object, **__: object) -> object:  # pragma: no cover - validated graph must skip find_cycle_from
+    def _explode(*_: object, **__: object) -> object:
         msg = "walked"
         raise AssertionError(msg)
 
@@ -250,7 +250,7 @@ def test_cycle_error_is_canonical_and_self_contained() -> None:
         container.resolve(_CanonicalA)
     except exceptions.CircularDependencyError as exc:
         _assert_cycle_is_canonical_and_self_contained(exc)
-    else:  # pragma: no cover - runs only if the cycle guard stops raising
+    else:
         pytest.fail("expected CircularDependencyError")
     finally:
         sys.setrecursionlimit(limit)
@@ -270,7 +270,7 @@ def test_by_reference_cycle_raises_circular_dependency_error() -> None:
         container.resolve_provider(CycleGroup.a)
     except exceptions.CircularDependencyError as exc:
         _assert_simple_cycle(exc)
-    else:  # pragma: no cover - runs only if the cycle guard stops raising
+    else:
         pytest.fail("expected CircularDependencyError")
     finally:
         sys.setrecursionlimit(original_limit)

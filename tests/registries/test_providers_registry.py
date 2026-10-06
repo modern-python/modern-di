@@ -112,6 +112,7 @@ def test_providers_registry_register_duplicate_raises() -> None:
 class _RaceBase: ...
 
 
+@pytest.mark.thread_race
 def test_iteration_is_safe_while_another_thread_registers() -> None:
     registry = ProvidersRegistry()
     race_types = [type(f"_Race{i}", (_RaceBase,), {}) for i in range(2000)]
@@ -140,20 +141,22 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
                 for _ in range(50):
                     list(iter(registry))
                     suggester.suggest(_RaceBase, registry)
-            except BaseException as e:  # noqa: BLE001  # pragma: no cover - only if a racing register() breaks reads
-                errors_seen.append(e)  # pragma: no cover - only if a racing register() breaks reads
+            except BaseException as e:  # noqa: BLE001
+                errors_seen.append(e)
 
-        threads = [threading.Thread(target=writer), threading.Thread(target=reader)]
+        threads = [threading.Thread(target=writer, daemon=True), threading.Thread(target=reader, daemon=True)]
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=5)
+        assert not any(t.is_alive() for t in threads)
     finally:
         sys.setswitchinterval(old_interval)
 
     assert errors_seen == []
 
 
+@pytest.mark.thread_race
 def test_concurrent_first_resolve_of_same_provider_does_not_false_cycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -190,23 +193,24 @@ def test_concurrent_first_resolve_of_same_provider_does_not_false_cycle(
     def first() -> None:
         try:
             container.resolve(_Root)
-        except BaseException as exc:  # noqa: BLE001  # pragma: no cover - pre-fix path only
+        except BaseException as exc:  # noqa: BLE001
             errors.append(exc)
 
     def second() -> None:
         entered.wait(timeout=5)  # enter only once thread 1 is mid-compile of _Root
         try:
             container.resolve(_Root)
-        except BaseException as exc:  # noqa: BLE001  # pragma: no cover - pre-fix path only
+        except BaseException as exc:  # noqa: BLE001
             errors.append(exc)
         finally:
             release.set()  # let thread 1 finish
 
-    threads = [threading.Thread(target=first), threading.Thread(target=second)]
+    threads = [threading.Thread(target=first, daemon=True), threading.Thread(target=second, daemon=True)]
     for thread in threads:
         thread.start()
     for thread in threads:
-        thread.join()
+        thread.join(timeout=5)
+    assert not any(thread.is_alive() for thread in threads)
 
     assert not errors  # pre-fix: thread 2 raises RecursionError (a false cycle)
 

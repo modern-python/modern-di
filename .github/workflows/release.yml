@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: extractions/setup-just@v4
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v8.2.0
 
       # PyPI is irreversible, so it runs FIRST: if it fails the job stops and no
       # GitHub Release is created advertising a version that never reached PyPI.

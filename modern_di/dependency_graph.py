@@ -207,4 +207,6 @@ def collect_errors(container: "Container", registry: "ProvidersRegistry") -> lis
                     )
             case Cycle(providers):
                 errors.append(build_cycle_error(providers, container))
+            case _:
+                typing.assert_never(event)
     return errors

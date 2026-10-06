@@ -290,7 +290,7 @@ def test_validate_raises_on_inverted_scope_dependency_supplied_via_kwargs() -> N
     outer = providers.Factory(scope=Scope.APP, creator=Outer, kwargs={"inner": inner})
 
     container = Container()
-    container._providers_registry.add_providers(inner, outer)
+    container.add_providers(inner, outer)
 
     with pytest.raises(ValidationFailedError) as exc:
         container.validate()

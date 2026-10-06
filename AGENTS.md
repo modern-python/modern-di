@@ -13,8 +13,9 @@ repository** and ships as a separate PyPI package, `modern-di-pytest` included.
 
 `just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
 `just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
-say: nothing validates Markdown links outside `docs/`. `just docs-build` runs `mkdocs --strict` over
-the site only, and root Markdown, `.github/`, and `docs/agents/` are unchecked.
+say: `just docs-build` runs `mkdocs --strict` over the site only. Local links in every Markdown file,
+root and `docs/agents/` included, are checked by the `links` job in CI (lychee, offline), which has
+no `just` recipe.
 
 Run `just install` before `just lint`, in every checkout and worktree. `uv.lock` is gitignored and
 CI's `just install` runs `uv lock --upgrade` before it syncs, so CI always lints with the newest
