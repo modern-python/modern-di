@@ -127,7 +127,8 @@ class Dependencies(Group):
 ```
 
 The provider's default wins over a parameter's default. The provider returns the default object
-itself on every unset resolve; it does not call or copy it.
+itself on every unset resolve; it does not call or copy it. Type checkers see `default=None` too:
+the provider above is a `ContextProvider[CustomContext | None]`.
 
 ## Context propagation
 

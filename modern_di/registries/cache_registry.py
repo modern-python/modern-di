@@ -61,7 +61,7 @@ class CacheItem:
 
     def close_sync(self) -> None:
         if (finalizer := self._pending_finalizer()) is not None:
-            if self.settings.is_async_finalizer:
+            if self.settings._is_async_finalizer:  # noqa: SLF001
                 raise exceptions.AsyncFinalizerInSyncCloseError(instance_type=type(self.cache))
             try:
                 result = finalizer(self.cache)
@@ -90,11 +90,12 @@ class CacheRegistry:
     def fetch_cache_item(self, provider: Factory[typing.Any]) -> CacheItem:
         """Return the cache item for a cached ``provider``, creating it on first use."""
         # Get before setdefault: a bare setdefault builds a throwaway CacheItem on every hit.
-        item = self._items.get(provider.provider_id)
+        provider_id = provider._provider_id  # noqa: SLF001
+        item = self._items.get(provider_id)
         if item is not None:
             return item
-        settings = typing.cast("CacheSettings[typing.Any]", provider.cache_settings)
-        return self._items.setdefault(provider.provider_id, CacheItem(settings=settings))
+        settings = typing.cast("CacheSettings[typing.Any]", provider._cache_settings)  # noqa: SLF001
+        return self._items.setdefault(provider_id, CacheItem(settings=settings))
 
     def mark_created(self, cache_item: CacheItem) -> None:
         """Record creation completion; close finalizes in reverse of this order (LIFO)."""

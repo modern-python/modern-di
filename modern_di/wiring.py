@@ -37,7 +37,7 @@ class WiringPlan:
 
     ``provider_kwargs`` holds every provider the plan resolves, so it is also the edge set the
     dependency graph walks. ``unwireable`` holds records rather than pre-built exceptions: a plan
-    is memoized, and ``prepend_step`` mutates the error it is called on.
+    is memoized, and ``_prepend_step`` mutates the error it is called on.
     """
 
     provider_kwargs: dict[str, "AbstractProvider[typing.Any]"]

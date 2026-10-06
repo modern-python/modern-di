@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import enum
 import gc
 import inspect
 import threading
@@ -448,13 +449,63 @@ def test_constructor_takes_only_scope_positionally() -> None:
         assert container.resolve(str) == "r"
 
 
-def test_constructor_rejects_parent_with_non_increasing_scope() -> None:
+def test_constructor_builds_roots_only() -> None:
+    app = Container(scope=Scope.APP)
+    with pytest.raises(TypeError, match="parent_container"):
+        Container(scope=Scope.REQUEST, parent_container=app)  # ty: ignore[unknown-argument]
+    assert Container(scope=Scope.REQUEST).parent_container is None
+
+
+def test_build_child_container_rejects_non_intenum_scope() -> None:
+    with pytest.raises(InvalidScopeTypeError, match="99"):
+        Container().build_child_container(scope=99)  # ty: ignore[invalid-argument-type]
+
+
+def test_build_child_container_rejects_non_increasing_scope() -> None:
     app = Container(scope=Scope.APP)
     with pytest.raises(InvalidChildScopeError):
-        Container(scope=Scope.APP, parent_container=app)
+        app.build_child_container(scope=Scope.APP)
     request = app.build_child_container(scope=Scope.REQUEST)
     with pytest.raises(InvalidChildScopeError):
-        Container(scope=Scope.APP, parent_container=request)
+        request.build_child_container(scope=Scope.SESSION)
+
+
+def test_build_child_container_keeps_the_subclass() -> None:
+    class MyContainer(Container):
+        pass
+
+    child = MyContainer().build_child_container()
+    assert type(child) is MyContainer
+    assert type(child.build_child_container()) is MyContainer
+
+
+def test_build_child_container_does_not_call_a_subclass_init() -> None:
+    calls: list[enum.IntEnum] = []
+
+    class TrackingContainer(Container):
+        def __init__(self, scope: enum.IntEnum = Scope.APP, *, groups: list[type[Group]] | None = None) -> None:
+            calls.append(scope)
+            super().__init__(scope, groups=groups)
+
+    class G(Group):
+        name = providers.Factory(creator=lambda: "r", bound_type=str)
+
+    root = TrackingContainer(groups=[G])
+    child = root.build_child_container(scope=Scope.REQUEST, context={int: 1})
+    assert calls == [Scope.APP]
+    assert type(child) is TrackingContainer
+    assert child.parent_container is root
+    assert child.scope is Scope.REQUEST
+    assert child.resolve(str) == "r"
+    assert child.resolve(Container) is child
+
+
+@pytest.mark.parametrize("attribute", ["scope", "parent_container"])
+def test_container_state_is_read_only(attribute: str) -> None:
+    root = Container()
+    child = root.build_child_container()
+    with pytest.raises(AttributeError):
+        setattr(child, attribute, getattr(root, attribute))
 
 
 class _PersistentBroker: ...
@@ -746,15 +797,6 @@ def test_add_providers_on_child_container_raises() -> None:
         child.add_providers(str_factory)
     assert isinstance(exc.value, exceptions.RegistrationError)
     assert exc.value.container_scope is Scope.REQUEST
-
-
-def test_child_constructor_with_groups_raises() -> None:
-    root = Container(scope=Scope.APP)
-
-    with pytest.raises(ChildContainerRegistrationError, match="groups= to the root") as exc:
-        Container(scope=Scope.REQUEST, parent_container=root, groups=[_AppBrokerGroup])
-    assert exc.value.container_scope is Scope.REQUEST
-    assert root.find_provider(_PersistentBroker) is None
 
 
 def test_find_provider_returns_registered_provider_or_none() -> None:

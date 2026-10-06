@@ -116,7 +116,7 @@ class CreatorCallError(ResolutionError):
         )
 
     @classmethod
-    def from_type_error(
+    def _from_type_error(
         cls,
         *,
         creator: "typing.Callable[..., typing.Any]",
@@ -132,7 +132,7 @@ class CreatorCallError(ResolutionError):
         if exc.__traceback__ is not None and exc.__traceback__.tb_next is not None:
             return None
         error = cls(creator=creator, original_error=exc)
-        error.prepend_step(resolution_step())
+        error._prepend_step(resolution_step())
         return error
 
 
@@ -153,7 +153,7 @@ class CircularDependencyError(ResolutionError):
         rendered = "\n".join(render_chain(steps))
         super().__init__(f"Circular dependency detected:\n{rendered}\nCheck your provider graph for unintended cycles.")
 
-    def prepend_step(self, *steps: ResolutionStep) -> None:
+    def _prepend_step(self, *steps: ResolutionStep) -> None:
         """No-op: the canonical cycle set at construction already names every provider in the loop.
 
         An outer resolver frame that catches the error has nothing to add, and prepending its step would
@@ -195,7 +195,7 @@ class ContextValueNotSetError(ResolutionError):
             "Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider."
         )
 
-    def name_parameter(self, parameter_name: str) -> None:
+    def _name_parameter(self, parameter_name: str) -> None:
         """Record the ``Factory`` parameter this value was resolved for and re-render the message."""
         self.parameter_name = parameter_name
         self._base_message = self._render_message()

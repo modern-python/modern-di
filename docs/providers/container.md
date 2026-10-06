@@ -71,8 +71,7 @@ context/cache), while app-scoped code reaches the app container.
 
 `container.add_providers(*providers)` registers additional providers on a **root** container after
 it's built. Framework integrations use it to register their connection providers. Raises
-`ChildContainerRegistrationError` if called on a child container, and so does passing `groups=`
-together with `parent_container=`. See [Writing an integration](../integrations/writing-integrations.md#the-contract) for
+`ChildContainerRegistrationError` if called on a child container. See [Writing an integration](../integrations/writing-integrations.md#the-contract) for
 the full contract.
 
 ## Looking up a provider
@@ -97,5 +96,5 @@ resolve a `FromDI`-style marker. See [Writing an integration](../integrations/wr
 
 - [Context providers](context.md#context-propagation) covers how context values reach (and don't
   reach) a `ContextProvider`.
-- [Advanced / low-level API](advanced-api.md) documents `find_container`, `parent_container`, and
-  `Group.get_providers()`.
+- [Advanced / low-level API](advanced-api.md) lists the public modules and documents
+  `find_container`, `parent_container` and `Group.get_providers()`.

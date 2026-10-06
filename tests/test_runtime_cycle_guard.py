@@ -151,7 +151,7 @@ def test_cached_cycle_reenters_the_item_lock_and_raises_circular_dependency_erro
 
 def _assert_deep_chain_cycle_is_self_contained(exc: exceptions.CircularDependencyError) -> None:
     # Reached via the Root -> Middle -> DeepNodeA approach path, but the cycle itself is only
-    # DeepNodeA <-> DeepNodeB: CircularDependencyError.prepend_step is a no-op (ERR-1 canonicalization),
+    # DeepNodeA <-> DeepNodeB: CircularDependencyError._prepend_step is a no-op (ERR-1 canonicalization),
     # so no outer frame accumulates a Root/Middle breadcrumb onto an already self-contained cycle.
     assert exc.dependency_path == []
     names = set(exc.cycle_path)

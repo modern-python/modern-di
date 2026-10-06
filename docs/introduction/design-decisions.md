@@ -65,6 +65,22 @@ Caching is one argument, `Factory(cache=True | CacheSettings(...))`, rather than
 with `except RuntimeError` keeps working. Removing the base would change what those handlers catch,
 and nothing would warn about it. Catch `ModernDIError` to handle only `modern-di` errors.
 
+## 8. A small public surface
+
+`Container(...)` builds a root and nothing else. A child comes only from
+`build_child_container()`, which is the single spelling for it, and the constructor has no
+`parent_container=` argument.
+
+A child of a `Container` subclass is an instance of that subclass, but `build_child_container()`
+does not call its `__init__`. A subclass `__init__` cannot receive the parent, so running it for a
+child would mean guessing its arguments. State that a subclass sets in `__init__` exists on the
+root only.
+
+The public names are the ones exported by four modules: `modern_di`, `modern_di.providers`,
+`modern_di.exceptions` and `modern_di.integrations`. Every other module is internal, including
+the ones that define an exported name, so the code can move between modules without a major
+release. See [What is public](../providers/advanced-api.md#what-is-public).
+
 ## Non-goals
 
 Beyond the choices above, these are deliberately out of scope. Naming them here is meant to save you from filing (or us from re-litigating) the same request.

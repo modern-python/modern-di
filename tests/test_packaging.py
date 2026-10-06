@@ -62,3 +62,23 @@ def test_package_init_imports_every_name_it_exports() -> None:
         alias.asname or alias.name for node in tree.body if isinstance(node, ast.ImportFrom) for alias in node.names
     }
     assert set(modern_di.__all__) <= imported
+
+
+def test_package_exports_the_types_in_public_signatures() -> None:
+    """The return and element types of public calls are importable from the package root."""
+    assert modern_di.__all__ == [
+        "UNSET",
+        "Container",
+        "Group",
+        "OverrideHandle",
+        "Scope",
+        "Suggestion",
+        "UnsetType",
+        "exceptions",
+        "integrations",
+        "providers",
+    ]
+    assert isinstance(
+        modern_di.Container().override(modern_di.providers.container_provider, None), modern_di.OverrideHandle
+    )
+    assert type(modern_di.UNSET) is modern_di.UnsetType

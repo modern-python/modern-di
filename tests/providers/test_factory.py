@@ -650,7 +650,7 @@ class _NeedsUnregistered:
 def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
     """Resolving an unwireable provider twice must produce identical error strings.
 
-    Before the fix, ``prepend_step`` mutated the memoized exception in place so the
+    Before the fix, ``_prepend_step`` mutated the memoized exception in place so the
     dependency path grew on every call (e.g. "NeedsUnregistered → NeedsUnregistered →
     …" on the third resolve).
     """
@@ -675,7 +675,7 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
     """After a parent's failing resolve, a direct resolve of the leaf must not include the parent's step.
 
     Before the fix, the leaf's memoized exception was mutated by the parent's
-    ``prepend_step``, so subsequent direct resolves of the leaf incorrectly showed the
+    ``_prepend_step``, so subsequent direct resolves of the leaf incorrectly showed the
     parent in the chain.
     """
 
@@ -1020,7 +1020,7 @@ class _CovPosNeedsReq:
 
 def test_cached_positional_dependency_step_error() -> None:
     # A cached, positional-eligible APP factory whose REQUEST-scoped dep is unreachable from APP:
-    # the cold-miss build_args breadcrumb (prepend_step) must fire on the positional path.
+    # the cold-miss build_args breadcrumb (_prepend_step) must fire on the positional path.
     class G(Group):
         req = providers.Factory(creator=_CovReqOnly, scope=Scope.REQUEST)
         thing = providers.Factory(creator=_CovPosNeedsReq, scope=Scope.APP, cache=True)
@@ -1088,7 +1088,7 @@ class _CovCachedNeedsReq:
 
 def test_cached_kwargs_dependency_step_error() -> None:
     # A cached, ineligible (keyword-only) APP factory whose REQUEST-scoped dep is unreachable from
-    # APP: the cold-miss build_kwargs breadcrumb (prepend_step) must fire on the kwargs path.
+    # APP: the cold-miss build_kwargs breadcrumb (_prepend_step) must fire on the kwargs path.
     class G(Group):
         req = providers.Factory(creator=_CovReqOnly, scope=Scope.REQUEST)
         thing = providers.Factory(creator=_CovCachedNeedsReq, scope=Scope.APP, cache=True)
@@ -1162,7 +1162,7 @@ def test_from_type_error_wraps_binding_and_prepends_step() -> None:
     try:
         _one_arg()  # ty: ignore[missing-argument]  # missing arg: binding TypeError, no inner frame (tb_next is None)
     except TypeError as exc:
-        error = exceptions.CreatorCallError.from_type_error(creator=_one_arg, exc=exc, resolution_step=lambda: step)
+        error = exceptions.CreatorCallError._from_type_error(creator=_one_arg, exc=exc, resolution_step=lambda: step)
     assert isinstance(error, exceptions.CreatorCallError)
     assert error.dependency_path == [step]  # the step was prepended
     assert "creator-call-error" in str(error)  # docs slug intact
@@ -1177,7 +1177,7 @@ def test_from_type_error_returns_none_for_creator_body_typeerror() -> None:
     try:
         _body_raises()  # TypeError from inside the body: inner frame present (tb_next set)
     except TypeError as exc:
-        result = exceptions.CreatorCallError.from_type_error(
+        result = exceptions.CreatorCallError._from_type_error(
             creator=_body_raises, exc=exc, resolution_step=lambda: step
         )
     assert result is None
@@ -1201,3 +1201,32 @@ def test_factory_cache_rejects_anything_but_bool_or_cache_settings(cache: object
     with pytest.raises(TypeError, match=r"cache= takes a bool or a CacheSettings") as exc_info:
         providers.Factory(SimpleCreator, cache=cache)  # ty: ignore[invalid-argument-type]
     assert repr(cache) in str(exc_info.value)
+
+
+def test_cache_settings_is_frozen() -> None:
+    settings: providers.CacheSettings[object] = providers.CacheSettings()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        settings.finalizer = print  # ty: ignore[invalid-assignment]
+
+
+async def test_cache_settings_keeps_async_detection_private() -> None:
+    closed: list[object] = []
+
+    async def close(value: object) -> None:
+        closed.append(value)
+
+    settings = providers.CacheSettings(finalizer=close)
+    assert settings._is_async_finalizer
+    assert not hasattr(settings, "is_async_finalizer")
+    assert "_is_async_finalizer" not in repr(settings)
+    factory = providers.Factory(creator=dict, cache=settings)
+    async with Container() as container:
+        instance = container.resolve_provider(factory)
+    assert closed == [instance]
+
+
+@pytest.mark.parametrize("attribute", ["bound_type", "provider_id", "cache_settings"])
+def test_factory_attributes_are_read_only(attribute: str) -> None:
+    factory = providers.Factory(SimpleCreator, cache=True)
+    with pytest.raises(AttributeError):
+        setattr(factory, attribute, None)

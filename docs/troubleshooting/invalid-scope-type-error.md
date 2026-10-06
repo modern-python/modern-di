@@ -2,16 +2,17 @@
 
 ## Symptom
 
-Raised when constructing a `Container` or when defining a `Group` subclass with a `scope=` class kwarg, naming the value that was passed as `scope=` and its type.
+Raised when constructing a `Container`, when calling `build_child_container()`, or when defining a `Group` subclass with a `scope=` class kwarg, naming the value that was passed as `scope=` and its type.
 
 ## Cause
 
-`scope=` must be an `enum.IntEnum` member. This fires in two contexts:
+`scope=` must be an `enum.IntEnum` member. This fires in three contexts:
 
 1. When passed to the `Container` constructor, with a plain `int`, a string, a regular `enum.Enum` (not `IntEnum`), or any other non-`IntEnum` value.
-2. When passed to a `Group` subclass as a class kwarg; the same validation applies.
+2. When passed to `build_child_container()`; the same validation applies.
+3. When passed to a `Group` subclass as a class kwarg; the same validation applies.
 
-Example invalid uses: `Container(scope=1)`, `Container(scope="APP")`, `class MyGroup(Group, scope=1)`, `class MyGroup(Group, scope="REQUEST")`.
+Example invalid uses: `Container(scope=1)`, `Container(scope="APP")`, `container.build_child_container(scope=3)`, `class MyGroup(Group, scope=1)`, `class MyGroup(Group, scope="REQUEST")`.
 
 ## Fix
 

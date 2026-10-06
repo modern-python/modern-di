@@ -43,7 +43,7 @@ def _step(name: str, scope: enum.IntEnum = Scope.APP) -> exceptions.ResolutionSt
 
 
 def _with_path(error: exceptions.ResolutionError) -> exceptions.ResolutionError:
-    error.prepend_step(_step("Service"), _step("Repository", Scope.REQUEST))
+    error._prepend_step(_step("Service"), _step("Repository", Scope.REQUEST))
     return error
 
 
@@ -62,7 +62,7 @@ def _closed_container_error() -> exceptions.ContainerClosedError:
 
 def _context_error() -> exceptions.ContextValueNotSetError:
     error = exceptions.ContextValueNotSetError(context_type=Database, provider_scope=Scope.REQUEST)
-    error.name_parameter("database")
+    error._name_parameter("database")
     return error
 
 
@@ -285,7 +285,7 @@ def _local_scope_error() -> exceptions.ModernDIError:
         JOB = 7
 
     error = exceptions.ScopeNotInitializedError(provider_scope=LocalScope.JOB, container_scope=Scope.APP)
-    error.prepend_step(_step("Job", LocalScope.JOB))
+    error._prepend_step(_step("Job", LocalScope.JOB))
     return error
 
 

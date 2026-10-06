@@ -7,7 +7,7 @@ This document describes the changes required to migrate from modern-di 3.x to mo
 ### `Container` takes only `scope` positionally
 
 Every `Container` argument after `scope` is keyword-only: `Container(Scope.APP, None)` raises
-`TypeError`, so pass `parent_container=`, `context=` and `groups=` by name.
+`TypeError`, so pass `context=` and `groups=` by name.
 
 ### `use_lock` is removed
 
@@ -290,13 +290,64 @@ Register providers with `groups=` on the root or with `add_providers()`, and man
 `AttributeError`. Close a container with `close_sync()`, `close_async()` or by leaving `with` /
 `async with`, and reopen it with `open()`.
 
-### A child container rejects `groups=`
+### `Container(...)` builds roots only
 
-`Container(scope=..., parent_container=parent, groups=[...])` raises
-`ChildContainerRegistrationError`, the same error `add_providers()` raises on a child. In 3.x the
-groups were registered into the registry the whole tree shares. Pass the groups to the root
-container instead. The error message now covers both cases, so update any test that matched the
-old `Container.add_providers can only be called on a root container` text.
+The `parent_container=` argument is removed, and passing it raises `TypeError`. Build a child with
+`build_child_container()`:
+
+```python
+# 3.x
+request_container = Container(scope=Scope.REQUEST, parent_container=app_container, context=context)
+
+# 4.0
+request_container = app_container.build_child_container(scope=Scope.REQUEST, context=context)
+```
+
+In 3.x a child built that way could also take `groups=`, which registered them into the registry
+the whole tree shares. Pass the groups to the root container instead. `add_providers()` on a child
+still raises `ChildContainerRegistrationError`, and its message changed, so update any test that
+matched the old `Container.add_providers can only be called on a root container` text.
+
+`build_child_container()` on a `Container` subclass still returns an instance of that subclass, but
+it no longer calls the subclass's `__init__`. If your subclass sets state in `__init__`, that state
+now exists on the root only.
+
+### `Container.scope` and `Container.parent_container` are read-only
+
+Assigning to either raises `AttributeError`. In 3.x reassigning `scope` broke scope lookups from the
+container's children.
+
+### Provider attributes are read-only
+
+Assigning to `bound_type` or `provider_id` on any provider, `cache_settings` on a `Factory`, or
+`context_type` or `default` on a `ContextProvider` raises `AttributeError`. Changing them after
+registration was never supported, because the container keeps what it read when it registered and
+compiled the provider. Declare a new provider instead.
+
+`CacheSettings` is frozen: assigning to `clear_cache` or `finalizer` raises
+`dataclasses.FrozenInstanceError`. Build a new `CacheSettings` instead.
+
+### Typing changes
+
+- `ContextProvider(T, default=None)` is typed `ContextProvider[T | None]`, so `resolve_provider()`
+  on it returns `T | None`. In 3.x it was typed `ContextProvider[T]` while resolving to `None`.
+  Without `default=`, or with a default of type `T`, it stays `ContextProvider[T]`.
+- `CacheSettings` is contravariant in its type parameter, the type its finalizer accepts. A
+  finalizer that takes a subclass of what the creator returns, as in
+  `Factory(make_base, cache=CacheSettings(finalizer=close_sub))`, is now a type error. In 3.x it
+  type-checked and failed at close with `AttributeError`. Make the finalizer accept the creator's
+  return type or a base of it.
+
+### Internal helpers on providers, settings and errors are private
+
+None of these were meant for use outside the package. Accessing them raises `AttributeError`:
+
+- `AbstractProvider.mark_registered()`. Registering a provider through a container does it.
+- `CacheSettings.is_async_finalizer`. The advanced API page listed it as an extension point, but
+  `close_async()` never read it.
+- `ResolutionError.prepend_step()`.
+- `ContextValueNotSetError.name_parameter()`.
+- `CreatorCallError.from_type_error()`.
 
 ### A closed container raises before the provider lookup
 

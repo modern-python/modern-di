@@ -134,7 +134,7 @@ class ContainerClosedError(ResolutionError, ContainerError):
             "`with`/`async with` before resolving from it or from any of its child containers."
         )
 
-    def prepend_step(self, *steps: ResolutionStep) -> None:
+    def _prepend_step(self, *steps: ResolutionStep) -> None:
         """No-op: ``container_scope`` already names the closed container, so ``dependency_path`` stays empty."""
 
 
