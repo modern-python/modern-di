@@ -131,7 +131,12 @@ class Container:
         self._scope_map = scope_map
         self._cache_items: dict[int, CacheItem] = {}
         self._creation_order: list[CacheItem] = []
-        self._context = copy.copy(context) if context is not None else {}
+        if context is None:
+            self._context = {}
+        elif type(context) is dict:
+            self._context = context.copy()
+        else:
+            self._context = copy.copy(context)
         self._providers_registry = providers_registry
 
     def find_container(self, scope: enum.IntEnum) -> typing.Self:
