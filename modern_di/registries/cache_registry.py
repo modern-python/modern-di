@@ -50,7 +50,7 @@ class CacheItem:
         if (finalizer := self._pending_finalizer()) is not None:
             try:
                 result = finalizer(self.cache)
-                if inspect.isawaitable(result):
+                if result is not None and inspect.isawaitable(result):
                     await result
             except Exception:
                 self.clear()
@@ -68,7 +68,7 @@ class CacheItem:
             except Exception:
                 self.clear()
                 raise
-            if inspect.isawaitable(result):
+            if result is not None and inspect.isawaitable(result):
                 if inspect.iscoroutine(result):
                     result.close()  # suppress "never awaited" warning
                 raise exceptions.AsyncFinalizerInSyncCloseError(instance_type=type(self.cache))
