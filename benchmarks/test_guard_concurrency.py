@@ -41,7 +41,7 @@ _TIMEOUT = 30
 
 
 class _WorkerPool:
-    """N persistent threads that each run the current job once per :meth:`run`."""
+    """N persistent threads that each run the current job once per ``run``."""
 
     def __init__(self, n_threads: int) -> None:
         self._start = threading.Barrier(n_threads + 1, timeout=_TIMEOUT)
@@ -56,14 +56,20 @@ class _WorkerPool:
 
     def _loop(self, index: int) -> None:
         while True:
-            self._start.wait()
+            try:
+                self._start.wait()
+            except threading.BrokenBarrierError:
+                return
             if self._stopping:
                 return
             try:
                 self.results[index] = self._job(index)
             except BaseException as exc:  # noqa: BLE001
                 self._errors.append(exc)
-            self._done.wait()
+            try:
+                self._done.wait()
+            except threading.BrokenBarrierError:
+                return
 
     def run(self, job: typing.Callable[[int], object]) -> None:
         self._job = job
@@ -74,7 +80,10 @@ class _WorkerPool:
 
     def stop(self) -> None:
         self._stopping = True
-        self._start.wait()
+        if not (self._start.broken or self._done.broken):
+            self._start.wait()
+        self._start.abort()
+        self._done.abort()
         for thread in self._threads:
             thread.join(timeout=_TIMEOUT)
 
@@ -188,7 +197,7 @@ def test_g15b_concurrent_first_resolve_sibling_children(benchmark, n_threads, po
 # --- G15c: control, the harness floor ----------------------------------------
 @pytest.mark.parametrize("n_threads", _THREAD_COUNTS)
 def test_g15c_worker_pool_floor_control(benchmark, n_threads, pool):
-    # Control, not a subject: the same batch with an empty job, so the barrier cost inside every
+    # Harness floor: the same batch with an empty job, so the barrier cost inside every
     # G14/G15/G15b number is visible in the same run.
     benchmark.pedantic(pool.run, args=(lambda index: index,), rounds=120, iterations=1)
     assert pool.results == list(range(n_threads))

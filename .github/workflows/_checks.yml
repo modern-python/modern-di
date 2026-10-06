@@ -51,7 +51,7 @@ jobs:
       - run: just test-ci
       - name: Stress the thread-race tests (free-threaded only)
         if: endsWith(matrix.python-version, 't')
-        run: just test -m thread_race --count=50
+        run: just test-race --count=50
 
   docs:
     runs-on: ubuntu-latest
