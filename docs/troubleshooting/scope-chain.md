@@ -33,7 +33,7 @@ InvalidScopeDependencyError (1):
       caused by: UserCache (scope APP) declares parameter 'session' typed as a provider of Session at deeper scope REQUEST. A provider cannot depend on a deeper-scoped provider.
 ```
 
-`Repository` is the alias and `Session` is what supplies it. Programmatically, `.dep_provider` is the alias, `.dep_terminal` is the source, and `.dep_chain` is every hop between them.
+`Repository` is the alias and `Session` is what supplies it. Programmatically, `.dependency_provider` is the alias, `.dependency_terminal` is the source, and `.dependency_chain` is every hop between them.
 
 ## Cause
 

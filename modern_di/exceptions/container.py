@@ -1,6 +1,8 @@
 """Container and scope errors."""
 
 import enum
+import typing
+from collections.abc import Sequence
 
 from modern_di._scope_algebra import deeper_members
 from modern_di.exceptions.base import ModernDIError
@@ -26,11 +28,11 @@ class InvalidChildScopeError(ContainerError):
         self.child_scope = child_scope
         # Derived, not handed over: the allowed scopes are a pure function of the parent's
         # own enum class, so a raise site has nothing to add.
-        self.allowed_scopes = [member.name for member in deeper_members(parent_scope)]
+        self.allowed_scopes = deeper_members(parent_scope)
         super().__init__(
             f"Scope of child container cannot be {child_scope.name} if parent scope is {parent_scope.name} "
             f"(child scope value must be strictly greater than parent scope value). "
-            f"Possible scopes are {self.allowed_scopes}."
+            f"Possible scopes are {[member.name for member in self.allowed_scopes]}."
         )
 
 
@@ -69,24 +71,35 @@ class ScopeNotInitializedError(ResolutionError, ContainerError):
 
 
 class ScopeSkippedError(ResolutionError, ContainerError):
-    """Provider's scope was skipped in the container chain. Attrs: ``provider_scope``, ``container_scope``.
+    """Provider's scope was skipped in the container chain.
 
-    Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`) so a captive
-    runtime dependency names both the failing provider and the one that captured it.
+    Attrs: ``provider_scope``, ``container_scope`` (the resolving container), ``root_scope`` (the
+    root of its chain). Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`)
+    so a captive runtime dependency names both the failing provider and the one that captured it.
     """
 
     docs_slug = "scope-skipped-error"
 
-    __slots__ = ("container_scope", "provider_scope")
+    __slots__ = ("container_scope", "provider_scope", "root_scope")
 
-    def __init__(self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum) -> None:
+    def __init__(
+        self, *, provider_scope: enum.IntEnum, container_scope: enum.IntEnum, root_scope: enum.IntEnum
+    ) -> None:
         self.provider_scope = provider_scope
         self.container_scope = container_scope
-        super().__init__(
-            f"No {provider_scope.name}-scope container exists in this chain; "
-            f"this chain starts at {container_scope.name}. "
-            f"Build a {provider_scope.name}-scope container as the root."
-        )
+        self.root_scope = root_scope
+        missing = f"No {provider_scope.name}-scope container exists in this chain"
+        if provider_scope <= root_scope:
+            message = (
+                f"{missing}, which starts at {root_scope.name}. "
+                f"Build the root container at scope {provider_scope.name}."
+            )
+        else:
+            message = (
+                f"{missing}, which runs from {root_scope.name} to {container_scope.name}. "
+                f"Add a container at scope {provider_scope.name} to the chain."
+            )
+        super().__init__(message)
 
 
 class InvalidScopeTypeError(ContainerError):
@@ -124,28 +137,28 @@ class ContainerClosedError(ResolutionError, ContainerError):
         """No-op: ``container_scope`` already names the closed container, so ``dependency_path`` stays empty."""
 
 
-class ValidationFailedError(ContainerError):
-    """``validate()`` found one or more issues. Inspect ``.errors`` (the list of underlying exceptions).
+class ValidationFailedError(ContainerError, ExceptionGroup[Exception]):
+    """``validate()`` found one or more issues.
 
-    Sub-errors render trailer-free inside the grouped report below (see ``_render_body``) — only
-    this error's own docs trailer appears, as the report's final line. Repeating each sub-error's
-    "See: ..." line would be noise (the same URL once per error of a given kind) and would break
-    the "one trailer, always last line" rule.
+    An ``ExceptionGroup``: ``.exceptions`` holds the underlying errors, so ``except*`` can catch them
+    by type. ``str()`` renders them grouped by kind without their own docs trailers, so this error's
+    trailer stays the report's only and final line.
     """
 
     docs_slug = "validation-failed-error"
 
-    __slots__ = ("errors",)
+    __slots__ = ()
 
-    def __init__(self, *, errors: list[Exception]) -> None:
-        self.errors = errors
-        kinds = ", ".join(sorted({type(e).__name__ for e in errors}))
-        super().__init__(f"Container.validate() found {len(errors)} issue(s): {kinds}")
+    def __new__(cls, *, errors: Sequence[Exception]) -> typing.Self:
+        return ExceptionGroup.__new__(cls, _validation_message(errors), errors)
+
+    def __init__(self, *, errors: Sequence[Exception]) -> None:
+        super().__init__(self.message, errors)
 
     def _render_body(self) -> str:
-        lines = [RuntimeError.__str__(self)]
+        lines = [self.message]
         by_kind: dict[str, list[Exception]] = {}
-        for error in self.errors:
+        for error in self.exceptions:
             by_kind.setdefault(type(error).__name__, []).append(error)
         for kind in sorted(by_kind):
             errors = by_kind[kind]
@@ -156,3 +169,11 @@ class ValidationFailedError(ContainerError):
                 lines.append(f"  - {first}".rstrip())
                 lines.extend(f"    {line}" for line in rest)
         return "\n".join(lines)
+
+    def derive(self, excs: Sequence[Exception]) -> "ValidationFailedError":
+        return ValidationFailedError(errors=excs)
+
+
+def _validation_message(errors: Sequence[Exception]) -> str:
+    kinds = ", ".join(sorted({type(e).__name__ for e in errors}))
+    return f"Container.validate() found {len(errors)} issue(s): {kinds}"

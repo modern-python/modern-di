@@ -32,7 +32,8 @@ good = mid.build_child_container(scope=Scope.REQUEST)
 
 Omit `scope=` entirely. `build_child_container()` derives the next deeper scope automatically, so
 this error can only occur when you explicitly pin a scope value. Inspect `.allowed_scopes` on the
-caught exception for the exact list of valid choices at that point in the tree.
+caught exception for the exact list of valid choices at that point in the tree, as members of the
+parent's scope enum.
 
 ## See also
 

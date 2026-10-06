@@ -71,7 +71,7 @@ class Container:
         if parent_container is not None and scope <= parent_container.scope:
             raise exceptions.InvalidChildScopeError(parent_scope=parent_container.scope, child_scope=scope)
         if parent_container is not None and groups:
-            raise exceptions.ChildContainerRegistrationError(scope=scope)
+            raise exceptions.ChildContainerRegistrationError(container_scope=scope)
         self._closed = False
         self.scope = scope
         self.parent_container = parent_container
@@ -133,7 +133,8 @@ class Container:
         if target is None or target.scope is not scope:
             if scope > self.scope:
                 raise exceptions.ScopeNotInitializedError(provider_scope=scope, container_scope=self.scope)
-            raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope)
+            root_scope = next(iter(self._scope_map), self.scope)  # ancestors are stored root first
+            raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope, root_scope=root_scope)
         return target
 
     def resolve(self, dependency_type: type[types.T]) -> types.T:
@@ -210,7 +211,7 @@ class Container:
         resolves.
         """
         if self.parent_container is not None:
-            raise exceptions.ChildContainerRegistrationError(scope=self.scope)
+            raise exceptions.ChildContainerRegistrationError(container_scope=self.scope)
         self._providers_registry.add_providers(*providers)
 
     def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:

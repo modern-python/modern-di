@@ -89,7 +89,7 @@ def test_validation_failed_error_groups_by_kind_and_indents_multiline() -> None:
     cycle = exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")])
     boom = RuntimeError("boom")
     error = exceptions.ValidationFailedError(errors=[boom, cycle])
-    assert error.errors == [boom, cycle]  # list content preserved, order as given
+    assert error.exceptions == (boom, cycle)
     assert str(error) == (
         "Container.validate() found 2 issue(s): CircularDependencyError, RuntimeError\n"
         "\n"
@@ -129,7 +129,7 @@ def test_invalid_child_scope_error_derives_the_allowed_scopes() -> None:
     # allowed_scopes is a pure function of parent_scope, so the error derives it rather than
     # being handed it — the same comprehension used to be written out at two raise sites.
     error = exceptions.InvalidChildScopeError(parent_scope=Scope.REQUEST, child_scope=Scope.APP)
-    assert error.allowed_scopes == ["ACTION", "STEP"]
+    assert error.allowed_scopes == [Scope.ACTION, Scope.STEP]
     assert "Possible scopes are ['ACTION', 'STEP']." in str(error)
 
 
@@ -195,12 +195,12 @@ def test_scope_enum_mismatch_error_names_both_enum_members() -> None:
     terminal = providers.Factory(scope=Scope.SESSION, creator=_RenderTerminal)
     captor = providers.Factory(scope=_RenderScope.SESSION_TWIN, creator=_RenderCaptor)
 
-    error = exceptions.ScopeEnumMismatchError(provider=captor, parameter_name="dep", dep_chain=[terminal])
+    error = exceptions.ScopeEnumMismatchError(provider=captor, parameter_name="dep", dependency_chain=[terminal])
 
     captor_at = f"{__name__}:{inspect.getsourcelines(_RenderCaptor)[1]}"
     terminal_at = f"{__name__}:{inspect.getsourcelines(_RenderTerminal)[1]}"
-    assert error.dep_provider is terminal
-    assert error.dep_terminal is terminal
+    assert error.dependency_provider is terminal
+    assert error.dependency_terminal is terminal
     assert str(error) == (
         "Provider at a same-valued scope of another enum reached through this chain:\n"
         f"  SESSION_TWIN  _RenderCaptor ({captor_at})\n"
@@ -218,12 +218,14 @@ def test_invalid_scope_dependency_error_draws_the_chain_that_reached_the_termina
     iface = providers.Alias(source_type=_RenderTerminal, bound_type=_RenderIface)
     captor = providers.Factory(scope=Scope.APP, creator=_RenderCaptor)
 
-    error = exceptions.InvalidScopeDependencyError(provider=captor, parameter_name="dep", dep_chain=[iface, terminal])
+    error = exceptions.InvalidScopeDependencyError(
+        provider=captor, parameter_name="dep", dependency_chain=[iface, terminal]
+    )
 
     captor_at = f"{__name__}:{inspect.getsourcelines(_RenderCaptor)[1]}"
     terminal_at = f"{__name__}:{inspect.getsourcelines(_RenderTerminal)[1]}"
-    assert error.dep_provider is iface
-    assert error.dep_terminal is terminal
+    assert error.dependency_provider is iface
+    assert error.dependency_terminal is terminal
     # The alias hop draws at REQUEST, the scope it resolves at, not the APP its own `.scope` reports.
     assert iface.scope is Scope.APP
     assert str(error) == (

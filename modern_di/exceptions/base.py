@@ -10,7 +10,7 @@ _TROUBLESHOOTING_BASE_URL = "https://modern-di.modern-python.org/troubleshooting
 
 
 class ModernDIError(RuntimeError):
-    """Base class for all modern-di errors. Inherits from RuntimeError for backwards compatibility.
+    """Base class for all modern-di errors. A ``RuntimeError``, so ``except RuntimeError`` catches every one of them.
 
     ``docs_slug`` names this class's page under ``docs/troubleshooting/``; ``__str__`` appends it
     as a trailing ``See: <url>`` line, always the final line of the rendered message. Base classes

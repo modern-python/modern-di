@@ -3,7 +3,7 @@
 ## Symptom
 
 Arrives inside a `FinalizerError` (as one entry in its `.exceptions`), naming the type whose cached
-instance has an async finalizer. A traceback shows it below the `FinalizerError`, and
+instance has an async finalizer. `.instance_type` holds that type. A traceback shows it below the `FinalizerError`, and
 `except* AsyncFinalizerInSyncCloseError` catches it.
 
 ## Cause

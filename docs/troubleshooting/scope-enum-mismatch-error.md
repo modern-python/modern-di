@@ -46,9 +46,9 @@ class Dependencies(Group):
     session = providers.Factory(UserSession, scope=Scope.SESSION)
 ```
 
-Inspect `.provider`, `.parameter_name` and `.dep_chain` on the exception. `.dep_provider` and
-`.dep_terminal` are the ends of the chain; they differ when the dependency is reached through an
-`Alias`.
+Inspect `.provider`, `.parameter_name` and `.dependency_chain` on the exception.
+`.dependency_provider` and `.dependency_terminal` are the ends of the chain; they differ when the
+dependency is reached through an `Alias`.
 
 ## See also
 

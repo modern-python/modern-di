@@ -2,9 +2,11 @@
 
 ## Symptom
 
-A resolution fails naming a provider's scope and the current container's scope, optionally with a
-dependency-path breadcrumb: the requested scope is shallower than the current container, but no
-container at that scope exists anywhere in this chain. Each breadcrumb line may end with a pointer
+A resolution fails naming a provider's scope and the scopes the container chain runs between,
+optionally with a dependency-path breadcrumb: the requested scope is shallower than the current
+container, but no container at that scope exists anywhere in this chain. The exception carries
+`.provider_scope`, `.container_scope` (the resolving container) and `.root_scope` (the root of its
+chain). Each breadcrumb line may end with a pointer
 to where that provider was declared (module and line number), so you can jump straight to the
 declaration.
 

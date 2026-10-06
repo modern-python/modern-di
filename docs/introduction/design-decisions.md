@@ -58,6 +58,13 @@ Caching is one argument, `Factory(cache=True | CacheSettings(...))`, rather than
 
 `container.validate()` is the only thing that walks the graph. Construction, `open()`, `add_providers` and `resolve()` never validate. 3.0 tied validation to a mandatory `open()`, and that produced six production defects with one root cause (the root's open hook does not fire in every execution context) plus an ordering rule that existed only because of the binding. An implicit scheme was built and discarded for the machinery it needed; a per-resolve check would tax the hot path for a property that matters once, at boot. The cost is that a broken graph surfaces from an explicit `validate()` or at resolve time.
 
+## 7. Errors are `RuntimeError`s
+
+`ModernDIError`, the base of every error the library raises, subclasses `RuntimeError`, so
+`except RuntimeError` catches every `modern-di` error. Code that already guards a resolve or a close
+with `except RuntimeError` keeps working. Removing the base would change what those handlers catch,
+and nothing would warn about it. Catch `ModernDIError` to handle only `modern-di` errors.
+
 ## Non-goals
 
 Beyond the choices above, these are deliberately out of scope. Naming them here is meant to save you from filing (or us from re-litigating) the same request.

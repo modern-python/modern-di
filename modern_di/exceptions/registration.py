@@ -36,17 +36,20 @@ class DuplicateProviderTypeError(RegistrationError):
 
 
 class ChildContainerRegistrationError(RegistrationError):
-    """Providers were registered on a child container, via ``add_providers`` or ``groups=``. Inspect ``.scope``."""
+    """Providers were registered on a child container, via ``add_providers`` or ``groups=``.
+
+    Inspect ``.container_scope``.
+    """
 
     docs_slug = "child-container-registration-error"
 
-    __slots__ = ("scope",)
+    __slots__ = ("container_scope",)
 
-    def __init__(self, *, scope: enum.IntEnum) -> None:
-        self.scope = scope
+    def __init__(self, *, container_scope: enum.IntEnum) -> None:
+        self.container_scope = container_scope
         super().__init__(
             f"Providers can only be registered on a root container: the providers registry is shared "
-            f"tree-wide, so registering on a child container (scope {scope.name}) would mutate every "
+            f"tree-wide, so registering on a child container (scope {container_scope.name}) would mutate every "
             "container in the tree. Pass groups= to the root Container or call add_providers on it instead."
         )
 
@@ -54,27 +57,27 @@ class ChildContainerRegistrationError(RegistrationError):
 class ProviderScopeFrozenError(RegistrationError):
     """A group tried to change the scope of a provider that is already registered.
 
-    Inspect ``.provider_name``, ``.group_name``, ``.current_scope``, ``.new_scope``.
+    Inspect ``.provider``, ``.group_name``, ``.current_scope``, ``.new_scope``.
     """
 
     docs_slug = "provider-scope-frozen-error"
 
-    __slots__ = ("current_scope", "group_name", "new_scope", "provider_name")
+    __slots__ = ("current_scope", "group_name", "new_scope", "provider")
 
     def __init__(
         self,
         *,
-        provider_name: str,
+        provider: "AbstractProvider[typing.Any]",
         group_name: str,
         current_scope: enum.IntEnum,
         new_scope: enum.IntEnum,
     ) -> None:
-        self.provider_name = provider_name
+        self.provider = provider
         self.group_name = group_name
         self.current_scope = current_scope
         self.new_scope = new_scope
         super().__init__(
-            f"Group {group_name} would change the scope of provider {provider_name} from "
+            f"Group {group_name} would change the scope of provider {provider.display_name} from "
             f"{current_scope.name} to {new_scope.name}, but it is already registered with a "
             f"container. Resolvers compiled before this point captured {current_scope.name}, so the "
             f"change would apply inconsistently. Declare {group_name} before building the container, "
@@ -85,29 +88,29 @@ class ProviderScopeFrozenError(RegistrationError):
 class GroupScopeConflictError(RegistrationError):
     """A scope-defaulted provider is shared by two groups with different default scopes.
 
-    Inspect ``.provider_name``, ``.first_group``/``.first_scope``, ``.second_group``/``.second_scope``.
+    Inspect ``.provider``, ``.first_group``/``.first_scope``, ``.second_group``/``.second_scope``.
     """
 
     docs_slug = "group-scope-conflict-error"
 
-    __slots__ = ("first_group", "first_scope", "provider_name", "second_group", "second_scope")
+    __slots__ = ("first_group", "first_scope", "provider", "second_group", "second_scope")
 
     def __init__(
         self,
         *,
-        provider_name: str,
+        provider: "AbstractProvider[typing.Any]",
         first_group: str,
         first_scope: enum.IntEnum,
         second_group: str,
         second_scope: enum.IntEnum,
     ) -> None:
-        self.provider_name = provider_name
+        self.provider = provider
         self.first_group = first_group
         self.first_scope = first_scope
         self.second_group = second_group
         self.second_scope = second_scope
         super().__init__(
-            f"Provider {provider_name} is shared by groups with conflicting default scopes: "
+            f"Provider {provider.display_name} is shared by groups with conflicting default scopes: "
             f"{first_group} (scope {first_scope.name}) and {second_group} (scope {second_scope.name}). "
             f"Set scope= explicitly on the provider, or align the group defaults."
         )
@@ -165,112 +168,105 @@ class UnsupportedCreatorParameterError(RegistrationError):
         super().__init__(f"Parameter {parameter_name!r} of {creator_name} cannot be injected: {reason}")
 
 
-class InvalidScopeDependencyError(RegistrationError):
-    """A provider depends on a deeper-scoped one. Inspect ``.provider``, ``.parameter_name``, ``.dep_chain``.
+class _DependencyChainMixin:
+    """The attributes and chain rendering shared by the two errors about a provider's dependency chain.
 
-    ``dep_chain`` runs from the declared dependency to the provider that actually supplies it,
-    following redirects; ``.dep_provider`` and ``.dep_terminal`` are its ends. The two differ only
-    when the dependency is reached through an ``Alias``, which is also the case where the declared
-    type alone cannot tell a reader which provider owns the offending scope.
+    ``dependency_chain`` runs from the declared dependency to the provider that actually supplies
+    it, following redirects; ``.dependency_provider`` and ``.dependency_terminal`` are its ends.
+    """
+
+    __slots__ = ()
+
+    _chain_headline: typing.ClassVar[str]
+    provider: "AbstractProvider[typing.Any]"
+    parameter_name: str
+    dependency_chain: "list[AbstractProvider[typing.Any]]"
+
+    @property
+    def dependency_provider(self) -> "AbstractProvider[typing.Any]":
+        """The dependency as declared: the type the parameter is annotated with."""
+        return self.dependency_chain[0]
+
+    @property
+    def dependency_terminal(self) -> "AbstractProvider[typing.Any]":
+        """The provider that actually supplies the dependency, once redirects are followed."""
+        return self.dependency_chain[-1]
+
+    def _render_body(self) -> str:
+        effective_scope = self.dependency_terminal.scope
+        steps = [
+            self.provider._resolution_step(),  # noqa: SLF001
+            *(p._resolution_step(effective_scope) for p in self.dependency_chain),  # noqa: SLF001
+        ]
+        lines = [
+            self._chain_headline,
+            *render_chain(steps),
+            f"  caused by: {RuntimeError.__str__(self)}",  # ty: ignore[invalid-argument-type]
+        ]
+        return "\n".join(lines)
+
+
+class InvalidScopeDependencyError(_DependencyChainMixin, RegistrationError):
+    """A provider depends on a deeper-scoped one. Inspect ``.provider``, ``.parameter_name``, ``.dependency_chain``.
+
+    ``.dependency_provider`` and ``.dependency_terminal`` are the ends of ``.dependency_chain``. The
+    two differ only when the dependency is reached through an ``Alias``, which is also the case where
+    the declared type alone cannot tell a reader which provider owns the offending scope.
     """
 
     docs_slug = "scope-chain"
+    _chain_headline = "Provider at a deeper scope reached through this chain:"
 
-    __slots__ = ("dep_chain", "parameter_name", "provider")
+    __slots__ = ("dependency_chain", "parameter_name", "provider")
 
     def __init__(
         self,
         *,
         provider: "AbstractProvider[typing.Any]",
         parameter_name: str,
-        dep_chain: "list[AbstractProvider[typing.Any]]",
+        dependency_chain: "list[AbstractProvider[typing.Any]]",
     ) -> None:
         self.provider = provider
         self.parameter_name = parameter_name
-        self.dep_chain = dep_chain
+        self.dependency_chain = dependency_chain
         super().__init__(
             f"{provider.display_name} (scope {provider.scope.name}) declares parameter "
-            f"{parameter_name!r} typed as a provider of {self.dep_terminal.display_name} at deeper "
-            f"scope {self.dep_terminal.scope.name}. A provider cannot depend on a deeper-scoped provider."
+            f"{parameter_name!r} typed as a provider of {self.dependency_terminal.display_name} at deeper "
+            f"scope {self.dependency_terminal.scope.name}. A provider cannot depend on a deeper-scoped provider."
         )
-
-    @property
-    def dep_provider(self) -> "AbstractProvider[typing.Any]":
-        """The dependency as declared: the type the parameter is annotated with."""
-        return self.dep_chain[0]
-
-    @property
-    def dep_terminal(self) -> "AbstractProvider[typing.Any]":
-        """The provider that actually supplies the dependency, once redirects are followed."""
-        return self.dep_chain[-1]
-
-    def _render_body(self) -> str:
-        effective_scope = self.dep_terminal.scope
-        steps = [
-            self.provider._resolution_step(),  # noqa: SLF001
-            *(p._resolution_step(effective_scope) for p in self.dep_chain),  # noqa: SLF001
-        ]
-        lines = [
-            "Provider at a deeper scope reached through this chain:",
-            *render_chain(steps),
-            f"  caused by: {RuntimeError.__str__(self)}",
-        ]
-        return "\n".join(lines)
 
 
 def _qualified(scope: enum.IntEnum) -> str:
     return f"{type(scope).__name__}.{scope.name}"
 
 
-class ScopeEnumMismatchError(RegistrationError):
+class ScopeEnumMismatchError(_DependencyChainMixin, RegistrationError):
     """A provider depends on one whose scope has the same value but comes from another enum.
 
-    Inspect ``.provider``, ``.parameter_name``, ``.dep_chain``. Two members with one value can never
-    be in one container chain, because each child's value is higher than its parent's.
+    Inspect ``.provider``, ``.parameter_name``, ``.dependency_chain``. Two members with one value can
+    never be in one container chain, because each child's value is higher than its parent's.
     """
 
     docs_slug = "scope-enum-mismatch-error"
+    _chain_headline = "Provider at a same-valued scope of another enum reached through this chain:"
 
-    __slots__ = ("dep_chain", "parameter_name", "provider")
+    __slots__ = ("dependency_chain", "parameter_name", "provider")
 
     def __init__(
         self,
         *,
         provider: "AbstractProvider[typing.Any]",
         parameter_name: str,
-        dep_chain: "list[AbstractProvider[typing.Any]]",
+        dependency_chain: "list[AbstractProvider[typing.Any]]",
     ) -> None:
         self.provider = provider
         self.parameter_name = parameter_name
-        self.dep_chain = dep_chain
-        dep_scope = self.dep_terminal.scope
+        self.dependency_chain = dependency_chain
+        dep_scope = self.dependency_terminal.scope
         super().__init__(
             f"{provider.display_name} (scope {_qualified(provider.scope)}) declares parameter "
-            f"{parameter_name!r} typed as a provider of {self.dep_terminal.display_name} at scope "
+            f"{parameter_name!r} typed as a provider of {self.dependency_terminal.display_name} at scope "
             f"{_qualified(dep_scope)}. Both scopes have the value {int(dep_scope)} but belong to different "
             f"enums, so they can never be in one container chain. Give the dependency the same scope member "
             f"as {provider.display_name} or a shallower one."
         )
-
-    @property
-    def dep_provider(self) -> "AbstractProvider[typing.Any]":
-        """The dependency as declared: the type the parameter is annotated with."""
-        return self.dep_chain[0]
-
-    @property
-    def dep_terminal(self) -> "AbstractProvider[typing.Any]":
-        """The provider that actually supplies the dependency, once redirects are followed."""
-        return self.dep_chain[-1]
-
-    def _render_body(self) -> str:
-        effective_scope = self.dep_terminal.scope
-        steps = [
-            self.provider._resolution_step(),  # noqa: SLF001
-            *(p._resolution_step(effective_scope) for p in self.dep_chain),  # noqa: SLF001
-        ]
-        lines = [
-            "Provider at a same-valued scope of another enum reached through this chain:",
-            *render_chain(steps),
-            f"  caused by: {RuntimeError.__str__(self)}",
-        ]
-        return "\n".join(lines)

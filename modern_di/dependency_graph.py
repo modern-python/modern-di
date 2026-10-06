@@ -186,15 +186,15 @@ def collect_errors(container: "Container", registry: "ProvidersRegistry") -> lis
             case DependenciesError(_, error):
                 errors.append(error)
             case Edge(parent, name, dep):
-                dep_chain = terminal_chain(dep, container)
-                dep_scope = dep_chain[-1].scope
+                dependency_chain = terminal_chain(dep, container)
+                dep_scope = dependency_chain[-1].scope
                 parent_scope = effective_scope(parent, container)
                 if dep_scope > parent_scope:
                     errors.append(
                         exceptions.InvalidScopeDependencyError(
                             provider=parent,
                             parameter_name=name,
-                            dep_chain=dep_chain,
+                            dependency_chain=dependency_chain,
                         )
                     )
                 elif dep_scope == parent_scope and dep_scope is not parent_scope:
@@ -202,7 +202,7 @@ def collect_errors(container: "Container", registry: "ProvidersRegistry") -> lis
                         exceptions.ScopeEnumMismatchError(
                             provider=parent,
                             parameter_name=name,
-                            dep_chain=dep_chain,
+                            dependency_chain=dependency_chain,
                         )
                     )
             case Cycle(providers):

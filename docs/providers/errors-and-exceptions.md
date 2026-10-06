@@ -34,7 +34,7 @@ ModernDIError (RuntimeError)
 │   ├── InvalidChildScopeError
 │   ├── MaxScopeReachedError
 │   ├── InvalidScopeTypeError
-│   ├── ValidationFailedError
+│   ├── ValidationFailedError (also an ExceptionGroup)
 │   ├── ScopeNotInitializedError (also a ResolutionError)
 │   ├── ScopeSkippedError (also a ResolutionError)
 │   └── ContainerClosedError (also a ResolutionError)
@@ -65,7 +65,8 @@ ModernDIError (RuntimeError)
 ## Root
 
 - `ModernDIError` is the base class for every error the library raises. It subclasses
-  `RuntimeError` for backwards compatibility, so `except RuntimeError` keeps working. Catch
+  `RuntimeError`, so `except RuntimeError` catches it too (see
+  [Design decisions](../introduction/design-decisions.md#7-errors-are-runtimeerrors)). Catch
   `ModernDIError` to handle any framework error in one place.
 
 ## `ContainerError`: container and scope problems
@@ -85,8 +86,9 @@ so either `except` catches them; they are described under `ResolutionError` belo
   declared as `class G(Group, scope=...)`, when `scope` is not an `enum.IntEnum`. See
   [Troubleshooting: InvalidScopeTypeError](../troubleshooting/invalid-scope-type-error.md).
 - `ValidationFailedError` is raised only by `Container.validate()`. Catch this for validation
-  results; its `.errors` attribute holds the list of individual issues (each itself a
-  `ResolutionError` or `RegistrationError`), and `str()` renders them all, grouped by error kind.
+  results. It is an `ExceptionGroup`: `.exceptions` holds the individual issues (each itself a
+  `ResolutionError` or `RegistrationError`), `except*` catches them by type, and `str()` renders
+  them all, grouped by error kind.
   Nothing validates automatically (not construction, not `open()`, not `add_providers`, not
   `resolve()`), so call `validate()` explicitly whenever you want the whole graph checked; an
   integration that registers its own providers after construction (via `add_providers`) should call
@@ -165,18 +167,18 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
   container, and by `Container(...)` when `groups=` comes with `parent_container=`. Registration is
   root-only because the providers registry is shared tree-wide, so
   registering from a child would mutate every container in the tree. Call `add_providers` on the root
-  container instead. Inspect `.scope` for the offending child container's scope. See
+  container instead. Inspect `.container_scope` for the offending child container's scope. See
   [Container: registering after construction](container.md#registering-providers-after-construction) and
   [Troubleshooting: ChildContainerRegistrationError](../troubleshooting/child-container-registration-error.md).
 - `GroupScopeConflictError` is raised when a scope-defaulted provider (no explicit `scope=`) is
   shared by two `Group` subclasses declared with different `scope=` kwargs; the provider's scope
   cannot follow both defaults at once, and import order must never be what decides it. Inspect
-  `.provider_name`, `.first_group`/`.first_scope`, and `.second_group`/`.second_scope`. See
+  `.provider`, `.first_group`/`.first_scope`, and `.second_group`/`.second_scope`. See
   [Troubleshooting: GroupScopeConflictError](../troubleshooting/group-scope-conflict-error.md).
 - `ProviderScopeFrozenError` is raised when a `Group` would change the scope of a provider that
   is already registered with a container. Resolvers compiled before the change captured the old
   scope, so applying it would make the same provider resolve differently through an existing
-  container than through a fresh one. Inspect `.provider_name`, `.group_name`, `.current_scope`,
+  container than through a fresh one. Inspect `.provider`, `.group_name`, `.current_scope`,
   `.new_scope`. See
   [Troubleshooting: ProviderScopeFrozenError](../troubleshooting/provider-scope-frozen-error.md).
 - `UnknownFactoryKwargError` is raised when `Factory(kwargs={...})` contains a key that is not a
@@ -188,13 +190,15 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
 - `InvalidScopeDependencyError` is raised when a provider depends on another provider bound to a
   *deeper* scope than its own (a longer-lived provider depending on a shorter-lived one). Surfaced by
   `validate()`. Renders the chain from the depender to the provider that supplies the dependency;
-  `.dep_chain` carries that chain, with `.dep_provider` and `.dep_terminal` as its ends. See
+  `.dependency_chain` carries that chain, with `.dependency_provider` and `.dependency_terminal` as
+  its ends. See
   [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md).
 - `ScopeEnumMismatchError` is raised when a provider depends on another provider whose scope has
   the same integer value but comes from a different enum, such as `Scope.SESSION` and a custom
   `Tenancy.TENANT = 2`. Each child container's value is higher than its parent's, so the two scopes
   can never be in one container chain. Surfaced by `validate()`. Inspect `.provider`,
-  `.parameter_name` and `.dep_chain`, with `.dep_provider` and `.dep_terminal` as its ends. See
+  `.parameter_name` and `.dependency_chain`, with `.dependency_provider` and `.dependency_terminal`
+  as its ends. See
   [Troubleshooting: ScopeEnumMismatchError](../troubleshooting/scope-enum-mismatch-error.md).
 
 ## Direct `ModernDIError` subclasses

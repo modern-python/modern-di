@@ -28,7 +28,7 @@ def test_cycle_path_and_locations_shape() -> None:
     container = Container(scope=Scope.APP, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as ei:
         container.validate()
-    cyc = next(e for e in ei.value.errors if isinstance(e, exceptions.CircularDependencyError))
+    cyc = next(e for e in ei.value.exceptions if isinstance(e, exceptions.CircularDependencyError))
     # loop closes by repeating the first node
     assert cyc.cycle_path[0] == cyc.cycle_path[-1]
     assert cyc.cycle_locations is not None
@@ -55,8 +55,47 @@ def test_validate_collects_all_error_kinds_once() -> None:
     container = Container(scope=Scope.APP, groups=[G])
     with pytest.raises(exceptions.ValidationFailedError) as ei:
         container.validate()
-    assert any(isinstance(e, exceptions.ArgumentResolutionError) for e in ei.value.errors)
-    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in ei.value.errors)
+    assert any(isinstance(e, exceptions.ArgumentResolutionError) for e in ei.value.exceptions)
+    assert any(isinstance(e, exceptions.InvalidScopeDependencyError) for e in ei.value.exceptions)
+
+
+class _Missing: ...
+
+
+class _NeedsMissing:
+    def __init__(self, missing: _Missing) -> None: ...
+
+
+class _Deep: ...
+
+
+class _Shallow:
+    def __init__(self, deep: _Deep) -> None: ...
+
+
+class _MixedIssuesGroup(Group):
+    needs_missing = Factory(scope=Scope.APP, creator=_NeedsMissing)
+    deep = Factory(scope=Scope.REQUEST, creator=_Deep)
+    shallow = Factory(scope=Scope.APP, creator=_Shallow)
+
+
+def _validate_catching_argument_errors(container: Container, caught: list[Exception]) -> None:
+    try:
+        container.validate()
+    except* exceptions.ArgumentResolutionError as group:
+        caught.extend(group.exceptions)
+
+
+def test_except_star_catches_one_kind_of_validation_issue() -> None:
+    container = Container(scope=Scope.APP, groups=[_MixedIssuesGroup])
+    caught: list[Exception] = []
+
+    with pytest.raises(exceptions.ValidationFailedError) as rest:
+        _validate_catching_argument_errors(container, caught)
+
+    assert [type(error) for error in caught] == [exceptions.ArgumentResolutionError]
+    assert [type(error) for error in rest.value.exceptions] == [exceptions.InvalidScopeDependencyError]
+    assert str(rest.value).startswith("Container.validate() found 1 issue(s): InvalidScopeDependencyError\n")
 
 
 def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -121,4 +160,4 @@ def test_validate_walks_the_same_edges_resolve_follows() -> None:
     with pytest.raises(exceptions.ValidationFailedError) as caught:
         container.validate()
 
-    assert any(isinstance(error, exceptions.InvalidScopeDependencyError) for error in caught.value.errors)
+    assert any(isinstance(error, exceptions.InvalidScopeDependencyError) for error in caught.value.exceptions)
