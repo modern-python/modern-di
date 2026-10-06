@@ -17,12 +17,14 @@ if typing.TYPE_CHECKING:
     from modern_di.registries.providers_registry import ProvidersRegistry
 
 
+@typing.final
 class NodeEntered(NamedTuple):
     """A provider was reached for the first time, before its dependencies are read."""
 
     provider: "AbstractProvider[typing.Any]"
 
 
+@typing.final
 class Edge(NamedTuple):
     """A dependency edge from ``parent`` to ``dep`` via parameter ``name``."""
 
@@ -31,12 +33,14 @@ class Edge(NamedTuple):
     dep: "AbstractProvider[typing.Any]"
 
 
+@typing.final
 class Cycle(NamedTuple):
     """A cycle closing on the active path; ``providers`` repeats the first node last."""
 
     providers: "list[AbstractProvider[typing.Any]]"
 
 
+@typing.final
 class DependenciesError(NamedTuple):
     """Reading ``provider``'s dependencies raised; it is then treated as having none."""
 
@@ -108,7 +112,8 @@ def walk(
     visiting: set[int] = set()
     visited: set[int] = set()
     for root in roots:
-        yield from _walk_from(root, registry, visiting, visited)
+        if root.provider_id not in visited:
+            yield from _walk_from(root, registry, visiting, visited)
 
 
 def find_cycle_from(
@@ -128,10 +133,7 @@ def _walk_from(
     visiting: set[int],
     visited: set[int],
 ) -> "typing.Iterator[Event]":
-    """Explicit-stack DFS from ``start``; skip immediately if already seen."""
-    if start.provider_id in visited or start.provider_id in visiting:
-        return
-
+    """Explicit-stack DFS from an unvisited ``start``."""
     path: list[AbstractProvider[typing.Any]] = []
     stack: list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]] = []
     yield from _enter(start, registry, visiting, path, stack)
@@ -179,33 +181,31 @@ def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
     """Walk the graph rooted at ``registry``'s providers once; return every wiring error in walk order."""
     errors: list[Exception] = []
     for event in walk(registry, registry):
-        match event:
-            case NodeEntered(provider):
-                errors.extend(provider._iter_validation_issues(registry))  # noqa: SLF001
-            case DependenciesError(_, error):
-                errors.append(error)
-            case Edge(parent, name, dep):
-                dependency_chain = terminal_chain(dep, registry)
-                dependency_scope = dependency_chain[-1].scope
-                parent_scope = effective_scope(parent, registry)
-                if dependency_scope > parent_scope:
-                    errors.append(
-                        exceptions.InvalidScopeDependencyError(
-                            provider=parent,
-                            parameter_name=name,
-                            dependency_chain=dependency_chain,
-                        )
+        if type(event) is Edge:
+            parent, name, dep = event
+            dependency_chain = terminal_chain(dep, registry)
+            dependency_scope = dependency_chain[-1].scope
+            parent_scope = effective_scope(parent, registry)
+            if dependency_scope > parent_scope:
+                errors.append(
+                    exceptions.InvalidScopeDependencyError(
+                        provider=parent,
+                        parameter_name=name,
+                        dependency_chain=dependency_chain,
                     )
-                elif dependency_scope == parent_scope and dependency_scope is not parent_scope:
-                    errors.append(
-                        exceptions.ScopeEnumMismatchError(
-                            provider=parent,
-                            parameter_name=name,
-                            dependency_chain=dependency_chain,
-                        )
+                )
+            elif dependency_scope == parent_scope and dependency_scope is not parent_scope:
+                errors.append(
+                    exceptions.ScopeEnumMismatchError(
+                        provider=parent,
+                        parameter_name=name,
+                        dependency_chain=dependency_chain,
                     )
-            case Cycle(providers):
-                errors.append(build_cycle_error(providers, registry))
-            case _:
-                typing.assert_never(event)
+                )
+        elif type(event) is NodeEntered:
+            errors.extend(event.provider._iter_validation_issues(registry))  # noqa: SLF001
+        elif type(event) is DependenciesError:
+            errors.append(event.error)
+        else:
+            errors.append(build_cycle_error(event.providers, registry))
     return errors

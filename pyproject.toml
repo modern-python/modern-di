@@ -104,5 +104,5 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.coverage]
 run.source = ["modern_di"]
 run.branch = true
-report.exclude_also = ["if typing.TYPE_CHECKING:", "typing.assert_never\\("]
+report.exclude_also = ["if typing.TYPE_CHECKING:"]
 report.fail_under = 100
