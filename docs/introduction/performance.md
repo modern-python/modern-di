@@ -59,7 +59,7 @@ for why that matters and which cells it moved.
 
 ## Results
 
-Measured 2026-10-05 with modern-di `main` at `f300c2e` (the 4.0 code, unreleased when measured)
+Measured 2026-10-06 with modern-di at the end of the #605 perf series (the 4.0 code, unreleased when measured)
 on an Apple M2 (macOS 26.6.2), CPython 3.14.7 with the GIL, median over 5 runs (ratios paired
 within each run); the footnote under each table bounds the across-run dispersion of each side's
 own median. Rival versions: dishka 1.10.1, dependency-injector 4.49.1, that-depends 4.1.0,
@@ -86,67 +86,67 @@ as a verdict.
 
 | Scenario | modern-di | vs dependency-injector | vs that-depends |
 |---|---|---|---|
-| C1 transient | 242 ns ±0.4% | **0.41** ±0.5% | **0.56** ±0.4% |
-| C2 warm singleton | 146 ns ±0.6% | 2.20 ±0.6% | 1.70 ±1.6% |
-| C3 deep chain (6) | 760 ns ±1.4% | **0.35** ±1.3% | **0.51** ±1.3% |
+| C1 transient | 242 ns ±0.4% | **0.40** ±0.2% | **0.56** ±0.4% |
+| C2 warm singleton | 143 ns ±0.3% | 2.20 ±0.6% | 1.69 ±0.3% |
+| C3 deep chain (6) | 756 ns ±1.7% | **0.35** ±2.1% | **0.51** ±1.5% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤1.4%, rivals ≤0.9%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤1.7%, rivals ≤1.3%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ### By-type resolution
 
 | Scenario | modern-di | vs dishka | vs wireup |
 |---|---|---|---|
-| C1 transient | 239 ns ±0.1% | **0.70** ±0.5% | **0.80** ±0.1% |
-| C2 warm singleton | 142 ns ±0.3% | **0.60** ±1.2% | 1.41 ±1.1% |
-| C3 deep chain (6) | 764 ns ±1.4% | 1.21 ±1.9% | **0.83** ±4.3% |
+| C1 transient | 239 ns ±0.6% | **0.70** ±1.1% | **0.80** ±0.5% |
+| C2 warm singleton | 140 ns ±0.6% | **0.59** ±1.0% | 1.40 ±0.6% |
+| C3 deep chain (6) | 772 ns ±2.7% | 1.22 ±2.4% | **0.83** ±3.4% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤1.4%, rivals ≤2.8%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤2.7%, rivals ≤1.1%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ### Request lifecycle (batched, published per request)
 
 | Scenario | modern-di | vs dependency-injector | vs that-depends | vs dishka | vs wireup |
 |---|---|---|---|---|---|
-| C4 request lifecycle | 2.28 µs ±0.4% | **0.02** ±0.9% | **0.18** ±0.4% | 1.12 ±0.8% | **0.14** ±0.6% |
+| C4 request lifecycle | 1.85 µs ±0.5% | **0.02** ±2.1% | **0.15** ±0.7% | **0.88** ±0.1% | **0.12** ±0.9% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤0.4%, rivals ≤1.5%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤0.5%, rivals ≤1.8%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ### Per-request context
 
 | Scenario | modern-di | vs dependency-injector | vs that-depends | vs dishka | vs wireup |
 |---|---|---|---|---|---|
-| C6 context | 1.09 µs ±0.1% | **0.28** ±0.4% | **0.36** ±1.2% | **0.88** ±1.3% | **0.78** ±2.3% |
+| C6 context | 806 ns ±0.5% | **0.21** ±0.7% | **0.27** ±0.9% | **0.65** ±2.2% | **0.57** ±0.7% |
 
-_Across-run IQR of each side's own median (5 runs): modern-di ≤0.1%, rivals ≤1.6%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
+_Across-run IQR of each side's own median (5 runs): modern-di ≤0.5%, rivals ≤1.8%. The ± on each ratio cell is a different quantity: the spread of the paired per-run ratios._
 
 ## What the numbers show
 
-- Against `dependency-injector`, modern-di is faster by reference on C1 (**0.41**) and
+- Against `dependency-injector`, modern-di is faster by reference on C1 (**0.40**) and
   C3 (**0.35**), and far faster on the batched C4 request lifecycle (**0.02**).
   dependency-injector's C4 body calls `init_resources()`/`shutdown_resources()` every cycle
   in addition to resolving; the suite doesn't decompose how much of its per-request cost is
   that lifecycle work versus the resolve itself, so C4 should be read as a whole-lifecycle
   comparison, not an isolated resolve (see the caveat below). dependency-injector is still
-  faster on C2 warm-singleton (2.20, an implied ~66 ns cache hit against modern-di's 146 ns):
+  faster on C2 warm-singleton (2.20, an implied ~65 ns cache hit against modern-di's 143 ns):
   its hit is a C-level slot read on a Cython-compiled core, where modern-di's is a Python
   dict lookup plus a slot read on the cache item. Pure Python does not reach ~66 ns, so this
   cell is expected to stay above 1.0 however much of modern-di's own overhead is removed.
 - Against `that-depends` (4.1.0), modern-di leads by reference on C1 (**0.56**) and C3
   (**0.51**). The C1 series across publications is 1.08, 1.12, 0.98, 0.98, 0.97, 0.89, 0.91,
-  0.65, 0.58, 0.58, now 0.56. that-depends remains faster on C2 warm-singleton (1.70); the suite
+  0.65, 0.58, 0.58, 0.56, now 0.56. that-depends remains faster on C2 warm-singleton (1.69); the suite
   does not decompose its `resolve_sync` cache-hit path, so no mechanism is asserted for the
   remaining gap.
 - Against the two `exec`-codegen frameworks, modern-di leads most of the by-type table.
-  modern-di is faster than `dishka` on C1 (**0.70**) and C2 (**0.60**), and faster than `wireup`
-  on C1 (**0.80**) and C3 (**0.83**). dishka keeps its lead on C3 (1.21), the deepest graph, and
-  wireup keeps C2 (1.41). Since #470 modern-di also generates its resolvers from a source
+  modern-di is faster than `dishka` on C1 (**0.70**) and C2 (**0.59**), and faster than `wireup`
+  on C1 (**0.80**) and C3 (**0.83**). dishka keeps its lead on C3 (1.22), the deepest graph, and
+  wireup keeps C2 (1.40). Since #470 modern-di also generates its resolvers from a source
   template, so both sides run one generated frame per node, and the suite does not decompose what
   dishka does differently on a six-node chain. No mechanism is asserted for that cell.
 - By-type resolution carries no surcharge. `Container.resolve` memoizes type → resolver directly,
-  so the by-type and by-reference cells differ by 3-4 ns, with by-type the faster of the two on C1
+  so the by-type and by-reference cells differ by 3-16 ns, with by-type the faster of the two on C1
   and C2 and the slower on C3. The two tables measure the same resolve; only the rival set
   differs.
 - On C6 (per-request context) modern-di is faster than all four rivals: `dependency-injector`
-  (**0.28**), `that-depends` (**0.36**), `dishka` (**0.88**) and `wireup` (**0.78**). In the 3.x
+  (**0.21**), `that-depends` (**0.27**), `dishka` (**0.65**) and `wireup` (**0.57**). In the 3.x
   publication it was slower than dishka (1.15) and level with wireup (1.02). The cells are not on
   one basis: each framework supplies the request value through its own idiom, and two of those
   are structural analogs rather than equivalents (see the caveat below). No mechanism is asserted
@@ -154,32 +154,38 @@ _Across-run IQR of each side's own median (5 runs): modern-di ≤0.1%, rivals �
 - On C4 (request lifecycle), the corrected batching does not *remove* the ~35 µs asyncio floor,
   it amortizes it. The guard tier's `test_g7c_event_loop_floor_control` times the same batch
   shape with an empty body and puts the residual at ~0.3 µs per request still inside every
-  C4 cell (~14% of modern-di's C4 figure), shared identically by all five frameworks. With the
-  floor amortized, dishka is measurably faster than modern-di here (1.12); modern-di remains
-  far faster than that-depends, dependency-injector, and wireup on this scenario.
+  C4 cell (~16% of modern-di's C4 figure), shared identically by all five frameworks. With the
+  floor amortized, modern-di is faster than dishka here (**0.88**), which led this cell (1.12)
+  before #605, and far faster than that-depends, dependency-injector, and wireup.
 
 ### What moved in this publication
 
-4.0 moved C6 the most. C6 builds a REQUEST child seeded with a context value, resolves a handler
-that needs that value and an APP dependency, and closes the child. It takes #557's context
-resolver, #585's cheaper child build and close, and #596's cross-scope check. C4 builds a child,
-first-resolves one request-scoped cached factory with an async finalizer and closes the child, so
-it gets #585's cheaper child build and pays for #597's lock allocation.
+4.0 moved C4 and C6, the two per-request scenarios. C6 builds a REQUEST child seeded with a
+context value, resolves a handler that needs that value and an APP dependency, and closes the
+child. It takes #557's context resolver, #585's and #605's cheaper child build and close, and
+#596's cross-scope check. C4 builds a child, first-resolves one request-scoped cached factory with
+an async finalizer and closes the child, so it gets the cheaper child build and close from #585
+and #605 and pays for #597's lock allocation. The middle column is the previous 4.0 publication,
+before #605.
 
-| | 3.x (`630de77`) | 4.0 (`f300c2e`) |
-|---|---|---|
-| C1 / C2 / C3 by reference, modern-di | 253 / 151 / 789 ns | 242 / 146 / 760 ns |
-| C4 request lifecycle, modern-di | 2.29 µs | 2.28 µs |
-| C4 vs that-depends / dishka / wireup | **0.18** / 1.08 / **0.14** | **0.18** / 1.12 / **0.14** |
-| C6 context, modern-di | 1.45 µs | 1.09 µs |
-| C6 vs dependency-injector / that-depends | **0.38** / **0.48** | **0.28** / **0.36** |
-| C6 vs dishka / wireup | 1.15 / 1.02 | **0.88** / **0.78** |
+| | 3.x (`630de77`) | 4.0 before #605 (`f300c2e`) | 4.0 with #605 |
+|---|---|---|---|
+| C1 / C2 / C3 by reference, modern-di | 253 / 151 / 789 ns | 242 / 146 / 760 ns | 242 / 143 / 756 ns |
+| C4 request lifecycle, modern-di | 2.29 µs | 2.28 µs | 1.85 µs |
+| C4 vs that-depends / dishka / wireup | **0.18** / 1.08 / **0.14** | **0.18** / 1.12 / **0.14** | **0.15** / **0.88** / **0.12** |
+| C6 context, modern-di | 1.45 µs | 1.09 µs | 806 ns |
+| C6 vs dependency-injector / that-depends | **0.38** / **0.48** | **0.28** / **0.36** | **0.21** / **0.27** |
+| C6 vs dishka / wireup | 1.15 / 1.02 | **0.88** / **0.78** | **0.65** / **0.57** |
 
-C6 fell 25%, close to what the guard tier predicts: G9, C6's guard twin, fell 28% with #557 and another 5.9%
-with #585. That moved modern-di ahead of dishka and wireup on this scenario. C4 did not move. On
-G7, C4's guard twin, #585 measured −2.9% and #597 +4.6%, so the two roughly cancel. The dishka C4
-ratio went from 1.08 to 1.12 because dishka's own cell is about 3% lower than the 3.x ratio
-implies, while modern-di's stayed put.
+Before #605, C6 fell 25% from 3.x, close to what the guard tier predicts: G9, C6's guard twin,
+fell 28% with #557 and another 5.9% with #585. That moved modern-di ahead of dishka and wireup on
+this scenario. C4 did not move then. On G7, C4's guard twin, #585 measured −2.9% and #597 +4.6%,
+so the two roughly cancel.
+
+#605 then took C4 down 19% and C6 down 26%. Its guard-tier figures, measured against the commit
+before it, are in the history below: −16.6% on G7 and −21.3% on a C6-shaped request cycle. That
+moved modern-di ahead of dishka on C4 (1.12 to **0.88**). dishka's own C4 cell, as the ratios
+imply it, stayed within about 4% across the three runs, so the change in that ratio is modern-di's.
 
 The C1-C3 cells fell 3-4% on both the by-reference and by-type sides, while the rival cells
 implied by the 3.x ratios stayed within about 2% of this run. Every generated `Factory` resolver
@@ -312,7 +318,7 @@ coroutine that only did that (−8% on a request cycle closing ten such items). 
 publication at `630de77`, C6 fell 10% and C4 5%, the sum of the first two; the third has no cell
 on this page.
 
-Several 4.0 changes moved these numbers. The figures in the next three paragraphs are guard-tier
+Several 4.0 changes moved these numbers. The figures in the next four paragraphs are guard-tier
 numbers from the PR that made each change, measured against the commit before it. [What moved in this publication](#what-moved-in-this-publication) reads the comparative
 cells that moved.
 
@@ -342,6 +348,23 @@ A child build still allocates no lock, because the lock comes with the cache ite
 to the first resolve of a cached factory in each container. A request that resolves one
 request-scoped cached factory pays about 120 ns to allocate its lock: +7.7% on G7b, one request
 cycle with a sync close, and +4.6% on G7.
+
+#605 went after the per-request cycle and the cold path again, as a series of small changes, each
+measured against the commit before it. A container now holds its cache items, its creation order
+and its context in its own slots instead of in two registry objects, so a child build allocates
+two objects fewer. The child's ancestor map is copied instead of rebuilt by unpacking, a plain
+dict context is copied with `dict.copy`, and an auto-scoped child skips the scope checks its
+scope cannot fail. On the close path, a finalizer that returns `None` skips the
+`inspect.isawaitable` call, the async close loop calls finalizers itself instead of awaiting a
+coroutine per item, and a cache miss passes its target container instead of building a
+`functools.partial`. On the cold path, a factory decides its positional-call names once, each
+resolver's globals start from a copied dict, `validate()` dispatches its events on their exact
+type, and building a `Factory` reads a plain class's signature off its `__init__` and a plain-class
+annotation without `typing.get_origin`. Against the commit before the series: −31% on a child
+build (G6), −37% with an automatic scope (G6b), −24% on G7b, −17% on G7, −27% on ten sync
+finalizers (G13), −12% on a cold first resolve (G8), −9 to −11% on `validate()` (G10, G11) and
+about −23% on building a `Factory`. A child container takes 504 bytes instead of 584. Warm
+resolves (G1-G4) moved less than 2% either way.
 
 ## Reproduce it yourself
 
