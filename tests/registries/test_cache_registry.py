@@ -2,8 +2,6 @@ import threading
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
-import pytest
-
 from modern_di.providers import CacheSettings, Factory
 from modern_di.registries.cache_registry import CacheItem, close_async, fetch_cache_item
 from modern_di.types import UNSET
@@ -130,25 +128,18 @@ def test_concurrent_fetches_of_one_provider_share_one_item() -> None:
     assert all(item is items[0] for item in items)
 
 
-async def test_close_async_awaits_only_items_with_a_finalizer(monkeypatch: pytest.MonkeyPatch) -> None:
-    awaited: list[CacheItem] = []
-    original = CacheItem.close_async
-
-    async def _recording(self: CacheItem) -> None:
-        awaited.append(self)
-        await original(self)
-
-    monkeypatch.setattr(CacheItem, "close_async", _recording)
+async def test_close_async_runs_only_owed_finalizers_and_empties_the_order() -> None:
     finalized: list[object] = []
     plain = CacheItem(settings=CacheSettings(), cache="plain")
     persistent = CacheItem(settings=CacheSettings(clear_cache=False), cache="persistent")
     with_finalizer = CacheItem(settings=CacheSettings(finalizer=finalized.append), cache="finalized")
-    creation_order = [plain, persistent, with_finalizer]
+    never_built = CacheItem(settings=CacheSettings(finalizer=finalized.append))
+    creation_order = [plain, persistent, with_finalizer, never_built]
 
     await close_async(creation_order)
 
-    assert awaited == [with_finalizer]
     assert finalized == ["finalized"]
     assert plain.cache is UNSET
     assert persistent.cache == "persistent"
+    assert with_finalizer.cache is UNSET
     assert creation_order == []

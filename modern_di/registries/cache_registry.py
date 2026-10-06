@@ -46,19 +46,6 @@ class CacheItem:
         """Return the finalizer still owed to the cached value, or None when nothing is owed."""
         return None if self.cache is types.UNSET or self.finalized else self.settings.finalizer
 
-    async def close_async(self) -> None:
-        if (finalizer := self._pending_finalizer()) is not None:
-            try:
-                result = finalizer(self.cache)
-                if result is not None and inspect.isawaitable(result):
-                    await result
-            except Exception:
-                self.clear()
-                raise
-            self.finalized = True
-
-        self.clear()
-
     def close_sync(self) -> None:
         if (finalizer := self._pending_finalizer()) is not None:
             if self.settings._is_async_finalizer:  # noqa: SLF001
@@ -92,13 +79,17 @@ async def close_async(creation_order: list[CacheItem]) -> None:
     """Close every item newest first and empty ``creation_order``; failures raise together at the end."""
     finalizer_errors: list[Exception] = []
     for cache_item in reversed(creation_order):
-        if cache_item.settings.finalizer is None:
-            cache_item.clear()
-            continue
-        try:
-            await cache_item.close_async()
-        except Exception as e:  # noqa: BLE001
-            finalizer_errors.append(e)
+        finalizer = cache_item.settings.finalizer
+        if finalizer is not None and cache_item.cache is not types.UNSET and not cache_item.finalized:
+            try:
+                result = finalizer(cache_item.cache)
+                if result is not None and inspect.isawaitable(result):
+                    await result
+            except Exception as e:  # noqa: BLE001
+                finalizer_errors.append(e)
+            else:
+                cache_item.finalized = True
+        cache_item.clear()
     creation_order.clear()
     if finalizer_errors:
         raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=True)
