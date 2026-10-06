@@ -107,7 +107,9 @@ class Container:
         cls = type(self)
         child: typing.Self = cls.__new__(cls)
         # Ancestors only: a `scope: self` entry is a reference cycle that refcounting never frees.
-        child._set_state(scope, self, {**self._scope_map, self._scope: self}, context, self._providers_registry)
+        scope_map = self._scope_map.copy()
+        scope_map[self._scope] = self
+        child._set_state(scope, self, scope_map, context, self._providers_registry)
         return child
 
     def _set_state(
