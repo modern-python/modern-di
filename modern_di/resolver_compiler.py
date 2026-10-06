@@ -9,8 +9,9 @@ applying an override drops the compiled resolvers instead (see
 ``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: see
 docs/adr/0001-resolver-hot-path-generated-source.md.
 
-The template reaches into the `Container` slots `_scope`, `_scope_map`, `_cache_items` and `_creation_order` to stay
-within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
+The template reaches into the `Container` slots `_scope`, `_scope_map`, `_closed`, `_cache_items` and
+`_creation_order` to stay within that frame budget. No linter sees the template, so those reaches are
+outside every suppression here.
 """
 
 import enum
@@ -159,6 +160,34 @@ def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool)
     return compile(source, filename, "exec"), arg_lines
 
 
+def _navigate(
+    container: "Container",
+    scope: enum.IntEnum,
+    resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
+) -> "Container":
+    """Miss path for a scope absent from `_scope_map`, or held there by another enum's same-valued member.
+
+    The scope error carries this provider's resolution step.
+    """
+    try:
+        return container.find_container(scope)
+    except _SCOPE_ERRORS as exc:
+        exc._prepend_step(resolution_step())
+        raise
+
+
+_FACTORY_GLOBALS: dict[str, typing.Any] = {
+    "UNSET": types.UNSET,
+    "fetch_cache_item": fetch_cache_item,
+    "_navigate": _navigate,
+    "ResolutionError": exceptions.ResolutionError,
+    "CreatorCallError": exceptions.CreatorCallError,
+    "ContainerClosedError": exceptions.ContainerClosedError,
+    "ContextValueNotSetError": exceptions.ContextValueNotSetError,
+    "redirect_hops": redirect_hops,
+}
+
+
 def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
     plan = registry.plan_for(f)
     if plan.unwireable:
@@ -283,31 +312,3 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]", default: typing
         raise exceptions.ContextValueNotSetError(context_type=context_type, provider_scope=scope)
 
     return resolve
-
-
-def _navigate(
-    container: "Container",
-    scope: enum.IntEnum,
-    resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
-) -> "Container":
-    """Miss path for a scope absent from `_scope_map`, or held there by another enum's same-valued member.
-
-    The scope error carries this provider's resolution step.
-    """
-    try:
-        return container.find_container(scope)
-    except _SCOPE_ERRORS as exc:
-        exc._prepend_step(resolution_step())
-        raise
-
-
-_FACTORY_GLOBALS: dict[str, typing.Any] = {
-    "UNSET": types.UNSET,
-    "fetch_cache_item": fetch_cache_item,
-    "_navigate": _navigate,
-    "ResolutionError": exceptions.ResolutionError,
-    "CreatorCallError": exceptions.CreatorCallError,
-    "ContainerClosedError": exceptions.ContainerClosedError,
-    "ContextValueNotSetError": exceptions.ContextValueNotSetError,
-    "redirect_hops": redirect_hops,
-}

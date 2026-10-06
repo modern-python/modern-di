@@ -65,12 +65,9 @@ class Factory(AbstractProvider[types.T_co]):
         )
         self._params = parsed.params
         names = tuple(parsed.params)
-        self._positional_names: tuple[str, ...] | None = (
-            None
-            if (names and parsed.has_positional_only_gap)
-            or any(item.is_keyword_only for item in parsed.params.values())
-            else names
-        )
+        self._positional_names: tuple[str, ...] | None = names
+        if (names and parsed.has_positional_only_gap) or any(item.is_keyword_only for item in parsed.params.values()):
+            self._positional_names = None
         super().__init__(scope=scope, bound_type=bound_type, inferred_bound_type=parsed.return_type.arg_type)
         self._creator = creator
         self._cache_settings: CacheSettings[typing.Any] | None = CacheSettings._coerce(cache)  # noqa: SLF001

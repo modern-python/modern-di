@@ -180,7 +180,7 @@ def _enter(
 def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
     """Walk the graph rooted at ``registry``'s providers once; return every wiring error in walk order."""
     errors: list[Exception] = []
-    for event in walk(registry, registry):
+    for event in walk(roots=registry, registry=registry):
         if type(event) is Edge:
             parent, name, dep = event
             dependency_chain = terminal_chain(dep, registry)
