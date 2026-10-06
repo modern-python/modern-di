@@ -170,29 +170,18 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         bool(plan.static_kwargs),
         f.cache_settings is not None,
     )
-    namespace: dict[str, typing.Any] = {
-        "provider": f,
-        "pid": f.provider_id,
-        "scope": f.scope,
-        "creator": f._creator,
-        "resolution_step": f._resolution_step,
-        "edges": plan.provider_kwargs,
-        "arg_lines": arg_lines,
-        "static": plan.static_kwargs,
-        "UNSET": types.UNSET,
-        "fetch_cache_item": fetch_cache_item,
-        "_navigate": _navigate,
-        "ResolutionError": exceptions.ResolutionError,
-        "CreatorCallError": exceptions.CreatorCallError,
-        "ContainerClosedError": exceptions.ContainerClosedError,
-        "ContextValueNotSetError": exceptions.ContextValueNotSetError,
-        "redirect_hops": redirect_hops,
-        "registry": registry,
-        **{
-            f"r{i}": _argument_resolver(f, name, p, registry)
-            for i, (name, p) in enumerate(plan.provider_kwargs.items())
-        },
-    }
+    namespace = _FACTORY_GLOBALS.copy()
+    namespace["provider"] = f
+    namespace["pid"] = f.provider_id
+    namespace["scope"] = f.scope
+    namespace["creator"] = f._creator
+    namespace["resolution_step"] = f._resolution_step
+    namespace["edges"] = plan.provider_kwargs
+    namespace["arg_lines"] = arg_lines
+    namespace["static"] = plan.static_kwargs
+    namespace["registry"] = registry
+    for i, (name, p) in enumerate(plan.provider_kwargs.items()):
+        namespace[f"r{i}"] = _argument_resolver(f, name, p, registry)
     exec(code, namespace)  # noqa: S102  # the source is a fixed template; user data enters only via `namespace`
     resolve = namespace["resolve"]
     resolve.__qualname__ = f"resolve[{f.display_name}]"
@@ -310,3 +299,15 @@ def _navigate(
     except _SCOPE_ERRORS as exc:
         exc._prepend_step(resolution_step())
         raise
+
+
+_FACTORY_GLOBALS: dict[str, typing.Any] = {
+    "UNSET": types.UNSET,
+    "fetch_cache_item": fetch_cache_item,
+    "_navigate": _navigate,
+    "ResolutionError": exceptions.ResolutionError,
+    "CreatorCallError": exceptions.CreatorCallError,
+    "ContainerClosedError": exceptions.ContainerClosedError,
+    "ContextValueNotSetError": exceptions.ContextValueNotSetError,
+    "redirect_hops": redirect_hops,
+}
