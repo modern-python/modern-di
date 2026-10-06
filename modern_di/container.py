@@ -62,6 +62,8 @@ class Container:
         Raises :class:`~modern_di.exceptions.InvalidScopeTypeError` when ``scope`` is not an
         ``IntEnum``.
         """
+        if not isinstance(scope, enum.IntEnum):
+            raise exceptions.InvalidScopeTypeError(scope_value=scope)
         self._set_state(scope, None, {}, context, ProvidersRegistry())
         self._providers_registry.register(Container, container_provider)
         if groups:
@@ -104,6 +106,10 @@ class Container:
             scope = next_deeper(self._scope)
             if scope is None:
                 raise exceptions.MaxScopeReachedError(parent_scope=self._scope)
+        elif not isinstance(scope, enum.IntEnum):
+            raise exceptions.InvalidScopeTypeError(scope_value=scope)
+        elif scope <= self._scope:
+            raise exceptions.InvalidChildScopeError(parent_scope=self._scope, child_scope=scope)
         cls = type(self)
         child: typing.Self = cls.__new__(cls)
         # Ancestors only: a `scope: self` entry is a reference cycle that refcounting never frees.
@@ -120,11 +126,7 @@ class Container:
         context: dict[type[typing.Any], typing.Any] | None,
         providers_registry: ProvidersRegistry,
     ) -> None:
-        """Check ``scope`` and set every slot of an open container; ``parent`` is ``None`` for a root."""
-        if not isinstance(scope, enum.IntEnum):
-            raise exceptions.InvalidScopeTypeError(scope_value=scope)
-        if parent is not None and scope <= parent.scope:
-            raise exceptions.InvalidChildScopeError(parent_scope=parent.scope, child_scope=scope)
+        """Set every slot of an open container; ``parent`` is ``None`` for a root."""
         self._closed = False
         self._scope = scope
         self._parent_container = parent
