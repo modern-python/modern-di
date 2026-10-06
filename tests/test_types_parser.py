@@ -1,12 +1,13 @@
 import dataclasses
 import functools
+import inspect
 import sys
 import typing
 
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers, types
-from modern_di.types_parser import SignatureItem, parse_creator
+from modern_di.types_parser import SignatureItem, _signature, parse_creator
 
 
 class GenericClass(typing.Generic[types.T]): ...
@@ -455,3 +456,135 @@ def test_union_return_type_is_silent_when_bound_type_is_known(
     creator: typing.Callable[..., typing.Any], bound_type: type | None
 ) -> None:
     providers.Factory(creator, bound_type=bound_type)
+
+
+class _PlainInit:
+    def __init__(self, dep: _Dep, label: str = "x") -> None:
+        """Never called: these classes exist for their signatures."""
+
+
+class _InheritsInit(_PlainInit):
+    """Inherits its ``__init__``."""
+
+
+@dataclasses.dataclass(slots=True)
+class _SlotsDataclass:
+    dep: _Dep
+
+
+class _GeneratedInit:
+    __init__ = eval("lambda self, dep: None")  # noqa: S307  # an attrs-style generated __init__
+
+
+class _StarArgsInit:
+    def __init__(*args: object, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _NoSelfInit:
+    def __init__() -> None:
+        """Never called."""
+
+
+class _WrappedInit:
+    @functools.wraps(_PlainInit.__init__)
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        """Never called."""
+
+
+class _SignatureOverride:
+    __signature__ = inspect.Signature([inspect.Parameter("dep", inspect.Parameter.KEYWORD_ONLY, annotation=_Dep)])
+
+    def __init__(self, **kwargs: object) -> None:
+        """Never called."""
+
+
+class _InitOverNew(_NewOnlyCreator):
+    def __init__(self, dep: _Dep, label: str) -> None:
+        """Never called."""
+
+
+class _InitBesideNew:
+    def __new__(cls, *args: object, **kwargs: object) -> typing.Self:  # noqa: ARG004
+        return super().__new__(cls)
+
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _CallingMeta(type):
+    def __call__(cls, other: _OtherDep) -> object:
+        return other
+
+
+class _MetaCall(metaclass=_CallingMeta):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _PlainMeta(type):
+    """A metaclass with no ``__call__``."""
+
+
+class _MetaNoCall(metaclass=_PlainMeta):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _GenericInit(typing.Generic[types.T]):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _InitError(Exception):
+    def __init__(self, dep: _Dep) -> None:
+        """Never called."""
+
+
+class _StaticInit:
+    __init__ = staticmethod(lambda dep: None)  # noqa: ARG005
+
+
+class _NoInit:
+    """Defines neither ``__new__`` nor ``__init__``."""
+
+
+@pytest.mark.parametrize(
+    "creator",
+    [
+        _PlainInit,
+        _InheritsInit,
+        SomeDataClass,
+        _SlotsDataclass,
+        _GeneratedInit,
+        _StarArgsInit,
+        _NoSelfInit,
+        _WrappedInit,
+        _SignatureOverride,
+        _NamedTupleCreator,
+        _NewOnlyCreator,
+        _NewOnlySubclass,
+        _InitOverNew,
+        _InitBesideNew,
+        _MetaCall,
+        _MetaNoCall,
+        _GenericInit,
+        _InitError,
+        _StaticInit,
+        _NoInit,
+        _UserId,
+        _greeter_of(int),
+        functools.partial(_PlainInit, label="y"),
+    ],
+)
+def test_class_signature_matches_inspect_signature(creator: typing.Callable[..., object]) -> None:
+    """INVARIANT: `_signature` reads the same signature `inspect.signature` does, error included."""
+    try:
+        expected: object = inspect.signature(creator)
+    except ValueError as exc:
+        expected = (ValueError, str(exc))
+    try:
+        actual: object = _signature(creator)
+    except ValueError as exc:
+        actual = (ValueError, str(exc))
+    assert actual == expected

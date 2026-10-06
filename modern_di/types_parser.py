@@ -114,9 +114,29 @@ def _class_type_hints(creator: type) -> dict[str, typing.Any]:
     return typing.get_type_hints(creator.__init__)
 
 
+def _signature(creator: typing.Callable[..., typing.Any]) -> inspect.Signature:
+    """Return ``inspect.signature(creator)``, read straight off ``__init__`` when that is where it comes from.
+
+    Only for a class of metaclass ``type`` with no ``__signature__`` or ``__wrapped__``, whose first
+    MRO entry defining ``__new__`` or ``__init__`` defines a plain-function ``__init__`` alone.
+    """
+    if (
+        type(creator) is type
+        and getattr(creator, "__signature__", None) is None
+        and not hasattr(creator, "__wrapped__")
+    ):
+        owner = next(
+            base.__dict__ for base in creator.__mro__ if "__new__" in base.__dict__ or "__init__" in base.__dict__
+        )
+        init = owner.get("__init__")
+        if "__new__" not in owner and type(init) is types.FunctionType and not hasattr(init, "__wrapped__"):
+            return inspect.signature(types.MethodType(init, creator))
+    return inspect.signature(creator)
+
+
 def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
     try:
-        sig = inspect.signature(creator)
+        sig = _signature(creator)
     except (ValueError, TypeError):
         return ParsedCreator(
             return_type=SignatureItem.from_type(typing.cast(type, creator)),
