@@ -5,7 +5,6 @@ import inspect
 import re
 import typing
 import unittest.mock
-import warnings
 
 import pytest
 
@@ -85,7 +84,7 @@ def test_func_with_broken_annotation() -> None:
         factory = providers.Factory(creator=func_with_broken_annotation, bound_type=None)
 
     app_container = Container()
-    app_container._providers_registry.add_providers(factory)
+    app_container.add_providers(factory)
     with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         app_container.resolve_provider(factory)
 
@@ -199,7 +198,7 @@ def test_factory_self_reference() -> None:
     second_factory = providers.Factory(creator=second_creator, kwargs={"first_factory": first_factory})
 
     app_container = Container()
-    app_container._providers_registry.add_providers(first_factory, second_factory)
+    app_container.add_providers(first_factory, second_factory)
 
     assert app_container.resolve_provider(second_factory) == "one two"
 
@@ -214,7 +213,7 @@ def test_factory_self_reference_in_union_falls_through_to_default() -> None:
 
     factory = providers.Factory(creator=make)
     app_container = Container()
-    app_container._providers_registry.add_providers(factory)
+    app_container.add_providers(factory)
 
     result = app_container.resolve(SelfRef)
     assert isinstance(result, SelfRef)
@@ -231,7 +230,7 @@ def test_factory_self_reference_by_type_falls_through_to_default() -> None:
 
     factory = providers.Factory(creator=make)
     app_container = Container()
-    app_container._providers_registry.add_providers(factory)
+    app_container.add_providers(factory)
 
     # `nested` is typed as the factory's own bound type: it must not wire to itself,
     # and with no other provider it falls through to the creator default.
@@ -256,7 +255,7 @@ def test_factory_skip_creator_parsing_without_bound_type_warns() -> None:
 
 
 def _union_return_creator() -> int | str:
-    return 0  # pragma: no cover - never called; only its return annotation is read
+    return 0
 
 
 @pytest.mark.parametrize(
@@ -275,9 +274,7 @@ def test_factory_warning_points_at_the_factory_call(build: typing.Callable[[], o
 
 
 def test_factory_skip_creator_parsing_with_bound_type_no_warning() -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        providers.Factory(creator=str, skip_creator_parsing=True, bound_type=str)
+    assert providers.Factory(creator=str, skip_creator_parsing=True, bound_type=str).bound_type is str
 
 
 def test_factory_rejects_unknown_kwarg_at_construction() -> None:
@@ -299,8 +296,9 @@ def test_factory_unknown_kwarg_suggests_close_match() -> None:
 def test_factory_kwarg_validation_skips_when_signature_unavailable() -> None:
     # When inspect.signature raises (e.g. for some C-implemented callables),
     # the validator silently skips rather than crashing.
-    with unittest.mock.patch("inspect.signature", side_effect=ValueError):
+    with unittest.mock.patch("inspect.signature", side_effect=ValueError) as signature:
         providers.Factory(creator=lambda x=1: x, kwargs={"anything": 1})
+    signature.assert_called()
 
 
 def test_factory_allows_extra_kwargs_when_creator_accepts_var_keyword() -> None:
@@ -309,7 +307,7 @@ def test_factory_allows_extra_kwargs_when_creator_accepts_var_keyword() -> None:
 
     factory = providers.Factory(creator=make, kwargs={"anything": 1, "extra": 2})
     container = Container()
-    container._providers_registry.add_providers(factory)
+    container.add_providers(factory)
     result = container.resolve(dict)
     assert result == {"anything": 1, "extra": 2}
 
@@ -323,7 +321,7 @@ def test_factory_default_value_compared_with_is_not_eq() -> None:
 
     factory = providers.Factory(creator=make)
     container = Container()
-    container._providers_registry.add_providers(factory)
+    container.add_providers(factory)
     result = container.resolve(str)
     assert result == repr(unittest.mock.ANY)
 
@@ -337,8 +335,6 @@ class _UnannotatedGroup(Group):
 
 
 def test_unannotated_param_error_explains_missing_annotation() -> None:
-    sentinel = object()
-    assert _unannotated_creator(sentinel) is sentinel  # exercise body for coverage
     container = Container(scope=Scope.APP, groups=[_UnannotatedGroup])
     with pytest.raises(ArgumentResolutionError, match="has no usable type annotation"):
         container.resolve(object)
@@ -359,8 +355,6 @@ class _UnionGroup(Group):
 
 
 def test_union_param_error_names_the_union_members() -> None:
-    dep = _UnionDep1()
-    assert _union_creator(dep) == str(dep)  # exercise body for coverage
     container = Container(scope=Scope.APP, groups=[_UnionGroup])
     with pytest.raises(ArgumentResolutionError, match=r"_UnionDep1 \| _UnionDep2") as exc:
         container.resolve(str)
@@ -521,7 +515,7 @@ class _NeedsOptionalUnion:
 def test_optional_param_injects_none_when_no_provider() -> None:
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(_NeedsOptionalSingle, factory)
+    container.add_providers(factory)
     obj = container.resolve(_NeedsOptionalSingle)
     assert obj.dep is None
 
@@ -530,8 +524,8 @@ def test_optional_param_uses_provider_when_present() -> None:
     dep_factory: providers.Factory[_OptionalDep] = providers.Factory(creator=_OptionalDep, scope=Scope.APP)
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(_OptionalDep, dep_factory)
-    container._providers_registry.register(_NeedsOptionalSingle, factory)
+    container.add_providers(dep_factory)
+    container.add_providers(factory)
     obj = container.resolve(_NeedsOptionalSingle)
     assert isinstance(obj.dep, _OptionalDep)
 
@@ -539,7 +533,7 @@ def test_optional_param_uses_provider_when_present() -> None:
 def test_optional_multi_member_union_injects_none_when_no_provider() -> None:
     factory: providers.Factory[_NeedsOptionalUnion] = providers.Factory(creator=_NeedsOptionalUnion, scope=Scope.APP)
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(_NeedsOptionalUnion, factory)
+    container.add_providers(factory)
     obj = container.resolve(_NeedsOptionalUnion)
     assert obj.dep is None
 
@@ -547,7 +541,7 @@ def test_optional_multi_member_union_injects_none_when_no_provider() -> None:
 def test_validate_does_not_flag_optional_param_without_provider() -> None:
     factory: providers.Factory[_NeedsOptionalSingle] = providers.Factory(creator=_NeedsOptionalSingle, scope=Scope.APP)
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(_NeedsOptionalSingle, factory)
+    container.add_providers(factory)
     container.validate()  # must not raise
 
 
@@ -568,15 +562,13 @@ def test_optional_param_backed_by_unset_context_provider_injects_none() -> None:
     )
     factory: providers.Factory[_NeedsOptionalCtx] = providers.Factory(creator=_NeedsOptionalCtx, scope=Scope.APP)
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(_OptionalCtx, ctx_provider)
-    container._providers_registry.register(_NeedsOptionalCtx, factory)
+    container.add_providers(ctx_provider)
+    container.add_providers(factory)
     assert container.resolve(_NeedsOptionalCtx).ctx is None
 
     defaulted = Container(scope=Scope.APP)
-    defaulted._providers_registry.register(
-        _OptionalCtx, providers.ContextProvider(scope=Scope.APP, context_type=_OptionalCtx, default=None)
-    )
-    defaulted._providers_registry.register(_NeedsOptionalCtx, factory)
+    defaulted.add_providers(providers.ContextProvider(scope=Scope.APP, context_type=_OptionalCtx, default=None))
+    defaulted.add_providers(factory)
     assert defaulted.resolve(_NeedsOptionalCtx).ctx is None
 
 
@@ -592,12 +584,11 @@ def test_skip_creator_parsing_missing_args_raises_di_error() -> None:
         creator=_needs_two_args, bound_type=int, skip_creator_parsing=True, kwargs={"a": 1}
     )
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(int, factory)
+    container.add_providers(factory)
     with pytest.raises(exceptions.CreatorCallError) as exc_info:
         container.resolve(int)
     assert "_needs_two_args" in str(exc_info.value)
     assert isinstance(exc_info.value, exceptions.ResolutionError)
-    assert _needs_two_args(1, 2) == 1 + 2  # exercise helper body
 
 
 def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
@@ -609,7 +600,7 @@ def test_skip_creator_parsing_missing_args_cached_raises_di_error() -> None:
         cache=True,
     )
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(int, factory)
+    container.add_providers(factory)
     with pytest.raises(exceptions.CreatorCallError) as exc_info:
         container.resolve(int)
     assert "_needs_two_args" in str(exc_info.value)
@@ -628,7 +619,7 @@ def test_internal_typeerror_from_creator_body_is_not_wrapped() -> None:
         creator=_InternalTypeErrorService, bound_type=_InternalTypeErrorService, skip_creator_parsing=True
     )
     container = Container(scope=Scope.APP)
-    container._providers_registry.register(_InternalTypeErrorService, factory)
+    container.add_providers(factory)
     with pytest.raises(TypeError) as exc_info:
         container.resolve(_InternalTypeErrorService)
     assert not isinstance(exc_info.value, exceptions.CreatorCallError)
@@ -644,7 +635,7 @@ class _UnregisteredDep:
 
 class _NeedsUnregistered:
     def __init__(self, dep: _UnregisteredDep) -> None:
-        self.dep = dep  # pragma: no cover - _UnregisteredDep has no provider, so resolution fails first
+        self.dep = dep
 
 
 def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
@@ -656,14 +647,14 @@ def test_repeated_failing_resolve_breadcrumb_does_not_compound() -> None:
     """
     factory: providers.Factory[_NeedsUnregistered] = providers.Factory(creator=_NeedsUnregistered, scope=Scope.APP)
     container = Container(scope=Scope.APP)  # exercise resolve-time breadcrumb, not validation
-    container._providers_registry.register(_NeedsUnregistered, factory)
+    container.add_providers(factory)
 
     def _grab() -> str:
         try:
             container.resolve(_NeedsUnregistered)
         except exceptions.ResolutionError as exc:
             return str(exc)
-        return ""  # pragma: no cover - runs only if resolve() stops raising
+        return ""
 
     first = _grab()
     second = _grab()
@@ -684,17 +675,17 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
 
     class _Leaf2:
         def __init__(self, dep: _MissingDep) -> None:
-            self.dep = dep  # pragma: no cover - _MissingDep has no provider, so resolution fails first
+            self.dep = dep
 
     class _Parent2:
         def __init__(self, leaf: _Leaf2) -> None:
-            self.leaf = leaf  # pragma: no cover - _Leaf2 fails to resolve, so _Parent2 is never built
+            self.leaf = leaf
 
     leaf2: providers.Factory[_Leaf2] = providers.Factory(creator=_Leaf2, scope=Scope.APP)
     parent2: providers.Factory[_Parent2] = providers.Factory(creator=_Parent2, scope=Scope.APP)
     c2 = Container(scope=Scope.APP)  # exercise resolve-time breadcrumb, not validation
-    c2._providers_registry.register(_Leaf2, leaf2)
-    c2._providers_registry.register(_Parent2, parent2)
+    c2.add_providers(leaf2)
+    c2.add_providers(parent2)
 
     # Resolve parent — propagates through leaf → parent step prepended
     with contextlib.suppress(exceptions.ResolutionError):
@@ -707,7 +698,7 @@ def test_nested_then_direct_resolve_does_not_leak_parent_breadcrumb() -> None:
         leaf_err = str(exc)
         assert "Parent2" not in leaf_err, f"Parent2 leaked into leaf error: {leaf_err!r}"
     else:
-        pytest.fail("Expected ResolutionError when resolving _Leaf2 directly")  # pragma: no cover - if _Leaf2 resolves
+        pytest.fail("Expected ResolutionError when resolving _Leaf2 directly")
 
 
 def test_cache_true_returns_same_instance() -> None:
@@ -797,7 +788,6 @@ def _definition_site_func() -> str:
 
 
 def test_definition_site_function_creator() -> None:
-    assert _definition_site_func() == "x"  # exercise body for coverage
     factory = providers.Factory(_definition_site_func, bound_type=None)
     expected = f"{_definition_site_func.__module__}:{_definition_site_func.__code__.co_firstlineno}"
     assert factory.definition_site == expected
@@ -825,7 +815,7 @@ def test_definition_site_memoized(monkeypatch: pytest.MonkeyPatch) -> None:
     assert first is not None
 
     def _boom(_obj: object) -> tuple[list[str], int]:
-        raise AssertionError  # pragma: no cover — must not run; memoization short-circuits before inspect
+        raise AssertionError
 
     monkeypatch.setattr("modern_di.providers.factory.inspect.getsourcelines", _boom)
     assert factory.definition_site == first  # cached; inspect not called again
@@ -840,7 +830,6 @@ def test_definition_site_creator_without_module_is_none() -> None:
     # A creator whose __module__ can't be determined (e.g. a dynamically built callable):
     # _compute_definition_site must bail out before touching __code__/inspect.
     creator = _NoModuleCreator()
-    assert creator() == "x"  # exercise body for coverage
     creator.__module__ = None  # ty: ignore[invalid-assignment]
     factory = providers.Factory(creator, bound_type=str, skip_creator_parsing=True)
     assert factory.definition_site is None
@@ -858,7 +847,6 @@ def test_definition_site_pathological_creator_is_none() -> None:
             return 1
 
     creator = _Pathological()
-    assert creator() == 1  # exercise body for coverage
     factory = providers.Factory(creator, bound_type=None, skip_creator_parsing=True)
     assert factory.definition_site is None
 
@@ -878,7 +866,6 @@ def test_definition_site_recursion_error_propagates_for_guard_retry() -> None:
             return 1
 
     creator = _StackExhausted()
-    assert creator() == 1  # exercise body for coverage
     factory = providers.Factory(creator, bound_type=None, skip_creator_parsing=True)
     with pytest.raises(RecursionError):
         _ = factory.definition_site
@@ -897,7 +884,7 @@ def test_nonetype_param_with_default_uses_the_default() -> None:
 
     factory = providers.Factory(scope=Scope.APP, creator=Svc)
     container = Container()
-    container._providers_registry.add_providers(factory)
+    container.add_providers(factory)
 
     result = container.resolve(Svc)
     assert result.hook is None
@@ -912,7 +899,7 @@ def test_nonetype_param_without_default_injects_none() -> None:
 
     factory = providers.Factory(scope=Scope.APP, creator=Svc)
     container = Container()
-    container._providers_registry.add_providers(factory)
+    container.add_providers(factory)
 
     result = container.resolve(Svc)
     assert result.hook is None
@@ -954,7 +941,6 @@ def test_positional_only_with_default_stays_on_kwargs_path() -> None:
     # `prefix` is positional-only WITH a default: the parser drops it from _params, leaving
     # names == ("dep",) -- a clean-looking prefix. The positional-only guard in _can_call_positionally
     # must reject it, or `creator(dep_instance)` would bind dep to `prefix` and swallow the "P".
-    assert _cov_pos_only_creator(dep=_CovLeaf()) == _CovPosOnlyResult(prefix="P", dep=_CovLeaf())  # exercise body
 
     class G(Group):
         dep = providers.Factory(creator=_CovLeaf, scope=Scope.APP)
@@ -1042,7 +1028,6 @@ def _cov_needs_one_arg(required: _CovLeaf) -> _CovOneArgResult:
 def test_cached_positional_binding_typeerror_wraps() -> None:
     # skip_creator_parsing -> 0 parsed args -> positional-eligible, but the creator needs one.
     # `creator()` raises a binding TypeError (no inner frame); create_positional must wrap it.
-    assert _cov_needs_one_arg(_CovLeaf()) == _CovOneArgResult(required=_CovLeaf())  # exercise body
 
     class G(Group):
         thing = providers.Factory(
@@ -1154,9 +1139,6 @@ def test_transient_positional_binding_typeerror_wraps() -> None:
 def test_from_type_error_wraps_binding_and_prepends_step() -> None:
     def _one_arg(x: int) -> int:
         return x
-
-    arg = 5
-    assert _one_arg(arg) == arg  # exercise body
 
     step = exceptions.ResolutionStep(scope=Scope.APP, name="one_arg", location=None)
     try:

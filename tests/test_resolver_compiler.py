@@ -144,11 +144,9 @@ def _count_python_calls(fn: "typing.Callable[[], object]") -> int:
     calls = 0
 
     def profiler(_frame: object, event: str, _arg: object) -> None:
-        # pragma: no cover - CPython does not trace inside a profile callback, so coverage
-        # cannot see this body. That it runs is exactly what the caller's assertion proves.
         nonlocal calls
-        if event == "call":  # pragma: no cover - runs inside a sys.setprofile callback, which CPython does not trace
-            calls += 1  # pragma: no cover - runs inside a sys.setprofile callback, which CPython does not trace
+        if event == "call":
+            calls += 1
 
     sys.setprofile(profiler)
     try:
@@ -279,7 +277,7 @@ def test_arity_rung_raises_for_a_closed_target(arity: int) -> None:
 def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
     # A creator whose real signature needs one more argument than the parser reports: the
     # positional call then raises TypeError, which the resolver must convert to CreatorCallError.
-    def _needs_one_more(*args: object, extra: object) -> _Bag:  # noqa: ARG001  # pragma: no cover - binding fails first
+    def _needs_one_more(*args: object, extra: object) -> _Bag:  # noqa: ARG001
         msg = "unreachable - binding fails before the body runs; that is the point"
         raise AssertionError(msg)
 
@@ -365,7 +363,7 @@ def test_can_call_positionally_rejects_static_kwarg() -> None:
 
     # rule 1: a static kwarg makes the plan non-pure, so the kwargs build must run.
     def creator(dep: _A, req: _Req) -> _Ordered:
-        raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
+        raise NotImplementedError
 
     registry = ProvidersRegistry()
     registry.add_providers(providers.Factory(creator=_A, scope=Scope.APP))
@@ -377,7 +375,7 @@ def test_can_call_positionally_rejects_static_kwarg() -> None:
 
 def test_can_call_positionally_accepts_a_context_provider_dependency() -> None:
     def creator(dep: _A, req: _Req) -> _Ordered:
-        raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
+        raise NotImplementedError
 
     registry = ProvidersRegistry()
     registry.add_providers(
@@ -400,7 +398,7 @@ def test_can_call_positionally_rejects_defaulted_omitted_param() -> None:
     # rule 2a: `opt` has a default and no provider, so it is omitted -> provider_kwargs is a
     # strict prefix of the signature, not the whole of it.
     def creator(dep: _A, opt: int = 5) -> _Ordered:
-        raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
+        raise NotImplementedError
 
     registry = ProvidersRegistry()
     registry.add_providers(providers.Factory(creator=_A, scope=Scope.APP))
@@ -420,7 +418,7 @@ def test_can_call_positionally_rejects_kwargs_overlay_reorder() -> None:
     # rule 2b: supplying `a` via the kwargs overlay defers it to the end of provider_kwargs,
     # so the binding order (b, a) no longer matches the signature (a, b).
     def creator(a: _A, b: _B) -> _Ordered:
-        raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
+        raise NotImplementedError
 
     registry = ProvidersRegistry()
     factory_a = providers.Factory(creator=_A, scope=Scope.APP)
@@ -442,7 +440,7 @@ def test_can_call_positionally_rejects_keyword_only_param() -> None:
 
     # rule 3: a keyword-only dep can never be passed positionally.
     def creator(*, dep: _A) -> _Ordered:
-        raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
+        raise NotImplementedError
 
     registry = ProvidersRegistry()
     registry.add_providers(providers.Factory(creator=_A, scope=Scope.APP))
@@ -463,7 +461,7 @@ def test_can_call_positionally_rejects_positional_only_param() -> None:
     # remaining names look like a clean prefix ("dep",) -- but a positional call would bind
     # `dep` to the `prefix` slot. The parser's has_positional_only_gap flag must reject it.
     def creator(prefix: str = "P", /, dep: _A = None) -> _Ordered:  # ty: ignore[invalid-parameter-default]
-        raise NotImplementedError  # pragma: no cover - parsed for wiring, never resolved
+        raise NotImplementedError
 
     registry = ProvidersRegistry()
     registry.add_providers(providers.Factory(creator=_A, scope=Scope.APP))
@@ -486,9 +484,7 @@ def test_first_resolve_does_not_reintrospect_creator(monkeypatch: pytest.MonkeyP
     calls: list[object] = []
     real_signature = inspect.signature
 
-    def _spy(
-        obj: object, *args: object, **kwargs: object
-    ) -> inspect.Signature:  # pragma: no cover - runs only on regression
+    def _spy(obj: object, *args: object, **kwargs: object) -> inspect.Signature:
         calls.append(obj)
         return real_signature(obj, *args, **kwargs)  # ty: ignore[invalid-argument-type]
 
@@ -939,7 +935,7 @@ def test_unset_context_error_is_named_from_the_line_of_the_failing_call(cached: 
     """
 
     def _creator(**kwargs: object) -> _Bag:
-        raise NotImplementedError  # pragma: no cover - an argument raises first
+        raise NotImplementedError
 
     present = ContextProvider(_A, scope=Scope.APP, bound_type=None)
     unset = ContextProvider(_B, scope=Scope.APP, bound_type=None)

@@ -25,7 +25,7 @@ class Repository:
 
 
 def make_repository(database: Database) -> Repository:
-    raise NotImplementedError  # pragma: no cover - named in errors, never called
+    raise NotImplementedError
 
 
 class KeywordOnlyError(Exception):

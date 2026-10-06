@@ -406,6 +406,7 @@ class _CountingRLock:
             return self._state.wait_for(lambda: self.waiting >= count, timeout=5)
 
 
+@pytest.mark.thread_race
 def test_concurrent_cache_misses_build_the_value_and_its_dependencies_once() -> None:
     """Threads that miss a cached `Svc(conn: Conn)` together build one Svc and one transient Conn.
 
@@ -781,3 +782,32 @@ async def test_cancelled_close_async_keeps_unfinalized_items_queued() -> None:
     assert events == ["second", "first"]
     assert slow_calls == [0, 1]
     assert container._cache_registry.cached_count() == 0
+
+
+async def test_close_async_after_a_cancelled_close_does_not_refinalize_closed_items() -> None:
+    events: list[str] = []
+
+    async def slow_finalizer(_: _First) -> None:
+        if "first-cancelled" not in events:
+            events.append("first-cancelled")
+            await asyncio.Event().wait()
+        events.append("first")
+
+    def sync_finalizer(_: _Second) -> None:
+        events.append("second")
+
+    class SlowGroup(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=slow_finalizer))
+        second = providers.Factory(creator=_Second, cache=providers.CacheSettings(finalizer=sync_finalizer))
+
+    container = Container(groups=[SlowGroup])
+    container.resolve(_First)
+    container.resolve(_Second)
+
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(container.close_async(), timeout=0.05)
+    assert events == ["second", "first-cancelled"]
+
+    await container.close_async()
+
+    assert events == ["second", "first-cancelled", "first"]

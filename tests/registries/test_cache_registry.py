@@ -54,11 +54,11 @@ def test_get_or_create_hit_returns_cache_without_resolving() -> None:
     item = _item()
     item.cache = "cached"
 
-    def resolve() -> object:  # pragma: no cover - a cache hit must not resolve
+    def resolve() -> object:
         msg = "resolve must not run on a cache hit"
         raise AssertionError(msg)
 
-    def create(_: object) -> str:  # pragma: no cover - a cache hit must not create
+    def create(_: object) -> str:
         msg = "create must not run on a cache hit"
         raise AssertionError(msg)
 
@@ -85,11 +85,11 @@ def test_get_or_create_double_checks_under_the_lock() -> None:
     item = _item()
     item.lock = _LosingRaceLock(item)  # ty: ignore[invalid-assignment]
 
-    def resolve() -> object:  # pragma: no cover - the re-check under the lock must skip resolve
+    def resolve() -> object:
         msg = "resolve must not run when another thread already stored the value"
         raise AssertionError(msg)
 
-    def create(_: object) -> str:  # pragma: no cover - the re-check under the lock must skip create
+    def create(_: object) -> str:
         msg = "create must not run when another thread already stored the value"
         raise AssertionError(msg)
 

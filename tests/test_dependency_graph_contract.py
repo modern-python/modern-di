@@ -117,7 +117,7 @@ def test_validate_is_free_when_already_validated(monkeypatch: pytest.MonkeyPatch
     container = Container(scope=Scope.APP, groups=[G])
     container.validate()  # this call does the walk (clean graph) and sets the registry's validated flag
 
-    def _explode(*_: object, **__: object) -> object:  # pragma: no cover - a validated registry must not re-walk
+    def _explode(*_: object, **__: object) -> object:
         msg = "re-walked"
         raise AssertionError(msg)
 
@@ -148,7 +148,7 @@ def test_validate_walks_the_same_edges_resolve_follows() -> None:
 
     class _Root:
         def __init__(self, leaf: _Leaf) -> None:
-            self.leaf = leaf  # pragma: no cover - validate() never instantiates providers
+            self.leaf = leaf
 
     class G(Group):
         leaf = Factory(scope=Scope.REQUEST, creator=_Leaf)
