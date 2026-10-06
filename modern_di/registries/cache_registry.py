@@ -7,6 +7,7 @@ from modern_di import exceptions, types
 from modern_di.providers import CacheSettings, Factory
 
 
+_T = typing.TypeVar("_T")
 _R = typing.TypeVar("_R")
 _V = typing.TypeVar("_V")
 
@@ -25,12 +26,13 @@ class CacheItem:
 
     def get_or_create(
         self,
-        resolve: typing.Callable[[], _R],
+        build: typing.Callable[[_T], _R],
+        target: _T,
         create: typing.Callable[[_R], _V],
     ) -> tuple[_V, bool]:
-        """Return the memoized singleton, or resolve-and-create it once under this item's lock.
+        """Return the memoized singleton, or ``create(build(target))`` it once under this item's lock.
 
-        A hit never takes the lock. A miss resolves and creates under it, so concurrent misses
+        A hit never takes the lock. A miss builds and creates under it, so concurrent misses
         build the value and its dependencies once. `created` is True only for the caller that built.
         """
         if self.cache is not types.UNSET:
@@ -38,7 +40,7 @@ class CacheItem:
         with self.lock:
             if self.cache is not types.UNSET:
                 return self.cache, False
-            value = create(resolve())
+            value = create(build(target))
             self.cache = value
             return value, True
 

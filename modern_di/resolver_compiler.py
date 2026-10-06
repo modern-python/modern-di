@@ -114,7 +114,7 @@ _CACHED = (
     cached = cache_item.cache
     if cached is not UNSET:
         return cached
-    value, created = cache_item.get_or_create(partial(build, target), create)
+    value, created = cache_item.get_or_create(build, target, create)
     if created:
         target._creation_order.append(cache_item)
     return value
@@ -181,7 +181,6 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "static": plan.static_kwargs,
         "UNSET": types.UNSET,
         "fetch_cache_item": fetch_cache_item,
-        "partial": functools.partial,
         "_navigate": _navigate,
         "ResolutionError": exceptions.ResolutionError,
         "CreatorCallError": exceptions.CreatorCallError,

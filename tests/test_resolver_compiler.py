@@ -853,7 +853,7 @@ def test_override_change_drops_compiled_resolvers_and_recompiles_to_the_constant
 def test_cached_resolver_has_no_cell_on_the_warm_path() -> None:
     """INVARIANT: the cached-factory resolver has no cell variables.
 
-    The cold-miss thunk must stay a `functools.partial`, never a lambda closing over `target`: a
+    The cold miss must pass `target` to `get_or_create`, never a lambda closing over it: a
     closure promotes `target` to a cell, so MAKE_CELL runs in the prologue on every call --
     including the warm hit that returns two lines later. Nothing else in the suite catches a revert.
     """

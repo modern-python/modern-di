@@ -27,12 +27,12 @@ def _acquirable_from_another_thread(item: CacheItem) -> bool:
     return acquired == [True]
 
 
-def test_get_or_create_miss_resolves_and_creates_once_under_the_item_lock() -> None:
+def test_get_or_create_miss_builds_and_creates_once_under_the_item_lock() -> None:
     item = _item()
-    calls = {"resolve": 0, "create": 0}
+    calls = {"build": 0, "create": 0}
 
-    def resolve() -> dict[str, typing.Any]:
-        calls["resolve"] += 1
+    def build(_: object) -> dict[str, typing.Any]:
+        calls["build"] += 1
         assert not _acquirable_from_another_thread(item)
         return {"x": 1}
 
@@ -40,27 +40,27 @@ def test_get_or_create_miss_resolves_and_creates_once_under_the_item_lock() -> N
         calls["create"] += 1
         return ("made", kwargs)
 
-    value, created = item.get_or_create(resolve=resolve, create=create)
+    value, created = item.get_or_create(build=build, target=None, create=create)
 
     assert created is True
     assert value == ("made", {"x": 1})
     assert item.cache == ("made", {"x": 1})
-    assert calls == {"resolve": 1, "create": 1}
+    assert calls == {"build": 1, "create": 1}
 
 
-def test_get_or_create_hit_returns_cache_without_resolving() -> None:
+def test_get_or_create_hit_returns_cache_without_building() -> None:
     item = _item()
     item.cache = "cached"
 
-    def resolve() -> object:
-        msg = "resolve must not run on a cache hit"
+    def build(_: object) -> object:
+        msg = "build must not run on a cache hit"
         raise AssertionError(msg)
 
     def create(_: object) -> str:
         msg = "create must not run on a cache hit"
         raise AssertionError(msg)
 
-    value, created = item.get_or_create(resolve=resolve, create=create)
+    value, created = item.get_or_create(build=build, target=None, create=create)
 
     assert created is False
     assert value == "cached"
@@ -83,15 +83,15 @@ def test_get_or_create_double_checks_under_the_lock() -> None:
     item = _item()
     item.lock = _LosingRaceLock(item)  # ty: ignore[invalid-assignment]
 
-    def resolve() -> object:
-        msg = "resolve must not run when another thread already stored the value"
+    def build(_: object) -> object:
+        msg = "build must not run when another thread already stored the value"
         raise AssertionError(msg)
 
     def create(_: object) -> str:
         msg = "create must not run when another thread already stored the value"
         raise AssertionError(msg)
 
-    value, created = item.get_or_create(resolve=resolve, create=create)
+    value, created = item.get_or_create(build=build, target=None, create=create)
 
     assert created is False
     assert value == "won-the-race"
@@ -100,7 +100,7 @@ def test_get_or_create_double_checks_under_the_lock() -> None:
 def test_get_or_create_releases_the_item_lock() -> None:
     item = _item()
 
-    value, created = item.get_or_create(resolve=lambda: 0, create=lambda _: "v")
+    value, created = item.get_or_create(build=lambda _: 0, target=None, create=lambda _: "v")
     assert (value, created) == ("v", True)
     assert _acquirable_from_another_thread(item)
 
