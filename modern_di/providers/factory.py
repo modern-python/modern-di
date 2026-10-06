@@ -11,7 +11,6 @@ from modern_di.wiring import WiringPlan
 
 
 if typing.TYPE_CHECKING:
-    from modern_di import Container
     from modern_di.registries.providers_registry import ProvidersRegistry
 
 
@@ -66,10 +65,7 @@ class Factory(AbstractProvider[types.T_co]):
         )
         self._params = parsed.params
         self._has_positional_only_gap = parsed.has_positional_only_gap
-        super().__init__(
-            scope=scope,
-            bound_type=parsed.return_type.arg_type if isinstance(bound_type, types.UnsetType) else bound_type,
-        )
+        super().__init__(scope=scope, bound_type=bound_type, inferred_bound_type=parsed.return_type.arg_type)
         self._creator = creator
         self._cache_settings: CacheSettings[typing.Any] | None = CacheSettings._coerce(cache)  # noqa: SLF001
         self._kwargs = kwargs
@@ -131,13 +127,17 @@ class Factory(AbstractProvider[types.T_co]):
         creator: typing.Callable[..., typing.Any], kwargs: dict[str, typing.Any] | None, parsed: ParsedCreator
     ) -> None:
         for param_name, item in parsed.params.items():
-            if item.raw_annotation is None or item.default is not types.UNSET or (kwargs and param_name in kwargs):
+            if (
+                item.unresolvable_generic is None
+                or item.default is not types.UNSET
+                or (kwargs and param_name in kwargs)
+            ):
                 continue
             raise exceptions.UnsupportedCreatorParameterError(
                 creator=creator,
                 parameter_name=param_name,
                 reason=(
-                    f"parameterized generic annotation {item.raw_annotation!r} cannot be resolved by type; "
+                    f"parameterized generic annotation {item.unresolvable_generic!r} cannot be resolved by type; "
                     "pass the value via the kwargs parameter or give the parameter a default"
                 ),
             )
@@ -196,10 +196,6 @@ class Factory(AbstractProvider[types.T_co]):
             member_types=item.member_types,
         )
 
-    def _wiring_plan(self, registry: "ProvidersRegistry") -> WiringPlan:
-        """Return this factory's wiring plan, memoized on the tree-wide providers registry."""
-        return registry.plan_for(self)
-
     def _can_call_positionally(self, plan: WiringPlan) -> bool:
         """Whether this creator can be called positionally under `plan`.
 
@@ -215,13 +211,12 @@ class Factory(AbstractProvider[types.T_co]):
             return False
         return not (names and self._has_positional_only_gap)
 
-    def _get_dependencies(self, container: "Container") -> dict[str, "AbstractProvider[typing.Any]"]:
+    def _get_dependencies(self, registry: "ProvidersRegistry") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
-        return self._wiring_plan(container._providers_registry).provider_kwargs  # noqa: SLF001
+        return registry.plan_for(self).provider_kwargs
 
-    def _iter_validation_issues(self, container: "Container") -> typing.Iterable[Exception]:
+    def _iter_validation_issues(self, registry: "ProvidersRegistry") -> typing.Iterable[Exception]:
         """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        registry = container._providers_registry  # noqa: SLF001
-        plan = self._wiring_plan(registry)
+        plan = registry.plan_for(self)
         for name, item in plan.unwireable:
             yield self._argument_resolution_error(arg_name=name, item=item, registry=registry)

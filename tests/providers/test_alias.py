@@ -372,7 +372,7 @@ class _MutualAliasGroup(Group):
 def test_terminal_chain_handles_mutual_alias_cycle() -> None:
     # Mutual aliases: the walk must terminate via the `seen` guard and fall back to `a` itself.
     container = Container(scope=Scope.APP, groups=[_MutualAliasGroup])
-    assert terminal_chain(_MutualAliasGroup.a, container) == [_MutualAliasGroup.a]
+    assert terminal_chain(_MutualAliasGroup.a, container._providers_registry) == [_MutualAliasGroup.a]
     # validate() also reports the cycle separately.
     with pytest.raises(exceptions.ValidationFailedError) as exc_info:
         container.validate()
@@ -415,7 +415,7 @@ def test_alias_redirect_target_returns_source() -> None:
     container = Container(groups=[MyGroup])
     source = container.find_provider(PostgresRepository)
     assert source is not None
-    target = MyGroup.abstract_repo._redirect_target(container)
+    target = MyGroup.abstract_repo._redirect_target(container._providers_registry)
     assert target is not None
     assert target.provider_id == source.provider_id
 
@@ -425,7 +425,7 @@ def test_alias_redirect_target_none_when_dangling() -> None:
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
     container = Container(groups=[G])
-    assert G.abstract._redirect_target(container) is None
+    assert G.abstract._redirect_target(container._providers_registry) is None
 
 
 # A genuine scope inversion through an alias must still raise, even measured against a custom

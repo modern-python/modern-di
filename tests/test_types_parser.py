@@ -21,14 +21,14 @@ if typing.TYPE_CHECKING:
     [
         (int, SignatureItem(arg_type=int)),
         (typing.Annotated[int, None], SignatureItem(arg_type=int)),
-        (list[int], SignatureItem(raw_annotation=list[int])),
-        (dict[str, typing.Any], SignatureItem(raw_annotation=dict[str, typing.Any])),
+        (list[int], SignatureItem(unresolvable_generic=list[int])),
+        (dict[str, typing.Any], SignatureItem(unresolvable_generic=dict[str, typing.Any])),
         (typing.Optional[str], SignatureItem(arg_type=str, is_nullable=True)),  # noqa: UP045
         (str | None, SignatureItem(arg_type=str, is_nullable=True)),
         (str | int, SignatureItem(member_types=[str, int])),
         (typing.Union[str | int], SignatureItem(member_types=[str, int])),  # noqa: UP007
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
-        (GenericClass[str], SignatureItem(raw_annotation=GenericClass[str])),
+        (GenericClass[str], SignatureItem(unresolvable_generic=GenericClass[str])),
         (GenericClass[str] | None, SignatureItem(arg_type=GenericClass, is_nullable=True)),
         # `None` is the degenerate nullable: a union with zero non-None members.
         (type(None), SignatureItem(is_nullable=True)),
@@ -147,7 +147,7 @@ class ClassWithWrongAnnotations:
                 SignatureItem(is_nullable=True),
                 {
                     "arg1": SignatureItem(arg_type=str),
-                    "arg2": SignatureItem(raw_annotation=tuple[int, ...], default=()),
+                    "arg2": SignatureItem(unresolvable_generic=tuple[int, ...], default=()),
                 },
             ),
         ),

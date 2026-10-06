@@ -45,9 +45,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
         bound_type: type | types.UnsetType | None = types.UNSET,
         default: typing.Any = types.UNSET,
     ) -> None:
-        super().__init__(
-            scope=scope, bound_type=context_type if isinstance(bound_type, types.UnsetType) else bound_type
-        )
+        super().__init__(scope=scope, bound_type=bound_type, inferred_bound_type=context_type)
         self._context_type = context_type
         self._default = default
 

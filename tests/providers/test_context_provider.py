@@ -1071,7 +1071,7 @@ def _fallback_container(
         out = providers.Factory(creator, bound_type=None, cache=cache)
 
     container = Container(groups=[G])
-    assert G.out._can_call_positionally(G.out._wiring_plan(container._providers_registry)) is positional
+    assert G.out._can_call_positionally(container._providers_registry.plan_for(G.out)) is positional
     return container, G.out
 
 

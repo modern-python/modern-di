@@ -20,7 +20,7 @@ import linecache
 import typing
 
 from modern_di import exceptions, types
-from modern_di.dependency_graph import redirect_hops
+from modern_di.dependency_graph import redirect_hops, terminal_chain
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
@@ -38,7 +38,6 @@ if typing.TYPE_CHECKING:
     Resolver: typing.TypeAlias = typing.Callable[[Container], typing.Any]
 
 _SCOPE_ERRORS = (exceptions.ScopeNotInitializedError, exceptions.ScopeSkippedError)
-STEP_ERRORS = (exceptions.ResolutionError,)
 
 
 def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
@@ -76,11 +75,11 @@ _BUILD_ARGUMENTS = """\
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
         if not exc.dependency_path:
             exc._name_parameter(name)
-        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], target))
+        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], registry))
         raise
-    except _STEP_ERRORS as exc:
+    except ResolutionError as exc:
         name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], target))
+        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], registry))
         raise
 """
 
@@ -92,7 +91,7 @@ _CALL_CREATOR = """\
         if error is None:
             raise
         raise error from exc
-    except _STEP_ERRORS as exc:
+    except ResolutionError as exc:
         exc._prepend_step(resolution_step())
         raise
 """
@@ -160,7 +159,7 @@ def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool)
 
 
 def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
-    plan = f._wiring_plan(registry)
+    plan = registry.plan_for(f)
     if plan.unwireable:
         return _compile_unwireable_factory(f, plan)
     positional = f._can_call_positionally(plan)
@@ -182,11 +181,12 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "UNSET": types.UNSET,
         "partial": functools.partial,
         "_navigate": _navigate,
-        "_STEP_ERRORS": STEP_ERRORS,
+        "ResolutionError": exceptions.ResolutionError,
         "CreatorCallError": exceptions.CreatorCallError,
         "ContainerClosedError": exceptions.ContainerClosedError,
         "ContextValueNotSetError": exceptions.ContextValueNotSetError,
         "redirect_hops": redirect_hops,
+        "registry": registry,
         **{
             f"r{i}": _argument_resolver(f, name, p, registry)
             for i, (name, p) in enumerate(plan.provider_kwargs.items())
@@ -211,21 +211,15 @@ def _argument_resolver(
 
 
 def _defaultless_context_terminal(
-    provider: "AbstractProvider[typing.Any] | None", registry: "ProvidersRegistry"
+    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
 ) -> "ContextProvider[typing.Any] | None":
-    """Follow un-overridden alias redirects to a `ContextProvider` with no `default=` and no override."""
-    seen: set[int] = set()
-    while type(provider) is Alias and provider.provider_id not in seen:
-        if registry.overrides.fetch_override(provider.provider_id) is not types.UNSET:
-            return None
-        seen.add(provider.provider_id)
-        provider = registry.find_provider(provider._source_type)
-    if (
-        type(provider) is ContextProvider
-        and provider.default is types.UNSET
-        and registry.overrides.fetch_override(provider.provider_id) is types.UNSET
-    ):
-        return provider
+    """Follow un-overridden redirects to a `ContextProvider` with no `default=` and no override."""
+    chain = terminal_chain(provider, registry)
+    if any(registry.overrides.fetch_override(p.provider_id) is not types.UNSET for p in chain):
+        return None
+    terminal = chain[-1]
+    if type(terminal) is ContextProvider and terminal.default is types.UNSET:
+        return terminal
     return None
 
 
@@ -290,7 +284,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]", default: typing
                 target = _navigate(container, scope, resolution_step)
         if target._closed:
             raise exceptions.ContainerClosedError(container_scope=target._scope)
-        context = target._context_registry.context
+        context = target._context
         # Not `.get(key, UNSET)`: that skips a dict subclass's `__contains__`/`__getitem__`.
         if context_type in context:
             return context[context_type]

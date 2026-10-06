@@ -18,7 +18,7 @@ class SignatureItem:
     member_types: list[type] = dataclasses.field(default_factory=list)
     is_nullable: bool = False
     default: object = UNSET
-    raw_annotation: object = None
+    unresolvable_generic: object = None
     is_keyword_only: bool = False
 
     @classmethod
@@ -49,7 +49,7 @@ class SignatureItem:
                 result["arg_type"] = non_none_members[0]
 
         elif origin is not None:
-            result["raw_annotation"] = type_
+            result["unresolvable_generic"] = type_
 
         elif isinstance(type_, (type, _NAMED_TYPE_FORMS)):
             result["arg_type"] = type_
@@ -135,7 +135,7 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
         )
         type_hints = {}
 
-    param_hints = {}
+    params = {}
     has_positional_only_gap = False
     accepts_any_kwargs = False
     for param_name, param in sig.parameters.items():
@@ -148,20 +148,20 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
         if item is None:
             has_positional_only_gap = True
             continue
-        param_hints[param_name] = item
+        params[param_name] = item
 
     if is_class:
         return_sig = SignatureItem.from_type(creator)
     elif "return" in type_hints:
         return_sig = SignatureItem.from_type(type_hints["return"])
-        if return_sig.raw_annotation is not None:
-            return_sig = SignatureItem(arg_type=typing.get_origin(return_sig.raw_annotation))
+        if return_sig.unresolvable_generic is not None:
+            return_sig = SignatureItem(arg_type=typing.get_origin(return_sig.unresolvable_generic))
     else:
         return_sig = SignatureItem()
 
     return ParsedCreator(
         return_type=return_sig,
-        params=param_hints,
+        params=params,
         has_positional_only_gap=has_positional_only_gap,
         accepts_any_kwargs=accepts_any_kwargs,
     )

@@ -17,11 +17,10 @@ import typing
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
-from modern_di.dependency_graph import terminal_chain
 from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.resolver_compiler import _defaultless_context_terminal, compile_resolver
+from modern_di.resolver_compiler import compile_resolver
 from modern_di.wiring import WiringPlan
 
 
@@ -80,7 +79,7 @@ def _make(a: _A, b: _B, c: _C) -> _Ordered:
 
 def _plan(registry: ProvidersRegistry, owner: "providers.Factory[object]") -> WiringPlan:
     """Build ``owner``'s wiring plan the way production does (via the registry memo)."""
-    return owner._wiring_plan(registry)
+    return registry.plan_for(owner)
 
 
 @dataclasses.dataclass(slots=True)
@@ -661,41 +660,6 @@ def test_context_argument_fallback_costs_no_extra_frame(cached: bool) -> None:
     unset_calls = _count_python_calls(resolve_in_new_child(None))
 
     assert unset_calls == set_calls
-
-
-def _all_subclasses(cls: "type[AbstractProvider[typing.Any]]") -> "list[type[AbstractProvider[typing.Any]]]":
-    return [sub for direct in cls.__subclasses__() for sub in (direct, *_all_subclasses(direct))]
-
-
-def test_context_fallback_walk_reaches_the_same_terminal_as_terminal_chain() -> None:
-    """INVARIANT: the compiler's context-fallback walk follows redirects exactly as `terminal_chain` does.
-
-    `_defaultless_context_terminal` walks redirects through the registry instead of a container. A
-    new redirecting provider type must be taught to it, or a parameter behind that type stops
-    falling back.
-    """
-    redirecting = {
-        cls
-        for cls in _all_subclasses(AbstractProvider)
-        if cls.__module__.startswith("modern_di.") and cls._redirect_target is not AbstractProvider._redirect_target
-    }
-    assert redirecting == {providers.Alias}, f"teach _defaultless_context_terminal to follow {redirecting}"
-
-    class _Ctx: ...
-
-    class _Mid: ...
-
-    class _Top: ...
-
-    class _G(Group):
-        ctx = providers.ContextProvider(_Ctx, scope=Scope.APP)
-        mid = providers.Alias(_Ctx, bound_type=_Mid)
-        top = providers.Alias(_Mid, bound_type=_Top)
-
-    container = Container(scope=Scope.APP, groups=[_G])
-    registry = container._providers_registry
-    for start in (_G.top, _G.mid, _G.ctx):
-        assert _defaultless_context_terminal(start, registry) is terminal_chain(start, container)[-1] is _G.ctx
 
 
 def test_overridden_alias_compiles_nothing_of_its_source() -> None:

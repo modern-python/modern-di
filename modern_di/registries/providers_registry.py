@@ -132,12 +132,7 @@ class ProvidersRegistry:
             self._drop_resolvers()
 
     def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
-        with self._lock:
-            if provider_type in self._providers:
-                raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
-            self._providers[provider_type] = provider
-            provider._mark_registered()  # noqa: SLF001
-            self._invalidate()
+        self._add({provider_type: provider}, (provider,))
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
         new_providers: dict[type, AbstractProvider[typing.Any]] = {}
@@ -147,14 +142,21 @@ class ProvidersRegistry:
             if provider.bound_type in new_providers:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider.bound_type)
             new_providers[provider.bound_type] = provider
+        self._add(new_providers, args)
 
+    def _add(
+        self,
+        new_providers: dict[type, AbstractProvider[typing.Any]],
+        registered: tuple[AbstractProvider[typing.Any], ...],
+    ) -> None:
+        """Bind ``new_providers`` and latch every provider in ``registered``; a type already bound raises."""
         with self._lock:
             for provider_type in new_providers:
                 if provider_type in self._providers:
                     raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
             self._providers.update(new_providers)
-            # Over `args`: a reference-only provider never enters `_providers` but is still compiled.
-            for provider in args:
+            # Over `registered`: a reference-only provider never enters `_providers` but is still compiled.
+            for provider in registered:
                 provider._mark_registered()  # noqa: SLF001
             self._invalidate()
 

@@ -8,23 +8,21 @@ from modern_di.group import Group
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.container_provider import container_provider
 from modern_di.registries.cache_registry import CacheRegistry
-from modern_di.registries.context_registry import ContextRegistry
 from modern_di.registries.overrides_registry import OverrideHandle
 from modern_di.registries.providers_registry import ProvidersRegistry
-from modern_di.resolver_compiler import STEP_ERRORS
 from modern_di.scope import Scope
 
 
 def _handle_recursion_error(
-    provider: AbstractProvider[typing.Any], container: "Container", registry: ProvidersRegistry, exc: RecursionError
+    provider: AbstractProvider[typing.Any] | None, registry: ProvidersRegistry, exc: RecursionError
 ) -> typing.NoReturn:
     """Convert an escaped `RecursionError` to `CircularDependencyError`, or re-raise it unchanged."""
-    if registry.is_validated():
+    if provider is None or registry.is_validated():
         raise exc  # validated => acyclic static graph => genuine self-recursion
-    cycle = dependency_graph.find_cycle_from(provider, container)
+    cycle = dependency_graph.find_cycle_from(provider, registry)
     if cycle is None:
         raise exc
-    raise dependency_graph.build_cycle_error(cycle, container) from exc
+    raise dependency_graph.build_cycle_error(cycle, registry) from exc
 
 
 class Container:
@@ -38,7 +36,7 @@ class Container:
     __slots__ = (
         "_cache_registry",
         "_closed",
-        "_context_registry",
+        "_context",
         "_parent_container",
         "_providers_registry",
         "_scope",
@@ -128,7 +126,7 @@ class Container:
         self._parent_container = parent
         self._scope_map = scope_map
         self._cache_registry = CacheRegistry()
-        self._context_registry = ContextRegistry(copy.copy(context) if context is not None else {})
+        self._context = copy.copy(context) if context is not None else {}
         self._providers_registry = providers_registry
 
     def find_container(self, scope: enum.IntEnum) -> typing.Self:
@@ -163,11 +161,11 @@ class Container:
                 resolver = registry.resolver_for_type(dependency_type)
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(registry._providers[dependency_type], self, registry, exc)  # noqa: SLF001
-        except STEP_ERRORS as exc:
+            _handle_recursion_error(registry.find_provider(dependency_type), registry, exc)
+        except exceptions.ResolutionError as exc:
             provider = registry.find_provider(dependency_type)
             if provider is not None:
-                exc._prepend_step(*dependency_graph.redirect_hops(provider, self))  # noqa: SLF001
+                exc._prepend_step(*dependency_graph.redirect_hops(provider, registry))  # noqa: SLF001
             raise
 
     def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
@@ -191,9 +189,9 @@ class Container:
                 resolver = registry.resolver_for(provider)
             return resolver(self)
         except RecursionError as exc:
-            _handle_recursion_error(provider, self, registry, exc)
-        except STEP_ERRORS as exc:
-            exc._prepend_step(*dependency_graph.redirect_hops(provider, self))  # noqa: SLF001
+            _handle_recursion_error(provider, registry, exc)
+        except exceptions.ResolutionError as exc:
+            exc._prepend_step(*dependency_graph.redirect_hops(provider, registry))  # noqa: SLF001
             raise
 
     def validate(self) -> None:
@@ -208,7 +206,7 @@ class Container:
         if reg.is_validated():
             return
 
-        if errors := dependency_graph.collect_errors(self, reg):
+        if errors := dependency_graph.collect_errors(reg):
             raise exceptions.ValidationFailedError(errors=errors)
         reg.mark_validated()
 
@@ -285,7 +283,7 @@ class Container:
         matches the ``ContextProvider``. A cached provider is built once and is not rebuilt by a
         later ``set_context``; set the context before its first resolve.
         """
-        self._context_registry.set_context(context_type, obj)
+        self._context[context_type] = obj
 
     def __repr__(self) -> str:
         n_providers = len(self._providers_registry)
