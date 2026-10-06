@@ -430,8 +430,7 @@ def test_creator_raising_mid_creation_caches_nothing_and_retry_succeeds() -> Non
     container = Container(scope=Scope.APP, groups=[_FlakyGroup])
     with pytest.raises(RuntimeError, match="boom"):
         container.resolve(_FlakySvc)
-    expected_cached_after_failure = 1  # only the dep cached; failed svc not cached
-    assert container._cache_registry.cached_count() == expected_cached_after_failure
+    assert "cached=1" in repr(container)  # only the dep cached; failed svc not cached
     retried = container.resolve(_FlakySvc)
     assert isinstance(retried, _FlakySvc)
     container.close_sync()

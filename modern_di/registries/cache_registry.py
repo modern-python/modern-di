@@ -77,56 +77,46 @@ class CacheItem:
         self.clear()
 
 
-class CacheRegistry:
-    __slots__ = ("_creation_order", "_items")
+def fetch_cache_item(items: dict[int, CacheItem], provider: Factory[typing.Any]) -> CacheItem:
+    """Return the cache item in ``items`` for a cached ``provider``, creating it on first use."""
+    # Get before setdefault: a bare setdefault builds a throwaway CacheItem on every hit.
+    provider_id = provider._provider_id  # noqa: SLF001
+    item = items.get(provider_id)
+    if item is not None:
+        return item
+    settings = typing.cast("CacheSettings[typing.Any]", provider._cache_settings)  # noqa: SLF001
+    return items.setdefault(provider_id, CacheItem(settings=settings))
 
-    def __init__(self) -> None:
-        self._items: dict[int, CacheItem] = {}
-        self._creation_order: list[CacheItem] = []
 
-    def cached_count(self) -> int:
-        return sum(1 for item in self._items.values() if item.cache is not types.UNSET)
+async def close_async(creation_order: list[CacheItem]) -> None:
+    """Close every item newest first and empty ``creation_order``; failures raise together at the end."""
+    finalizer_errors: list[Exception] = []
+    for cache_item in reversed(creation_order):
+        if cache_item.settings.finalizer is None:
+            cache_item.clear()
+            continue
+        try:
+            await cache_item.close_async()
+        except Exception as e:  # noqa: BLE001
+            finalizer_errors.append(e)
+    creation_order.clear()
+    if finalizer_errors:
+        raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=True)
 
-    def fetch_cache_item(self, provider: Factory[typing.Any]) -> CacheItem:
-        """Return the cache item for a cached ``provider``, creating it on first use."""
-        # Get before setdefault: a bare setdefault builds a throwaway CacheItem on every hit.
-        provider_id = provider._provider_id  # noqa: SLF001
-        item = self._items.get(provider_id)
-        if item is not None:
-            return item
-        settings = typing.cast("CacheSettings[typing.Any]", provider._cache_settings)  # noqa: SLF001
-        return self._items.setdefault(provider_id, CacheItem(settings=settings))
 
-    def mark_created(self, cache_item: CacheItem) -> None:
-        """Record creation completion; close finalizes in reverse of this order (LIFO)."""
-        self._creation_order.append(cache_item)
-
-    async def close_async(self) -> None:
-        finalizer_errors: list[Exception] = []
-        for cache_item in reversed(self._creation_order):
-            if cache_item.settings.finalizer is None:
-                cache_item.clear()
-                continue
-            try:
-                await cache_item.close_async()
-            except Exception as e:  # noqa: BLE001
-                finalizer_errors.append(e)
-        self._creation_order.clear()
-        if finalizer_errors:
-            raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=True)
-
-    def close_sync(self) -> None:
-        finalizer_errors: list[Exception] = []
-        remaining: list[CacheItem] = []
-        for cache_item in reversed(self._creation_order):
-            try:
-                cache_item.close_sync()
-            except exceptions.AsyncFinalizerInSyncCloseError as e:
-                finalizer_errors.append(e)
-                remaining.append(cache_item)
-            except Exception as e:  # noqa: BLE001
-                finalizer_errors.append(e)
-        remaining.reverse()
-        self._creation_order = remaining
-        if finalizer_errors:
-            raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=False)
+def close_sync(creation_order: list[CacheItem]) -> None:
+    """Close every item newest first; an async finalizer stays in ``creation_order`` for a later async close."""
+    finalizer_errors: list[Exception] = []
+    remaining: list[CacheItem] = []
+    for cache_item in reversed(creation_order):
+        try:
+            cache_item.close_sync()
+        except exceptions.AsyncFinalizerInSyncCloseError as e:
+            finalizer_errors.append(e)
+            remaining.append(cache_item)
+        except Exception as e:  # noqa: BLE001
+            finalizer_errors.append(e)
+    remaining.reverse()
+    creation_order[:] = remaining
+    if finalizer_errors:
+        raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=False)

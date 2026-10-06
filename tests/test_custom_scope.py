@@ -244,7 +244,7 @@ def test_same_valued_scope_of_another_enum_does_not_resolve_in_this_container(ca
         session.resolve(TenantService)
     assert exc.value.provider_scope is ConflictingScope.LOWER_THAN_REQUEST
     assert exc.value.dependency_path[0].scope is ConflictingScope.LOWER_THAN_REQUEST
-    assert session._cache_registry.cached_count() == 0
+    assert "cached=0" in repr(session)
 
 
 @pytest.mark.parametrize("cache", [False, True])
@@ -258,7 +258,7 @@ def test_same_valued_ancestor_of_another_enum_does_not_resolve(cache: bool) -> N
         request.resolve(TenantService)
     assert exc.value.provider_scope is ConflictingScope.LOWER_THAN_REQUEST
     assert exc.value.dependency_path[0].scope is ConflictingScope.LOWER_THAN_REQUEST
-    assert session._cache_registry.cached_count() == 0
+    assert "cached=0" in repr(session)
 
 
 @pytest.mark.parametrize("scope", [Scope.SESSION, Scope.REQUEST], ids=["SESSION", "REQUEST"])

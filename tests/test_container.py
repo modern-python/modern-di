@@ -580,7 +580,7 @@ def test_resolving_through_closed_parent_via_open_child_raises() -> None:
         child.resolve(_PersistentBroker)
     assert exc.value.container_scope is Scope.APP
     assert app.closed is True
-    assert app._cache_registry.cached_count() == 0
+    assert "cached=0" in repr(app)
 
 
 async def test_async_context_manager_reopens() -> None:
@@ -614,7 +614,7 @@ def test_closed_container_raises_before_running_the_creator() -> None:
     with pytest.raises(ContainerClosedError):
         container.resolve(str)
     assert calls == []
-    assert container._cache_registry.cached_count() == 0
+    assert "cached=0" in repr(container)
 
 
 def test_reopen_rebuilds_a_value_that_close_cleared() -> None:

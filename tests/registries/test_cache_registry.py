@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from modern_di.providers import CacheSettings, Factory
-from modern_di.registries.cache_registry import CacheItem, CacheRegistry
+from modern_di.registries.cache_registry import CacheItem, close_async, fetch_cache_item
 from modern_di.types import UNSET
 
 
@@ -108,21 +108,21 @@ def test_get_or_create_releases_the_item_lock() -> None:
 
 
 def test_each_cache_item_owns_its_lock() -> None:
-    registry = CacheRegistry()
-    first = registry.fetch_cache_item(Factory(creator=lambda: 1, bound_type=int, cache=True))
-    second = registry.fetch_cache_item(Factory(creator=lambda: "", bound_type=str, cache=True))
+    cache_items: dict[int, CacheItem] = {}
+    first = fetch_cache_item(cache_items, Factory(creator=lambda: 1, bound_type=int, cache=True))
+    second = fetch_cache_item(cache_items, Factory(creator=lambda: "", bound_type=str, cache=True))
     assert first.lock is not second.lock
 
 
 def test_concurrent_fetches_of_one_provider_share_one_item() -> None:
     n = 8
-    registry = CacheRegistry()
+    cache_items: dict[int, CacheItem] = {}
     provider = Factory(creator=lambda: 1, bound_type=int, cache=True)
     barrier = threading.Barrier(n, timeout=5)
 
     def fetch() -> CacheItem:
         barrier.wait()
-        return registry.fetch_cache_item(provider)
+        return fetch_cache_item(cache_items, provider)
 
     with ThreadPoolExecutor(max_workers=n) as pool:
         items = [f.result(timeout=5) for f in [pool.submit(fetch) for _ in range(n)]]
@@ -140,17 +140,15 @@ async def test_close_async_awaits_only_items_with_a_finalizer(monkeypatch: pytes
 
     monkeypatch.setattr(CacheItem, "close_async", _recording)
     finalized: list[object] = []
-    registry = CacheRegistry()
     plain = CacheItem(settings=CacheSettings(), cache="plain")
     persistent = CacheItem(settings=CacheSettings(clear_cache=False), cache="persistent")
     with_finalizer = CacheItem(settings=CacheSettings(finalizer=finalized.append), cache="finalized")
-    for item in (plain, persistent, with_finalizer):
-        registry.mark_created(item)
+    creation_order = [plain, persistent, with_finalizer]
 
-    await registry.close_async()
+    await close_async(creation_order)
 
     assert awaited == [with_finalizer]
     assert finalized == ["finalized"]
     assert plain.cache is UNSET
     assert persistent.cache == "persistent"
-    assert registry._creation_order == []
+    assert creation_order == []

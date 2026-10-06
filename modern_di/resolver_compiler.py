@@ -9,7 +9,7 @@ applying an override drops the compiled resolvers instead (see
 ``ProvidersRegistry.drop_resolvers``). Why a template and not shared helpers: see
 docs/adr/0001-resolver-hot-path-generated-source.md.
 
-The template reaches into `Container._scope`, `Container._scope_map` and `CacheRegistry._items` to stay
+The template reaches into the `Container` slots `_scope`, `_scope_map`, `_cache_items` and `_creation_order` to stay
 within that frame budget. No linter sees the template, so those reaches are outside every suppression here.
 """
 
@@ -26,6 +26,7 @@ from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.providers.factory import Factory
+from modern_di.registries.cache_registry import fetch_cache_item
 
 
 if typing.TYPE_CHECKING:
@@ -106,16 +107,16 @@ _CACHED = (
     + "\ndef resolve(container):\n"
     + _NAVIGATE
     + """\
-    cache_registry = target._cache_registry
-    cache_item = cache_registry._items.get(pid)
+    cache_items = target._cache_items
+    cache_item = cache_items.get(pid)
     if cache_item is None:
-        cache_item = cache_registry.fetch_cache_item(provider)
+        cache_item = fetch_cache_item(cache_items, provider)
     cached = cache_item.cache
     if cached is not UNSET:
         return cached
     value, created = cache_item.get_or_create(partial(build, target), create)
     if created:
-        cache_registry.mark_created(cache_item)
+        target._creation_order.append(cache_item)
     return value
 """
 )
@@ -179,6 +180,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         "arg_lines": arg_lines,
         "static": plan.static_kwargs,
         "UNSET": types.UNSET,
+        "fetch_cache_item": fetch_cache_item,
         "partial": functools.partial,
         "_navigate": _navigate,
         "ResolutionError": exceptions.ResolutionError,
