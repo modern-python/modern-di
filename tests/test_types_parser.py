@@ -31,6 +31,7 @@ if typing.TYPE_CHECKING:
         (list[str] | None, SignatureItem(arg_type=list, is_nullable=True)),
         (GenericClass[str], SignatureItem(unresolvable_generic=GenericClass[str])),
         (GenericClass[str] | None, SignatureItem(arg_type=GenericClass, is_nullable=True)),
+        (typing.Generic, SignatureItem(unresolvable_generic=typing.Generic)),
         # `None` is the degenerate nullable: a union with zero non-None members.
         (type(None), SignatureItem(is_nullable=True)),
     ],
@@ -277,6 +278,16 @@ def test_parameterized_generic_param_without_default_raises_at_declaration() -> 
     with pytest.raises(exceptions.UnsupportedCreatorParameterError, match=r"list\[.*_GenericDep\]") as exc_info:
         providers.Factory(creator=_generic_param_creator)
     assert "skip_creator_parsing" not in str(exc_info.value)
+
+
+def _bare_generic_param_creator(x: typing.Generic) -> str:  # ty: ignore[invalid-type-form]
+    return str(x)
+
+
+def test_bare_generic_param_without_default_raises_at_declaration() -> None:
+    assert _bare_generic_param_creator(1) == "1"
+    with pytest.raises(exceptions.UnsupportedCreatorParameterError, match=r"typing\.Generic"):
+        providers.Factory(creator=_bare_generic_param_creator)
 
 
 def test_parameterized_generic_param_supplied_via_kwargs_is_allowed() -> None:
