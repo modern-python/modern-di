@@ -45,9 +45,9 @@ class Factory(AbstractProvider[types.T_co]):
         "_cache_settings",
         "_cached_definition_site",
         "_creator",
-        "_has_positional_only_gap",
         "_kwargs",
         "_params",
+        "_positional_names",
     )
 
     def __init__(  # noqa: PLR0913
@@ -64,7 +64,13 @@ class Factory(AbstractProvider[types.T_co]):
             creator, bound_type=bound_type, kwargs=kwargs, skip_creator_parsing=skip_creator_parsing
         )
         self._params = parsed.params
-        self._has_positional_only_gap = parsed.has_positional_only_gap
+        names = tuple(parsed.params)
+        self._positional_names: tuple[str, ...] | None = (
+            None
+            if (names and parsed.has_positional_only_gap)
+            or any(item.is_keyword_only for item in parsed.params.values())
+            else names
+        )
         super().__init__(scope=scope, bound_type=bound_type, inferred_bound_type=parsed.return_type.arg_type)
         self._creator = creator
         self._cache_settings: CacheSettings[typing.Any] | None = CacheSettings._coerce(cache)  # noqa: SLF001
@@ -202,14 +208,9 @@ class Factory(AbstractProvider[types.T_co]):
         True when every parsed parameter is a positional-or-keyword provider dependency, in signature
         order, with nothing omitted, added, keyword-only or positional-only.
         """
-        if plan.static_kwargs:
+        if plan.static_kwargs or self._positional_names is None:
             return False
-        names = tuple(self._params)
-        if tuple(plan.provider_kwargs) != names:
-            return False
-        if any(item.is_keyword_only for item in self._params.values()):
-            return False
-        return not (names and self._has_positional_only_gap)
+        return tuple(plan.provider_kwargs) == self._positional_names
 
     def _get_dependencies(self, registry: "ProvidersRegistry") -> dict[str, "AbstractProvider[typing.Any]"]:
         """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
