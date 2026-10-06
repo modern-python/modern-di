@@ -23,6 +23,8 @@ class SignatureItem:
 
     @classmethod
     def from_type(cls, type_: type, default: object = UNSET) -> "SignatureItem":
+        if type(type_) is type and type_ is not types.NoneType:
+            return cls(arg_type=type_, default=default)
         if type_ is types.NoneType:
             # The degenerate nullable: the union branch below would take it for a plain type and
             # try to resolve `NoneType` from the registry.
