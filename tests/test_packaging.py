@@ -1,12 +1,17 @@
 import ast
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
+import tarfile
+import zipfile
 
 import modern_di
 
 
 _PKG_ROOT = pathlib.Path(modern_di.__file__).parent
+_REPO_ROOT = _PKG_ROOT.parent
 
 
 def _providers_chain_files() -> list[pathlib.Path]:
@@ -82,3 +87,29 @@ def test_package_exports_the_types_in_public_signatures() -> None:
         modern_di.Container().override(modern_di.providers.container_provider, None), modern_di.OverrideHandle
     )
     assert type(modern_di.UNSET) is modern_di.UnsetType
+
+
+def test_built_distributions_ship_the_license_and_the_wheel_imports(tmp_path: pathlib.Path) -> None:
+    """The wheel and sdist that `just publish` uploads carry the MIT notice, and the wheel imports."""
+    uv = shutil.which("uv")
+    assert uv is not None
+    subprocess.run(  # noqa: S603
+        [uv, "build", "--quiet", "--out-dir", str(tmp_path), str(_REPO_ROOT)], check=True
+    )
+    (wheel,) = tmp_path.glob("*.whl")
+    (sdist,) = tmp_path.glob("*.tar.gz")
+    with zipfile.ZipFile(wheel) as wheel_zip:
+        wheel_names = wheel_zip.namelist()
+    with tarfile.open(sdist) as sdist_tar:
+        sdist_names = sdist_tar.getnames()
+    assert any(name.endswith(".dist-info/licenses/LICENSE") for name in wheel_names), wheel_names
+    assert any(name.endswith("/LICENSE") for name in sdist_names), sdist_names
+    imported = subprocess.run(
+        [sys.executable, "-c", "import modern_di; print(modern_di.__file__)"],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": str(wheel)},
+    )
+    assert imported.stdout.startswith(str(wheel)), imported.stdout

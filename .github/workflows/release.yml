@@ -1,42 +1,77 @@
 name: Release
 
 # Tag-driven: pushing a semver tag publishes to PyPI and creates the matching
-# GitHub Release. Replaces the old `on: release: published` publish.yml — that
+# GitHub Release. Replaces the old `on: release: published` publish.yml; that
 # trigger is removed so the published Release this workflow creates can't re-fire
-# it (double-publish). The tag is the sole entry point; by convention a tag is
-# only cut off a green main, so there is no in-workflow CI gate.
+# it (double-publish). The tag is the sole entry point. The gate job refuses a
+# tag whose commit is not on main or whose CI on main is not green, and it reads
+# the check runs that already ran on that commit instead of re-running the checks.
 on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'               # stable:      2.7.2
       - '[0-9]+.[0-9]+.[0-9]+[a-z]+[0-9]+'   # pre-release: 2.0.0rc1, 4.0.0a2
 
-# contents: write -> create the GitHub Release; id-token: write -> OIDC for PyPI Trusted Publishing.
-permissions:
-  contents: write
-  id-token: write
+permissions: {}
 
 jobs:
-  release:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read   # check runs of the tagged commit
+      actions: read  # this workflow's own runs, excluded from the check
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Tagged commit is on main
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::${GITHUB_REF_NAME} (${GITHUB_SHA}) is not on main"
+            exit 1
+          fi
+
+      - name: CI on the tagged commit is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/check-runs-green.sh "$(git rev-parse "${GITHUB_SHA}^{commit}")"
+
+  publish:
+    needs: gate
     runs-on: ubuntu-latest
     environment: pypi  # scopes the PyPI Trusted Publisher; hook for approval rules
+    permissions:
+      contents: read
+      id-token: write  # OIDC for PyPI Trusted Publishing
     steps:
-      - uses: actions/checkout@v6
-      - uses: extractions/setup-just@v4
-      - uses: astral-sh/setup-uv@v8.2.0
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 
-      # PyPI is irreversible, so it runs FIRST: if it fails the job stops and no
-      # GitHub Release is created advertising a version that never reached PyPI.
       # `just publish` derives the version from $GITHUB_REF_NAME (the tag name).
       # Auth via PyPI Trusted Publishing (OIDC); no PYPI_TOKEN. Needs a Trusted
       # Publisher on the modern-di PyPI project (env: pypi, workflow: release.yml).
       - run: just publish
 
+  # PyPI is irreversible, so it runs first: if publish fails, no GitHub Release is
+  # created advertising a version that never reached PyPI.
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # create the GitHub Release
+    steps:
       # The Release body is GitHub's generated notes, rendered from the squashed
-      # PR titles since the previous tag — so a conventional-commit title is what
+      # PR titles since the previous tag, so a conventional-commit title is what
       # a reader gets. A release wanting prose is edited after the fact with
       # `gh release edit <tag> --notes-file`. A tag with a letter (2.0.0rc1) is a
-      # pre-release -> flagged so GitHub won't mark it "Latest".
+      # pre-release, flagged so GitHub won't mark it "Latest".
       - name: Resolve release metadata
         id: meta
         run: |
@@ -48,7 +83,7 @@ jobs:
           fi
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           generate_release_notes: true
           prerelease: ${{ steps.meta.outputs.prerelease }}
