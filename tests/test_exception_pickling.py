@@ -86,13 +86,13 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
     exceptions.InvalidScopeTypeError: lambda: exceptions.InvalidScopeTypeError(scope_value="app"),
     exceptions.ContainerClosedError: _closed_container_error,
     exceptions.ValidationFailedError: lambda: exceptions.ValidationFailedError(
-        errors=[
-            exceptions.ProviderNotRegisteredError(provider_type=Database, suggestions=_SUGGESTIONS),
+        exceptions=[
+            exceptions.ProviderNotRegisteredError(dependency_type=Database, suggestions=_SUGGESTIONS),
             exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")]),
         ]
     ),
     exceptions.FinalizerError: lambda: exceptions.FinalizerError(
-        finalizer_errors=[
+        exceptions=[
             ValueError("close failed"),
             exceptions.AsyncFinalizerInSyncCloseError(instance_type=Database),
         ],
@@ -129,7 +129,7 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
         provider=_app_provider, parameter_name="database", dependency_chain=[_tenant_provider]
     ),
     exceptions.ProviderNotRegisteredError: lambda: _with_path(
-        exceptions.ProviderNotRegisteredError(provider_type=Database, suggestions=_SUGGESTIONS)
+        exceptions.ProviderNotRegisteredError(dependency_type=Database, suggestions=_SUGGESTIONS)
     ),
     exceptions.AliasSourceNotRegisteredError: lambda: exceptions.AliasSourceNotRegisteredError(source_type=Database),
     exceptions.ArgumentResolutionError: lambda: exceptions.ArgumentResolutionError(
@@ -277,7 +277,7 @@ def _local_type_error() -> exceptions.ModernDIError:
     class LocalService:
         pass
 
-    return exceptions.ProviderNotRegisteredError(provider_type=LocalService)
+    return exceptions.ProviderNotRegisteredError(dependency_type=LocalService)
 
 
 def _local_scope_error() -> exceptions.ModernDIError:
@@ -300,7 +300,7 @@ def _local_provider_error() -> exceptions.ModernDIError:
     ("build", "attribute"),
     [
         (_local_creator_error, "creator"),
-        (_local_type_error, "provider_type"),
+        (_local_type_error, "dependency_type"),
         (_local_scope_error, "provider_scope"),
         (_local_scope_error, "dependency_path"),
         (_local_provider_error, "provider"),
@@ -320,7 +320,7 @@ def test_unpicklable_attribute_degrades_to_its_repr(
 
 def test_unpicklable_finalizer_error_becomes_a_placeholder_exception() -> None:
     original = KeywordOnlyError(detail="disk full")
-    error = exceptions.FinalizerError(finalizer_errors=[original, ValueError("other")], is_async=True)
+    error = exceptions.FinalizerError(exceptions=[original, ValueError("other")], is_async=True)
 
     restored = pickle.loads(pickle.dumps(error))  # noqa: S301
 

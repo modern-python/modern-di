@@ -131,6 +131,8 @@ to add a value later.
 - `.bound_type` holds only the provider's bound type, and is `None` when the provider has none. In
   3.x it held the creator in that case; read `.creator` for it now.
 - `.member_types` is stored: the union members when the parameter has no single type.
+- The constructor requires `creator=`, the creator whose parameter could not be wired. Code that
+  builds the error itself, in a test for example, must pass it.
 
 `ContextValueNotSetError` stores `.provider_scope`, the provider's scope as an `IntEnum`, and
 `.parameter_name`. Neither attribute existed in 3.x, so code that only catches the error or reads
@@ -148,6 +150,7 @@ the finalizer errors inside it by type, `AsyncFinalizerInSyncCloseError` include
 
 - `.finalizer_errors` is removed. Read `.exceptions`, which is a tuple where `.finalizer_errors`
   was a list.
+- The constructor keyword `finalizer_errors=` is now `exceptions=`.
 - `.is_async` is unchanged, and a group that `except*` splits off keeps it.
 - `except FinalizerError` and `except ModernDIError` still catch it, and its message is unchanged.
 
@@ -177,6 +180,7 @@ except* exceptions.AsyncFinalizerInSyncCloseError:
 can catch the issues inside it by type.
 
 - `.errors` is removed. Read `.exceptions`, which is a tuple where `.errors` was a list.
+- The constructor keyword `errors=` is now `exceptions=`.
 - `except ValidationFailedError`, `except ContainerError` and `except ModernDIError` still catch it.
 - `str()` is one line naming each kind of issue with its count, such as
   `Container.validate() found 3 issue(s): ArgumentResolutionError (2), CircularDependencyError (1)`,
@@ -219,6 +223,12 @@ except* exceptions.ArgumentResolutionError:
   by `.provider`, the provider object, as on `InvalidScopeDependencyError`. Read
   `exc.provider.display_name` for the 3.x string. The constructors take `provider=` in place of
   `provider_name=`, and the messages are unchanged.
+- `ProviderNotRegisteredError.provider_type` is now `.dependency_type`, the type that was
+  requested, named like the argument of `resolve()` and `find_provider()`. The constructor keyword
+  is renamed to match. `DuplicateProviderTypeError.provider_type` keeps its name, since it holds a
+  bound type. The message now reads `No provider is registered for MissingDep.` where 3.x printed
+  `Provider of type <class 'myapp.MissingDep'> is not registered in providers registry.`, so update
+  any test that matched the old text.
 
 ### `ScopeSkippedError` names the root of the chain
 
@@ -283,6 +293,21 @@ provider = container.find_provider(SomeType)
 Register providers with `groups=` on the root or with `add_providers()`, and manage overrides with
 `override()` and `reset_override()`. See
 [Container: looking up a provider](../providers/container.md#looking-up-a-provider).
+
+### Only four modules are public
+
+Import public names from `modern_di`, `modern_di.providers`, `modern_di.exceptions` and
+`modern_di.integrations`, and from no other module. Every other module is internal and can change in
+any release. 4.0 already changes several:
+
+- `modern_di.registries.cache_registry` and `modern_di.registries.context_registry` are deleted. A
+  container keeps its cache and context itself. An import from either path raises
+  `ModuleNotFoundError`.
+- `modern_di.scope` holds only `Scope`. The private helpers it held next to it in 3.x are removed.
+  Import `Scope` from `modern_di`.
+- `modern_di.types.P`, an unused `ParamSpec`, is removed.
+
+See [What is public](../providers/advanced-api.md#what-is-public).
 
 ### `Container.closed` is read-only
 

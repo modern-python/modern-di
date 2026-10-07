@@ -2,6 +2,7 @@
 
 import dataclasses
 import enum
+import typing
 
 from modern_di import suggester
 
@@ -41,6 +42,14 @@ def render_chain(steps: "list[ResolutionStep]") -> list[str]:
         label = f"{step.name} ({step.location})" if step.location else step.name
         lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{label}")
     return lines
+
+
+def type_name(type_: object) -> str:
+    """Return a type's bare name, or its repr when it is parameterized or has no name."""
+    name = getattr(type_, "__name__", None)
+    if name is None or typing.get_origin(type_) is not None:
+        return repr(type_)
+    return str(name)
 
 
 def render_suggestion_lines(suggestions: "list[suggester.Suggestion]") -> list[str]:

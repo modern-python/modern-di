@@ -1,6 +1,6 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context registry. If no value was registered and the provider declares no `default=`, a direct resolve raises `ContextValueNotSetError`, and so does a `Factory` argument for a required parameter. A `Factory` parameter that is nullable or has a default gets that default, or `None`, instead of raising.
+A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context. If no value was registered and the provider declares no `default=`, a direct resolve raises `ContextValueNotSetError`, and so does a `Factory` argument for a required parameter. A `Factory` parameter that is nullable or has a default gets that default, or `None`, instead of raising.
 
 ## Symptom
 

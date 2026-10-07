@@ -17,23 +17,23 @@ class FinalizerError(ModernDIError, ExceptionGroup[Exception]):
 
     __slots__ = ("is_async",)
 
-    def __new__(cls, *, finalizer_errors: Sequence[Exception], is_async: bool) -> typing.Self:
-        return ExceptionGroup.__new__(cls, _cleanup_message(finalizer_errors, is_async=is_async), finalizer_errors)
+    def __new__(cls, *, exceptions: Sequence[Exception], is_async: bool) -> typing.Self:
+        return ExceptionGroup.__new__(cls, _cleanup_message(exceptions, is_async=is_async), exceptions)
 
-    def __init__(self, *, finalizer_errors: Sequence[Exception], is_async: bool) -> None:
+    def __init__(self, *, exceptions: Sequence[Exception], is_async: bool) -> None:
         self.is_async = is_async
-        super().__init__(self.message, finalizer_errors)
+        super().__init__(self.message, exceptions)
 
     def _render_body(self) -> str:
         return self.message
 
     def derive(self, excs: Sequence[Exception]) -> "FinalizerError":
-        return FinalizerError(finalizer_errors=excs, is_async=self.is_async)
+        return FinalizerError(exceptions=excs, is_async=self.is_async)
 
 
-def _cleanup_message(finalizer_errors: Sequence[Exception], *, is_async: bool) -> str:
+def _cleanup_message(exceptions: Sequence[Exception], *, is_async: bool) -> str:
     kind = "async" if is_async else "sync"
-    return f"Errors during {kind} cleanup: {list(finalizer_errors)}"
+    return f"Errors during {kind} cleanup: {list(exceptions)}"
 
 
 class AsyncFinalizerInSyncCloseError(ModernDIError):

@@ -229,8 +229,7 @@ after that registration, so the complete graph is what gets checked; see [Writin
 integration](../integrations/writing-integrations.md#lifecycle-rules).
 
 A repeat `validate()` after a clean walk is free: it memoizes against the registry's contents and
-only re-walks once something has changed it (`register`/`add_providers`). Validation has no
-runtime cost after that. Turn it on in a startup path or a single test, where it catches the bugs
+only re-walks once `add_providers` has changed it. Validation has no runtime cost after that. Turn it on in a startup path or a single test, where it catches the bugs
 you don't want to discover under load.
 
 ## See also

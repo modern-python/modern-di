@@ -293,7 +293,7 @@ async def test_except_star_catches_async_finalizer_in_sync_close() -> None:
 def test_finalizer_error_split_keeps_type_and_is_async() -> None:
     value_error = ValueError("boom")
     key_error = KeyError("k")
-    err = FinalizerError(finalizer_errors=[value_error, key_error], is_async=True)
+    err = FinalizerError(exceptions=[value_error, key_error], is_async=True)
 
     matched, rest = err.split(ValueError)
 

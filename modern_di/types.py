@@ -4,7 +4,6 @@ import typing
 T_co = typing.TypeVar("T_co", covariant=True)
 T_contra = typing.TypeVar("T_contra", contravariant=True)
 T = typing.TypeVar("T")
-P = typing.ParamSpec("P")
 
 
 class UnsetType:

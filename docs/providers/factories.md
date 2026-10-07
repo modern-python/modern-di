@@ -98,6 +98,10 @@ def create_resource() -> SomeResource:
     return SomeResource()
 
 
+def close_resource(resource: SomeResource) -> None:
+    resource.close()
+
+
 class Dependencies(Group):
     # Cache with cleanup — clear_cache=True (the default) ensures the closed
     # resource is evicted from cache so it cannot be returned again after close
@@ -105,7 +109,7 @@ class Dependencies(Group):
         create_resource,
         scope=Scope.APP,
         cache=providers.CacheSettings(
-            finalizer=lambda res: res.close(),  # Cleanup function
+            finalizer=close_resource,
         )
     )
 ```
@@ -271,7 +275,7 @@ This is useful when `skip_creator_parsing=True` is in effect but you still want 
 
 If a creator raises an exception during resolution:
 
-- Nothing is cached: the failed instance is never stored in the cache registry, even if `cache` is set.
+- Nothing is cached: the failed instance is never stored in the container's cache, even if `cache` is set.
 - The next `resolve` call retries. Subsequent resolves call the creator again from scratch, so a transiently-failing creator will eventually succeed once the underlying condition is fixed.
 - Already-resolved dependencies are not rolled back. Dependencies that were successfully resolved before the creator raised are still held in their respective containers and will be finalized normally when those containers are closed.
 

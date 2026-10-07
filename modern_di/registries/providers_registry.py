@@ -120,7 +120,7 @@ class ProvidersRegistry:
         provider = self._providers.get(dependency_type)
         if provider is None:
             raise exceptions.ProviderNotRegisteredError(
-                provider_type=dependency_type, suggestions=suggester.suggest(dependency_type, self)
+                dependency_type=dependency_type, suggestions=suggester.suggest(dependency_type, self)
             )
         resolver = self.resolver_for(provider)
         self._publish(self._resolvers_by_type, dependency_type, resolver, generation)

@@ -82,7 +82,7 @@ def test_circular_dependency_error_renders_cycle_as_arrow_chain() -> None:
 
 def test_validation_failed_error_is_one_line_with_kinds_and_counts() -> None:
     cycle = exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")])
-    error = exceptions.ValidationFailedError(errors=[RuntimeError("boom"), cycle, RuntimeError()])
+    error = exceptions.ValidationFailedError(exceptions=[RuntimeError("boom"), cycle, RuntimeError()])
     assert str(error) == (
         "Container.validate() found 3 issue(s): CircularDependencyError (1), RuntimeError (2)\n"
         "See: https://modern-di.modern-python.org/troubleshooting/validation-failed-error/"
@@ -91,7 +91,7 @@ def test_validation_failed_error_is_one_line_with_kinds_and_counts() -> None:
 
 def test_split_validation_failed_error_counts_only_its_own_issues() -> None:
     cycle = exceptions.CircularDependencyError(steps=[_step("A"), _step("B"), _step("A")])
-    error = exceptions.ValidationFailedError(errors=[RuntimeError("boom"), cycle, RuntimeError()])
+    error = exceptions.ValidationFailedError(exceptions=[RuntimeError("boom"), cycle, RuntimeError()])
     matched, rest = error.split(exceptions.CircularDependencyError)
     assert isinstance(matched, exceptions.ValidationFailedError)
     assert isinstance(rest, exceptions.ValidationFailedError)
