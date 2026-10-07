@@ -2,6 +2,8 @@ import threading
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+
 from modern_di.cache import CacheItem, close_async, fetch_cache_item
 from modern_di.providers import CacheSettings, Factory
 from modern_di.types import UNSET
@@ -112,6 +114,7 @@ def test_each_cache_item_owns_its_lock() -> None:
     assert first.lock is not second.lock
 
 
+@pytest.mark.thread_race
 def test_concurrent_fetches_of_one_provider_share_one_item() -> None:
     n = 8
     cache_items: dict[int, CacheItem] = {}
