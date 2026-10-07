@@ -5,7 +5,7 @@ root, `ModernDIError`. The hierarchy is grouped by *when* the failure happens (r
 providers, validating the graph, resolving a type, or closing a container), so you can catch a
 whole category with one `except`.
 
-The class hierarchy and each error's structured attributes (`.provider_type`, `.cycle_path`,
+The class hierarchy and each error's structured attributes (`.dependency_type`, `.cycle_path`,
 `.suggestions`, `.dependency_path`, ...) are the contract. The rendered message text is diagnostic
 output and may change in any release; read an attribute, never parse the message.
 
@@ -76,8 +76,7 @@ Catch `ContainerError` for any container/scope failure. `ScopeNotInitializedErro
 so either `except` catches them; they are described under `ResolutionError` below.
 
 - `InvalidChildScopeError` is raised when `build_child_container(scope=...)` is given a scope
-  that is not deeper than the parent's (or the constructor receives a parent at an equal/shallower
-  scope). The error lists the scopes that *are* allowed. See
+  that is not deeper than the parent's. The error lists the scopes that *are* allowed. See
   [Troubleshooting: InvalidChildScopeError](../troubleshooting/invalid-child-scope-error.md).
 - `MaxScopeReachedError` is raised by `build_child_container()` with no explicit `scope` when the
   parent is already at the deepest scope (`STEP`), so there is no next level to advance to. See

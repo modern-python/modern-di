@@ -8,7 +8,7 @@ from modern_di.providers.abstract import AbstractProvider
 class ContextProvider(AbstractProvider[types.T_co]):
     """Provider for a runtime value passed as ``build_child_container(context={SomeType: value})``.
 
-    The value is read from the context registry at this provider's scope. With none set it resolves
+    The value is read from the context of the container at this provider's scope. With none set it resolves
     to ``default``. Without a ``default``, a direct resolve raises ``ContextValueNotSetError``. So
     does a ``Factory`` argument, unless its parameter is nullable or has a default: then the
     argument gets the parameter's default, or ``None``. ``default=None`` types the provider as
@@ -51,7 +51,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
 
     @property
     def context_type(self) -> type[types.T_co]:
-        """The key this provider reads from the context registry."""
+        """The key this provider reads from the container's context."""
         return self._context_type
 
     @property

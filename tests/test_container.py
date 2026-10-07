@@ -95,10 +95,10 @@ def test_container_resolve_missing_provider() -> None:
     app_container = Container()
     with pytest.raises(
         ProviderNotRegisteredError,
-        match=r"Provider of type <class 'str'> is not registered in providers registry.",
+        match=r"No provider is registered for str\.",
     ) as exc:
         app_container.resolve(str)
-    assert exc.value.provider_type is str
+    assert exc.value.dependency_type is str
 
 
 def test_container_sync_context_manager() -> None:
@@ -933,7 +933,7 @@ def test_resolve_dependency_with_unregistered_type_raises_with_suggestion() -> N
         container.resolve_dependency(Database)
 
     exc = exc_info.value
-    assert exc.provider_type is Database
+    assert exc.dependency_type is Database
     assert exc.suggestions == [
         suggester.Suggestion(name="PostgresDatabase", reason="registered subclass", scope=Scope.APP)
     ]

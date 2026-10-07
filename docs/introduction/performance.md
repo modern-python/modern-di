@@ -251,8 +251,8 @@ C1-C3 cells did not move), but the request lifecycle did: C4's median fell from 
 collector no longer has to reclaim containers that refcounting now frees.
 
 3.1.2 removed two more frames, this time from the warm-hit path. A cached resolve reached its
-compiled resolver through `ProvidersRegistry.resolver_for` and its `CacheItem` through
-`CacheRegistry.fetch_cache_item`; both methods open with a dict lookup that hits and returns.
+compiled resolver and its cache item through two internal lookup methods, and both methods open
+with a dict lookup that hits and returns.
 Both lookups are now inlined at the call site, with the method called only on a miss, where it
 still owns the cycle guard, the memo write, and the `setdefault` that makes concurrent
 first-resolvers share one `CacheItem`. Worth ~42 ns on a warm hit, and because the first sits in

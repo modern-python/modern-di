@@ -5,7 +5,7 @@ These events can be represented by objects which can be used for dependency crea
 
 `ContextProvider` is a provider type that injects runtime context values into dependencies
 (framework objects like requests or websockets, or your own custom context), extracting them from
-the container's context registry at resolve time.
+the container's context at resolve time.
 
 In integrations, some context objects (like `fastapi.Request`, `litestar.WebSocket`, etc.) are
 automatically provided; see [Framework context objects](#framework-context-objects) below.
@@ -132,7 +132,7 @@ the provider above is a `ContextProvider[CustomContext | None]`.
 
 ## Context propagation
 
-Context never propagates between containers. A `ContextProvider` reads the context registry of the container **at the provider's own scope**; build order is irrelevant.
+Context never propagates between containers. A `ContextProvider` reads the context of the container **at the provider's own scope**; build order is irrelevant.
 
 Each container copies the `context=` dict it is built with, so containers built from one dict do not share values, and `set_context()` never writes into your dict.
 

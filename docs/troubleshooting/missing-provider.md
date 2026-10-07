@@ -7,7 +7,7 @@ This error fires when a creator parameter is typed `Foo` and the container has n
 Resolving an unregistered type directly raises:
 
 ```
-ProviderNotRegisteredError: Provider of type <class 'myapp.missing.MissingDep'> is not registered in providers registry.
+ProviderNotRegisteredError: No provider is registered for MissingDep.
 See: https://modern-di.modern-python.org/troubleshooting/missing-provider/
 ```
 

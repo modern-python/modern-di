@@ -149,17 +149,17 @@ class ValidationFailedError(ContainerError, ExceptionGroup[Exception]):
 
     __slots__ = ()
 
-    def __new__(cls, *, errors: Sequence[Exception]) -> typing.Self:
-        return ExceptionGroup.__new__(cls, _validation_message(errors), errors)
+    def __new__(cls, *, exceptions: Sequence[Exception]) -> typing.Self:
+        return ExceptionGroup.__new__(cls, _validation_message(exceptions), exceptions)
 
-    def __init__(self, *, errors: Sequence[Exception]) -> None:
-        super().__init__(self.message, errors)
+    def __init__(self, *, exceptions: Sequence[Exception]) -> None:
+        super().__init__(self.message, exceptions)
 
     def _render_body(self) -> str:
         return self.message
 
     def derive(self, excs: Sequence[Exception]) -> "ValidationFailedError":
-        return ValidationFailedError(errors=excs)
+        return ValidationFailedError(exceptions=excs)
 
 
 def _validation_message(errors: Sequence[Exception]) -> str:

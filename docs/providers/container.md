@@ -1,4 +1,4 @@
-# Container provider
+# Container
 
 The container provider is a special provider that you should not initialize.
 It is automatically registered with each container, so you can resolve the container itself directly.
@@ -31,10 +31,11 @@ result = container.resolve(str)
 You can also explicitly inject the container using `providers.container_provider`. Reach for this when the parameter is not annotated as `Container` (so type-based injection can't find it), or when you want an explicit binding instead of relying on the type:
 
 ```python
+import typing
+
 from modern_di import Container, Group, Scope, providers
 
-def another_creator(di_container: Container) -> str:
-    # The injected container is real — use it
+def another_creator(di_container: typing.Any) -> str:
     return f"resolved from {di_container.scope.name} scope"
 
 class Dependencies(Group):

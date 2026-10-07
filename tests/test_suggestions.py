@@ -7,6 +7,9 @@ from modern_di import Container, Group, Scope, providers, suggester
 from modern_di.exceptions import ArgumentResolutionError, ProviderNotRegisteredError
 
 
+UserId = typing.NewType("UserId", int)
+
+
 class Database:
     pass
 
@@ -30,7 +33,7 @@ def test_subclass_suggestion() -> None:
         container.resolve(Database)
 
     assert str(exc_info.value) == (
-        "Provider of type <class 'tests.test_suggestions.Database'> is not registered in providers registry.\n"
+        "No provider is registered for Database.\n"
         "Did you mean:\n"
         "  - PostgresDatabase (registered subclass, scope=APP)\n"
         "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
@@ -46,7 +49,7 @@ def test_baseclass_suggestion() -> None:
         container.resolve(PostgresDatabase)
 
     assert str(exc_info.value) == (
-        "Provider of type <class 'tests.test_suggestions.PostgresDatabase'> is not registered in providers registry.\n"
+        "No provider is registered for PostgresDatabase.\n"
         "Did you mean:\n"
         "  - Database (registered base class, scope=APP)\n"
         "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
@@ -65,15 +68,15 @@ def test_typo_suggestion() -> None:
     with pytest.raises(ProviderNotRegisteredError) as exc_info:
         container.resolve(Repostory)
 
-    # Assert the structured suggestion + message essence rather than the full rendered string,
-    # which would otherwise embed the brittle `<locals>.Repostory` repr (couples to this test's name).
     exc = exc_info.value
-    assert exc.provider_type is Repostory
-    # .suggestions is data, not glyphs: a caller can act on it without parsing a bullet back apart.
+    assert exc.dependency_type is Repostory
     assert exc.suggestions == [suggester.Suggestion(name="Repository", reason="similar name", scope=Scope.APP)]
-    rendered = str(exc)
-    assert "is not registered in providers registry" in rendered
-    assert "Did you mean:" in rendered
+    assert str(exc) == (
+        "No provider is registered for Repostory.\n"
+        "Did you mean:\n"
+        "  - Repository (similar name, scope=APP)\n"
+        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
+    )
 
 
 def test_suggestion_includes_provider_scope() -> None:
@@ -86,7 +89,7 @@ def test_suggestion_includes_provider_scope() -> None:
         request_container.resolve(Database)
 
     assert str(exc_info.value) == (
-        "Provider of type <class 'tests.test_suggestions.Database'> is not registered in providers registry.\n"
+        "No provider is registered for Database.\n"
         "Did you mean:\n"
         "  - PostgresDatabase (registered subclass, scope=REQUEST)\n"
         "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
@@ -99,9 +102,22 @@ def test_no_suggestions_when_nothing_matches() -> None:
         container.resolve(int)
 
     assert str(exc_info.value) == (
-        "Provider of type <class 'int'> is not registered in providers registry.\n"
-        "See: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
+        "No provider is registered for int.\nSee: https://modern-di.modern-python.org/troubleshooting/missing-provider/"
     )
+
+
+@pytest.mark.parametrize(
+    ("dependency_type", "name"),
+    [
+        (list[int], "list[int]"),
+        (UserId, "UserId"),
+    ],
+)
+def test_missing_provider_message_names_a_non_class_type(dependency_type: typing.Any, name: str) -> None:  # noqa: ANN401
+    with pytest.raises(ProviderNotRegisteredError) as exc_info:
+        Container().resolve(dependency_type)
+
+    assert str(exc_info.value).startswith(f"No provider is registered for {name}.\n")
 
 
 def test_suggestions_capped_at_three() -> None:
@@ -137,7 +153,7 @@ def test_suggestions_capped_at_three() -> None:
         container.resolve(Database)
 
     assert str(exc_info.value) == (
-        "Provider of type <class 'tests.test_suggestions.Database'> is not registered in providers registry.\n"
+        "No provider is registered for Database.\n"
         "Did you mean:\n"
         "  - A1 (registered subclass, scope=APP)\n"
         "  - A2 (registered subclass, scope=APP)\n"
@@ -255,7 +271,7 @@ def test_hierarchy_hint_preferred_over_typo() -> None:
         container.resolve(Database)
 
     assert str(exc_info.value) == (
-        "Provider of type <class 'tests.test_suggestions.Database'> is not registered in providers registry.\n"
+        "No provider is registered for Database.\n"
         "Did you mean:\n"
         "  - PostgresDatabase (registered subclass, scope=APP)\n"
         "  - Databse (similar name, scope=APP)\n"

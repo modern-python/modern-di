@@ -99,7 +99,7 @@ async def close_async(creation_order: list[CacheItem]) -> None:
         cache_item.clear()
     creation_order.clear()
     if finalizer_errors:
-        raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=True)
+        raise exceptions.FinalizerError(exceptions=finalizer_errors, is_async=True)
 
 
 def close_sync(creation_order: list[CacheItem]) -> None:
@@ -117,4 +117,4 @@ def close_sync(creation_order: list[CacheItem]) -> None:
     remaining.reverse()
     creation_order[:] = remaining
     if finalizer_errors:
-        raise exceptions.FinalizerError(finalizer_errors=finalizer_errors, is_async=False)
+        raise exceptions.FinalizerError(exceptions=finalizer_errors, is_async=False)

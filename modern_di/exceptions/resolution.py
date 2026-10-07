@@ -5,7 +5,7 @@ import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import DependencyPathMixin, ModernDIError
-from modern_di.exceptions.rendering import ResolutionStep, render_chain, render_suggestions
+from modern_di.exceptions.rendering import ResolutionStep, render_chain, render_suggestions, type_name
 
 
 class ResolutionError(DependencyPathMixin, ModernDIError):
@@ -21,21 +21,21 @@ class ResolutionError(DependencyPathMixin, ModernDIError):
 
 
 class ProviderNotRegisteredError(ResolutionError):
-    """No provider registered for the requested type. Inspect ``.provider_type`` and ``.suggestions``."""
+    """No provider registered for the requested type. Inspect ``.dependency_type`` and ``.suggestions``."""
 
     docs_slug = "missing-provider"
 
-    __slots__ = ("provider_type", "suggestions")
+    __slots__ = ("dependency_type", "suggestions")
 
     def __init__(
         self,
         *,
-        provider_type: type,
+        dependency_type: type,
         suggestions: "list[suggester.Suggestion] | None" = None,
     ) -> None:
-        self.provider_type = provider_type
+        self.dependency_type = dependency_type
         self.suggestions = suggestions or []
-        message = f"Provider of type {provider_type} is not registered in providers registry."
+        message = f"No provider is registered for {type_name(dependency_type)}."
         if block := render_suggestions(self.suggestions):
             message += "\n" + block
         super().__init__(message)

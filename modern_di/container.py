@@ -52,7 +52,7 @@ class Container:
     ) -> None:
         """Build a root container at ``scope``, open and ready to :meth:`resolve`.
 
-        ``context`` is copied into the context registry, so later changes to the caller's dict are
+        ``context`` is copied into the container's own context, so later changes to the caller's dict are
         not seen and :meth:`set_context` never writes into it. A root binds :class:`Container`
         itself, so ``resolve(Container)`` returns the resolving container. A cached factory creates at
         most one instance per cache key across the tree, whichever threads resolve it.
@@ -217,7 +217,7 @@ class Container:
             return
 
         if errors := dependency_graph.collect_errors(reg):
-            raise exceptions.ValidationFailedError(errors=errors)
+            raise exceptions.ValidationFailedError(exceptions=errors)
         reg.mark_validated()
 
     def add_providers(self, *providers: AbstractProvider[typing.Any]) -> None:
