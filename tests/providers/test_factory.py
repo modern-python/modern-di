@@ -1211,3 +1211,17 @@ def test_factory_attributes_are_read_only(attribute: str) -> None:
     factory = providers.Factory(SimpleCreator, cache=True)
     with pytest.raises(AttributeError):
         setattr(factory, attribute, None)
+
+
+def test_subclassing_a_provider_outside_modern_di_raises_at_definition() -> None:
+    with pytest.raises(TypeError, match="_MyFactory subclasses a modern-di provider"):
+
+        class _MyFactory(providers.Factory[int]):
+            __slots__ = ()
+
+
+def test_subclassing_abstract_provider_outside_modern_di_raises_at_definition() -> None:
+    with pytest.raises(TypeError, match="_MyProvider subclasses a modern-di provider"):
+
+        class _MyProvider(providers.AbstractProvider[int]):
+            __slots__ = ()

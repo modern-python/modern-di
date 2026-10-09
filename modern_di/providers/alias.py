@@ -5,6 +5,14 @@ from modern_di.providers.abstract import AbstractProvider
 
 
 class Alias(AbstractProvider[types.T_co]):
+    """Provider that resolves through whichever provider is registered for ``source_type``.
+
+    Register it under ``bound_type``, typically an abstract base or ``Protocol``, to make that type
+    resolve to an existing implementation. An alias holds no instance and has no scope of its own:
+    caching and scope come from the source provider. The alias and its source can be overridden
+    independently.
+    """
+
     __slots__ = ("_source_type",)
 
     _takes_group_scope = False

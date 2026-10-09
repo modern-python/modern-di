@@ -2,9 +2,16 @@
 
 ## Symptom
 
-Raised by `close_sync()` / `close_async()`, embedding the list of finalizer exceptions that occurred
-during cleanup and whether the close was sync or async. It is an `ExceptionGroup`, so a traceback
-shows each finalizer exception below it.
+Raised by `close_sync()` / `close_async()` when finalizers fail during cleanup. The message is one
+line naming each kind of error with its count:
+
+```
+FinalizerError: Container.close_sync() found 2 finalizer error(s): ConnectionError (1), ValueError (1)
+```
+
+It is an `ExceptionGroup`, so a traceback shows each finalizer exception below it, with a note naming
+the type of the cached instance whose finalizer raised it, such as
+`raised by the finalizer of a cached Database`.
 
 ## Cause
 

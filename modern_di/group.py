@@ -6,6 +6,12 @@ from modern_di.providers.abstract import AbstractProvider
 
 
 class Group:
+    """A namespace of providers, declared as class attributes and passed to ``Container(groups=[...])``.
+
+    ``class G(Group, scope=Scope.REQUEST)`` gives that default scope to each ``Factory`` and
+    ``ContextProvider`` declared in its body without its own ``scope=``. A group is never instantiated.
+    """
+
     def __new__(cls, *_: object, **__: object) -> typing.Self:
         raise exceptions.GroupInstantiationError(group_name=cls.__name__)
 
@@ -27,6 +33,10 @@ class Group:
 
     @classmethod
     def get_named_providers(cls) -> dict[str, AbstractProvider[typing.Any]]:
+        """Return every provider declared on this group and its bases, keyed by attribute name.
+
+        A subclass attribute shadows a base attribute of the same name.
+        """
         seen_names: set[str] = set()
         collected: dict[str, AbstractProvider[typing.Any]] = {}
         for klass in cls.__mro__:
@@ -42,6 +52,7 @@ class Group:
 
     @classmethod
     def get_providers(cls) -> list[AbstractProvider[typing.Any]]:
+        """Return the providers of :meth:`get_named_providers` as a list."""
         # A direct subclass has no inherited providers to merge or shadow.
         if cls.__bases__ == (Group,):
             return [value for value in cls.__dict__.values() if isinstance(value, AbstractProvider)]

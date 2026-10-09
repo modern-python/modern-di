@@ -102,7 +102,9 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
         instance_type=Database
     ),
     exceptions.GroupInstantiationError: lambda: exceptions.GroupInstantiationError(group_name="Dependencies"),
-    exceptions.DuplicateProviderTypeError: lambda: exceptions.DuplicateProviderTypeError(provider_type=Database),
+    exceptions.DuplicateProviderTypeError: lambda: exceptions.DuplicateProviderTypeError(
+        provider_type=Database, first_provider=_app_provider, second_provider=_request_provider
+    ),
     exceptions.ChildContainerRegistrationError: lambda: exceptions.ChildContainerRegistrationError(
         container_scope=Scope.REQUEST
     ),
@@ -209,7 +211,10 @@ _SLOTTED_PROVIDERS_DEGRADE = {"pickle-0", "pickle-1"}
 
 
 def _degrade_providers(state: dict[str, typing.Any]) -> dict[str, typing.Any]:
-    return {name: repr(value) if name in {"provider", "dependency_chain"} else value for name, value in state.items()}
+    return {
+        name: repr(value) if name in {"provider", "dependency_chain", "first_provider", "second_provider"} else value
+        for name, value in state.items()
+    }
 
 
 @pytest.mark.parametrize("trip_name", ROUND_TRIPS)

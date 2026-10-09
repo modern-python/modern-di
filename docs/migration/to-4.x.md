@@ -153,7 +153,11 @@ the finalizer errors inside it by type, `AsyncFinalizerInSyncCloseError` include
   was a list.
 - The constructor keyword `finalizer_errors=` is now `exceptions=`.
 - `.is_async` is unchanged, and a group that `except*` splits off keeps it.
-- `except FinalizerError` and `except ModernDIError` still catch it, and its message is unchanged.
+- `except FinalizerError` and `except ModernDIError` still catch it.
+- Its message is one line naming each kind of error with its count, such as
+  `Container.close_sync() found 1 finalizer error(s): ValueError (1)`, where 3.x listed every
+  finalizer exception. Each finalizer exception carries a note naming the type of the cached
+  instance whose finalizer raised it.
 
 ```python
 # 3.x

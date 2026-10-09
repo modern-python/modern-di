@@ -8,9 +8,15 @@ When you see this error:
 
 ```
 DuplicateProviderTypeError: Provider is duplicated by type <class 'SomeType'>.
+  - Factory (myapp.ioc:12)
+  - Factory (myapp.other:30)
+Set bound_type=None on one of them to make it resolvable by reference only.
+See: https://modern-di.modern-python.org/troubleshooting/duplicate-type-error/
 ```
 
-The full runtime message also embeds the numbered resolution steps (set `bound_type=None` on one of the providers, or pass dependencies via `kwargs`) and a `See https://...` backlink to this page.
+Each line names one of the two providers, the one registered first on top: a `Factory` by where its
+creator is declared, any other provider by its repr. `.first_provider` and `.second_provider` hold
+the provider objects.
 
 It descends from `RegistrationError` → `ModernDIError` → `RuntimeError`, so `except DuplicateProviderTypeError`, `except RegistrationError`, and `except RuntimeError` all catch it. See [Errors and exceptions](../providers/errors-and-exceptions.md).
 
@@ -21,12 +27,9 @@ This typically happens when:
 
 ## Fix
 
-To fix this error, you need to:
-
-1. Set `bound_type=None` on one of the duplicate providers to make it unresolvable by type
-2. Explicitly pass dependencies via the `kwargs` parameter to avoid automatic resolution
-
-A complete example covering both steps:
+Set `bound_type=None` on one of the duplicate providers to make it unresolvable by type. A factory
+that needs that provider then gets it explicitly through `kwargs`, since resolving by type finds only
+the other one. The example below does both:
 
 ```python
 from modern_di import Group, Scope, providers
