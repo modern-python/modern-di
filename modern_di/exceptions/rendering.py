@@ -7,6 +7,10 @@ import typing
 from modern_di import suggester
 
 
+if typing.TYPE_CHECKING:
+    from modern_di.providers.abstract import AbstractProvider
+
+
 SUGGESTION_HEADER = "Did you mean:"
 
 
@@ -27,6 +31,13 @@ class ResolutionStep:
     scope: enum.IntEnum
     name: str
     location: str | None = None
+
+
+def provider_step(provider: "AbstractProvider[typing.Any]", scope: enum.IntEnum | None = None) -> ResolutionStep:
+    """Return ``provider`` as a chain step at ``scope``, its own scope by default."""
+    return ResolutionStep(
+        scope=provider.scope if scope is None else scope, name=provider.display_name, location=provider.definition_site
+    )
 
 
 def render_chain(steps: "list[ResolutionStep]") -> list[str]:

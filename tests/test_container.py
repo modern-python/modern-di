@@ -10,8 +10,8 @@ import weakref
 
 import pytest
 
-from modern_di import Container, Group, Scope, exceptions, providers, suggester
-from modern_di.dependency_graph import collect_errors
+from modern_di import Container, Group, Scope, dependency_graph, exceptions, providers, suggester
+from modern_di.dependency_graph import collect_errors, dependencies_of
 from modern_di.exceptions import (
     ArgumentResolutionError,
     ChildContainerRegistrationError,
@@ -201,7 +201,7 @@ def test_validate_passes_for_valid_graph() -> None:
     container.validate()  # should not raise
 
 
-def test_validate_memoizes_diamond() -> None:
+def test_validate_memoizes_diamond(monkeypatch: pytest.MonkeyPatch) -> None:
     @dataclasses.dataclass(kw_only=True, slots=True)
     class Bottom:
         pass
@@ -219,17 +219,16 @@ def test_validate_memoizes_diamond() -> None:
         left: Left
         right: Right
 
-    call_count = 0
+    bottom_provider = providers.Factory(creator=Bottom)
+    reads: list[AbstractProvider[typing.Any]] = []
 
-    class _CountingFactory(providers.Factory[Bottom]):
-        __slots__ = ()
+    def counting_dependencies_of(
+        provider: AbstractProvider[typing.Any], registry: ProvidersRegistry
+    ) -> dict[str, AbstractProvider[typing.Any]]:
+        reads.append(provider)
+        return dependencies_of(provider, registry)
 
-        def _get_dependencies(self, registry: ProvidersRegistry) -> dict[str, AbstractProvider[typing.Any]]:
-            nonlocal call_count
-            call_count += 1
-            return super()._get_dependencies(registry)
-
-    bottom_provider = _CountingFactory(creator=Bottom)
+    monkeypatch.setattr(dependency_graph, "dependencies_of", counting_dependencies_of)
 
     class DiamondGroup(Group):
         bottom = bottom_provider
@@ -239,7 +238,7 @@ def test_validate_memoizes_diamond() -> None:
 
     container = Container(groups=[DiamondGroup])
     container.validate()
-    assert call_count == 1
+    assert reads.count(bottom_provider) == 1
 
 
 def test_validate_walks_deeper_scoped_providers() -> None:

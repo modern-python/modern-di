@@ -23,11 +23,13 @@ import typing
 from modern_di import exceptions, types
 from modern_di.cache import CacheItem
 from modern_di.dependency_graph import redirect_hops, terminal_chain
+from modern_di.exceptions.rendering import provider_step
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.context_provider import ContextProvider
 from modern_di.providers.factory import Factory
+from modern_di.wiring import argument_resolution_error
 
 
 if typing.TYPE_CHECKING:
@@ -199,7 +201,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
     namespace["pid"] = f.provider_id
     namespace["scope"] = f.scope
     namespace["creator"] = f._creator
-    namespace["resolution_step"] = f._resolution_step
+    namespace["resolution_step"] = functools.partial(provider_step, f)
     namespace["edges"] = plan.provider_kwargs
     namespace["arg_lines"] = arg_lines
     namespace["static"] = plan.static_kwargs
@@ -247,15 +249,14 @@ def _compile_constant(value: typing.Any) -> "Resolver":
 def _compile_unwireable_factory(f: "Factory[typing.Any]", plan: "WiringPlan") -> "Resolver":
     """Compile a resolver that always raises for the factory's first unwireable parameter, freshly built per call."""
     scope = f.scope
-    resolution_step = f._resolution_step
-    build_error = f._argument_resolution_error
+    resolution_step = functools.partial(provider_step, f)
     arg_name, item = plan.unwireable[0]
 
     def resolve(container: "Container") -> typing.Any:
         target = container if container._scope is scope else _navigate(container, scope, resolution_step)
         if target._closed:
             raise exceptions.ContainerClosedError(container_scope=target._scope)
-        error = build_error(arg_name=arg_name, item=item, registry=target._providers_registry)
+        error = argument_resolution_error(f, arg_name, item, target._providers_registry)
         error._prepend_step(resolution_step())
         raise error
 
@@ -271,7 +272,7 @@ def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "Re
 
     def resolve(_: "Container") -> typing.Any:
         error = exceptions.AliasSourceNotRegisteredError(source_type=source_type)
-        error._prepend_step(a._resolution_step())
+        error._prepend_step(provider_step(a))
         raise error
 
     return resolve
@@ -287,7 +288,7 @@ def _compile_context_provider(cp: "ContextProvider[typing.Any]", default: typing
     context_type = cp.context_type
     if default is types.UNSET:
         default = cp.default
-    resolution_step = cp._resolution_step
+    resolution_step = functools.partial(provider_step, cp)
 
     def resolve(container: "Container") -> typing.Any:
         if container._scope is scope:

@@ -4,13 +4,14 @@ import enum
 import pytest
 
 from modern_di import Container, Group, Scope, exceptions, providers
-from modern_di.dependency_graph import terminal_chain
+from modern_di.dependency_graph import redirect_target, terminal_chain
 from modern_di.exceptions import (
     AliasSourceNotRegisteredError,
     CircularDependencyError,
     ScopeNotInitializedError,
     ValidationFailedError,
 )
+from modern_di.registries.providers_registry import ProvidersRegistry
 
 
 class AbstractRepository: ...
@@ -401,21 +402,21 @@ def test_alias_rejects_source_type_passed_twice() -> None:
         providers.Alias(PostgresRepository, source_type=PostgresRepository)  # ty: ignore[parameter-already-assigned]
 
 
-# redirect_target — node hook for transparent redirects
+# redirect_target: transparent redirects
 
 
 def test_redirect_target_default_none() -> None:
     class X: ...
 
     factory = providers.Factory(scope=Scope.APP, creator=X)
-    assert factory._redirect_target(None) is None  # ty: ignore[invalid-argument-type]
+    assert redirect_target(factory, ProvidersRegistry()) is None
 
 
 def test_alias_redirect_target_returns_source() -> None:
     container = Container(groups=[MyGroup])
     source = container.find_provider(PostgresRepository)
     assert source is not None
-    target = MyGroup.abstract_repo._redirect_target(container._providers_registry)
+    target = redirect_target(MyGroup.abstract_repo, container._providers_registry)
     assert target is not None
     assert target.provider_id == source.provider_id
 
@@ -425,7 +426,7 @@ def test_alias_redirect_target_none_when_dangling() -> None:
         abstract = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
 
     container = Container(groups=[G])
-    assert G.abstract._redirect_target(container._providers_registry) is None
+    assert redirect_target(G.abstract, container._providers_registry) is None
 
 
 # A genuine scope inversion through an alias must still raise, even measured against a custom

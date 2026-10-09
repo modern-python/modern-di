@@ -37,7 +37,7 @@ Every module under `modern_di/` is named for what it does; read it. What a singl
 
 - `resolver_compiler.py` is the **single resolve path**. A `Factory` resolver is generated from a source
   template per resolver shape and `exec`'d with the factory's constants as globals; an `Alias` compiles
-  to its source's resolver, and the other provider types compile to closures. A new provider type must add a branch here or `compile_resolver` raises.
+  to its source's resolver, and the other provider types compile to closures. A new provider type must add a branch here or `compile_resolver` raises, and branches in `dependency_graph` (`redirect_target`, `dependencies_of`, `collect_errors`), which fall through silently.
   Nothing in the template calls a helper on the hot path: the per-node frame budget is the point, and
   `test_resolve_costs_exactly_one_resolver_frame_per_node` says why. Overrides are compiled in: an
   override change drops the compiled resolvers.
