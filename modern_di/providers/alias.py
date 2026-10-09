@@ -1,11 +1,7 @@
 import typing
 
-from modern_di import exceptions, types
+from modern_di import types
 from modern_di.providers.abstract import AbstractProvider
-
-
-if typing.TYPE_CHECKING:
-    from modern_di.registries.providers_registry import ProvidersRegistry
 
 
 class Alias(AbstractProvider[types.T_co]):
@@ -24,12 +20,3 @@ class Alias(AbstractProvider[types.T_co]):
 
     def __repr__(self) -> str:
         return f"Alias(source_type={self._source_type!r}, bound_type={self.bound_type!r}, scope={self.scope!r})"
-
-    def _get_dependencies(self, registry: "ProvidersRegistry") -> dict[str, "AbstractProvider[typing.Any]"]:
-        source = self._redirect_target(registry)
-        if source is None:
-            raise exceptions.AliasSourceNotRegisteredError(source_type=self._source_type)
-        return {"source": source}
-
-    def _redirect_target(self, registry: "ProvidersRegistry") -> "AbstractProvider[typing.Any] | None":
-        return registry.find_provider(self._source_type)

@@ -6,9 +6,6 @@ from modern_di import exceptions, types
 from modern_di.scope import Scope
 
 
-if typing.TYPE_CHECKING:
-    from modern_di.registries.providers_registry import ProvidersRegistry
-
 _provider_id_counter = itertools.count()
 
 
@@ -17,9 +14,6 @@ class AbstractProvider(typing.Generic[types.T_co]):
 
     _takes_group_scope: typing.ClassVar[bool] = True
     """Whether a Group-level default scope applies. False when the effective scope is derived."""
-
-    _ignores_scope: typing.ClassVar[bool] = False
-    """Whether resolution ignores this provider's scope."""
 
     def __init__(
         self,
@@ -93,20 +87,3 @@ class AbstractProvider(typing.Generic[types.T_co]):
     def definition_site(self) -> str | None:
         """``module:line`` of the provider's declaration when known; None by default (no creator)."""
         return None
-
-    def _resolution_step(self, scope: enum.IntEnum | None = None) -> exceptions.ResolutionStep:
-        """Return this provider as a chain step at ``scope``, its own scope by default."""
-        return exceptions.ResolutionStep(
-            scope=self.scope if scope is None else scope, name=self.display_name, location=self.definition_site
-        )
-
-    def _get_dependencies(self, registry: "ProvidersRegistry") -> dict[str, "AbstractProvider[typing.Any]"]:  # noqa: ARG002
-        return {}
-
-    def _redirect_target(self, registry: "ProvidersRegistry") -> "AbstractProvider[typing.Any] | None":  # noqa: ARG002
-        """Return the provider this transparently forwards to, or None if resolution terminates here."""
-        return None
-
-    def _iter_validation_issues(self, registry: "ProvidersRegistry") -> typing.Iterable[Exception]:  # noqa: ARG002
-        """Yield validation-time issues for this provider. Default: no issues."""
-        return iter(())

@@ -8,7 +8,6 @@ class _ContainerProvider(AbstractProvider[typing.Any]):
     __slots__ = ()
 
     _takes_group_scope = False
-    _ignores_scope = True
 
     def __init__(self) -> None:
         super().__init__(scope=Scope.APP, bound_type=None)

@@ -5,7 +5,7 @@ import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import ModernDIError
-from modern_di.exceptions.rendering import render_chain, render_suggestion_lines
+from modern_di.exceptions.rendering import provider_step, render_chain, render_suggestion_lines
 
 
 if typing.TYPE_CHECKING:
@@ -202,8 +202,8 @@ class _DependencyChainError(RegistrationError):
     def _render_body(self) -> str:
         effective_scope = self.dependency_terminal.scope
         steps = [
-            self.provider._resolution_step(),  # noqa: SLF001
-            *(p._resolution_step(effective_scope) for p in self.dependency_chain),  # noqa: SLF001
+            provider_step(self.provider),
+            *(provider_step(p, effective_scope) for p in self.dependency_chain),
         ]
         lines = [
             self._chain_headline,

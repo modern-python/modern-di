@@ -1,8 +1,8 @@
 """Iterative depth-first walk of the static provider graph, emitted as an event stream.
 
 Explicit-stack, never recursive: a caller runs it inside a ``RecursionError`` handler near
-CPython's stack limit. Must not import ``Container`` or a concrete provider at runtime —
-``container.py`` imports this module, so a back-import would cycle.
+CPython's stack limit. Dispatches on the closed provider set by type, like the resolver compiler.
+Must not import ``Container`` at runtime: ``container.py`` imports this module.
 """
 
 import enum
@@ -10,7 +10,12 @@ import typing
 from typing import NamedTuple
 
 from modern_di import exceptions
+from modern_di.exceptions.rendering import provider_step
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.alias import Alias
+from modern_di.providers.container_provider import container_provider
+from modern_di.providers.factory import Factory
+from modern_di.wiring import argument_resolution_error
 
 
 if typing.TYPE_CHECKING:
@@ -51,17 +56,40 @@ class DependenciesError(NamedTuple):
 Event = NodeEntered | Edge | Cycle | DependenciesError
 
 
+def redirect_target(
+    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
+) -> "AbstractProvider[typing.Any] | None":
+    """Return the provider ``provider`` transparently forwards to, or None if resolution terminates at it."""
+    if type(provider) is Alias:
+        return registry.find_provider(provider._source_type)  # noqa: SLF001
+    return None
+
+
+def dependencies_of(
+    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
+) -> dict[str, "AbstractProvider[typing.Any]"]:
+    """Return parameter name to dependency provider: a pure registry lookup, no scope or cache touched."""
+    if type(provider) is Factory:
+        return registry.plan_for(provider).provider_kwargs
+    if type(provider) is Alias:
+        source = redirect_target(provider, registry)
+        if source is None:
+            raise exceptions.AliasSourceNotRegisteredError(source_type=provider._source_type)  # noqa: SLF001
+        return {"source": source}
+    return {}
+
+
 def terminal_chain(
     provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
 ) -> "list[AbstractProvider[typing.Any]]":
-    """Follow ``_redirect_target`` hops from ``provider``, ``provider`` first.
+    """Follow ``redirect_target`` hops from ``provider``, ``provider`` first.
 
     A redirect cycle collapses the chain to the single provider the repeat was detected at, so
     ``effective_scope`` reports that provider's own scope; ``walk()`` reports the cycle itself.
     """
     chain = [provider]
     seen: set[int] = set()
-    while (nxt := provider._redirect_target(registry)) is not None:  # noqa: SLF001
+    while (nxt := redirect_target(provider, registry)) is not None:
         if provider.provider_id in seen:
             return [provider]
         seen.add(provider.provider_id)
@@ -83,7 +111,7 @@ def redirect_hops(
     A redirect owns no lifetime of its own, so each hop is drawn at the scope the terminal resolves at.
     """
     *hops, terminal = terminal_chain(provider, registry)
-    return [p._resolution_step(terminal.scope) for p in hops]  # noqa: SLF001
+    return [provider_step(p, terminal.scope) for p in hops]
 
 
 def build_cycle_error(
@@ -99,9 +127,7 @@ def build_cycle_error(
     lead = min(range(len(ring)), key=lambda i: ring[i].provider_id)
     rotated = [*ring[lead:], *ring[:lead]]
     canonical = [*rotated, rotated[0]]
-    return exceptions.CircularDependencyError(
-        steps=[p._resolution_step(effective_scope(p, registry)) for p in canonical]  # noqa: SLF001
-    )
+    return exceptions.CircularDependencyError(steps=[provider_step(p, effective_scope(p, registry)) for p in canonical])
 
 
 def walk(
@@ -126,7 +152,7 @@ def walk(
                 path.append(entering)
                 yield NodeEntered(entering)
                 try:
-                    dependencies = entering._get_dependencies(registry)  # noqa: SLF001
+                    dependencies = dependencies_of(entering, registry)
                 except exceptions.ResolutionError as exc:
                     yield DependenciesError(entering, exc)
                     dependencies = {}
@@ -169,7 +195,7 @@ def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
         if type(event) is Edge:
             parent, name, dep = event
             dependency_chain = terminal_chain(dep, registry)
-            if dependency_chain[-1]._ignores_scope:  # noqa: SLF001
+            if dependency_chain[-1] is container_provider:
                 continue
             dependency_scope = dependency_chain[-1].scope
             parent_scope = effective_scope(parent, registry)
@@ -190,7 +216,10 @@ def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
                     )
                 )
         elif type(event) is NodeEntered:
-            errors.extend(event.provider._iter_validation_issues(registry))  # noqa: SLF001
+            provider = event.provider
+            if type(provider) is Factory:
+                for name, item in registry.plan_for(provider).unwireable:
+                    errors.append(argument_resolution_error(provider, name, item, registry))
         elif type(event) is DependenciesError:
             errors.append(event.error)
         else:

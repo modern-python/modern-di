@@ -3,6 +3,7 @@
 import dataclasses
 import typing
 
+from modern_di import exceptions, suggester
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.types import UNSET
 from modern_di.types_parser import SignatureItem
@@ -84,3 +85,17 @@ def _overlay(
             provider_kwargs[name] = value
         else:
             static_kwargs[name] = value
+
+
+def argument_resolution_error(
+    factory: "Factory[typing.Any]", arg_name: str, item: SignatureItem, registry: "ProvidersRegistry"
+) -> exceptions.ArgumentResolutionError:
+    """Build the error for a ``factory`` parameter that no provider, default or static kwarg covers."""
+    return exceptions.ArgumentResolutionError(
+        parameter_name=arg_name,
+        parameter_type=item.arg_type,
+        bound_type=factory.bound_type,
+        creator=factory._creator,  # noqa: SLF001
+        suggestions=suggester.suggest(item.arg_type, registry) if item.arg_type is not None else [],
+        member_types=item.member_types,
+    )

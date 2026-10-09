@@ -4,14 +4,10 @@ import inspect
 import typing
 import warnings
 
-from modern_di import exceptions, suggester, types
+from modern_di import exceptions, types
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.types_parser import ParsedCreator, SignatureItem, parse_creator
 from modern_di.wiring import WiringPlan
-
-
-if typing.TYPE_CHECKING:
-    from modern_di.registries.providers_registry import ProvidersRegistry
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -186,19 +182,6 @@ class Factory(AbstractProvider[types.T_co]):
             return None
         return f"{module}:{lineno}"
 
-    def _argument_resolution_error(
-        self, *, arg_name: str, item: SignatureItem, registry: "ProvidersRegistry"
-    ) -> exceptions.ArgumentResolutionError:
-        suggestions = suggester.suggest(item.arg_type, registry) if item.arg_type is not None else []
-        return exceptions.ArgumentResolutionError(
-            parameter_name=arg_name,
-            parameter_type=item.arg_type,
-            bound_type=self.bound_type,
-            creator=self._creator,
-            suggestions=suggestions,
-            member_types=item.member_types,
-        )
-
     def _can_call_positionally(self, plan: WiringPlan) -> bool:
         """Whether this creator can be called positionally under `plan`.
 
@@ -208,13 +191,3 @@ class Factory(AbstractProvider[types.T_co]):
         if plan.static_kwargs or self._positional_names is None:
             return False
         return tuple(plan.provider_kwargs) == self._positional_names
-
-    def _get_dependencies(self, registry: "ProvidersRegistry") -> dict[str, "AbstractProvider[typing.Any]"]:
-        """Return parameter name → dependency provider: a pure registry lookup, no scope or cache touched."""
-        return registry.plan_for(self).provider_kwargs
-
-    def _iter_validation_issues(self, registry: "ProvidersRegistry") -> typing.Iterable[Exception]:
-        """Yield ArgumentResolutionError for parameters with no provider, no default, no static kwarg."""
-        plan = registry.plan_for(self)
-        for name, item in plan.unwireable:
-            yield self._argument_resolution_error(arg_name=name, item=item, registry=registry)
