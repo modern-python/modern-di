@@ -6,7 +6,7 @@ import typing
 import warnings
 
 from modern_di import exceptions
-from modern_di.types import UNSET
+from modern_di.types import UNSET, BoundType
 
 
 _NAMED_TYPE_FORMS = (typing.NewType,) if sys.version_info < (3, 12) else (typing.NewType, typing.TypeAliasType)
@@ -14,8 +14,8 @@ _NAMED_TYPE_FORMS = (typing.NewType,) if sys.version_info < (3, 12) else (typing
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class SignatureItem:
-    arg_type: type | None = None
-    member_types: list[type] = dataclasses.field(default_factory=list)
+    arg_type: BoundType | None = None
+    member_types: list[BoundType] = dataclasses.field(default_factory=list)
     is_nullable: bool = False
     default: object = UNSET
     unresolvable_generic: object = None

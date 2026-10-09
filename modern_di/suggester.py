@@ -4,6 +4,8 @@ import enum
 import inspect
 import typing
 
+from modern_di import types
+
 
 if typing.TYPE_CHECKING:
     from modern_di.providers.abstract import AbstractProvider
@@ -25,13 +27,14 @@ class Suggestion:
     scope: enum.IntEnum | None = None
 
 
-def suggest(requested_type: type, providers: "typing.Iterable[AbstractProvider[typing.Any]]") -> list[Suggestion]:
+def suggest(
+    requested_type: types.BoundType, providers: "typing.Iterable[AbstractProvider[typing.Any]]"
+) -> list[Suggestion]:
     """Candidates the caller may have meant for ``requested_type``, best first, capped at three.
 
     A registered subclass or base class first, then fuzzy name matches. ``providers`` is read by
     duck typing on ``bound_type``/``scope`` to avoid an import cycle.
     """
-    requested_is_class = inspect.isclass(requested_type)
     requested_name = getattr(requested_type, "__name__", str(requested_type))
 
     hierarchy_hints: list[Suggestion] = []
@@ -42,7 +45,7 @@ def suggest(requested_type: type, providers: "typing.Iterable[AbstractProvider[t
         if registered is None or registered is requested_type:
             continue
 
-        hint = _hierarchy_hint(requested_type, provider) if requested_is_class else None
+        hint = _hierarchy_hint(requested_type, provider) if inspect.isclass(requested_type) else None
         if hint is not None:
             hierarchy_hints.append(hint)
             if len(hierarchy_hints) >= _MAX_SUGGESTIONS:

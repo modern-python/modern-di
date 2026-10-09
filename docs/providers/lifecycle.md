@@ -35,7 +35,7 @@ session = providers.Factory(
 ```
 
 - With `cache=True`, the provider returns the same instance for every resolve inside that scope's container. That is the singleton idiom; see [Cached factories](factories.md#cached-factories). Without `cache`, the provider creates a fresh instance every call.
-- A finalizer is a callable that runs on the cached instance when the container is closed. It can be sync or async; `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance.
+- A finalizer is a callable that runs on the cached instance when the container is closed. It can be sync or async; `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance. Its return value is ignored, so a `close()` method that returns something works as a finalizer.
 
 ```python
 def close_engine_sync(engine: Engine) -> None:

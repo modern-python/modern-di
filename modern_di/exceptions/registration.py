@@ -3,7 +3,7 @@
 import enum
 import typing
 
-from modern_di import suggester
+from modern_di import suggester, types
 from modern_di.exceptions.base import ModernDIError
 from modern_di.exceptions.rendering import render_chain, render_suggestion_lines
 
@@ -25,7 +25,7 @@ class DuplicateProviderTypeError(RegistrationError):
 
     __slots__ = ("provider_type",)
 
-    def __init__(self, *, provider_type: type) -> None:
+    def __init__(self, *, provider_type: types.BoundType) -> None:
         self.provider_type = provider_type
         super().__init__(
             f"Provider is duplicated by type {provider_type}. "

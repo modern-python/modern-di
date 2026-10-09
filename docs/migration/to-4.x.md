@@ -362,6 +362,12 @@ compiled the provider. Declare a new provider instead.
   `Factory(make_base, cache=CacheSettings(finalizer=close_sub))`, is now a type error. In 3.x it
   type-checked and failed at close with `AttributeError`. Make the finalizer accept the creator's
   return type or a base of it.
+- `bound_type` on every provider is typed `type | NewType | TypeAliasType | None`, since a
+  `NewType` or a `type X = ...` alias is a bound type of its own (`TypeAliasType` on Python 3.12+
+  only). In 3.x it was typed `type | None`. Code that passes `provider.bound_type` where a class is
+  expected needs a check first, such as `isinstance(bound_type, type)`. The same widening applies
+  to `DuplicateProviderTypeError.provider_type`, `ProviderNotRegisteredError.dependency_type`, and
+  `ArgumentResolutionError.bound_type`, `.parameter_type` and `.member_types`.
 
 ### Internal helpers on providers, settings and errors are private
 

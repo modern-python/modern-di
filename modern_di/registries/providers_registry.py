@@ -38,10 +38,10 @@ class ProvidersRegistry:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._providers: dict[type, AbstractProvider[typing.Any]] = {}
+        self._providers: dict[types.BoundType, AbstractProvider[typing.Any]] = {}
         self._plans: dict[int, WiringPlan] = {}
         self._resolvers: dict[int, typing.Callable[[Container], typing.Any]] = {}
-        self._resolvers_by_type: dict[type, typing.Callable[[Container], typing.Any]] = {}
+        self._resolvers_by_type: dict[types.BoundType, typing.Callable[[Container], typing.Any]] = {}
         self.overrides = OverridesRegistry(on_change=self.drop_resolvers)
         self._building = threading.local()
         self._validated = False
@@ -61,7 +61,7 @@ class ProvidersRegistry:
         """Mark the graph validated; any later mutation clears this."""
         self._validated = True
 
-    def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
+    def find_provider(self, dependency_type: types.BoundType) -> AbstractProvider[typing.Any] | None:
         return self._providers.get(dependency_type)
 
     def plan_for(self, provider: "Factory[typing.Any]") -> "WiringPlan":
@@ -114,7 +114,7 @@ class ProvidersRegistry:
         self._publish(self._resolvers, pid, resolver, generation)
         return resolver
 
-    def resolver_for_type(self, dependency_type: type) -> "typing.Callable[[Container], typing.Any]":
+    def resolver_for_type(self, dependency_type: types.BoundType) -> "typing.Callable[[Container], typing.Any]":
         """Return the resolver bound to `dependency_type`; raises `ProviderNotRegisteredError` when unbound."""
         generation = self._generation
         provider = self._providers.get(dependency_type)
@@ -131,11 +131,11 @@ class ProvidersRegistry:
         with self._lock:
             self._drop_resolvers()
 
-    def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
+    def register(self, provider_type: types.BoundType, provider: AbstractProvider[typing.Any]) -> None:
         self._add({provider_type: provider}, (provider,))
 
     def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
-        new_providers: dict[type, AbstractProvider[typing.Any]] = {}
+        new_providers: dict[types.BoundType, AbstractProvider[typing.Any]] = {}
         for provider in args:
             if not provider.bound_type:
                 continue
@@ -146,7 +146,7 @@ class ProvidersRegistry:
 
     def _add(
         self,
-        new_providers: dict[type, AbstractProvider[typing.Any]],
+        new_providers: dict[types.BoundType, AbstractProvider[typing.Any]],
         registered: tuple[AbstractProvider[typing.Any], ...],
     ) -> None:
         """Bind ``new_providers`` and latch every provider in ``registered``; a type already bound raises."""

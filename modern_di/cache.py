@@ -44,7 +44,7 @@ class CacheItem:
             self.cache = value
             return value, True
 
-    def _pending_finalizer(self) -> typing.Callable[[typing.Any], typing.Awaitable[None] | None] | None:
+    def _pending_finalizer(self) -> typing.Callable[[typing.Any], object] | None:
         """Return the finalizer still owed to the cached value, or None when nothing is owed."""
         return None if self.cache is types.UNSET or self.finalized else self.settings.finalizer
 

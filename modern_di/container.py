@@ -1,3 +1,4 @@
+import collections.abc
 import copy
 import enum
 import typing
@@ -47,12 +48,12 @@ class Container:
         self,
         scope: enum.IntEnum = Scope.APP,
         *,
-        context: dict[type[typing.Any], typing.Any] | None = None,
-        groups: list[type[Group]] | None = None,
+        context: collections.abc.Mapping[type[typing.Any], typing.Any] | None = None,
+        groups: collections.abc.Sequence[type[Group]] | None = None,
     ) -> None:
         """Build a root container at ``scope``, open and ready to :meth:`resolve`.
 
-        ``context`` is copied into the container's own context, so later changes to the caller's dict are
+        ``context`` is copied into the container's own context, so later changes to the caller's mapping are
         not seen and :meth:`set_context` never writes into it. A root binds :class:`Container`
         itself, so ``resolve(Container)`` returns the resolving container. A cached factory creates at
         most one instance per cache key across the tree, whichever threads resolve it.
@@ -89,7 +90,7 @@ class Container:
         self,
         *,
         scope: enum.IntEnum | None = None,
-        context: dict[type[typing.Any], typing.Any] | None = None,
+        context: collections.abc.Mapping[type[typing.Any], typing.Any] | None = None,
     ) -> typing.Self:
         """Return a new open child at ``scope``, seeded with ``context``.
 
@@ -121,7 +122,7 @@ class Container:
         scope: enum.IntEnum,
         parent: typing.Self | None,
         scope_map: dict[enum.IntEnum, typing.Self],
-        context: dict[type[typing.Any], typing.Any] | None,
+        context: collections.abc.Mapping[type[typing.Any], typing.Any] | None,
         providers_registry: ProvidersRegistry,
     ) -> None:
         """Set every slot of an open container; ``parent`` is ``None`` for a root."""
@@ -133,8 +134,8 @@ class Container:
         self._creation_order: list[cache.CacheItem] = []
         if context is None:
             self._context = {}
-        elif type(context) is dict:
-            self._context = context.copy()
+        elif type(context) is dict or not isinstance(context, dict):
+            self._context = {**context}
         else:
             self._context = copy.copy(context)
         self._providers_registry = providers_registry
@@ -156,7 +157,13 @@ class Container:
             raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope, root_scope=root_scope)
         return target
 
-    def resolve(self, dependency_type: type[types.T]) -> types.T:
+    @typing.overload
+    def resolve(self, dependency_type: type[types.T]) -> types.T: ...
+
+    @typing.overload
+    def resolve(self, dependency_type: types.BoundType) -> typing.Any: ...  # noqa: ANN401
+
+    def resolve(self, dependency_type: types.BoundType) -> typing.Any:
         """Resolve a dependency by its type.
 
         Raises :class:`~modern_di.exceptions.ContainerClosedError` when this container, or the
@@ -178,7 +185,13 @@ class Container:
                 exc._prepend_step(*dependency_graph.redirect_hops(provider, registry))  # noqa: SLF001
             raise
 
-    def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
+    @typing.overload
+    def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T: ...
+
+    @typing.overload
+    def resolve_dependency(self, dependency: types.BoundType) -> typing.Any: ...  # noqa: ANN401
+
+    def resolve_dependency(self, dependency: "AbstractProvider[typing.Any] | types.BoundType") -> typing.Any:
         """Resolve a provider reference via :meth:`resolve_provider`, or a type via :meth:`resolve`."""
         if isinstance(dependency, AbstractProvider):
             return self.resolve_provider(dependency)
@@ -233,7 +246,13 @@ class Container:
             raise exceptions.ChildContainerRegistrationError(container_scope=self._scope)
         self._providers_registry.add_providers(*providers)
 
-    def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
+    @typing.overload
+    def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None: ...
+
+    @typing.overload
+    def find_provider(self, dependency_type: types.BoundType) -> AbstractProvider[typing.Any] | None: ...
+
+    def find_provider(self, dependency_type: types.BoundType) -> AbstractProvider[typing.Any] | None:
         """Return the provider registered for ``dependency_type`` anywhere in the tree, or ``None``.
 
         A pure lookup: it ignores overrides and the closed state, and never compiles or resolves.

@@ -17,7 +17,7 @@ class Alias(AbstractProvider[types.T_co]):
         self,
         source_type: type[types.T_co],
         *,
-        bound_type: type | types.UnsetType | None = types.UNSET,
+        bound_type: types.BoundType | types.UnsetType | None = types.UNSET,
     ) -> None:
         super().__init__(scope=types.UNSET, bound_type=bound_type, inferred_bound_type=source_type)
         self._source_type = source_type

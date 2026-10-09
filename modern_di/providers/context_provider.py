@@ -23,7 +23,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
         context_type: type[types.T],
         *,
         scope: enum.IntEnum | types.UnsetType = ...,
-        bound_type: type | types.UnsetType | None = ...,
+        bound_type: types.BoundType | types.UnsetType | None = ...,
         default: None,
     ) -> None: ...
 
@@ -33,7 +33,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
         context_type: type[types.T],
         *,
         scope: enum.IntEnum | types.UnsetType = ...,
-        bound_type: type | types.UnsetType | None = ...,
+        bound_type: types.BoundType | types.UnsetType | None = ...,
         default: types.T | types.UnsetType = ...,
     ) -> None: ...
 
@@ -42,7 +42,7 @@ class ContextProvider(AbstractProvider[types.T_co]):
         context_type: type[typing.Any],
         *,
         scope: enum.IntEnum | types.UnsetType = types.UNSET,
-        bound_type: type | types.UnsetType | None = types.UNSET,
+        bound_type: types.BoundType | types.UnsetType | None = types.UNSET,
         default: typing.Any = types.UNSET,
     ) -> None:
         super().__init__(scope=scope, bound_type=bound_type, inferred_bound_type=context_type)
