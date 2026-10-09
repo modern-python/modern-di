@@ -10,21 +10,19 @@ aborts with `fatal: no tag message?`. Pre-releases use the PEP 440 form (`2.0.0r
 
 The workflow runs three jobs in order, and each starts only if the one before it passed:
 
-1. `gate` fails unless the tagged commit is an ancestor of `main` and the CI that already ran on
-   that commit is green. It reads the commit's check runs through the API
-   ([`.github/scripts/check-runs-green.sh`](../../.github/scripts/check-runs-green.sh)) and needs
-   every one, from any workflow, to be completed with `success` or `skipped`. The prerelease
-   pytest jobs (3.15, 3.15t) may fail, as they may in CI. It also fails if no `checks / ...` runs exist or one is still
-   running, so wait for `main`'s CI to finish before you push the tag. It does not re-run the
-   checks: `just install` upgrades the dev tools, so a re-run could block a release over a new
-   `ruff` or `ty` rule while the reviewed code is unchanged.
+1. `gate` fails unless the tagged commit is an ancestor of `main` and has a `push`-event run of
+   [`ci.yml`](../../.github/workflows/ci.yml) that completed with `success`. It takes the latest
+   such run and fails if there is none or it is still running, so wait for `main`'s CI to finish
+   before you push the tag. The workflow conclusion already lets the prerelease pytest jobs fail,
+   since they are `continue-on-error`. Runs from other workflows on the same commit (the nightly
+   dependency check, docs deploy, benchmarks, Dependabot) do not count. The gate does not re-run
+   the checks either: `just install` upgrades the dev tools, so a re-run could block a release
+   over a new `ruff` or `ty` rule while the reviewed code is unchanged.
 2. `publish` runs `just publish` (the tag sets the version via `uv version`; no `pyproject.toml`
    bump) and uploads to PyPI through Trusted Publishing. It holds `id-token: write` and nothing
    that can write to the repository.
-3. `github-release` creates the GitHub Release with `contents: write`. PyPI goes first, so a failed
-   publish creates no Release.
-
-PyPI is irreversible. The tag is the commitment point.
+3. `github-release` creates the GitHub Release with `contents: write`. PyPI goes first because an
+   upload cannot be undone, so a failed publish creates no Release.
 
 The Release body is GitHub's generated notes, built from the squashed PR titles since the previous
 tag. A conventional-commit PR title is therefore the changelog entry a reader gets, and that is

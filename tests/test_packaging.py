@@ -93,7 +93,7 @@ def test_built_distributions_ship_the_license_and_the_wheel_imports(tmp_path: pa
     """The wheel and sdist that `just publish` uploads carry the MIT notice, and the wheel imports."""
     uv = shutil.which("uv")
     assert uv is not None
-    subprocess.run(  # noqa: S603
+    subprocess.run(  # noqa: S603 - uv from shutil.which, fixed arguments
         [uv, "build", "--quiet", "--out-dir", str(tmp_path), str(_REPO_ROOT)], check=True
     )
     (wheel,) = tmp_path.glob("*.whl")

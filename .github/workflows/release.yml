@@ -1,11 +1,6 @@
 name: Release
 
-# Tag-driven: pushing a semver tag publishes to PyPI and creates the matching
-# GitHub Release. Replaces the old `on: release: published` publish.yml; that
-# trigger is removed so the published Release this workflow creates can't re-fire
-# it (double-publish). The tag is the sole entry point. The gate job refuses a
-# tag whose commit is not on main or whose CI on main is not green, and it reads
-# the check runs that already ran on that commit instead of re-running the checks.
+# Pushing a semver tag on a green main commit publishes to PyPI, then creates the GitHub Release.
 on:
   push:
     tags:
@@ -19,8 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: read   # check runs of the tagged commit
-      actions: read  # this workflow's own runs, excluded from the check
+      actions: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -38,40 +32,38 @@ jobs:
       - name: CI on the tagged commit is green
         env:
           GH_TOKEN: ${{ github.token }}
-        run: .github/scripts/check-runs-green.sh "$(git rev-parse "${GITHUB_SHA}^{commit}")"
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&event=push" \
+            --jq '.workflow_runs | max_by(.run_number) // empty | "\(.status) \(.conclusion) \(.html_url)"')"
+          if [[ "$run" != "completed success "* ]]; then
+            echo "::error::no successful push run of ci.yml for ${sha}: ${run:-no run found}"
+            exit 1
+          fi
+          echo "CI is green for ${sha}: ${run}"
 
   publish:
     needs: gate
     runs-on: ubuntu-latest
-    environment: pypi  # scopes the PyPI Trusted Publisher; hook for approval rules
+    environment: pypi
     permissions:
       contents: read
-      id-token: write  # OIDC for PyPI Trusted Publishing
+      id-token: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-
-      # `just publish` derives the version from $GITHUB_REF_NAME (the tag name).
-      # Auth via PyPI Trusted Publishing (OIDC); no PYPI_TOKEN. Needs a Trusted
-      # Publisher on the modern-di PyPI project (env: pypi, workflow: release.yml).
       - run: just publish
 
-  # PyPI is irreversible, so it runs first: if publish fails, no GitHub Release is
-  # created advertising a version that never reached PyPI.
   github-release:
     needs: publish
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # create the GitHub Release
+      contents: write
     steps:
-      # The Release body is GitHub's generated notes, rendered from the squashed
-      # PR titles since the previous tag, so a conventional-commit title is what
-      # a reader gets. A release wanting prose is edited after the fact with
-      # `gh release edit <tag> --notes-file`. A tag with a letter (2.0.0rc1) is a
-      # pre-release, flagged so GitHub won't mark it "Latest".
       - name: Resolve release metadata
         id: meta
         run: |
