@@ -184,6 +184,8 @@ def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
         if type(event) is Edge:
             parent, name, dep = event
             dependency_chain = terminal_chain(dep, registry)
+            if dependency_chain[-1]._ignores_scope:  # noqa: SLF001
+                continue
             dependency_scope = dependency_chain[-1].scope
             parent_scope = effective_scope(parent, registry)
             if dependency_scope > parent_scope:
