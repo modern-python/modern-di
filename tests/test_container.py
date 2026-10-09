@@ -1160,13 +1160,15 @@ def test_validate_argument_is_rejected(validate: bool) -> None:
         Container(scope=Scope.APP, validate=validate)  # ty: ignore[unknown-argument]
 
 
-@pytest.mark.parametrize("name", ["ValidateArgumentWarning", "ContextValueNoneWarning", "UnvalidatedContainerWarning"])
-def test_removed_warning_is_not_exported(name: str) -> None:
+@pytest.mark.parametrize(
+    "name", ["ValidateArgumentWarning", "ContextValueNoneWarning", "UnvalidatedContainerWarning", "DependencyPathMixin"]
+)
+def test_removed_name_is_not_exported(name: str) -> None:
     assert not hasattr(exceptions, name)
     assert name not in exceptions.__all__
 
 
-@pytest.mark.parametrize("name", ["DependencyPathMixin", "SUGGESTION_HEADER"])
+@pytest.mark.parametrize("name", ["SUGGESTION_HEADER"])
 def test_internal_helper_is_not_exported(name: str) -> None:
     assert not hasattr(exceptions, name)
     assert name not in exceptions.__all__

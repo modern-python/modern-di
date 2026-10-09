@@ -55,7 +55,7 @@ class MaxScopeReachedError(ContainerError):
 class ScopeNotInitializedError(ResolutionError, ContainerError):
     """Provider's scope is deeper than any active container. Inspect ``.provider_scope``, ``.container_scope``.
 
-    Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`) so a captive
+    Carries a breadcrumb ``.dependency_path`` (see :class:`ResolutionError`) so a captive
     runtime dependency names both the failing provider and the one that captured it.
     """
 
@@ -75,7 +75,7 @@ class ScopeSkippedError(ResolutionError, ContainerError):
     """Provider's scope was skipped in the container chain.
 
     Attrs: ``provider_scope``, ``container_scope`` (the resolving container), ``root_scope`` (the
-    root of its chain). Carries a breadcrumb ``.dependency_path`` (see :class:`DependencyPathMixin`)
+    root of its chain). Carries a breadcrumb ``.dependency_path`` (see :class:`ResolutionError`)
     so a captive runtime dependency names both the failing provider and the one that captured it.
     """
 

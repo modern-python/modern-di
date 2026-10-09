@@ -1,9 +1,8 @@
-"""The root error class and the breadcrumb mixin every family builds on."""
+"""The root error class every family builds on."""
 
 import typing
 
 from modern_di.exceptions import _pickling
-from modern_di.exceptions.rendering import ResolutionStep, render_chain
 
 
 _TROUBLESHOOTING_BASE_URL = "https://modern-di.modern-python.org/troubleshooting"
@@ -43,37 +42,3 @@ class ModernDIError(RuntimeError):
 
     def __deepcopy__(self, memo: dict[int, typing.Any]) -> typing.Self:
         return _pickling.deepcopy_error(self, memo)
-
-
-class DependencyPathMixin:
-    """Breadcrumb machinery behind :class:`ResolutionError`.
-
-    Owns `_prepend_step` and the chain-rendering `_render_body` (the body `ModernDIError.__str__`
-    appends the docs trailer to), so any error raised inside a resolution frame can accumulate the
-    chain of provider names as it propagates back up to the caller. With an empty `dependency_path`
-    (the error never passed through a resolution frame) `_render_body` returns the base message
-    unchanged.
-    """
-
-    def __init__(self, message: str) -> None:
-        self._base_message = message
-        self.dependency_path: list[ResolutionStep] = []
-        # Mixin's own base is `object`; the real MRO (via ResolutionError ->
-        # ModernDIError -> RuntimeError) accepts the arg at runtime.
-        super().__init__(message)  # ty: ignore[too-many-positional-arguments]
-
-    def _prepend_step(self, *steps: ResolutionStep) -> None:
-        """Put `steps` in front of the chain, in the order given."""
-        self.dependency_path[:0] = steps
-        self.args = (str(self),)
-
-    def _render_body(self) -> str:
-        if not self.dependency_path:
-            return self._base_message
-
-        lines = [
-            "Cannot resolve dependency chain:",
-            *render_chain(self.dependency_path),
-            f"  caused by: {self._base_message}",
-        ]
-        return "\n".join(lines)

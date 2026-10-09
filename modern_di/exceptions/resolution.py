@@ -4,20 +4,41 @@ import enum
 import typing
 
 from modern_di import suggester
-from modern_di.exceptions.base import DependencyPathMixin, ModernDIError
+from modern_di.exceptions.base import ModernDIError
 from modern_di.exceptions.rendering import ResolutionStep, render_chain, render_suggestions, type_name
 
 
-class ResolutionError(DependencyPathMixin, ModernDIError):
+class ResolutionError(ModernDIError):
     """Base class for errors raised while resolving a provider.
 
-    Carries an optional `dependency_path` accumulated as the error propagates up
-    the resolution chain, so the rendered message shows the full path from the
-    initially requested type down to the failing dependency. See
-    :class:`DependencyPathMixin` for the shared machinery.
+    Carries a `dependency_path` accumulated as the error propagates up the resolution chain, so the
+    rendered message shows the full path from the initially requested type down to the failing
+    dependency. With an empty `dependency_path` (the error never passed through a resolution frame)
+    the message is the base message unchanged.
     """
 
     __slots__ = ("_base_message", "dependency_path")
+
+    def __init__(self, message: str) -> None:
+        self._base_message = message
+        self.dependency_path: list[ResolutionStep] = []
+        super().__init__(message)
+
+    def _prepend_step(self, *steps: ResolutionStep) -> None:
+        """Put `steps` in front of the chain, in the order given."""
+        self.dependency_path[:0] = steps
+        self.args = (str(self),)
+
+    def _render_body(self) -> str:
+        if not self.dependency_path:
+            return self._base_message
+
+        lines = [
+            "Cannot resolve dependency chain:",
+            *render_chain(self.dependency_path),
+            f"  caused by: {self._base_message}",
+        ]
+        return "\n".join(lines)
 
 
 class ProviderNotRegisteredError(ResolutionError):
