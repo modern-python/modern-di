@@ -131,18 +131,20 @@ class ProvidersRegistry:
         with self._lock:
             self._drop_resolvers()
 
-    def register(self, provider_type: type, provider: AbstractProvider[typing.Any]) -> None:
-        self._add({provider_type: provider}, (provider,))
-
-    def add_providers(self, *args: AbstractProvider[typing.Any]) -> None:
-        new_providers: dict[type, AbstractProvider[typing.Any]] = {}
+    def add_providers(
+        self,
+        *args: AbstractProvider[typing.Any],
+        bindings: dict[type, AbstractProvider[typing.Any]] | None = None,
+    ) -> None:
+        """Bind each of ``args`` under its bound type and each of ``bindings`` under its key, in one mutation."""
+        new_providers = dict(bindings) if bindings else {}
         for provider in args:
             if not provider.bound_type:
                 continue
             if provider.bound_type in new_providers:
                 raise exceptions.DuplicateProviderTypeError(provider_type=provider.bound_type)
             new_providers[provider.bound_type] = provider
-        self._add(new_providers, args)
+        self._add(new_providers, (*bindings.values(), *args) if bindings else args)
 
     def _add(
         self,
@@ -157,7 +159,7 @@ class ProvidersRegistry:
             self._providers.update(new_providers)
             # Over `registered`: a reference-only provider never enters `_providers` but is still compiled.
             for provider in registered:
-                provider._mark_registered()  # noqa: SLF001
+                provider._registered = True  # noqa: SLF001
             self._invalidate()
 
     def _invalidate(self) -> None:

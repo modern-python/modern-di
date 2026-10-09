@@ -42,4 +42,7 @@ class Group:
 
     @classmethod
     def get_providers(cls) -> list[AbstractProvider[typing.Any]]:
+        # A direct subclass has no inherited providers to merge or shadow.
+        if cls.__bases__ == (Group,):
+            return [value for value in cls.__dict__.values() if isinstance(value, AbstractProvider)]
         return list(cls.get_named_providers().values())
