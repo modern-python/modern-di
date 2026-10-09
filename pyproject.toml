@@ -4,6 +4,7 @@ description = "Powerful dependency-injection framework with IoC container and sc
 authors = [{ name = "Artur Shiriev", email = "me@shiriev.ru" }]
 requires-python = ">=3.11,<4"
 license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 keywords = ["dependency-injection", "di", "ioc-container", "scopes", "mocks", "python", "asyncio", "modern-di"]
 classifiers = [
