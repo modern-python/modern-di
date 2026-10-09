@@ -134,7 +134,7 @@ the provider above is a `ContextProvider[CustomContext | None]`.
 
 Context never propagates between containers. A `ContextProvider` reads the context of the container **at the provider's own scope**; build order is irrelevant.
 
-Each container copies the `context=` mapping it is built with, so containers built from one mapping do not share values, and `set_context()` never writes into your mapping. Any `Mapping` works, a read-only `types.MappingProxyType` included.
+Each container copies the `context=` dict it is built with, so containers built from one dict do not share values, and `set_context()` never writes into your dict.
 
 !!! warning "Scope determines which container is read, not timing"
     Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:

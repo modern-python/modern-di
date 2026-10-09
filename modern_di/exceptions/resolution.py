@@ -3,7 +3,7 @@
 import enum
 import typing
 
-from modern_di import suggester, types
+from modern_di import suggester
 from modern_di.exceptions.base import DependencyPathMixin, ModernDIError
 from modern_di.exceptions.rendering import ResolutionStep, render_chain, render_suggestions, type_name
 
@@ -30,7 +30,7 @@ class ProviderNotRegisteredError(ResolutionError):
     def __init__(
         self,
         *,
-        dependency_type: types.BoundType,
+        dependency_type: type,
         suggestions: "list[suggester.Suggestion] | None" = None,
     ) -> None:
         self.dependency_type = dependency_type
@@ -72,11 +72,11 @@ class ArgumentResolutionError(ResolutionError):
         self,
         *,
         parameter_name: str,
-        parameter_type: types.BoundType | None,
-        bound_type: types.BoundType | None,
+        parameter_type: type | None,
+        bound_type: type | None,
         creator: "typing.Callable[..., typing.Any]",
         suggestions: "list[suggester.Suggestion] | None" = None,
-        member_types: list[types.BoundType] | None = None,
+        member_types: list[type] | None = None,
     ) -> None:
         self.parameter_name = parameter_name
         self.parameter_type = parameter_type

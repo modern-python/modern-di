@@ -1,18 +1,9 @@
-import sys
 import typing
 
 
 T_co = typing.TypeVar("T_co", covariant=True)
 T_contra = typing.TypeVar("T_contra", contravariant=True)
 T = typing.TypeVar("T")
-
-if typing.TYPE_CHECKING:
-    if sys.version_info >= (3, 12):
-        BoundType: typing.TypeAlias = type | typing.NewType | typing.TypeAliasType
-    else:
-        BoundType: typing.TypeAlias = type | typing.NewType
-else:
-    BoundType = type | typing.NewType | typing.TypeAliasType if sys.version_info >= (3, 12) else type | typing.NewType
 
 
 class UnsetType:

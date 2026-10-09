@@ -25,8 +25,8 @@ class AbstractProvider(typing.Generic[types.T_co]):
         self,
         *,
         scope: enum.IntEnum | types.UnsetType,
-        bound_type: types.BoundType | types.UnsetType | None,
-        inferred_bound_type: types.BoundType | None = None,
+        bound_type: type | types.UnsetType | None,
+        inferred_bound_type: type | None = None,
     ) -> None:
         """Set the shared state; an unset ``bound_type`` falls back to ``inferred_bound_type``."""
         self._explicit_scope: enum.IntEnum | None = scope if isinstance(scope, enum.IntEnum) else None
@@ -36,7 +36,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
         self._provider_id = next(_provider_id_counter)
 
     @property
-    def bound_type(self) -> types.BoundType | None:
+    def bound_type(self) -> type | None:
         """The type this provider is registered under, or ``None`` when it resolves by reference only."""
         return self._bound_type
 

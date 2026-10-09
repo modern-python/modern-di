@@ -55,7 +55,7 @@ class Factory(AbstractProvider[types.T_co]):
         creator: typing.Callable[..., types.T_co],
         *,
         scope: enum.IntEnum | types.UnsetType = types.UNSET,
-        bound_type: types.BoundType | types.UnsetType | None = types.UNSET,
+        bound_type: typing.Any = types.UNSET,  # noqa: ANN401
         kwargs: dict[str, typing.Any] | None = None,
         cache: bool | CacheSettings[types.T_co] = False,
         skip_creator_parsing: bool = False,
@@ -78,7 +78,7 @@ class Factory(AbstractProvider[types.T_co]):
     def _parse_creator(
         creator: typing.Callable[..., typing.Any],
         *,
-        bound_type: types.BoundType | types.UnsetType | None,
+        bound_type: type | types.UnsetType | None,
         kwargs: dict[str, typing.Any] | None,
         skip_creator_parsing: bool,
     ) -> ParsedCreator:

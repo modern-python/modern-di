@@ -163,12 +163,12 @@ def test_suggestions_capped_at_three() -> None:
 
 
 def test_suggest_skips_non_class_bound_type() -> None:
-    provider = providers.Factory(creator=list, bound_type=int | str)  # ty: ignore[invalid-argument-type]
+    provider = providers.Factory(creator=list, bound_type=int | str)
     assert suggester.suggest(int, [provider]) == []
 
 
 def test_suggest_skips_bound_type_without_a_name() -> None:
-    provider = providers.Factory(creator=lambda: 1, bound_type=typing.ForwardRef("Database"))  # ty: ignore[invalid-argument-type]
+    provider = providers.Factory(creator=lambda: 1, bound_type=typing.ForwardRef("Database"))
     assert suggester.suggest(Database, [provider]) == []
 
 

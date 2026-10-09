@@ -143,8 +143,10 @@ Set to `None` to make the provider unresolvable by type.
 A `NewType` or a `type X = ...` alias is a bound type of its own. A provider declared with
 `bound_type=UserId` (or a creator returning `UserId`) is what a `user_id: UserId` parameter
 resolves to; a provider bound to the underlying `int` is not. Pass the same object to
-`container.resolve()` or `container.find_provider()` to look the provider up by it. A type checker
-may type `container.resolve(UserId)` as `Any`, so annotate the variable you assign it to.
+`container.resolve()` or `container.find_provider()` to look the provider up by it.
+`container.resolve(UserId)` is typed `Any`, so annotate the variable you assign it to. mypy, which
+treats a `NewType` as a class, types it `UserId` instead, and types `resolve(SomeProtocol)` as `Any`
+where it used to report `type-abstract`.
 
 A return annotation that is a union of several types (`-> A | B`) gives no bound type, and
 `Factory(...)` emits a `UserWarning`. Pass `bound_type=` with the type to register under, or

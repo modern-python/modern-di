@@ -1198,3 +1198,15 @@ def test_add_providers_completed_graph_resolves_without_an_explicit_open() -> No
     request = container.build_child_container(scope=Scope.REQUEST)
     assert isinstance(request.resolve(_DeferReqDependent), _DeferReqDependent)  # no explicit open()
     assert container.closed is False
+
+
+_OrderId = typing.NewType("_OrderId", int)
+
+
+def test_resolve_and_find_provider_by_newtype() -> None:
+    factory = providers.Factory(lambda: _OrderId(3), bound_type=_OrderId)
+    container = Container()
+    container.add_providers(factory)
+    assert container.resolve(_OrderId) == _OrderId(3)
+    assert container.resolve_dependency(_OrderId) == _OrderId(3)
+    assert container.find_provider(_OrderId) is factory

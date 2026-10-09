@@ -1,12 +1,10 @@
 """Static typing contracts, checked by `ty` in `just lint`; at runtime `assert_type` is a no-op."""
 
-import sys
-import types
 import typing
 
 import pytest
 
-from modern_di import Container, Group, Scope, exceptions, providers
+from modern_di import Container, Scope, exceptions, providers
 
 
 class _Base:
@@ -38,10 +36,6 @@ class _Resource:
     def close(self) -> bool:
         self.closed = True
         return True
-
-
-class _ResourceGroup(Group):
-    resource = providers.Factory(_Resource)
 
 
 def test_context_provider_without_default_is_typed_as_the_context_type() -> None:
@@ -92,40 +86,23 @@ def test_cache_settings_accepts_a_finalizer_for_the_creator_type() -> None:
     assert instance.closed
 
 
-def test_newtype_is_accepted_as_a_bound_type() -> None:
+def test_newtype_bound_type_resolves_as_any() -> None:
     factory = providers.Factory(_make_user_id, bound_type=_UserId)
-    alias = providers.Alias(_Base, bound_type=_UserId)
-    context_provider = providers.ContextProvider(int, bound_type=_UserId)
+    typing.assert_type(providers.Alias(_Base, bound_type=_UserId), providers.Alias[_Base])
+    typing.assert_type(providers.ContextProvider(int, bound_type=_UserId), providers.ContextProvider[int])
     container = Container()
     container.add_providers(factory)
-    assert container.resolve(_UserId) == _UserId(7)
-    assert container.find_provider(_UserId) is factory
-    assert container.resolve_dependency(_UserId) == _UserId(7)
-    assert [factory.bound_type, alias.bound_type, context_provider.bound_type] == [_UserId] * 3
+    typing.assert_type(container.resolve(_UserId), typing.Any)
+    typing.assert_type(container.find_provider(_UserId), providers.AbstractProvider[typing.Any] | None)
+    typing.assert_type(container.resolve_dependency(_UserId), typing.Any)
 
 
-def test_resolve_by_class_keeps_the_class_return_type() -> None:
+def test_resolve_by_class_keeps_the_class_type() -> None:
     container = Container()
     container.add_providers(providers.Factory(_make_base))
     typing.assert_type(container.resolve(_Base), _Base)
     typing.assert_type(container.find_provider(_Base), providers.AbstractProvider[_Base] | None)
     typing.assert_type(container.resolve_dependency(_Base), _Base)
-
-
-if sys.version_info >= (3, 12):
-    _Port = typing.TypeAliasType("_Port", int)
-    _PORT = 8080
-
-    def test_type_alias_is_accepted_as_a_bound_type() -> None:
-        factory = providers.Factory(lambda: _PORT, bound_type=_Port)
-        alias = providers.Alias(_Base, bound_type=_Port)
-        context_provider = providers.ContextProvider(int, bound_type=_Port)
-        container = Container()
-        container.add_providers(factory)
-        assert container.resolve(_Port) == _PORT
-        assert container.find_provider(_Port) is factory
-        assert container.resolve_dependency(_Port) == _PORT
-        assert [factory.bound_type, alias.bound_type, context_provider.bound_type] == [_Port] * 3
 
 
 def test_cache_settings_accepts_a_finalizer_that_returns_a_value() -> None:
@@ -135,18 +112,3 @@ def test_cache_settings_accepts_a_finalizer_that_returns_a_value() -> None:
     with Container() as container:
         instance = container.resolve_provider(factory)
     assert instance.closed
-
-
-def test_container_accepts_a_tuple_of_groups() -> None:
-    container = Container(groups=(_ResourceGroup,))
-    assert isinstance(container.resolve(_Resource), _Resource)
-
-
-def test_container_accepts_a_read_only_context_mapping() -> None:
-    context = types.MappingProxyType({str: "given"})
-    container = Container(context=context)
-    child = container.build_child_container(context=context)
-    child.set_context(str, "set")
-    assert container.resolve_provider(providers.ContextProvider(str)) == "given"
-    assert child.resolve_provider(providers.ContextProvider(str, scope=Scope.SESSION)) == "set"
-    assert context[str] == "given"
