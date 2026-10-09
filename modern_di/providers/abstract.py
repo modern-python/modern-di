@@ -18,6 +18,9 @@ class AbstractProvider(typing.Generic[types.T_co]):
     _takes_group_scope: typing.ClassVar[bool] = True
     """Whether a Group-level default scope applies. False when the effective scope is derived."""
 
+    _ignores_scope: typing.ClassVar[bool] = False
+    """Whether resolution ignores this provider's scope."""
+
     def __init__(
         self,
         *,
@@ -44,7 +47,10 @@ class AbstractProvider(typing.Generic[types.T_co]):
 
     @property
     def scope(self) -> enum.IntEnum:
-        """The effective scope: the provider's own ``scope=``, else a Group default, else ``Scope.APP``."""
+        """The declared scope: the provider's own ``scope=``, else a Group default, else ``Scope.APP``.
+
+        A redirect such as ``Alias`` resolves at its source's scope instead.
+        """
         if self._explicit_scope is not None:
             return self._explicit_scope
         if self._group_claim is not None:

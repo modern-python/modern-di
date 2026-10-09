@@ -357,3 +357,25 @@ def test_validate_keeps_reporting_a_deeper_scope_of_another_enum_as_invalid_scop
         Container(groups=[DeeperGroup]).validate()
     (issue,) = exc.value.exceptions
     assert isinstance(issue, InvalidScopeDependencyError)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _NeedsContainer:
+    container: Container
+
+
+@pytest.mark.parametrize("members", [{"APP": 1, "REQ": 2}, {"APP": 0, "REQ": 1}])
+def test_validate_accepts_container_injection_under_a_custom_scope_enum(members: dict[str, int]) -> None:
+    custom = enum.IntEnum("custom", members)
+
+    class ContainerGroup(Group):
+        needs_container = providers.Factory(creator=_NeedsContainer, scope=custom.APP)
+
+    container = Container(groups=[ContainerGroup], scope=custom.APP)
+    container.validate()
+    assert container.resolve(_NeedsContainer).container is container
+
+
+def test_container_provider_displays_as_container() -> None:
+    assert providers.container_provider.display_name == "Container"
+    assert repr(providers.container_provider) == "container_provider"
