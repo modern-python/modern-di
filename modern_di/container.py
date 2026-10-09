@@ -156,7 +156,13 @@ class Container:
             raise exceptions.ScopeSkippedError(provider_scope=scope, container_scope=self.scope, root_scope=root_scope)
         return target
 
-    def resolve(self, dependency_type: type[types.T]) -> types.T:
+    @typing.overload
+    def resolve(self, dependency_type: type[types.T]) -> types.T: ...
+
+    @typing.overload
+    def resolve(self, dependency_type: typing.Any) -> typing.Any: ...  # noqa: ANN401
+
+    def resolve(self, dependency_type: typing.Any) -> typing.Any:
         """Resolve a dependency by its type.
 
         Raises :class:`~modern_di.exceptions.ContainerClosedError` when this container, or the
@@ -178,7 +184,13 @@ class Container:
                 exc._prepend_step(*dependency_graph.redirect_hops(provider, registry))  # noqa: SLF001
             raise
 
-    def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T:
+    @typing.overload
+    def resolve_dependency(self, dependency: "AbstractProvider[types.T] | type[types.T]") -> types.T: ...
+
+    @typing.overload
+    def resolve_dependency(self, dependency: typing.Any) -> typing.Any: ...  # noqa: ANN401
+
+    def resolve_dependency(self, dependency: typing.Any) -> typing.Any:
         """Resolve a provider reference via :meth:`resolve_provider`, or a type via :meth:`resolve`."""
         if isinstance(dependency, AbstractProvider):
             return self.resolve_provider(dependency)
@@ -233,7 +245,13 @@ class Container:
             raise exceptions.ChildContainerRegistrationError(container_scope=self._scope)
         self._providers_registry.add_providers(*providers)
 
-    def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None:
+    @typing.overload
+    def find_provider(self, dependency_type: type[types.T]) -> AbstractProvider[types.T] | None: ...
+
+    @typing.overload
+    def find_provider(self, dependency_type: typing.Any) -> AbstractProvider[typing.Any] | None: ...  # noqa: ANN401
+
+    def find_provider(self, dependency_type: typing.Any) -> AbstractProvider[typing.Any] | None:
         """Return the provider registered for ``dependency_type`` anywhere in the tree, or ``None``.
 
         A pure lookup: it ignores overrides and the closed state, and never compiles or resolves.

@@ -17,7 +17,7 @@ if typing.TYPE_CHECKING:
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class CacheSettings(typing.Generic[types.T_contra]):
     clear_cache: bool = True
-    finalizer: typing.Callable[[types.T_contra], typing.Awaitable[None] | None] | None = None
+    finalizer: typing.Callable[[types.T_contra], object] | None = None
     _is_async_finalizer: bool = dataclasses.field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -55,7 +55,7 @@ class Factory(AbstractProvider[types.T_co]):
         creator: typing.Callable[..., types.T_co],
         *,
         scope: enum.IntEnum | types.UnsetType = types.UNSET,
-        bound_type: type | types.UnsetType | None = types.UNSET,
+        bound_type: typing.Any = types.UNSET,  # noqa: ANN401
         kwargs: dict[str, typing.Any] | None = None,
         cache: bool | CacheSettings[types.T_co] = False,
         skip_creator_parsing: bool = False,
