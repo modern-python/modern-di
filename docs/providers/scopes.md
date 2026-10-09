@@ -157,5 +157,5 @@ A group declared without a `scope=` kwarg stamps nothing, so a provider listed o
 ## See also
 
 - [Lifecycle](lifecycle.md): finalizers and `close_async()` work per-scope.
-- [Container provider](container.md): injecting the active container into a creator.
+- [Container](container.md): injecting the active container into a creator.
 - [Async resources via lifespan](../recipes/async-lifespan.md): pattern for APP-scoped async setup.
