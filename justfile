@@ -34,9 +34,9 @@ adr-check:
 test *args:
     uv run --no-sync pytest {{ args }}
 
-# Run the thread_race tests only, collecting just the files that hold them. Passes args through.
+# Run the thread_race tests only, selected by marker across the whole suite. Passes args through.
 test-race *args:
-    uv run --no-sync pytest -m thread_race tests/test_free_threading.py tests/providers/test_cached_factory.py tests/registries/test_providers_registry.py {{ args }}
+    uv run --no-sync pytest -m thread_race {{ args }}
 
 # The gated full run: 100% line and branch coverage of modern_di required. CI runs this.
 test-ci:

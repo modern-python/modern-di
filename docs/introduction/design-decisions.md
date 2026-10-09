@@ -29,6 +29,9 @@ Each cache item, the cached instance of one `Factory` in one container, has its 
   shared by the whole container tree, so an override set on any container is
   seen by every container in it. Set overrides during setup, never from
   competing threads.
+- Closing one container concurrently is unsupported: never overlap two
+  `close_async()` calls on it, or call `close_sync()` while a `close_async()`
+  is still running.
 - Free-threaded CPython (PEP 703) is supported at `2 - Beta`. It is tested
   under real multithreading on the `3.14t` build. It is Beta rather than Stable
   for one specific reason: modern-di relies on object-publication ordering

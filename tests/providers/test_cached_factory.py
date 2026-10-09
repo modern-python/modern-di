@@ -817,3 +817,74 @@ async def test_close_async_after_a_cancelled_close_does_not_refinalize_closed_it
     await container.close_async()
 
     assert events == ["second", "first-cancelled", "first"]
+
+
+def test_app_singleton_resolved_through_a_child_is_finalized_by_the_app_container() -> None:
+    calls: list[_First] = []
+
+    class G(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=calls.append))
+
+    app_container = Container(groups=[G])
+    request_container = app_container.build_child_container(scope=Scope.REQUEST)
+    instance = request_container.resolve(_First)
+
+    request_container.close_sync()
+
+    assert calls == []
+    assert app_container.resolve(_First) is instance
+    app_container.close_sync()
+    assert calls == [instance]
+
+
+async def test_async_finalizers_left_by_close_sync_run_newest_first() -> None:
+    events: list[str] = []
+
+    async def finalize_first(_: _First) -> None:
+        events.append("first")
+
+    async def finalize_second(_: _Second) -> None:
+        events.append("second")
+
+    class G(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=finalize_first))
+        second = providers.Factory(creator=_Second, cache=providers.CacheSettings(finalizer=finalize_second))
+
+    container = Container(groups=[G])
+    container.resolve(_First)
+    container.resolve(_Second)
+
+    with pytest.raises(FinalizerError):
+        container.close_sync()
+    await container.close_async()
+
+    assert events == ["second", "first"]
+
+
+async def test_close_async_after_a_cancelled_close_does_not_refinalize_a_clear_cache_false_instance() -> None:
+    calls: list[str] = []
+
+    async def blocking_finalizer(_: _First) -> None:
+        if "first-cancelled" not in calls:
+            calls.append("first-cancelled")
+            await asyncio.Event().wait()
+        calls.append("first")
+
+    async def keep_finalizer(_: _Second) -> None:
+        calls.append("second")
+
+    class G(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=blocking_finalizer))
+        second = providers.Factory(
+            creator=_Second, cache=providers.CacheSettings(clear_cache=False, finalizer=keep_finalizer)
+        )
+
+    container = Container(groups=[G])
+    container.resolve(_First)
+    container.resolve(_Second)
+
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(container.close_async(), timeout=0.05)
+    await container.close_async()
+
+    assert calls == ["second", "first-cancelled", "first"]
