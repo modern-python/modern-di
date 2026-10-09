@@ -21,7 +21,7 @@ import linecache
 import typing
 
 from modern_di import exceptions, types
-from modern_di.cache import fetch_cache_item
+from modern_di.cache import CacheItem
 from modern_di.dependency_graph import redirect_hops, terminal_chain
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
@@ -101,9 +101,8 @@ _CALL_CREATOR = """\
 _TRANSIENT = "def resolve(container):\n" + _NAVIGATE + _BUILD_ARGUMENTS + _CALL_CREATOR
 
 _CACHED = (
-    "def build(target):\n"
+    "def make(target):\n"
     + _BUILD_ARGUMENTS
-    + "    return {built}\n\ndef create(built):\n"
     + _CALL_CREATOR
     + "\ndef resolve(container):\n"
     + _NAVIGATE
@@ -111,11 +110,11 @@ _CACHED = (
     cache_items = target._cache_items
     cache_item = cache_items.get(pid)
     if cache_item is None:
-        cache_item = fetch_cache_item(cache_items, provider)
+        cache_item = cache_items.setdefault(pid, CacheItem(settings=cache_settings))
     cached = cache_item.cache
     if cached is not UNSET:
         return cached
-    value, created = cache_item.get_or_create(build, target, create)
+    value, created = cache_item.get_or_create(make, target)
     if created:
         target._creation_order.append(cache_item)
     return value
@@ -129,23 +128,18 @@ def _source(arity: int, names: tuple[str, ...] | None, static: bool, cached: boo
         build = [f"        a{i} = r{i}(target)" for i in range(arity)] or ["        pass"]
         call_offset = 0
         args = ", ".join(f"a{i}" for i in range(arity))
-        built = "(" + "".join(f"a{i}, " for i in range(arity)) + ")"
-        star = "*"
     else:
         calls = [f"            {name!r}: r{i}(target)," for i, name in enumerate(names)]
         build = ["        kwargs = {", *calls, "        }"]
         call_offset = 1
         if static:
             build.append("        kwargs.update(static)")
-        args, built, star = "**kwargs", "kwargs", "**"
-    if cached:
-        template, args = _CACHED, f"{star}built"
-    else:
-        template = _TRANSIENT
+        args = "**kwargs"
+    template = _CACHED if cached else _TRANSIENT
     # `{build}` must be the first multi-line placeholder: the lines before it are counted as-is.
     build_line = template[: template.index("{build}")].count("\n") + 1
     arg_lines = {build_line + call_offset + i: i for i in range(arity)}
-    return template.format(build="\n".join(build), built=built, args=args), arg_lines
+    return template.format(build="\n".join(build), args=args), arg_lines
 
 
 _shape_ids = itertools.count()
@@ -178,7 +172,7 @@ def _navigate(
 
 _FACTORY_GLOBALS: dict[str, typing.Any] = {
     "UNSET": types.UNSET,
-    "fetch_cache_item": fetch_cache_item,
+    "CacheItem": CacheItem,
     "_navigate": _navigate,
     "ResolutionError": exceptions.ResolutionError,
     "CreatorCallError": exceptions.CreatorCallError,
@@ -201,6 +195,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
     )
     namespace = _FACTORY_GLOBALS.copy()
     namespace["provider"] = f
+    namespace["cache_settings"] = f.cache_settings
     namespace["pid"] = f.provider_id
     namespace["scope"] = f.scope
     namespace["creator"] = f._creator

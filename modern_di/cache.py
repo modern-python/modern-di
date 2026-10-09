@@ -4,11 +4,10 @@ import threading
 import typing
 
 from modern_di import exceptions, types
-from modern_di.providers import CacheSettings, Factory
+from modern_di.providers import CacheSettings
 
 
 _T = typing.TypeVar("_T")
-_R = typing.TypeVar("_R")
 _V = typing.TypeVar("_V")
 
 
@@ -24,13 +23,8 @@ class CacheItem:
             self.cache = types.UNSET
             self.finalized = False
 
-    def get_or_create(
-        self,
-        build: typing.Callable[[_T], _R],
-        target: _T,
-        create: typing.Callable[[_R], _V],
-    ) -> tuple[_V, bool]:
-        """Return the memoized singleton, or ``create(build(target))`` it once under this item's lock.
+    def get_or_create(self, make: typing.Callable[[_T], _V], target: _T) -> tuple[_V, bool]:
+        """Return the memoized singleton, or ``make(target)`` it once under this item's lock.
 
         A hit never takes the lock. A miss builds and creates under it, so concurrent misses
         build the value and its dependencies once. `created` is True only for the caller that built.
@@ -40,41 +34,9 @@ class CacheItem:
         with self.lock:
             if self.cache is not types.UNSET:
                 return self.cache, False
-            value = create(build(target))
+            value = make(target)
             self.cache = value
             return value, True
-
-    def _pending_finalizer(self) -> typing.Callable[[typing.Any], object] | None:
-        """Return the finalizer still owed to the cached value, or None when nothing is owed."""
-        return None if self.cache is types.UNSET or self.finalized else self.settings.finalizer
-
-    def close_sync(self) -> None:
-        if (finalizer := self._pending_finalizer()) is not None:
-            if self.settings._is_async_finalizer:  # noqa: SLF001
-                raise exceptions.AsyncFinalizerInSyncCloseError(instance_type=type(self.cache))
-            try:
-                result = finalizer(self.cache)
-            except Exception:
-                self.clear()
-                raise
-            if result is not None and inspect.isawaitable(result):
-                if inspect.iscoroutine(result):
-                    result.close()  # suppress "never awaited" warning
-                raise exceptions.AsyncFinalizerInSyncCloseError(instance_type=type(self.cache))
-            self.finalized = True
-
-        self.clear()
-
-
-def fetch_cache_item(items: dict[int, CacheItem], provider: Factory[typing.Any]) -> CacheItem:
-    """Return the cache item in ``items`` for a cached ``provider``, creating it on first use."""
-    # Get before setdefault: a bare setdefault builds a throwaway CacheItem on every hit.
-    provider_id = provider._provider_id  # noqa: SLF001
-    item = items.get(provider_id)
-    if item is not None:
-        return item
-    settings = typing.cast("CacheSettings[typing.Any]", provider._cache_settings)  # noqa: SLF001
-    return items.setdefault(provider_id, CacheItem(settings=settings))
 
 
 def cached_count(items: dict[int, CacheItem]) -> int:
@@ -107,13 +69,26 @@ def close_sync(creation_order: list[CacheItem]) -> None:
     finalizer_errors: list[Exception] = []
     remaining: list[CacheItem] = []
     for cache_item in reversed(creation_order):
-        try:
-            cache_item.close_sync()
-        except exceptions.AsyncFinalizerInSyncCloseError as e:
-            finalizer_errors.append(e)
-            remaining.append(cache_item)
-        except Exception as e:  # noqa: BLE001
-            finalizer_errors.append(e)
+        finalizer = cache_item.settings.finalizer
+        value = cache_item.cache
+        if finalizer is not None and value is not types.UNSET and not cache_item.finalized:
+            if cache_item.settings._is_async_finalizer:  # noqa: SLF001
+                finalizer_errors.append(exceptions.AsyncFinalizerInSyncCloseError(instance_type=type(value)))
+                remaining.append(cache_item)
+                continue
+            try:
+                result = finalizer(value)
+            except Exception as e:  # noqa: BLE001
+                finalizer_errors.append(e)
+            else:
+                if result is not None and inspect.isawaitable(result):
+                    if inspect.iscoroutine(result):
+                        result.close()  # suppress "never awaited" warning
+                    finalizer_errors.append(exceptions.AsyncFinalizerInSyncCloseError(instance_type=type(value)))
+                    remaining.append(cache_item)
+                    continue
+                cache_item.finalized = True
+        cache_item.clear()
     remaining.reverse()
     creation_order[:] = remaining
     if finalizer_errors:
