@@ -98,14 +98,14 @@ def test_providers_registry_add_provider_duplicates() -> None:
     assert exc.value.provider_type is str
 
 
-def test_providers_registry_register_duplicate_raises() -> None:
+def test_providers_registry_binding_duplicate_raises() -> None:
     str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
 
     providers_registry = ProvidersRegistry()
-    providers_registry.register(str, str_factory)
+    providers_registry.add_providers(bindings={str: str_factory})
 
     with pytest.raises(DuplicateProviderTypeError, match="Provider is duplicated by type <class 'str'>") as exc:
-        providers_registry.register(str, str_factory)
+        providers_registry.add_providers(bindings={str: str_factory})
     assert exc.value.provider_type is str
 
 
@@ -117,8 +117,7 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
     registry = ProvidersRegistry()
     race_types = [type(f"_Race{i}", (_RaceBase,), {}) for i in range(2000)]
     for one_type in race_types[:1000]:
-        registry.register(
-            one_type,
+        registry.add_providers(
             providers.Factory(scope=Scope.APP, creator=one_type, skip_creator_parsing=True, bound_type=one_type),
         )
 
@@ -129,8 +128,7 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
 
         def writer() -> None:
             for one_type in race_types[1000:]:
-                registry.register(
-                    one_type,
+                registry.add_providers(
                     providers.Factory(
                         scope=Scope.APP, creator=one_type, skip_creator_parsing=True, bound_type=one_type
                     ),

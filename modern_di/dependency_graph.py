@@ -108,12 +108,47 @@ def walk(
     roots: "typing.Iterable[AbstractProvider[typing.Any]]",
     registry: "ProvidersRegistry",
 ) -> "typing.Iterator[Event]":
-    """Pre-order DFS from each root; bookkeeping is shared across roots, keyed on ``provider_id``."""
+    """Pre-order explicit-stack DFS from each root; bookkeeping is shared across roots, keyed on ``provider_id``.
+
+    A ``ResolutionError`` from a provider's dependencies becomes a ``DependenciesError`` event.
+    """
     visiting: set[int] = set()
     visited: set[int] = set()
+    path: list[AbstractProvider[typing.Any]] = []
+    stack: list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]] = []
     for root in roots:
-        if root.provider_id not in visited:
-            yield from _walk_from(root, registry, visiting, visited)
+        if root.provider_id in visited:
+            continue
+        entering: AbstractProvider[typing.Any] | None = root
+        while True:
+            if entering is not None:
+                visiting.add(entering.provider_id)
+                path.append(entering)
+                yield NodeEntered(entering)
+                try:
+                    dependencies = entering._get_dependencies(registry)  # noqa: SLF001
+                except exceptions.ResolutionError as exc:
+                    yield DependenciesError(entering, exc)
+                    dependencies = {}
+                stack.append(iter(dependencies.items()))
+                entering = None
+            if not stack:
+                break
+            step = next(stack[-1], None)
+            if step is None:
+                finished_id = path.pop().provider_id
+                stack.pop()
+                visiting.discard(finished_id)
+                visited.add(finished_id)
+                continue
+            name, dep = step
+            yield Edge(path[-1], name, dep)
+            dep_id = dep.provider_id
+            if dep_id in visiting:
+                cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep_id)
+                yield Cycle([*path[cycle_start:], path[cycle_start]])
+            elif dep_id not in visited:
+                entering = dep
 
 
 def find_cycle_from(
@@ -125,56 +160,6 @@ def find_cycle_from(
         if isinstance(event, Cycle):
             return event.providers
     return None
-
-
-def _walk_from(
-    start: "AbstractProvider[typing.Any]",
-    registry: "ProvidersRegistry",
-    visiting: set[int],
-    visited: set[int],
-) -> "typing.Iterator[Event]":
-    """Explicit-stack DFS from an unvisited ``start``."""
-    path: list[AbstractProvider[typing.Any]] = []
-    stack: list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]] = []
-    yield from _enter(start, registry, visiting, path, stack)
-
-    while stack:
-        try:
-            name, dep = next(stack[-1])
-        except StopIteration:
-            finished = path.pop()
-            stack.pop()
-            visiting.discard(finished.provider_id)
-            visited.add(finished.provider_id)
-            continue
-
-        yield Edge(path[-1], name, dep)
-        if dep.provider_id in visiting:
-            cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep.provider_id)
-            yield Cycle([*path[cycle_start:], path[cycle_start]])
-            continue
-        if dep.provider_id in visited:
-            continue
-        yield from _enter(dep, registry, visiting, path, stack)
-
-
-def _enter(
-    provider: "AbstractProvider[typing.Any]",
-    registry: "ProvidersRegistry",
-    visiting: set[int],
-    path: "list[AbstractProvider[typing.Any]]",
-    stack: "list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]]",
-) -> "typing.Iterator[Event]":
-    """Push ``provider`` onto the active path; a ``ResolutionError`` from it becomes ``DependenciesError``."""
-    visiting.add(provider.provider_id)
-    path.append(provider)
-    yield NodeEntered(provider)
-    try:
-        dependencies = provider._get_dependencies(registry)  # noqa: SLF001
-    except exceptions.ResolutionError as exc:
-        yield DependenciesError(provider, exc)
-        dependencies = {}
-    stack.append(iter(dependencies.items()))
 
 
 def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:

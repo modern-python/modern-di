@@ -18,12 +18,7 @@ def find_dep_provider(
     owner: "Factory[typing.Any]",
     item: SignatureItem,
 ) -> "AbstractProvider[typing.Any] | None":
-    """Look up a dependency provider for *item*, excluding *owner*: ``arg_type``, else a union member."""
-    if item.arg_type is not None:
-        provider = registry.find_provider(item.arg_type)
-        if provider is owner:
-            return None
-        return provider
+    """Look up a provider for the first registered union member of *item*, excluding *owner*."""
     for x in item.member_types:
         provider = registry.find_provider(x)
         if provider is not None and provider is not owner:
@@ -46,52 +41,24 @@ class WiringPlan:
 
     @classmethod
     def build(cls, owner: "Factory[typing.Any]", *, registry: "ProvidersRegistry") -> "WiringPlan":
-        """Partition ``owner``'s parameters by type, then overlay its ``kwargs={...}``. Never raises."""
-        kwargs = owner._kwargs  # noqa: SLF001
-        provider_kwargs, static_kwargs, unwireable = cls._wire_by_type(
-            params=owner._params,  # noqa: SLF001
-            kwargs=kwargs,
-            registry=registry,
-            owner=owner,
-        )
+        """Bucket each parameter by type, then overlay ``owner``'s ``kwargs={...}``. Never raises.
 
-        for name, value in (kwargs or {}).items():
-            if isinstance(value, AbstractProvider):
-                provider_kwargs[name] = value
-            else:
-                static_kwargs[name] = value
-
-        return cls(
-            provider_kwargs=provider_kwargs,
-            static_kwargs=static_kwargs,
-            unwireable=unwireable,
-        )
-
-    @staticmethod
-    def _wire_by_type(
-        *,
-        params: dict[str, SignatureItem],
-        kwargs: dict[str, typing.Any] | None,
-        registry: "ProvidersRegistry",
-        owner: "Factory[typing.Any]",
-    ) -> tuple[
-        dict[str, "AbstractProvider[typing.Any]"],
-        dict[str, typing.Any],
-        "list[tuple[str, SignatureItem]]",
-    ]:
-        """Bucket each parameter by type; a name in ``kwargs={...}`` is left to the overlay.
-
-        A parameter with no provider is omitted when it has a default, gets ``None`` when nullable,
-        and is unwireable otherwise.
+        A parameter named in ``kwargs={...}`` is left to the overlay. One with no provider is omitted
+        when it has a default, gets ``None`` when nullable, and is unwireable otherwise.
         """
+        kwargs = owner._kwargs  # noqa: SLF001
         provider_kwargs: dict[str, AbstractProvider[typing.Any]] = {}
         static_kwargs: dict[str, typing.Any] = {}
         unwireable: list[tuple[str, SignatureItem]] = []
-
-        for name, item in params.items():
+        for name, item in owner._params.items():  # noqa: SLF001
             if kwargs and name in kwargs:
                 continue
-            provider = find_dep_provider(registry, owner, item)
+            if item.arg_type is not None:
+                provider = registry.find_provider(item.arg_type)
+                if provider is owner:
+                    provider = None
+            else:
+                provider = find_dep_provider(registry, owner, item)
             if provider is not None:
                 provider_kwargs[name] = provider
             elif item.default is not UNSET:
@@ -101,4 +68,19 @@ class WiringPlan:
             else:
                 unwireable.append((name, item))
 
-        return provider_kwargs, static_kwargs, unwireable
+        if kwargs:
+            _overlay(kwargs, provider_kwargs, static_kwargs)
+        return cls(provider_kwargs, static_kwargs, unwireable)
+
+
+def _overlay(
+    kwargs: dict[str, typing.Any],
+    provider_kwargs: dict[str, "AbstractProvider[typing.Any]"],
+    static_kwargs: dict[str, typing.Any],
+) -> None:
+    """Sort ``kwargs={...}`` into provider and static arguments, over whatever was wired by type."""
+    for name, value in kwargs.items():
+        if isinstance(value, AbstractProvider):
+            provider_kwargs[name] = value
+        else:
+            static_kwargs[name] = value

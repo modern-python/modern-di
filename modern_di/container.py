@@ -63,12 +63,10 @@ class Container:
         if not isinstance(scope, enum.IntEnum):
             raise exceptions.InvalidScopeTypeError(scope_value=scope)
         self._set_state(scope, None, {}, context, ProvidersRegistry())
-        self._providers_registry.register(Container, container_provider)
-        if groups:
-            all_providers: list[AbstractProvider[typing.Any]] = []
-            for one_group in groups:
-                all_providers.extend(one_group.get_providers())
-            self._providers_registry.add_providers(*all_providers)
+        all_providers: list[AbstractProvider[typing.Any]] = []
+        for one_group in groups or ():
+            all_providers.extend(one_group.get_providers())
+        self._providers_registry.add_providers(*all_providers, bindings={Container: container_provider})
 
     @property
     def scope(self) -> enum.IntEnum:

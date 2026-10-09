@@ -57,10 +57,6 @@ class AbstractProvider(typing.Generic[types.T_co]):
             return self._group_claim[0]
         return Scope.APP
 
-    def _mark_registered(self) -> None:
-        """Latch this provider as registered; freezes `scope` against a later Group re-stamp."""
-        self._registered = True
-
     def _stamp_group_scope(self, scope: enum.IntEnum, group_name: str) -> None:
         """Record a Group-level default scope; a no-op unless the scope is still an unclaimed default.
 
