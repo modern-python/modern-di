@@ -139,9 +139,10 @@ to add a value later.
 `.context_type` is unaffected. Code that constructs it must pass `provider_scope=Scope.APP` (or
 another member) in place of the 3.x `scope_name="APP"` string.
 
-`modern_di.exceptions` no longer re-exports `DependencyPathMixin` or `SUGGESTION_HEADER`. Neither
-was meant for use outside the package. Import them from `modern_di.exceptions.base` and
-`modern_di.exceptions.rendering` if you still need them.
+`DependencyPathMixin` is removed and `ResolutionError` carries `dependency_path` itself, so a 3.x
+`isinstance(e, DependencyPathMixin)` check becomes `isinstance(e, ResolutionError)`.
+`modern_di.exceptions` no longer re-exports `SUGGESTION_HEADER`; import it from
+`modern_di.exceptions.rendering` if you still need it.
 
 ### `FinalizerError` is an `ExceptionGroup`
 
