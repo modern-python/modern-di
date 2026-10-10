@@ -224,7 +224,7 @@ from whichever it dispatches to. `FromDI` is spelled in PascalCase (with
 ## Scope mapping
 
 Map each connection kind to the scope its child container opens at. Follow the
-[scope hierarchy](../providers/scopes.md#the-scope-dependency-rule):
+[scope hierarchy](../providers/scopes.md#what-each-scope-is-for):
 
 | Unit of work | Scope | Rationale |
 |---|---|---|
