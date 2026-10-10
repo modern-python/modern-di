@@ -50,6 +50,7 @@ ModernDIError (RuntimeError)
 │   └── ContextValueNotSetError
 ├── RegistrationError
 │   ├── DuplicateProviderTypeError
+│   ├── AliasBoundToSourceError
 │   ├── ChildContainerRegistrationError
 │   ├── GroupScopeConflictError
 │   ├── ProviderScopeFrozenError
@@ -164,6 +165,10 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
   (within one group, across groups passed together, or against an already-registered type).
   `.first_provider` and `.second_provider` hold the two providers in registration order. See
   [Troubleshooting: Duplicate type](../troubleshooting/duplicate-type-error.md).
+- `AliasBoundToSourceError` is raised when an `Alias` is declared with `bound_type` equal to its
+  `source_type`, which is what a missing `bound_type` means. Such an alias would resolve to itself.
+  Inspect `.source_type`. See
+  [Troubleshooting: AliasBoundToSourceError](../troubleshooting/alias-bound-to-source-error.md).
 - `ChildContainerRegistrationError` is raised by `Container.add_providers()` when called on a child
   container. Registration is root-only because the providers registry is shared tree-wide, so
   registering from a child would mutate every container in the tree. Call `add_providers` on the root

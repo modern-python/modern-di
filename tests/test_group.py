@@ -183,7 +183,7 @@ def test_group_scope_explicit_provider_scope_wins() -> None:
 def test_group_scope_alias_keeps_derived_scope() -> None:
     class RequestGroup(Group, scope=Scope.REQUEST):
         svc = providers.Factory(_Svc)
-        alias = providers.Alias(_Svc)
+        alias = providers.Alias(_Svc, bound_type=None)
 
     assert RequestGroup.alias.scope is Scope.APP  # stored scope untouched; effective scope derives from source
 

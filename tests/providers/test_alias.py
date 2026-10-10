@@ -119,9 +119,25 @@ def test_alias_participates_in_cycle_detection() -> None:
     assert "Concrete" in str(issue)
 
 
-def test_alias_default_bound_type_is_source_type() -> None:
-    alias = providers.Alias(source_type=PostgresRepository)
-    assert alias.bound_type is PostgresRepository
+def test_alias_without_bound_type_is_rejected_at_declaration() -> None:
+    with pytest.raises(exceptions.AliasBoundToSourceError) as exc_info:
+        providers.Alias(source_type=PostgresRepository)
+    assert exc_info.value.source_type is PostgresRepository
+
+
+def test_alias_bound_to_its_own_source_type_is_rejected_at_declaration() -> None:
+    with pytest.raises(exceptions.AliasBoundToSourceError, match="PostgresRepository"):
+        providers.Alias(PostgresRepository, bound_type=PostgresRepository)
+
+
+def test_alias_bound_type_none_is_accepted() -> None:
+    class G(Group):
+        repo = providers.Factory(creator=PostgresRepository)
+        by_reference = providers.Alias(PostgresRepository, bound_type=None)
+
+    container = Container(groups=[G])
+    container.validate()
+    assert isinstance(container.resolve_provider(G.by_reference), PostgresRepository)
 
 
 def test_alias_repr() -> None:
