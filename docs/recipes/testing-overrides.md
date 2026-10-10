@@ -1,10 +1,10 @@
 # Testing with overrides
 
-Tests often need to swap a real dependency (database, HTTP client, clock) for a fake one without touching production wiring.
+Tests often need to swap a real dependency (database, HTTP client, clock) for a fake one without touching production wiring. `container.override(provider, replacement)` makes every resolve of that provider return the replacement until the override is reset.
 
-## Solution
+## Override with a context manager
 
-`container.override(provider, replacement)` replaces what the provider resolves to, immediately, and returns an `OverrideHandle`. Used as a context manager, it auto-resets on exit, and that is the primary spelling for tests:
+`override()` returns an `OverrideHandle`. Used in a `with` block, it resets the override on exit, which makes it the primary spelling for tests:
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group, providers
@@ -23,135 +23,207 @@ mock_client = ApiClient()
 
 ```python
 with container.override(MyGroup.api_client, mock_client) as client:
-    ...  # resolution returns mock_client; prior state restored on exit
+    assert container.resolve(ApiClient) is client
 ```
 
-The override applies at the `override()` call, not at `__enter__`. `__exit__` restores the snapshot taken at that call: a previously stacked override if there was one, otherwise no override. It does so even on exception, and even if `reset_override()` ran inside the block. Nested overrides of the same provider unwind in order: each handle restores whatever was active before it. Handles are expected to exit in reverse order of creation, which `with`-block nesting does naturally; manually exiting handles out of order can restore stale state.
+The override takes effect at the `override()` call, and `with` hands back the replacement. On exit, even after an exception or a `reset_override()` inside the block, the handle restores what was active at the call: an earlier override of the same provider, or none. Nested overrides of one provider unwind in reverse order, as nested `with` blocks do; exiting handles out of order can restore stale state.
 
-`container.override(provider, replacement)` also works as a plain imperative call: reset with `container.reset_override(provider)` (or `container.reset_override()` to clear all). This pair remains fully supported (see the patterns below). Closing the container does not clear overrides, so an imperative override stays until you reset it. Either way, the replacement is keyed by provider reference (not name) and is shared across the container tree, so an override on the root APP container applies to all child REQUEST containers too.
+Overrides are keyed by provider object and stored once for the whole container tree. An override set on any container, the root or a REQUEST child, applies to every container that shares its root.
 
-## Pattern 1: Simple mock override
+## Imperative override and reset
 
-For unit-style tests, override the provider with a fake before exercising the code under test:
+Without `with`, `override()` applies until you reset it:
+
+```python
+container.override(MyGroup.api_client, mock_client)
+assert container.resolve(ApiClient) is mock_client
+container.reset_override(MyGroup.api_client)
+```
+
+`container.reset_override()` with no argument clears every override. Closing a container does not clear them.
+
+## Container fixtures without the plugin
+
+You can test without [`modern-di-pytest`](../integrations/pytest.md): build the container in a session-scoped fixture, build a REQUEST child per test, and set overrides in function-scoped fixtures:
+
+<!-- invisible-code-block: python
+import dataclasses
+import sys
+import types
+
+from modern_di import Group, Scope, providers
+
+
+class UserRepository:
+    def name(self, user_id: int) -> str:
+        return f"user-{user_id}"
+
+
+@dataclasses.dataclass
+class Greeter:
+    users: UserRepository
+
+    def greet(self, user_id: int) -> str:
+        return f"Hello, {self.users.name(user_id)}"
+
+
+class Dependencies(Group):
+    user_repository = providers.Factory(UserRepository, scope=Scope.APP, cache=True)
+    greeter = providers.Factory(Greeter, scope=Scope.REQUEST)
+
+
+app_module = types.ModuleType("app")
+ioc_module = types.ModuleType("app.ioc")
+services_module = types.ModuleType("app.services")
+ioc_module.Dependencies = Dependencies
+ioc_module.ALL_GROUPS = [Dependencies]
+services_module.Greeter = Greeter
+services_module.UserRepository = UserRepository
+app_module.ioc = ioc_module
+app_module.services = services_module
+sys.modules.update({"app": app_module, "app.ioc": ioc_module, "app.services": services_module})
+del UserRepository, Greeter, Dependencies
+-->
+
+```python
+import typing
+
+import modern_di
+import pytest
+
+from app import ioc
+from app.services import Greeter, UserRepository
+
+
+class FakeUserRepository(UserRepository):
+    def name(self, user_id: int) -> str:
+        return "fake"
+
+
+@pytest.fixture(scope="session")
+def di_container() -> typing.Iterator[modern_di.Container]:
+    with modern_di.Container(groups=ioc.ALL_GROUPS) as container:
+        container.validate()
+        yield container
+
+
+@pytest.fixture
+def request_container(di_container: modern_di.Container) -> typing.Iterator[modern_di.Container]:
+    with di_container.build_child_container(scope=modern_di.Scope.REQUEST) as container:
+        yield container
+
+
+@pytest.fixture
+def fake_users(di_container: modern_di.Container) -> typing.Iterator[FakeUserRepository]:
+    with di_container.override(ioc.Dependencies.user_repository, FakeUserRepository()) as fake:
+        yield fake
+
+
+def test_greeting(request_container: modern_di.Container, fake_users: FakeUserRepository) -> None:
+    assert request_container.resolve(Greeter).greet(1) == "Hello, fake"
+```
+
+<!-- invisible-code-block: python
+with modern_di.Container(groups=ioc.ALL_GROUPS) as root:
+    with root.override(ioc.Dependencies.user_repository, FakeUserRepository()) as fake:
+        with root.build_child_container(scope=modern_di.Scope.REQUEST) as child:
+            test_greeting(child, fake)
+    with root.build_child_container(scope=modern_di.Scope.REQUEST) as child:
+        assert child.resolve(Greeter).greet(1) == "Hello, user-1"
+
+for stand_in in ("app", "app.ioc", "app.services"):
+    sys.modules.pop(stand_in)
+-->
+
+`Greeter` is REQUEST-scoped, so the test resolves it from `request_container`; resolving it from `di_container` raises `ScopeNotInitializedError`. The override sits on the session-scoped container, so `fake_users` has to undo it after each test, and the `with` block does that even when the test fails. To get dependencies as fixtures instead of resolving them in the test, see [Pytest integration](../integrations/pytest.md): [Pointing a fixture at a child container](../integrations/pytest.md#pointing-a-fixture-at-a-child-container) and [Overrides](../integrations/pytest.md#overrides).
+
+## Transactional database tests
+
+For tests against a real database, run each test inside a transaction and roll it back at the end. Override the engine provider from the [Async SQLAlchemy recipe](sqlalchemy.md) with a connection that holds the open transaction, so every session built during the test uses that connection:
 
 <!-- invisible-code-block: python
 import sys
 import types
 
-from modern_di import Container, Group, Scope, providers
+import sqlalchemy.ext.asyncio as sa_async
+from modern_di import Group, Scope, providers
 
 
-class UserRepository: ...
-
-
-class PlaceOrder:
-    def __init__(self, users: UserRepository) -> None:
-        self.users = users
+def create_engine() -> sa_async.AsyncEngine:
+    return sa_async.create_async_engine("postgresql+asyncpg://localhost/app")
 
 
 class Dependencies(Group):
-    user_repository = providers.Factory(UserRepository, scope=Scope.APP)
-    place_order = providers.Factory(PlaceOrder, scope=Scope.APP)
+    engine = providers.Factory(create_engine, scope=Scope.APP, cache=True)
 
 
-app_ioc = types.ModuleType("app.ioc")
-app_ioc.Dependencies = Dependencies
-app_ioc.container = Container(groups=[Dependencies])
-app_package = types.ModuleType("app")
-app_package.ioc = app_ioc
-sys.modules.update({"app": app_package, "app.ioc": app_ioc})
+app_module = types.ModuleType("app")
+ioc_module = types.ModuleType("app.ioc")
+ioc_module.Dependencies = Dependencies
+app_module.ioc = ioc_module
+sys.modules.update({"app": app_module, "app.ioc": ioc_module})
+del Dependencies
 -->
 
 ```python
-from unittest.mock import AsyncMock
-import pytest
+import typing
 
-from app.ioc import Dependencies, container
-
-
-@pytest.fixture
-def fake_users() -> AsyncMock:
-    fake = AsyncMock(spec=UserRepository)
-    container.override(Dependencies.user_repository, fake)
-    yield fake
-    container.reset_override(Dependencies.user_repository)
-
-
-async def test_place_order_calls_users(fake_users: AsyncMock) -> None:
-    use_case = container.resolve(PlaceOrder)
-    await use_case.run(...)
-    fake_users.find_by_id.assert_awaited()
-```
-
-## Pattern 2: Transactional session fixture (real database)
-
-For integration tests against a real database, run each test in a nested transaction that rolls back at the end. Override the engine provider with the test connection so every session created during the test reuses it.
-
-```python
+import modern_di
 import pytest
 import sqlalchemy.ext.asyncio as sa_async
 
-from app.ioc import Dependencies, container
-
-
-@pytest.fixture(scope="session")
-async def engine() -> sa_async.AsyncEngine:
-    eng = sa_async.create_async_engine("postgresql+asyncpg://...test")
-    try:
-        yield eng
-    finally:
-        await eng.dispose()
+from app import ioc
 
 
 @pytest.fixture
-async def db_connection(engine: sa_async.AsyncEngine) -> sa_async.AsyncConnection:
+async def db_connection(
+    di_container: modern_di.Container,
+) -> typing.AsyncIterator[sa_async.AsyncConnection]:
+    engine = sa_async.create_async_engine("postgresql+asyncpg://user:pass@localhost/test")
     async with engine.connect() as connection:
         transaction = await connection.begin()
-        container.override(Dependencies.engine, connection)
-        try:
+        with di_container.override(ioc.Dependencies.engine, connection):
             yield connection
-        finally:
-            container.reset_override(Dependencies.engine)
-            await transaction.rollback()
-```
-
-Tests that pull a session through DI (`container.resolve(sa_async.AsyncSession)`) get one bound to the test connection, and everything they write rolls back at the end.
-
-## Pattern 3: `modern-di-pytest` fixtures
-
-For tests that consume DI dependencies as fixtures rather than resolving manually, the `modern-di-pytest` package generates fixtures from providers:
-
-```python
-from modern_di_pytest import expose, modern_di_fixture
-
-from app.ioc import Dependencies
+        await transaction.rollback()
+    await engine.dispose()
 
 
-# Single fixture from a specific provider
-user_repository = modern_di_fixture(Dependencies.user_repository)
-
-# Or expose every provider in a Group as a fixture (one per attribute)
-expose(Dependencies)
-
-
-async def test_user_repo(user_repository: UserRepository) -> None:
-    assert await user_repository.count() == 0
+@pytest.fixture
+async def session(
+    db_connection: sa_async.AsyncConnection,
+    di_container: modern_di.Container,
+) -> typing.AsyncIterator[sa_async.AsyncSession]:
+    async with di_container.build_child_container(scope=modern_di.Scope.REQUEST) as request_container:
+        yield request_container.resolve(sa_async.AsyncSession)
 ```
 
 <!-- invisible-code-block: python
-sys.modules.pop("app")
-sys.modules.pop("app.ioc")
+import sqlalchemy
+
+for stand_in in ("app", "app.ioc"):
+    sys.modules.pop(stand_in)
 -->
 
-Combine with `container.override(...)` in a setup fixture to swap underlying providers; `modern_di_fixture` resolves through the override.
+The session is REQUEST-scoped, so the `session` fixture resolves it from a REQUEST child, which also closes it after the test. Async fixtures need an async test plugin; with pytest-asyncio, set `asyncio_mode = "auto"` so plain `@pytest.fixture` works on them.
+
+Build the session with `join_transaction_mode="create_savepoint"`:
+
+```python
+import sqlalchemy.ext.asyncio as sa_async
+
+
+def create_session(engine: sa_async.AsyncEngine) -> sa_async.AsyncSession:
+    return sa_async.AsyncSession(engine, expire_on_commit=False, join_transaction_mode="create_savepoint")
+```
+
+Under the default mode, a `session.rollback()` in the code under test rolls back the test's transaction too, and the fixture's own rollback then emits `SAWarning: transaction already deassociated from connection`. With `create_savepoint`, the session commits and rolls back a savepoint inside the test's transaction, and the fixture's rollback discards everything. In production the session is bound to an engine, not to a connection already in a transaction, and the option has no effect.
 
 ## Pitfalls
 
-- Overrides are global. Override the root APP container and every child REQUEST container sees the replacement. Fine in tests; remember it if you also override in production code.
-- `override` is keyed by provider reference. Pass `Dependencies.user_repository` (the provider object), not the string `"user_repository"`.
-- Always `reset_override` in the fixture teardown. Leaking overrides between tests is a class of bug that doesn't fail loudly.
-- Wrap session-scoped containers in a function-scoped override fixture. If the `Container` fixture itself is session-scoped (built once for the whole test run), don't call `override`/`reset_override` directly in a test. Wrap the pair in their own function-scoped fixture so the override is guaranteed to reset after each test, even on failure.
-- Override the right level. If you override the engine but tests resolve the session, the session's creator still runs, so make sure the engine override produces something the creator can use. If the test relies on a specific session, override the session directly.
+- Overrides are global to the container tree. Override on any container and every container sharing its root sees the replacement. That is what tests want; keep it in mind if you ever override outside tests.
+- `override` is keyed by provider object. Pass `Dependencies.user_repository`, not the string `"user_repository"`, which raises `AttributeError`.
+- Always reset. A leaked override reaches every later test that shares the container, and nothing reports it. With a session-scoped container, set overrides in a function-scoped fixture with `with container.override(...)`, so they are reset after each test even when it fails.
+- Override the right level. If you override the engine but tests resolve the session, the session's creator still runs, so the replacement has to be something that creator accepts. If a test relies on a specific session, override the session itself.
 
 ## See also
 

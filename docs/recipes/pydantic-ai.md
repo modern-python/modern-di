@@ -66,9 +66,11 @@ async with container:
         assert "Hello, user-" in await answer("greet a user")
 -->
 
-Open the root container once at startup with `async with container:`, as in any other application.
-`agent.run_sync(...)` works the same way inside a `with` block, and so do `agent.run_stream(...)` and
-`agent.iter(...)`, as long as the child stays open until the run finishes.
+The `openai:` model string needs the `pydantic-ai-slim[openai]` extra; the recipe does not depend on
+the model. A constructed container is already open. Close it at shutdown, with
+`async with container:` around the application's lifetime or `await container.close_async()`, so
+APP-scoped finalizers run. `agent.run_sync(...)` works the same way inside a `with` block, and so do
+`agent.run_stream(...)` and `agent.iter(...)`, as long as the child stays open until the run finishes.
 
 If the agent also needs your own deps object, register it with the container instead: declare a
 provider for it and resolve it in the tool.
@@ -82,14 +84,35 @@ that must not be used concurrently, such as an `AsyncSession`. Give each tool ca
 
 ```python
 import contextvars
+import dataclasses
 import typing
 
-from modern_di import Container, Scope
+from modern_di import Container, Group, Scope, providers
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 
+
+@dataclasses.dataclass
+class Session:
+    notes: list[str] = dataclasses.field(default_factory=list)
+
+    def add(self, note: str) -> None:
+        self.notes.append(note)
+
+    async def close(self) -> None: ...
+
+
+class NoteDependencies(Group):
+    session = providers.Factory(
+        Session,
+        scope=Scope.ACTION,
+        cache=providers.CacheSettings(finalizer=Session.close),
+    )
+
+
+container = Container(groups=[Dependencies, NoteDependencies])
 action_container: contextvars.ContextVar[Container] = contextvars.ContextVar("action_container")
 
 
@@ -119,31 +142,24 @@ agent = Agent("openai:gpt-5", deps_type=Container, capabilities=[ActionScope()])
 @agent.tool_plain
 async def save_note(note: str) -> str:
     session = action_container.get().resolve(Session)
-    ...
+    session.add(note)
+    return f"saved {note!r}"
 ```
 
 <!-- invisible-code-block: python
-from modern_di import Group, providers
 from pydantic_ai.models.test import TestModel
 
-
-class Session: ...
-
-
-class NoteDependencies(Group):
-    session = providers.Factory(Session, scope=Scope.ACTION)
-
-
 with agent.override(model=TestModel()):
-    async with Container(groups=[NoteDependencies]).build_child_container(scope=Scope.REQUEST) as run_container:
-        await agent.run("save a note", deps=run_container)
+    async with container.build_child_container(scope=Scope.REQUEST) as run_container:
+        result = await agent.run("save a note", deps=run_container)
+assert "saved" in result.output
+await container.close_async()
 -->
 
-Declare per-call providers at `Scope.ACTION`, for example
-`providers.Factory(Session, scope=Scope.ACTION, cache=providers.CacheSettings(finalizer=...))`. Each
-tool call gets its own instance, and its finalizer runs when that call returns. The container lives in
-a `ContextVar` rather than on the capability, because one capability instance serves all the
-concurrent calls; each call sees only the child it opened.
+`session` is declared at `Scope.ACTION`, so each tool call gets its own `Session`, and its finalizer
+runs when that call returns. The container lives in a `ContextVar` rather than on the capability,
+because one capability instance serves all the concurrent calls; each call sees only the child it
+opened.
 
 ## See also
 
