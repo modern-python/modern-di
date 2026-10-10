@@ -10,6 +10,11 @@ via `uv version`; no `pyproject.toml` bump) to PyPI, then creates the GitHub Rel
 so a failed publish creates no Release. Pre-releases use the PEP 440 form (`2.0.0rc1`, not
 `2.0.0-alpha.5`). PyPI is irreversible; there is no CI gate (a tag is the commitment point).
 
+Before tagging, run `just test-integrations` on that `main`. It runs every integration's own tests
+and `ty check` against the checkout, so a change that breaks an integration shows up before PyPI
+has it. CI does not run it. A failure there either goes into the release notes as a breaking
+change or gets fixed in the integration first.
+
 The Release body is GitHub's generated notes, built from the squashed PR titles since the previous
 tag. A conventional-commit PR title is therefore the changelog entry a reader gets, and that is
 where the care goes. A release wanting prose gets it after the fact with

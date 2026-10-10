@@ -60,6 +60,36 @@ test-docs-integrations *args:
         --editable . pytest pytest-asyncio sybil {{ docs_integration_extras }} $packages
     "$dir/venv/bin/python" -m pytest docs/integrations --docs-integrations {{ args }}
 
+# Run each integration's own test suite and ty check against this checkout: clone its main, run its
+# `just install`, then swap in this modern-di. Defaults to every page under docs/integrations/;
+# pass page names (`just test-integrations grpc flask`) to pick some. Run before tagging a release.
+test-integrations *names:
+    #!/usr/bin/env sh
+    set -u
+    root="$PWD"
+    dir="$(mktemp -d)"
+    trap 'rm -rf "$dir"' EXIT
+    echo "modern-di @ file://$root" > "$dir/overrides.txt"
+    names="{{ names }}"
+    [ -n "$names" ] || names="$(ls docs/integrations/*.md | sed -e 's#.*/##' -e 's#[.]md$##' | grep -vx writing-integrations)"
+    failed=""
+    for name in $names; do
+        repo="modern-di-$name"
+        log="$dir/$repo.log"
+        if git clone --quiet --depth 1 "https://github.com/modern-python/$repo.git" "$dir/$repo" >"$log" 2>&1 \
+            && (cd "$dir/$repo" && just install \
+                && uv pip install --python .venv --overrides "$dir/overrides.txt" --editable "$root" \
+                && uv run --no-sync pytest -p no:cacheprovider \
+                && uv run --no-sync ty check) >>"$log" 2>&1; then
+            echo "ok   $repo"
+        else
+            echo "FAIL $repo"
+            tail -n 30 "$log" | sed 's#^#    #'
+            failed="$failed $repo"
+        fi
+    done
+    [ -z "$failed" ] || { echo "failed:$failed"; exit 1; }
+
 # The gated full run: 100% line and branch coverage of modern_di required. CI runs this.
 test-ci:
     uv run --no-sync pytest --cov --cov-report term-missing --cov-report xml
