@@ -121,7 +121,7 @@ container.validate()
 
 ## Auto-wiring with Litestar
 
-If you're on Litestar, pass `autowired_groups=ALL_GROUPS` to `ModernDIPlugin` and every provider in those groups is automatically registered as a Litestar dependency by attribute name. Handlers can then declare `place_order: PlaceOrder` as a plain parameter, with no per-route `FromDI`.
+If you're on Litestar, pass `autowired_groups=ALL_GROUPS` to `ModernDIPlugin` and every provider in those groups is automatically registered as a Litestar dependency by attribute name. A handler then receives one by naming a parameter after it, `place_order: NamedDependency[PlaceOrder]`, with no per-route `FromDI`.
 
 <!-- invisible-code-block: python
 from litestar import Litestar

@@ -26,13 +26,12 @@
 
 ### 2. Apply to your application
 
-<!-- skip: next "inferred dependencies are deprecated since Litestar 2.23; modern-python/modern-di-litestar#72" -->
-
 ```python
 import dataclasses
 
 import litestar
 import modern_di_litestar
+from litestar.di import NamedDependency
 from modern_di import Container, Group, Scope, providers
 
 
@@ -55,7 +54,7 @@ class AppGroup(Group):
 
 
 @litestar.get("/report", dependencies={"report": modern_di_litestar.FromDI(Report)})
-async def get_report(report: Report) -> dict[str, str]:
+async def get_report(report: NamedDependency[Report]) -> dict[str, str]:
     return report.as_dict()
 
 
@@ -67,13 +66,17 @@ app = litestar.Litestar(
 container.validate()  # after the plugin is installed — its connection providers are now registered
 ```
 
+Mark every injected parameter with `NamedDependency[...]` from `litestar.di`. Litestar 2.23
+deprecated inferring a dependency from a plain annotation, and Litestar 3.0 removes it.
+
 ### Auto-wiring with `autowired_groups`
 
-Pass `autowired_groups` to `ModernDIPlugin` to automatically register every provider in those groups as a Litestar dependency, keyed by its attribute name. This lets route handlers declare dependencies as plain parameters without per-route `FromDI` calls:
+Pass `autowired_groups` to `ModernDIPlugin` to automatically register every provider in those groups as a Litestar dependency, keyed by its attribute name. A route handler then receives a provider by naming a parameter after it, with no per-route `FromDI` call:
 
 ```python
 import dataclasses
 import litestar
+from litestar.di import NamedDependency
 from modern_di import Container, Group, Scope, providers
 from modern_di_litestar import ModernDIPlugin
 
@@ -97,7 +100,7 @@ container.validate()  # after the plugin is installed — its connection provide
 
 
 @litestar.get("/users")
-async def list_users(user_repo: UserRepository) -> list[str]:
+async def list_users(user_repo: NamedDependency[UserRepository]) -> list[str]:
     ...
 ```
 
@@ -112,11 +115,10 @@ hierarchy](../providers/scopes.md#what-each-scope-is-for). `SESSION` covers
 the lifetime of the websocket connection and is entered automatically;
 `REQUEST` covers one message and must be entered manually:
 
-<!-- skip: next "inferred dependencies are deprecated since Litestar 2.23; modern-python/modern-di-litestar#72" -->
-
 ```python
 import dataclasses
 import litestar
+from litestar.di import NamedDependency
 from modern_di import Container, Group, Scope, providers
 import modern_di_litestar
 
@@ -138,7 +140,7 @@ app = litestar.Litestar(plugins=[modern_di_litestar.ModernDIPlugin(Container(gro
 @litestar.websocket_listener("/ws")
 async def websocket_handler(
     data: str,
-    di_container: Container,  # auto-resolved — the plugin registers a "di_container" dependency
+    di_container: NamedDependency[Container],  # auto-resolved — the plugin registers a "di_container" dependency
 ) -> None:
     # For a websocket, di_container is the SESSION-scoped child; enter REQUEST scope here
     async with di_container.build_child_container(scope=Scope.REQUEST) as request_container:
