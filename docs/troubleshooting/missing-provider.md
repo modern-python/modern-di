@@ -7,14 +7,14 @@ This error fires when a creator parameter is typed `Foo` and the container has n
 Resolving an unregistered type directly raises:
 
 ```
-ProviderNotRegisteredError: No provider is registered for MissingDep.
+modern_di.exceptions.resolution.ProviderNotRegisteredError: No provider is registered for MissingDep.
 See: https://modern-di.modern-python.org/troubleshooting/missing-provider/
 ```
 
 Resolving a registered factory whose creator depends on an unregistered type raises:
 
 ```
-ArgumentResolutionError: Cannot resolve dependency chain:
+modern_di.exceptions.resolution.ArgumentResolutionError: Cannot resolve dependency chain:
   APP  MyService (myapp.missing:7)
   caused by: Argument dep of type <class 'myapp.missing.MissingDep'> cannot be resolved. Trying to build dependency <class 'myapp.missing.MyService'>.
 See: https://modern-di.modern-python.org/troubleshooting/argument-resolution-error/
