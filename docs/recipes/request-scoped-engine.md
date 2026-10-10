@@ -8,6 +8,18 @@ This recipe routes read-only requests (`GET`, `HEAD`) to a read-replica engine a
 
 Two APP-scoped engine factories (primary and replica) and one REQUEST-scoped factory that inspects the request and returns the engine to use for it. Sessions and repositories depend on the *request-scoped* engine, not the named factories.
 
+<!-- invisible-code-block: python
+import sqlalchemy.ext.asyncio as sa_async
+
+
+def create_session(engine: sa_async.AsyncEngine) -> sa_async.AsyncSession:
+    return sa_async.AsyncSession(engine)
+
+
+async def close_session(session: sa_async.AsyncSession) -> None:
+    await session.close()
+-->
+
 ```python
 import sqlalchemy.ext.asyncio as sa_async
 import fastapi

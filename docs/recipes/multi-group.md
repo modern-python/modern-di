@@ -6,6 +6,33 @@ Your application has 30+ providers, and one `Group` holding all of them is unrea
 
 Split providers into multiple `Group` subclasses by domain (database, cache, messaging, use cases) and pass them all to `Container(groups=[...])`. Cross-group dependencies wire by type, with no explicit references between groups.
 
+<!-- invisible-code-block: python
+import redis.asyncio as aioredis
+import sqlalchemy.ext.asyncio as sa_async
+
+
+class UserRepository:
+    def __init__(self, session: sa_async.AsyncSession) -> None:
+        self.session = session
+
+
+class OrderRepository:
+    def __init__(self, session: sa_async.AsyncSession) -> None:
+        self.session = session
+
+
+class PlaceOrder:
+    def __init__(self, users: UserRepository, orders: OrderRepository, cache: aioredis.Redis) -> None:
+        self.users = users
+        self.orders = orders
+        self.cache = cache
+
+
+class CancelOrder:
+    def __init__(self, orders: OrderRepository) -> None:
+        self.orders = orders
+-->
+
 ```python
 import redis.asyncio as aioredis
 import sqlalchemy.ext.asyncio as sa_async
@@ -78,6 +105,12 @@ ALL_GROUPS = [Database, Cache, Repositories, UseCases]
 container = Container(groups=ALL_GROUPS)
 ```
 
+<!-- invisible-code-block: python
+import redis.asyncio as aioredis
+
+container.validate()
+-->
+
 `PlaceOrder` depends on providers from three different groups: `Repositories`, `Cache`, and `Database` (transitively via the repositories). Nothing in `UseCases` references the other groups directly; type-based wiring sorts it out.
 
 ## Pitfalls
@@ -89,6 +122,10 @@ container = Container(groups=ALL_GROUPS)
 ## Auto-wiring with Litestar
 
 If you're on Litestar, pass `autowired_groups=ALL_GROUPS` to `ModernDIPlugin` and every provider in those groups is automatically registered as a Litestar dependency by attribute name. Handlers can then declare `place_order: PlaceOrder` as a plain parameter, with no per-route `FromDI`.
+
+<!-- invisible-code-block: python
+from litestar import Litestar
+-->
 
 ```python
 from modern_di_litestar import ModernDIPlugin

@@ -43,11 +43,12 @@ test-race *args:
 test-docs *args:
     uv run --no-sync pytest docs {{ args }}
 
-# Packages the integration pages import that no modern-di-<page> package depends on.
-docs_integration_extras := "faststream[kafka,nats] aiogram-dialog"
+# Packages the docs import that no modern-di-<page> package depends on.
+docs_integration_extras := "faststream[kafka,nats] aiogram-dialog sqlalchemy[asyncio] asyncpg redis pydantic-ai-slim[openai]"
 
-# Run the framework pages under docs/integrations/ against the latest modern-di-<page> release for
-# every page, with modern-di pinned to this checkout. Builds a throwaway venv, so uv.lock is untouched.
+# Run every page under docs/, the framework pages under docs/integrations/ included, with the latest
+# modern-di-<page> release of every integration and the extras above installed and modern-di pinned to
+# this checkout, so no block skips for a missing package. Builds a throwaway venv; uv.lock is untouched.
 test-docs-integrations *args:
     #!/usr/bin/env sh
     set -eu
@@ -58,7 +59,7 @@ test-docs-integrations *args:
     uv venv --quiet "$dir/venv"
     uv pip install --quiet --python "$dir/venv" --overrides "$dir/overrides.txt" \
         --editable . pytest pytest-asyncio sybil {{ docs_integration_extras }} $packages
-    "$dir/venv/bin/python" -m pytest docs/integrations --docs-integrations {{ args }}
+    "$dir/venv/bin/python" -m pytest docs --docs-integrations {{ args }}
 
 # The gated full run: 100% line and branch coverage of modern_di required. CI runs this.
 test-ci:

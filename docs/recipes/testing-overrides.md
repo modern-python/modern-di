@@ -34,7 +34,33 @@ The override applies at the `override()` call, not at `__enter__`. `__exit__` re
 
 For unit-style tests, override the provider with a fake before exercising the code under test:
 
-<!-- skip: next "imports the reader's own app module" -->
+<!-- invisible-code-block: python
+import sys
+import types
+
+from modern_di import Container, Group, Scope, providers
+
+
+class UserRepository: ...
+
+
+class PlaceOrder:
+    def __init__(self, users: UserRepository) -> None:
+        self.users = users
+
+
+class Dependencies(Group):
+    user_repository = providers.Factory(UserRepository, scope=Scope.APP)
+    place_order = providers.Factory(PlaceOrder, scope=Scope.APP)
+
+
+app_ioc = types.ModuleType("app.ioc")
+app_ioc.Dependencies = Dependencies
+app_ioc.container = Container(groups=[Dependencies])
+app_package = types.ModuleType("app")
+app_package.ioc = app_ioc
+sys.modules.update({"app": app_package, "app.ioc": app_ioc})
+-->
 
 ```python
 from unittest.mock import AsyncMock
@@ -111,6 +137,11 @@ expose(Dependencies)
 async def test_user_repo(user_repository: UserRepository) -> None:
     assert await user_repository.count() == 0
 ```
+
+<!-- invisible-code-block: python
+sys.modules.pop("app")
+sys.modules.pop("app.ioc")
+-->
 
 Combine with `container.override(...)` in a setup fixture to swap underlying providers; `modern_di_fixture` resolves through the override.
 

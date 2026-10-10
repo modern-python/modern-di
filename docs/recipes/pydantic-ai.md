@@ -10,6 +10,12 @@ Open a `Scope.REQUEST` child for each run and pass it as `deps`. Tools resolve f
 everything they get is scoped to that run, and the child's finalizers run when the `async with` block
 exits.
 
+<!-- invisible-code-block: python
+import os
+
+os.environ.setdefault("OPENAI_API_KEY", "placeholder")
+-->
+
 ```python
 import dataclasses
 
@@ -51,6 +57,14 @@ async def answer(prompt: str) -> str:
         result = await agent.run(prompt, deps=request_container)
     return result.output
 ```
+
+<!-- invisible-code-block: python
+from pydantic_ai.models.test import TestModel
+
+async with container:
+    with agent.override(model=TestModel()):
+        assert "Hello, user-" in await answer("greet a user")
+-->
 
 Open the root container once at startup with `async with container:`, as in any other application.
 `agent.run_sync(...)` works the same way inside a `with` block, and so do `agent.run_stream(...)` and
@@ -107,6 +121,23 @@ async def save_note(note: str) -> str:
     session = action_container.get().resolve(Session)
     ...
 ```
+
+<!-- invisible-code-block: python
+from modern_di import Group, providers
+from pydantic_ai.models.test import TestModel
+
+
+class Session: ...
+
+
+class NoteDependencies(Group):
+    session = providers.Factory(Session, scope=Scope.ACTION)
+
+
+with agent.override(model=TestModel()):
+    async with Container(groups=[NoteDependencies]).build_child_container(scope=Scope.REQUEST) as run_container:
+        await agent.run("save a note", deps=run_container)
+-->
 
 Declare per-call providers at `Scope.ACTION`, for example
 `providers.Factory(Session, scope=Scope.ACTION, cache=providers.CacheSettings(finalizer=...))`. Each

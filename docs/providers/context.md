@@ -234,7 +234,12 @@ For explicit, provider-based resolution, every integration also exports the unde
 instead of relying on type-based resolution. This is useful with `skip_creator_parsing=True`, or
 when the parameter name doesn't match the type:
 
-<!-- skip: next "continues the FastAPI example above" -->
+<!-- invisible-code-block: python
+try:
+    from modern_di_fastapi import fastapi_request_provider
+except ModuleNotFoundError:
+    fastapi_request_provider = None
+-->
 
 ```python
 kwargs={"request": fastapi_request_provider}  # explicit wiring, see Factories: kwargs
