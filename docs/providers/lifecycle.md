@@ -1,6 +1,7 @@
 # Lifecycle
 
-How instances are created, cached, and cleaned up.
+`modern-di` creates an instance on first resolve, keeps a cached instance in the container at its
+provider's scope, and runs its finalizer when that container closes, newest instance first.
 
 The code blocks below assume the following import, and `Dependencies` is a user-defined `Group`:
 
@@ -43,7 +44,7 @@ async def close_session(session: AsyncSession) -> None:
 
 class Dependencies(Group):
     settings = providers.Factory(Settings, cache=True)
-    engine = providers.Factory(AsyncEngine, cache=True)
+    engine = providers.Factory(AsyncEngine, cache=providers.CacheSettings(finalizer=AsyncEngine.dispose))
     session = providers.Factory(
         create_session,
         scope=Scope.REQUEST,
@@ -61,7 +62,10 @@ container.resolve(Settings)
 
 ## Caching and finalizers
 
-`CacheSettings` controls two things: whether resolved instances are cached, and what to do when they're cleaned up.
+`cache=True` keeps one instance per container at the provider's scope; see
+[Cached factories](factories.md#cached-factories) and
+[Scope and caching](scopes.md#scope-and-caching). `CacheSettings` adds a finalizer, a callable that
+receives the cached instance when its container closes:
 
 ```python
 session = providers.Factory(
@@ -71,23 +75,29 @@ session = providers.Factory(
 )
 ```
 
-- With `cache=True`, the provider returns the same instance for every resolve inside that scope's container. That is the singleton idiom; see [Cached factories](factories.md#cached-factories). Without `cache`, the provider creates a fresh instance every call.
-- A finalizer is a callable that runs on the cached instance when the container is closed. It can be sync or async; `CacheSettings` auto-detects via `inspect.iscoroutinefunction()`. The finalizer takes one argument: the cached instance. Its return value is ignored, so a `close()` method that returns something works as a finalizer.
+A finalizer takes one argument, the instance, and its return value is ignored. Besides a function
+like `close_session`, an unbound method works, because Python passes the instance as `self`:
 
 ```python
-def close_engine_sync(engine: Engine) -> None:
-    engine.dispose()
-
-
-async def close_engine_async(engine: AsyncEngine) -> None:
-    await engine.dispose()
+engine = providers.Factory(Engine, cache=providers.CacheSettings(finalizer=Engine.dispose))
+async_engine = providers.Factory(AsyncEngine, cache=providers.CacheSettings(finalizer=AsyncEngine.dispose))
 ```
 
-Both work; pick whichever matches the resource.
+Finalizers can be sync or async. `CacheSettings` detects an async one with
+`inspect.iscoroutinefunction()`, and `close_async()` also awaits whatever a sync callable returns,
+so `lambda client: client.aclose()` works there. `close_sync()` cannot await either kind; see
+[Async finalizers and `close_sync()`](#async-finalizers-and-close_sync).
+
+Finalizers run newest first. A dependency is created before the instance that uses it, so the
+session closes before the engine it was built from.
 
 ## Closing the container
 
 Three ways to run finalizers:
+
+<!-- invisible-code-block: python
+container = Container(groups=[Dependencies])
+-->
 
 ```python
 # Sync
@@ -96,7 +106,7 @@ container.close_sync()
 # Async
 await container.close_async()
 
-# Context manager (preferred — cleanup runs even on exceptions)
+# Context manager (preferred: cleanup runs even on exceptions)
 with container:
     ...
 
@@ -104,18 +114,40 @@ async with container:
     ...
 ```
 
-Closing a container runs its finalizers in reverse-creation order (creation order equals first-resolve order, since creation is lazy), then clears the cache.
+Closing runs the container's finalizers newest first, then clears its cache.
+
+### Per-scope finalization
+
+Each container finalizes only the instances it cached. When a child container exits its `with`
+block, the child's finalizers run and the parent's instances stay alive:
+
+```python
+app_container = Container(groups=[Dependencies])
+
+async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
+    session = request_container.resolve(AsyncSession)
+# the REQUEST container closed the session; the APP engine is still open
+
+await app_container.close_async()
+# now the engine is disposed
+```
+
+Framework integrations close each request's child container for you. Most also close the APP
+container at shutdown with `close_async()`. Flask, gRPC and Typer leave the APP container to you,
+and Celery closes it with `close_sync()`, so APP-scoped finalizers there must be sync. Each
+[integration page](../integrations/fastapi.md) says which applies.
 
 ## Close-failure semantics
 
-Closing keeps going when a finalizer fails: one that raises does not abort the others. Every
-finalizer runs; the exceptions are collected and re-raised together as a single `FinalizerError`
-once cleanup finishes. `FinalizerError` is an `ExceptionGroup`: `.exceptions` holds the underlying
-exceptions as a tuple, and `.is_async` records whether `close_sync()` or `close_async()` raised it.
-So a broken finalizer can't leak a resource that a later finalizer would have closed.
+### Every finalizer runs
 
-Because it is an exception group, `except*` catches the finalizer errors by type. `except
-FinalizerError` and `except ModernDIError` still catch the whole group:
+Closing keeps going when a finalizer raises, so one broken finalizer does not leak the resources
+after it. The errors are raised together as one `FinalizerError` once every finalizer has run.
+`FinalizerError` is an `ExceptionGroup`: `.exceptions` holds the errors, and `.is_async` records
+whether `close_sync()` or `close_async()` raised it.
+
+`except*` catches the finalizer errors by type, and `except FinalizerError` or
+`except ModernDIError` catches the whole group:
 
 <!-- invisible-code-block: python
 class Connection: ...
@@ -142,34 +174,15 @@ except* ConnectionError as group:
         print("cleanup failed:", err)
 ```
 
-A finalizer that raises still clears its cache entry. The instance is dropped, and the next resolve
-after reopening builds a fresh one. With `clear_cache=False` the entry is kept, as it is after a
-finalizer that succeeds.
+A finalizer that raises still drops its cached instance, and the next resolve after reopening
+builds a fresh one. With `clear_cache=False` the instance is kept, as it is after a finalizer that
+succeeds.
 
-If `close_async()` is cancelled, or a finalizer raises a `BaseException` that is not an `Exception`
-(such as `asyncio.CancelledError` or `KeyboardInterrupt`), that exception propagates at once. The
-container is marked closed, and every resource whose finalizer has not completed, including the one
-that was interrupted, stays queued. Awaiting `close_async()` again runs the remaining finalizers:
+### Async finalizers and `close_sync()`
 
-<!-- invisible-code-block: python
-import asyncio
--->
-
-```python
-try:
-    await asyncio.wait_for(container.close_async(), timeout=5)
-except TimeoutError:
-    ...
-
-await container.close_async()  # finalizes what the cancelled close did not reach
-```
-
-Calling `close_sync()` on a cached resource with an async finalizer is recoverable. `close_sync()`
-cannot await, so when it reaches such a resource it produces an `AsyncFinalizerInSyncCloseError`,
-delivered inside the aggregated `FinalizerError` (as an entry in `.exceptions`), since sync close
-aggregates like any other failure. The resource's cache entry is **retained**
-rather than discarded, so the resource is not lost: a later `await container.close_async()` finalizes
-it correctly and completes the cleanup.
+`close_sync()` cannot await. When it reaches an instance with an async finalizer, it adds an
+`AsyncFinalizerInSyncCloseError` to the `FinalizerError` and keeps the instance cached, so a later
+`await container.close_async()` still finalizes it:
 
 <!-- invisible-code-block: python
 class AsyncResource: ...
@@ -186,41 +199,52 @@ container = Container(groups=[AsyncResourceDependencies])
 -->
 
 ```python
-# Resource with an async finalizer, resolved into the cache.
 container.resolve(AsyncResource)
 
 try:
     container.close_sync()
 except* exceptions.AsyncFinalizerInSyncCloseError:
-    # the cache was kept, nothing was finalized yet.
-    ...
+    ...  # the instance is still cached, nothing was finalized
 
-await container.close_async()  # recovers — runs the async finalizer now
+await container.close_async()  # runs the async finalizer
 ```
 
-Prefer `async with container:` (or `await close_async()`) whenever any provider has an async
-finalizer; the sync path is only a safety net.
+Use `async with container:` or `await container.close_async()` when any provider has an async
+finalizer.
+
+### Cancelled close
+
+If `close_async()` is cancelled, or a finalizer raises a `BaseException` that is not an `Exception`
+(such as `asyncio.CancelledError` or `KeyboardInterrupt`), that exception propagates at once. The
+container is marked closed, and every instance whose finalizer has not completed, including the
+interrupted one, stays queued. Awaiting `close_async()` again runs the remaining finalizers:
+
+<!-- invisible-code-block: python
+import asyncio
+-->
+
+```python
+try:
+    await asyncio.wait_for(container.close_async(), timeout=5)
+except TimeoutError:
+    ...
+
+await container.close_async()  # finalizes what the cancelled close did not reach
+```
 
 ## Closing and reopening
 
-A constructed container is **open from construction**: `container.closed` is `False` the moment
-`Container(...)` returns, with no `open()` step required before the first `resolve()` / `resolve_provider()` call.
-`build_child_container()` never checks or touches any container's open/closed state (it only reads
-the parent's shared registries and scope map), and the returned child starts open too, same as any
-fresh container. `close_sync()` / `close_async()` run the finalizers (in reverse-creation order, as
-above) and mark the container closed; entering `with container:` (or `async with`) is the idiomatic
-way to guarantee that close runs, even on an exception.
+A new container is open, so it resolves right away with no `open()` call. A child from
+`build_child_container()` starts open too.
 
 The container counts as closed as soon as `close_sync()` or `close_async()` starts, so a finalizer
-that resolves from its own container gets `ContainerClosedError`. Pass a finalizer what it needs
-through the cached instance instead of resolving it during close.
+that resolves from its own container gets `ContainerClosedError`. Give a finalizer what it needs
+through the cached instance.
 
-Resolving from a closed container, directly or through a child whose resolve reaches back into
-that container's scope, raises `ContainerClosedError`, and the creator does not run. The container
-stays closed until it is reopened. Building a child of a closed container still works, and the child
-resolves what it owns; only a provider that resolves in the closed scope raises. Calling `open()`
-reopens the container, and so does entering `with container:` or `async with container:` again,
-because `__enter__` and `__aenter__` call `open()`:
+After close, resolving raises `ContainerClosedError` and the creator does not run. That includes a
+resolve through a child that reaches the closed container. A child of a closed container can still
+be built and resolves what it owns. `open()` reopens the container, and so does entering
+`with container:` or `async with container:` again:
 
 <!-- raises: ContainerClosedError -->
 
@@ -242,72 +266,43 @@ check when a container is closed where you did not expect it, and
 [Migration: To 4.x](../migration/to-4.x.md#resolving-on-a-closed-container-raises) for the 3.x
 behavior, which warned and reopened instead.
 
-How a cached instance survives this cycle depends on its `CacheSettings`:
+What survives close and reopen depends on `CacheSettings`:
 
-- With the default `clear_cache=True`, the instance is finalized at close and rebuilt on
-  the next resolve after reopen.
-- With `clear_cache=False`, the cached instance survives close→reopen and is returned
-  again, the *same object* (its finalizer runs once, at the first close, and is not
-  re-run on later closes). Use this for a shared resource whose identity must stay stable
-  across restarts.
-- Overrides are configuration, separate from cached instances. Closing a container does
-  not touch them, so an override set before close→reopen still applies after it. Clear
-  one with `reset_override()` or by exiting the `with container.override(...)` block.
+- With the default `clear_cache=True`, the instance is finalized at close and rebuilt on the next
+  resolve after reopening.
+- With `clear_cache=False`, reopening returns the same object, and its finalizer runs only at the
+  first close. That object has already been through its finalizer, so use this only for a resource
+  that still works afterwards.
+- Overrides are configuration, not cached instances, so closing does not touch them. Clear one with
+  `reset_override()` or by exiting the `with container.override(...)` block.
 
 !!! caution "The context manager is not reference-counted"
     Nesting `with container:` on the **same** object closes it on the inner `with` exit,
     not the outer one. Use one `with` block per container, or build a child container for
     the inner scope.
 
-## Per-scope finalization
-
-Each container has its own finalizers, the ones for the providers it cached. When a child container exits its `with` block, only the child's finalizers run; the parent's stay alive for as long as the parent does.
-
-```python
-app_container = Container(groups=[Dependencies])
-app_container.validate()  # optional: fails fast here instead of at whichever resolve hits a problem first
-
-async with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
-    session = request_container.resolve(AsyncSession)
-    # work...
-# request_container's REQUEST-scope finalizers ran (e.g. session.close())
-# app_container's APP-scope finalizers DID NOT run
-
-await app_container.close_async()
-# now app_container's finalizers run (e.g. engine.dispose())
-```
-
-Framework integrations handle this automatically: they build the REQUEST child container per request and exit its context at the end of the request, then call `close_async()` on the APP container at app shutdown.
-
 ## Validation
 
-`container.validate()` is the only thing that walks the graph. Nothing validates automatically:
-not construction, not `open()`, not `add_providers`, not `resolve()`. A container is fully usable,
-and stays usable, without ever calling `validate()`; a broken graph nobody validates surfaces
-at whichever resolve first hits the problem, as an ordinary resolution error.
-
-Call it explicitly, whenever you want the whole graph checked at once: cycles, inverted scope
-dependencies, and missing required dependencies, all in a single pass:
+`container.validate()` checks the whole graph in one pass: cycles, dependencies on a deeper scope,
+and dependencies nothing provides. Nothing else validates, not construction, `open()`,
+`add_providers` or `resolve()`. Without it, a broken graph surfaces at the first resolve that
+reaches the problem.
 
 ```python
 container = Container(groups=[Dependencies])
-container.validate()  # walks now; raises ValidationFailedError if any issue is found
+container.validate()  # raises ValidationFailedError listing every issue
 ```
 
-It aggregates every issue it finds into one `exceptions.ValidationFailedError` rather than stopping
-at the first; see [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md).
-Call it right after building the container for a construction-time check, or later. A framework
-integration that registers its own providers after construction (via `add_providers`) should call it
-after that registration, so the complete graph is what gets checked; see [Writing an
-integration](../integrations/writing-integrations.md#lifecycle-rules).
+It reports every issue in one `exceptions.ValidationFailedError` instead of stopping at the first;
+see [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md). An
+integration that registers its own providers with `add_providers` should validate after that; see
+[Writing an integration](../integrations/writing-integrations.md#lifecycle-rules).
 
-A repeat `validate()` after a clean walk is free: it memoizes against the registry's contents and
-only re-walks once `add_providers` has changed it. Validation has no runtime cost after that. Turn
-it on in a startup path or a single test, where it catches the bugs you don't want to discover
-under load.
+A repeat `validate()` returns at once until `add_providers` changes the registry, and validation
+adds nothing to resolve time. Call it at startup or in one test.
 
 ## See also
 
-- [Scopes](scopes.md): child containers and per-scope finalization.
+- [Scopes](scopes.md): child containers and which container caches an instance.
 - [Factories](factories.md): `CacheSettings` is configured on the factory itself.
 - [Async resources via lifespan](../recipes/async-lifespan.md): sync creator + async finalizer is the most common shape.
