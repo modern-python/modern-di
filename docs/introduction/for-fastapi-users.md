@@ -1,9 +1,9 @@
 # modern-di for FastAPI users
 
-FastAPI's own `Depends` system covers a single request-scoped web service well. You reach for
-modern-di once you need a second entrypoint (a worker, a CLI), typed app-wide singletons with real
-teardown, or overrides that work outside the HTTP path. See
-[Do you even need a DI container?](comparison.md#do-you-even-need-a-di-container). This page
+FastAPI's own `Depends` covers a small request-scoped service. modern-di adds typed app-wide
+singletons with teardown, constructors free of `Depends`, and overrides that work outside the HTTP
+path, and you need it once you add a second entrypoint such as a worker or a CLI. See
+[Do you need a DI container?](comparison.md#do-you-need-a-di-container). This page
 translates the `Depends` idioms you already know into their modern-di equivalents.
 
 ## Translation table

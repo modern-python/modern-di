@@ -1,30 +1,29 @@
 # modern-di vs other libraries
 
-Where modern-di fits among Python's DI libraries, what it leaves out, and when you need no DI
-container at all.
+Where modern-di fits among Python's DI libraries, what it leaves out, and when you can skip a DI
+container.
 
-## Do you even need a DI container?
+## Do you need a DI container?
 
-If you're building a single FastAPI or Litestar service and everything you
-inject is request-scoped (a database session, the current user, settings), the
-framework's own DI (FastAPI's `Depends`, Litestar's `Provide`) is enough, and a
-standalone container is overkill.
+A single FastAPI or Litestar service can get by with the framework's own DI (FastAPI's `Depends`,
+Litestar's `Provide`), and a small one whose dependencies are all request-scoped usually does. A
+container still pays off in a single service, and more as the app grows:
 
-Reach for a container when one of these is true:
+- App-scoped objects (a database engine, an HTTP client, settings) get typed providers with
+  teardown. `Depends` has no app scope, so the usual alternative is an untyped `app.state` bag plus
+  `lru_cache` with no cleanup.
+- Service classes keep plain constructors. With `Depends`, a class that needs a repository declares
+  `Annotated[Repo, Depends(get_repo)]` in its `__init__`, which ties it to FastAPI.
+- Tests can override a dependency once for everything: HTTP calls, workers, CLI commands and direct
+  unit tests that never touch the app. `app.dependency_overrides` reaches only calls made through
+  the app. `container.validate()` checks the whole graph in one test.
+- A second entrypoint, such as a worker (FastStream, Celery) or a CLI (Typer), shares the same
+  wiring instead of a parallel copy, and so does code that runs off the request path: startup and
+  background tasks.
 
-- You have more than one entrypoint: an API *and* a worker (FastStream/Celery)
-  *and* a CLI (Typer) can share one wiring instead of three parallel copies.
-- You want typed, app-scoped singletons with real teardown, where the usual
-  alternative is an untyped `app.state` bag plus `lru_cache` with no cleanup.
-- You resolve dependencies off the request path: in startup, background tasks,
-  workers, or CLI commands, where `Depends`/`Provide` don't run.
-- You want whole-app test overrides: swap a dependency once and every
-  entrypoint (HTTP, worker, CLI, direct unit tests) sees it, including code the
-  HTTP layer never reaches.
-
-modern-di covers those cases with one typed wiring shared across thirteen
-frameworks: aiogram, aiohttp, arq, Celery, FastAPI, FastMCP, FastStream, Flask, gRPC, Litestar,
-Starlette, taskiq, and Typer.
+modern-di adds 1.74 µs to a request cycle on the [benchmark machine](performance.md), and its
+wiring is shared across thirteen frameworks: aiogram, aiohttp, arq, Celery, FastAPI, FastMCP,
+FastStream, Flask, gRPC, Litestar, Starlette, taskiq, and Typer.
 
 ## Feature comparison
 
@@ -120,10 +119,9 @@ framework integrations.
 
 ### vs framework-native (`Depends` / `Provide`)
 
-For a single web service, native DI is simpler and a container is overkill; see
-[Do you even need a DI container?](#do-you-even-need-a-di-container) above.
-Reach for modern-di once you have a second entrypoint, or need typed, scoped,
-app-wide singletons with overrides that also apply off the HTTP path.
+For a small single service, native DI works and you can skip a container. modern-di adds typed
+app-scoped objects with teardown, constructors free of `Depends`, and overrides that reach outside
+the HTTP path; see [Do you need a DI container?](#do-you-need-a-di-container) above.
 
 ## that-depends or modern-di?
 
