@@ -1,8 +1,10 @@
 # Migration guide: upgrading to modern-di 4.x
 
-This document describes the changes required to migrate from modern-di 3.x to modern-di 4.0.
+This document describes the changes required to migrate from modern-di 3.x to 4.x. Most of them
+came in 4.0. 4.1 added a few more that can break code written against 4.0; they are listed
+separately at the end.
 
-## Key changes
+## Changes in 4.0
 
 ### `Container` takes only `scope` positionally
 
@@ -153,11 +155,8 @@ the finalizer errors inside it by type, `AsyncFinalizerInSyncCloseError` include
   was a list.
 - The constructor keyword `finalizer_errors=` is now `exceptions=`.
 - `.is_async` is unchanged, and a group that `except*` splits off keeps it.
-- `except FinalizerError` and `except ModernDIError` still catch it.
-- Its message is one line naming each kind of error with its count, such as
-  `Container.close_sync() found 1 finalizer error(s): ValueError (1)`, where 3.x listed every
-  finalizer exception. Each finalizer exception carries a note naming the type of the cached
-  instance whose finalizer raised it.
+- `except FinalizerError` and `except ModernDIError` still catch it, and its message is unchanged.
+  4.1 [shortened the message](#finalizererror-summarizes-its-errors).
 
 ```python
 # 3.x
@@ -264,7 +263,8 @@ code that calls them raises `AttributeError`:
 `AbstractProvider` no longer derives from `abc.ABC`. It never declared an abstract method, and the
 provider set is closed. Only code that relied on `ABCMeta` is affected:
 `AbstractProvider.register(...)` raises `AttributeError`. `isinstance(x, AbstractProvider)` works
-as before for every provider, and type hints that name `AbstractProvider` need no change.
+as before for every provider, and type hints that name `AbstractProvider` need no change. From 4.1
+on, [subclassing any provider raises `TypeError`](#subclassing-a-provider-raises-typeerror).
 
 ### `NewType` and type alias annotations are wired
 
@@ -384,23 +384,6 @@ None of these were meant for use outside the package. Accessing them raises `Att
 `resolve()` on a closed container raises `ContainerClosedError` even when the type is not
 registered. In 3.x that call raised `ProviderNotRegisteredError`.
 
-### `Alias` requires `bound_type`
-
-In 3.x `bound_type` defaulted to `source_type`, so `Alias(X)` registered under `X` and resolved to
-itself: `validate()` reported a `CircularDependencyError`, or registration raised
-`DuplicateProviderTypeError` when a provider for `X` existed too. In 4.x `bound_type` has no
-default. `Alias(X)` raises `TypeError`, and `Alias(X, bound_type=X)` raises
-`AliasBoundToSourceError`. Pass the type the alias answers for, or `bound_type=None` to use it
-by reference only:
-
-```python
-# 3.x
-alias = providers.Alias(PostgresDatabase)
-
-# 4.x
-alias = providers.Alias(PostgresDatabase, bound_type=DatabaseProtocol)
-```
-
 ### The 3.x deprecations are removed
 
 - `Container(validate=...)` raises `TypeError`, and `ValidateArgumentWarning` is gone with it. Drop
@@ -411,3 +394,58 @@ alias = providers.Alias(PostgresDatabase, bound_type=DatabaseProtocol)
   since 3.0, so delete any `filterwarnings` entry or import that names them.
 - The `modern_di.exceptions.warnings` module held only these three warnings and is deleted. An
   import from that path raises `ModuleNotFoundError`, so delete it.
+
+## Changes in 4.1
+
+### `Alias` requires `bound_type`
+
+In 3.x and 4.0 `bound_type` defaulted to `source_type`, so `Alias(X)` registered under `X` and
+resolved to itself: `validate()` reported a `CircularDependencyError`, or registration raised
+`DuplicateProviderTypeError` when a provider for `X` existed too. In 4.1 `bound_type` has no
+default. `Alias(X)` raises `TypeError`, and `Alias(X, bound_type=X)` raises
+`AliasBoundToSourceError`. Pass the type the alias answers for, or `bound_type=None` to use it
+by reference only:
+
+```python
+# 3.x and 4.0
+alias = providers.Alias(PostgresDatabase)
+
+# 4.1
+alias = providers.Alias(PostgresDatabase, bound_type=DatabaseProtocol)
+```
+
+### Subclassing a provider raises `TypeError`
+
+A class that subclasses `AbstractProvider`, `Factory`, `ContextProvider`, `Alias` or any other
+modern-di provider outside the package now raises `TypeError` when the class statement runs. In 4.0
+the class statement succeeded, and a resolve of the subclass raised
+`TypeError: no compiled resolver for provider type MyFactory`. The error now comes at definition:
+
+```text
+TypeError: MyFactory subclasses a modern-di provider. The provider set is closed, so a subclass would not resolve. Compose behavior in a creator function or an Alias instead.
+```
+
+Put the custom behavior in the creator function and use a stock `Factory`.
+
+### `FinalizerError` summarizes its errors
+
+`str(FinalizerError)` is one line naming each kind of error with its count, plus the
+troubleshooting link:
+
+```text
+Container.close_sync() found 1 finalizer error(s): ValueError (1)
+See: https://modern-di.modern-python.org/troubleshooting/finalizer-error/
+```
+
+In 4.0 and 3.x the message listed every finalizer exception, as in
+`Errors during sync cleanup: [ValueError('bad')]`. Each finalizer exception in `.exceptions` now
+carries a note naming the type of the cached instance whose finalizer raised it, such as
+`raised by the finalizer of a cached Engine`. A traceback shows the notes; update any test that
+matched the old message.
+
+### `DuplicateProviderTypeError` names both providers
+
+The message lists the two providers that claim the type, each with its definition site, and the
+error stores them as `.first_provider` and `.second_provider`. `.provider_type` is unchanged.
+Update any test that matched the 4.0 text, which started
+`Provider is duplicated by type <class 'X'>. To resolve this issue:`.
