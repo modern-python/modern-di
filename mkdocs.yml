@@ -49,6 +49,7 @@ nav:
       - Testing with overrides: recipes/testing-overrides.md
       - Request-scoped engine selection: recipes/request-scoped-engine.md
       - Good and bad practices: recipes/good-and-bad-practices.md
+      - Pydantic AI agents: recipes/pydantic-ai.md
   - Troubleshooting:
       - Invalid child scope: troubleshooting/invalid-child-scope-error.md
       - Max scope reached: troubleshooting/max-scope-reached-error.md
@@ -194,6 +195,7 @@ plugins:
           - recipes/testing-overrides.md: Swapping dependencies in tests with overrides
           - recipes/request-scoped-engine.md: Routing requests to different engines by scope
           - recipes/good-and-bad-practices.md: Common DI footguns and how modern-di catches them
+          - recipes/pydantic-ai.md: Passing a container as Pydantic AI deps, with an optional per-tool-call scope
         Troubleshooting:
           - troubleshooting/invalid-child-scope-error.md: Diagnosing InvalidChildScopeError
           - troubleshooting/max-scope-reached-error.md: Diagnosing MaxScopeReachedError
