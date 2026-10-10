@@ -46,7 +46,7 @@ class DuplicateProviderTypeError(RegistrationError):
 
 
 class AliasBoundToSourceError(RegistrationError):
-    """An ``Alias`` was declared with ``bound_type`` equal to its ``.source_type``, the default."""
+    """An ``Alias`` was declared with ``bound_type`` equal to its ``.source_type``."""
 
     docs_slug = "alias-bound-to-source-error"
 

@@ -14,12 +14,10 @@ See: https://modern-di.modern-python.org/troubleshooting/alias-bound-to-source-e
 
 ## Cause
 
-An alias is registered under its `bound_type`, and `bound_type` defaults to `source_type`. With the
-two equal, the alias registers itself as the provider for its own source. If nothing else provides
+An alias is registered under its `bound_type`. With `bound_type` equal to `source_type`, the alias
+registers itself as the provider for its own source. If nothing else provides
 that type, the alias resolves to itself, a one-node cycle. If something does, the two collide as
 duplicates. Neither does anything useful, so the declaration is rejected.
-
-This happens with `Alias(X)` and no `bound_type`, or with `bound_type=X` spelled out.
 
 ## Fix
 
@@ -40,7 +38,7 @@ class Implementation: ...
 class Dependencies(Group):
     impl = providers.Factory(Implementation)
 
-    # Broken: providers.Alias(Implementation)
+    # Broken: providers.Alias(Implementation, bound_type=Implementation)
     # Works:
     interface_alias = providers.Alias(Implementation, bound_type=Interface)
 ```

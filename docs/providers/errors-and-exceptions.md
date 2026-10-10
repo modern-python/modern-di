@@ -166,7 +166,7 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
   `.first_provider` and `.second_provider` hold the two providers in registration order. See
   [Troubleshooting: Duplicate type](../troubleshooting/duplicate-type-error.md).
 - `AliasBoundToSourceError` is raised when an `Alias` is declared with `bound_type` equal to its
-  `source_type`, which is what a missing `bound_type` means. Such an alias would resolve to itself.
+  `source_type`. Such an alias would resolve to itself.
   Inspect `.source_type`. See
   [Troubleshooting: AliasBoundToSourceError](../troubleshooting/alias-bound-to-source-error.md).
 - `ChildContainerRegistrationError` is raised by `Container.add_providers()` when called on a child
