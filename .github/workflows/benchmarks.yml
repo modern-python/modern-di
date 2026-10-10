@@ -24,7 +24,7 @@ jobs:
       - name: Run guard-tier benchmarks
         run: uv run --no-sync pytest benchmarks/ --ignore=benchmarks/comparative --benchmark-only --benchmark-json=output.json
       - name: Restore benchmark baseline (newest main run via restore-keys prefix)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ./cache
           key: benchmark-baseline-v2-${{ runner.os }}-${{ github.run_id }}
@@ -43,7 +43,7 @@ jobs:
           alert-threshold: "120%"
       - name: Save benchmark baseline (main only)
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ./cache
           key: benchmark-baseline-v2-${{ runner.os }}-${{ github.run_id }}

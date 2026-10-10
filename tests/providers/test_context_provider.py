@@ -1,5 +1,5 @@
 import dataclasses
-import datetime
+import datetime as dt
 import typing
 
 import pytest
@@ -14,31 +14,31 @@ from modern_di.exceptions import (
 from modern_di.providers.abstract import AbstractProvider
 
 
-request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=datetime.datetime)
+request_context_provider = providers.ContextProvider(scope=Scope.REQUEST, context_type=dt.datetime)
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class SomeFactory:
-    arg1: datetime.datetime
+    arg1: dt.datetime
 
 
 class MyGroup(Group):
-    context_provider = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    context_provider = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime)
     some_factory = providers.Factory(creator=SomeFactory)
 
 
 def test_context_provider() -> None:
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app_container = Container(groups=[MyGroup], context={datetime.datetime: now})
+    now = dt.datetime.now(tz=dt.UTC)
+    app_container = Container(groups=[MyGroup], context={dt.datetime: now})
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
     instance2 = app_container.resolve_provider(MyGroup.context_provider)
     assert instance1 is instance2 is now
 
 
 def test_context_provider_set_context_after_creation() -> None:
-    now = datetime.datetime.now(tz=datetime.UTC)
+    now = dt.datetime.now(tz=dt.UTC)
     app_container = Container()
-    app_container.set_context(datetime.datetime, now)
+    app_container.set_context(dt.datetime, now)
     instance1 = app_container.resolve_provider(MyGroup.context_provider)
     instance2 = app_container.resolve_provider(MyGroup.context_provider)
     assert instance1 is instance2 is now
@@ -48,7 +48,7 @@ def test_context_provider_not_found() -> None:
     app_container = Container()
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
-    assert exc_info.value.context_type is datetime.datetime
+    assert exc_info.value.context_type is dt.datetime
 
 
 def test_context_provider_not_found_but_required() -> None:
@@ -59,14 +59,14 @@ def test_context_provider_not_found_but_required() -> None:
     ) as exc:
         app_container.resolve(SomeFactory)
     assert exc.value.parameter_name == "arg1"
-    assert exc.value.context_type is datetime.datetime
+    assert exc.value.context_type is dt.datetime
     assert exc.value.provider_scope is Scope.APP
 
 
 def test_context_provider_in_request_scope() -> None:
-    now = datetime.datetime.now(tz=datetime.UTC)
+    now = dt.datetime.now(tz=dt.UTC)
     app_container = Container()
-    request_container = app_container.build_child_container(context={datetime.datetime: now}, scope=Scope.REQUEST)
+    request_container = app_container.build_child_container(context={dt.datetime: now}, scope=Scope.REQUEST)
     instance1 = request_container.resolve_provider(request_context_provider)
     instance2 = request_container.resolve_provider(request_context_provider)
     assert instance1 is instance2 is now
@@ -78,12 +78,12 @@ def test_context_provider_repr() -> None:
 
 
 def test_context_provider_exposes_context_type() -> None:
-    provider = providers.ContextProvider(context_type=datetime.datetime, scope=Scope.REQUEST)
-    assert provider.context_type is datetime.datetime
+    provider = providers.ContextProvider(context_type=dt.datetime, scope=Scope.REQUEST)
+    assert provider.context_type is dt.datetime
 
 
 def test_context_provider_has_no_definition_site() -> None:
-    provider = providers.ContextProvider(context_type=datetime.datetime, scope=Scope.REQUEST)
+    provider = providers.ContextProvider(context_type=dt.datetime, scope=Scope.REQUEST)
     assert provider.definition_site is None
 
 
@@ -112,31 +112,31 @@ def test_factory_resolves_with_falsy_context_value() -> None:
 def test_factory_resolves_with_none_context_value() -> None:
     @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
     class NoneHolder:
-        value: datetime.datetime | None
+        value: dt.datetime | None
 
     class NoneGroup(Group):
-        ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+        ctx = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime)
         holder = providers.Factory(creator=NoneHolder)
 
-    app_container = Container(groups=[NoneGroup], context={datetime.datetime: None})
+    app_container = Container(groups=[NoneGroup], context={dt.datetime: None})
     instance = app_container.resolve(NoneHolder)
     assert instance.value is None
 
 
 def test_factory_with_creator_default_gets_it_when_context_provider_value_unset() -> None:
-    default = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
-    provider_default = datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
+    default = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
+    provider_default = dt.datetime(2025, 1, 1, tzinfo=dt.UTC)
 
     @dataclasses.dataclass(kw_only=True, slots=True)
     class TsHolder:
-        ts: datetime.datetime = default
+        ts: dt.datetime = default
 
     class TsGroup(Group):
-        ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+        ctx = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime)
         holder = providers.Factory(creator=TsHolder)
 
     class TsDefaultGroup(Group):
-        ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime, default=provider_default)
+        ctx = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime, default=provider_default)
         holder = providers.Factory(creator=TsHolder)
 
     assert Container(groups=[TsGroup]).resolve(TsHolder).ts is default
@@ -172,8 +172,8 @@ def test_set_context_after_first_resolve_is_seen_by_later_resolves() -> None:
 
 
 def test_context_provider_through_closed_owning_container_raises() -> None:
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app = Container(groups=[MyGroup], context={datetime.datetime: now})
+    now = dt.datetime.now(tz=dt.UTC)
+    app = Container(groups=[MyGroup], context={dt.datetime: now})
     child = app.build_child_container(scope=Scope.REQUEST)
     app.close_sync()
     with pytest.raises(ContainerClosedError) as exc:
@@ -324,49 +324,49 @@ def test_direct_resolve_unset_context_raises() -> None:
     app_container = Container(groups=[MyGroup])
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(MyGroup.context_provider)
-    assert exc_info.value.context_type is datetime.datetime
+    assert exc_info.value.context_type is dt.datetime
 
 
 def test_context_provider_accepts_positional_context_type() -> None:
-    provider = providers.ContextProvider(datetime.datetime)
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app_container = Container(context={datetime.datetime: now})
+    provider = providers.ContextProvider(dt.datetime)
+    now = dt.datetime.now(tz=dt.UTC)
+    app_container = Container(context={dt.datetime: now})
     assert app_container.resolve_provider(provider) is now
 
 
 def test_context_provider_rejects_context_type_passed_twice() -> None:
     with pytest.raises(TypeError, match="context_type"):
-        providers.ContextProvider(datetime.datetime, context_type=datetime.datetime)  # ty: ignore[no-matching-overload]
+        providers.ContextProvider(dt.datetime, context_type=dt.datetime)  # ty: ignore[no-matching-overload]
 
 
 def test_context_provider_override_direct_short_circuits() -> None:
     # An override of a ContextProvider compiles to a constant resolver, so resolving it directly
     # returns the override with no ContextValueNotSetError, even with nothing in the registry.
-    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+    override_value = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
     app_container = Container(groups=[MyGroup])
     app_container.override(MyGroup.context_provider, override_value)
     assert app_container.resolve_provider(MyGroup.context_provider) is override_value
 
 
-_SENTINEL_DEFAULT = datetime.datetime(1999, 9, 9, tzinfo=datetime.UTC)
+_SENTINEL_DEFAULT = dt.datetime(1999, 9, 9, tzinfo=dt.UTC)
 
 
-def _ctx_default_creator(*, ctx: datetime.datetime | None = _SENTINEL_DEFAULT) -> str:
+def _ctx_default_creator(*, ctx: dt.datetime | None = _SENTINEL_DEFAULT) -> str:
     return "default-applied" if ctx is _SENTINEL_DEFAULT else f"got {ctx!r}"
 
 
 class _KwargsCtxByTypeGroup(Group):
-    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime)
     out = providers.Factory(_ctx_default_creator, bound_type=None)
 
 
 class _KwargsCtxDefaultedGroup(Group):
-    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime, default=_SENTINEL_DEFAULT)
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime, default=_SENTINEL_DEFAULT)
     out = providers.Factory(_ctx_default_creator, bound_type=None, kwargs={"ctx": ctx})
 
 
 class _KwargsCtxExplicitGroup(Group):
-    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime)
     out = providers.Factory(_ctx_default_creator, bound_type=None, kwargs={"ctx": ctx})
 
 
@@ -388,13 +388,13 @@ def test_kwargs_context_provider_matches_by_type_wiring() -> None:
 
 
 def test_kwargs_context_provider_injects_present_value() -> None:
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app_container = Container(groups=[_KwargsCtxExplicitGroup], context={datetime.datetime: now})
+    now = dt.datetime.now(tz=dt.UTC)
+    app_container = Container(groups=[_KwargsCtxExplicitGroup], context={dt.datetime: now})
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {now!r}"
 
 
 def test_kwargs_context_provider_override_wins() -> None:
-    override_value = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+    override_value = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
     app_container = Container(groups=[_KwargsCtxExplicitGroup])
     app_container.override(_KwargsCtxExplicitGroup.ctx, override_value)
     assert app_container.resolve_provider(_KwargsCtxExplicitGroup.out) == f"got {override_value!r}"
@@ -405,7 +405,7 @@ def _opaque_ctx_creator(**kw: object) -> str:
 
 
 class _KwargsCtxNoSignatureGroup(Group):
-    ctx = providers.ContextProvider(scope=Scope.APP, context_type=datetime.datetime)
+    ctx = providers.ContextProvider(scope=Scope.APP, context_type=dt.datetime)
     out = providers.Factory(_opaque_ctx_creator, bound_type=None, kwargs={"ctx": ctx})
 
 
@@ -413,15 +413,15 @@ def test_kwargs_context_provider_without_parsed_signature_keeps_direct_resolve()
     app_container = Container(groups=[_KwargsCtxNoSignatureGroup])
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out)
-    assert exc_info.value.context_type is datetime.datetime
+    assert exc_info.value.context_type is dt.datetime
     assert exc_info.value.parameter_name == "ctx"
 
 
 def test_kwargs_context_provider_without_parsed_signature_injects_present_value() -> None:
     # Same no-parsed-signature routing as above, but with a value present: the direct-resolve path
     # returns it normally and the creator runs.
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={datetime.datetime: now})
+    now = dt.datetime.now(tz=dt.UTC)
+    app_container = Container(groups=[_KwargsCtxNoSignatureGroup], context={dt.datetime: now})
     assert app_container.resolve_provider(_KwargsCtxNoSignatureGroup.out) == f"ctx={now!r}"
 
 
@@ -641,7 +641,7 @@ def test_unset_context_as_factory_argument_raises_naming_the_parameter() -> None
     app_container = Container(groups=[MyGroup])
     with pytest.raises(ContextValueNotSetError) as exc_info:
         app_container.resolve(SomeFactory)
-    assert exc_info.value.context_type is datetime.datetime
+    assert exc_info.value.context_type is dt.datetime
     assert exc_info.value.parameter_name == "arg1"
     assert "needed for argument arg1" in str(exc_info.value)
 
@@ -654,38 +654,38 @@ def test_direct_resolve_of_unset_context_names_no_parameter() -> None:
     assert "needed for argument" not in str(exc_info.value)
 
 
-_PROVIDER_DEFAULT = datetime.datetime(2001, 1, 1, tzinfo=datetime.UTC)
+_PROVIDER_DEFAULT = dt.datetime(2001, 1, 1, tzinfo=dt.UTC)
 
 
 @pytest.mark.parametrize("default", [None, _PROVIDER_DEFAULT])
-def test_context_provider_default_is_returned_when_unset(default: datetime.datetime | None) -> None:
-    provider = providers.ContextProvider(datetime.datetime, scope=Scope.APP, default=default)
+def test_context_provider_default_is_returned_when_unset(default: dt.datetime | None) -> None:
+    provider = providers.ContextProvider(dt.datetime, scope=Scope.APP, default=default)
     app_container = Container()
     assert app_container.resolve_provider(provider) is default
 
 
 @pytest.mark.parametrize("default", [None, _PROVIDER_DEFAULT])
-def test_context_provider_default_yields_to_a_set_value(default: datetime.datetime | None) -> None:
-    now = datetime.datetime.now(tz=datetime.UTC)
-    provider = providers.ContextProvider(datetime.datetime, scope=Scope.APP, default=default)
-    app_container = Container(context={datetime.datetime: now})
+def test_context_provider_default_yields_to_a_set_value(default: dt.datetime | None) -> None:
+    now = dt.datetime.now(tz=dt.UTC)
+    provider = providers.ContextProvider(dt.datetime, scope=Scope.APP, default=default)
+    app_container = Container(context={dt.datetime: now})
     assert app_container.resolve_provider(provider) is now
 
 
 @pytest.mark.parametrize("default", [None, _PROVIDER_DEFAULT])
-def test_context_provider_default_reaches_a_factory_argument(default: datetime.datetime | None) -> None:
+def test_context_provider_default_reaches_a_factory_argument(default: dt.datetime | None) -> None:
     @dataclasses.dataclass(kw_only=True, slots=True)
     class Holder:
-        ts: datetime.datetime | None
+        ts: dt.datetime | None
 
     class G(Group):
-        ts = providers.ContextProvider(datetime.datetime, scope=Scope.APP, default=default)
+        ts = providers.ContextProvider(dt.datetime, scope=Scope.APP, default=default)
         holder = providers.Factory(creator=Holder)
 
     app_container = Container(groups=[G])
     assert app_container.resolve(Holder).ts is default
-    now = datetime.datetime.now(tz=datetime.UTC)
-    app_container.set_context(datetime.datetime, now)
+    now = dt.datetime.now(tz=dt.UTC)
+    app_container.set_context(dt.datetime, now)
     assert app_container.resolve(Holder).ts is now
 
 
@@ -1009,15 +1009,15 @@ def test_caller_dict_changes_after_construction_are_not_seen() -> None:
 
 class _LookupHookContext(dict[type[typing.Any], typing.Any]):
     def __contains__(self, key: object) -> bool:
-        return key is datetime.datetime or super().__contains__(key)
+        return key is dt.datetime or super().__contains__(key)
 
-    def __getitem__(self, key: type[typing.Any]) -> datetime.datetime:
-        return datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    def __getitem__(self, key: type[typing.Any]) -> dt.datetime:
+        return dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
 
 
 def test_dict_subclass_context_keeps_its_lookup_hooks() -> None:
     container = Container(groups=[MyGroup], context=_LookupHookContext())
-    assert container.resolve(datetime.datetime) == datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    assert container.resolve(dt.datetime) == dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
 
 
 class _OptCtx: ...
