@@ -6,7 +6,7 @@ Raised naming the `source_type` an `Alias` points at, saying no provider is regi
 
 ## Cause
 
-`Alias(X)` was declared, but no provider's `bound_type` resolves to `X`: either the
+`Alias(X, bound_type=...)` was declared, but no provider's `bound_type` resolves to `X`: either the
 provider for `X` was never defined, its group wasn't passed to `Container(groups=[...])`, or it was
 declared with `bound_type=None` (making it unresolvable by type, which an alias also can't reach).
 This is checked eagerly during `validate()`, and again at resolve time if validation was skipped.
@@ -23,7 +23,12 @@ class Implementation(Interface): ...
 -->
 
 ```python
+from typing import Protocol
+
 from modern_di import Group, Scope, providers
+
+
+class Interface(Protocol): ...
 
 
 class Dependencies(Group):

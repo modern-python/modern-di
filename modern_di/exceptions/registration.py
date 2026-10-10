@@ -45,6 +45,22 @@ class DuplicateProviderTypeError(RegistrationError):
         super().__init__("\n".join(lines))
 
 
+class AliasBoundToSourceError(RegistrationError):
+    """An ``Alias`` was declared with ``bound_type`` equal to its ``.source_type``, the default."""
+
+    docs_slug = "alias-bound-to-source-error"
+
+    __slots__ = ("source_type",)
+
+    def __init__(self, *, source_type: type) -> None:
+        self.source_type = source_type
+        super().__init__(
+            f"Alias of {source_type} is bound to its own source type, so it would resolve to itself. "
+            f"Pass bound_type= with the type the alias should answer for, such as a base class or Protocol, "
+            f"or bound_type=None to resolve it by reference only."
+        )
+
+
 class ChildContainerRegistrationError(RegistrationError):
     """Providers were registered on a child container via ``add_providers``. Inspect ``.container_scope``."""
 

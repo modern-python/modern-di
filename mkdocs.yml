@@ -60,6 +60,7 @@ nav:
       - Validation failed: troubleshooting/validation-failed-error.md
       - Missing provider for type: troubleshooting/missing-provider.md
       - Alias source not registered: troubleshooting/alias-source-not-registered-error.md
+      - Alias bound to its source: troubleshooting/alias-bound-to-source-error.md
       - Argument resolution error: troubleshooting/argument-resolution-error.md
       - Circular dependency: troubleshooting/circular-dependency.md
       - Creator call error: troubleshooting/creator-call-error.md

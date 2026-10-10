@@ -105,6 +105,7 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
     exceptions.DuplicateProviderTypeError: lambda: exceptions.DuplicateProviderTypeError(
         provider_type=Database, first_provider=_app_provider, second_provider=_request_provider
     ),
+    exceptions.AliasBoundToSourceError: lambda: exceptions.AliasBoundToSourceError(source_type=Database),
     exceptions.ChildContainerRegistrationError: lambda: exceptions.ChildContainerRegistrationError(
         container_scope=Scope.REQUEST
     ),
