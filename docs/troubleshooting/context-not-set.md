@@ -1,6 +1,7 @@
 # ContextProvider has no value
 
-A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container's context. If no value was registered and the provider declares no `default=`, a direct resolve raises `ContextValueNotSetError`, and so does a `Factory` argument for a required parameter. A `Factory` parameter that is nullable or has a default gets that default, or `None`, instead of raising.
+`ContextValueNotSetError` means a `ContextProvider` was resolved, directly or for a required
+parameter, on a container that holds no value for its type, and the provider has no `default=`.
 
 ## Symptom
 
@@ -17,9 +18,14 @@ When a creator body calls `container.resolve(TenantId)` itself, the chain ends a
 
 ## Cause
 
-### 1. `set_context` was called on the wrong container (scope mismatch)
+### 1. The value is set on a container of a different scope
 
-Context never propagates between containers; see [context propagation](../providers/context.md#context-propagation) for why. For a REQUEST-scoped provider, only the request container's registry is ever consulted, so setting the value on the parent has no effect, regardless of build order.
+A `ContextProvider` reads only the container of its own scope, and context never propagates between
+containers; see [context propagation](../providers/context.md#context-propagation). A value set on
+any other container is invisible to it, in either direction:
+
+- A `ContextProvider(TenantId, scope=Scope.REQUEST)` does not see a value set on the APP parent.
+- A `ContextProvider(TenantId, scope=Scope.APP)` does not see a value set on a REQUEST child.
 
 <!-- invisible-code-block: python
 from modern_di import Container, Scope, providers
@@ -32,60 +38,51 @@ app_container = Container(scope=Scope.APP)
 -->
 
 ```python
-# Broken: TenantId provider has scope=Scope.REQUEST, so it reads the REQUEST
-# container's registry. Setting it on the APP parent does nothing.
-app_container.set_context(TenantId, TenantId("acme"))     # ignored for REQUEST-scoped providers
+# Broken: the TenantId provider is REQUEST-scoped, so the APP value is never read.
+app_container.set_context(TenantId, TenantId("acme"))
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 ```
 
-To fix it, set the value on the container whose scope matches the provider's scope:
+Set the value on the container whose scope matches the provider's scope, either when building it or
+afterwards:
 
 ```python
-# Option A: pass directly to the child when building it
+# Works:
 request_container = app_container.build_child_container(
     scope=Scope.REQUEST,
     context={TenantId: TenantId("acme")},
 )
 
-# Option B: set on the request container after building it
+# Works:
 request_container = app_container.build_child_container(scope=Scope.REQUEST)
 request_container.set_context(TenantId, TenantId("acme"))
 ```
 
-### 2. The `ContextProvider`'s scope doesn't match where you set the context
+If the value really is per request, declare the provider with `scope=Scope.REQUEST`. If it is one
+value for the whole app, declare it with `scope=Scope.APP` and set it on the APP container.
 
-`ContextProvider(TenantId, scope=Scope.APP)` looks up the value on the APP container. If you `set_context` on the REQUEST child container, the APP-scope provider doesn't see it.
-
-Make the scopes match. If the value is per-request, declare `ContextProvider(TenantId, scope=Scope.REQUEST)` and `set_context` on the request container (or pass via `build_child_container(context=...)`).
-
-### 3. Framework integration didn't inject the expected request
+### 2. Framework integration didn't inject the expected request
 
 Framework integrations (`modern-di-fastapi`, `modern-di-litestar`) register the per-request `Request`/`WebSocket` automatically. If your code expects, say, `fastapi.Request` but you're outside the framework's request lifecycle (a background task, a CLI command), no `Request` is in context and the lookup fails.
 
 Depend on framework-injected context only inside the framework's request handling. For background tasks, build the REQUEST child container yourself and pass the necessary context.
 
-### 4. The value is optional
+### 3. The value is optional
 
-If a creator runs where no value is set, such as a handler that also runs outside a request, make its parameter optional. With no value set it gets its default, or `None` for an `X | None` parameter without one:
+If a creator also runs where no value is set, make its parameter optional (`tenant: TenantId | None = None`):
+it then gets its default, or `None`. A parameter whose provider is another `Factory` that needs the
+value still raises. See [Optional parameters](../providers/context.md#optional-parameters).
 
-```python
-class MyService:
-    def __init__(self, tenant: TenantId | None = None) -> None:
-        self.tenant = tenant
-```
-
-This works for an integration's provider too, which stays required for a direct resolve. It applies only to a parameter that takes the context value itself; a parameter whose provider is another `Factory` that needs the value still raises.
-
-To make the value optional for every consumer, direct resolves included, give the provider a default. The provider returns `default=` whenever nothing is set:
+To make the value optional for every consumer, direct resolves included, give the provider a
+default. See [Optional context: `default=`](../providers/context.md#optional-context-default):
 
 ```python
 tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)
 ```
 
-See [When no value is set](../providers/context.md#when-no-value-is-set).
-
 ## See also
 
-- [Context providers](../providers/context.md) documents the full `ContextProvider` and `set_context` API.
-- [Scopes](../providers/scopes.md) explains per-container context registries and why context never propagates between containers.
-- [Async resources via lifespan](../recipes/async-lifespan.md) shows the canonical "construct in lifespan, inject as context" pattern.
+- [Context providers](../providers/context.md): the full `ContextProvider` and `set_context` API.
+- [When no value is set](../providers/context.md#when-no-value-is-set): what each kind of consumer gets.
+- [Scopes](../providers/scopes.md): per-container context and why it never propagates.
+- [Async resources via lifespan](../recipes/async-lifespan.md): the "construct in lifespan, inject as context" pattern.

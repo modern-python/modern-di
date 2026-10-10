@@ -2,45 +2,56 @@
 
 ## Symptom
 
-Raised naming the `Group` subclass someone tried to instantiate, saying it cannot be created as an
-object.
+```
+modern_di.exceptions.lifecycle.GroupInstantiationError: Dependencies cannot be instantiated
+See: https://modern-di.modern-python.org/troubleshooting/group-instantiation-error/
+```
+
+`.group_name` holds the name of the `Group` subclass.
 
 ## Cause
 
-A `Group` subclass was called like a constructor (`MyGroup()`). Groups are namespaces for declaring
-providers as class attributes. They're never meant to be instantiated, only passed by class
-reference to `Container(groups=[MyGroup])` or read via `MyGroup.some_provider`.
+A `Group` subclass was called like a constructor, `Dependencies()`. A group is a namespace for
+declaring providers as class attributes, and calling it always raises, with or without arguments.
+You pass the class itself to `Container(groups=[Dependencies])` and read its providers as
+`Dependencies.some_provider`.
+
+The habit often comes from `dependency-injector` and `that-depends`, where the container class is
+also the runtime object you resolve from. The migration guides cover the difference:
+[from `dependency-injector`](../migration/from-dependency-injector.md#2-key-conceptual-shifts) and
+[from `that-depends`](../migration/from-that-depends.md#2-key-conceptual-shifts).
 
 ## Fix
-
-Use the class itself, not an instance:
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group, Scope, providers
 
 
 class Service: ...
+
+
+class Dependencies(Group):
+    service = providers.Factory(Service, scope=Scope.APP)
 -->
 
 <!-- raises: GroupInstantiationError -->
 
 ```python
-class Dependencies(Group):
-    service = providers.Factory(Service, scope=Scope.APP)
-
-
-# Broken
-deps = Dependencies()             # raises GroupInstantiationError
-
-# Works
-container = Container(groups=[Dependencies])
-service = container.resolve_provider(Dependencies.service)
+# Broken:
+deps = Dependencies()
 ```
 
-This usually happens from a habit carried over from frameworks where a container/module *is*
-instantiated, or from accidentally writing `Dependencies()` instead of `Dependencies` in a type
-annotation or default value.
+Pass the class to a `Container` and resolve from the container:
+
+```python
+# Works:
+container = Container(groups=[Dependencies])
+service = container.resolve_provider(Dependencies.service)
+assert isinstance(service, Service)
+```
 
 ## See also
 
-- [Multi-Group organization](../recipes/multi-group.md) covers organizing providers across several `Group` classes.
+- [Organize a large container with multiple Groups](../recipes/multi-group.md): splitting providers across several `Group` classes.
+- [Migration from `dependency-injector`](../migration/from-dependency-injector.md): `Group` as schema, `Container` as runtime.
+- [Migration from `that-depends`](../migration/from-that-depends.md): the same split, coming from `BaseContainer`.

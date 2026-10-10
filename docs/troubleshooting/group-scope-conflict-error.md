@@ -2,50 +2,99 @@
 
 ## Symptom
 
-Defining a `Group` subclass raises at class-creation (import) time. The error names a provider
-and the two groups that disagree about its scope.
+```
+modern_di.exceptions.registration.GroupScopeConflictError: Provider SomeService is shared by groups with conflicting default scopes: GroupA (scope REQUEST) and GroupB (scope ACTION). Set scope= explicitly on the provider, or align the group defaults.
+See: https://modern-di.modern-python.org/troubleshooting/group-scope-conflict-error/
+```
+
+It is raised by the second group's `class` statement, usually at import time. The first group named
+is the one that set the provider's scope. The exception carries `.provider`, `.first_group`,
+`.first_scope`, `.second_group` and `.second_scope`.
 
 ## Cause
 
-A module-level provider instance was created without an explicit `scope=`, so it takes its scope
-from whichever `class ...(Group, scope=...)` body stamps it first. When that same instance is
-also referenced from a second group whose default scope differs, the two stamps conflict: the
-provider cannot have two different scopes, and import order must never be what silently decides
-which one wins.
-
-## Fix
-
-There are three ways to resolve it; pick whichever fits:
+A provider declared without `scope=` takes its scope from the first `class ...(Group, scope=...)`
+that lists it. When a second group with a different default scope lists the same provider instance,
+the provider would need two scopes at once. Import order must not pick the winner, so `modern-di`
+rejects the second group. This happens whether or not a container has registered the provider yet.
 
 <!-- invisible-code-block: python
-from modern_di import Group, Scope, providers
+from modern_di import Container, Group, Scope, providers
 
 
 class SomeService: ...
 -->
 
-```python
-# 1. Set scope= explicitly on the shared provider — explicit always wins over a group default.
-shared = providers.Factory(SomeService, scope=Scope.REQUEST)
+<!-- raises: GroupScopeConflictError -->
 
-# 2. Align the two groups' default scopes so they agree.
+```python
+# Broken:
+shared = providers.Factory(SomeService)
+
+
 class GroupA(Group, scope=Scope.REQUEST):
     svc = shared
+
+
+class GroupB(Group, scope=Scope.ACTION):
+    svc = shared
+```
+
+## Fix
+
+Set `scope=` on the shared provider. An explicit scope always wins over a group default, so the two
+groups no longer disagree:
+
+```python
+shared = providers.Factory(SomeService, scope=Scope.REQUEST)
+
+
+class GroupA(Group, scope=Scope.REQUEST):
+    svc = shared
+
+
+class GroupB(Group, scope=Scope.ACTION):
+    svc = shared
+
+
+assert shared.scope == Scope.REQUEST
+```
+
+Or align the two groups' default scopes:
+
+```python
+shared = providers.Factory(SomeService)
+
+
+class GroupA(Group, scope=Scope.REQUEST):
+    svc = shared
+
 
 class GroupB(Group, scope=Scope.REQUEST):
     svc = shared
+```
 
-# 3. Give each group its own provider instance instead of sharing one.
+In both of these, pass only one of the two groups to a given container. They list the same provider
+instance, and `Container(groups=[GroupA, GroupB])` currently raises
+[`DuplicateProviderTypeError`](duplicate-type-error.md) naming that one provider twice.
+
+Or give each group its own provider instance. The two then need different types, or `bound_type=None`
+on one, to avoid a [`DuplicateProviderTypeError`](duplicate-type-error.md) when both groups go into
+one container:
+
+```python
 class GroupA(Group, scope=Scope.REQUEST):
     svc = providers.Factory(SomeService)
 
-class GroupB(Group, scope=Scope.ACTION):
-    svc = providers.Factory(SomeService)
-```
 
-Inspect `.provider`, `.first_group`/`.first_scope`, and `.second_group`/`.second_scope` on
-the exception to see exactly which provider and groups collided.
+class GroupB(Group, scope=Scope.ACTION):
+    svc = providers.Factory(SomeService, bound_type=None)
+
+
+container = Container(groups=[GroupA, GroupB])
+```
 
 ## See also
 
-- [Scopes](../providers/scopes.md) explains the scope hierarchy and how a provider's scope is chosen.
+- [Scopes: group-level default scope](../providers/scopes.md#group-level-default-scope): how a provider's scope is chosen.
+- [ProviderScopeFrozenError](provider-scope-frozen-error.md): a group changing the scope of an already registered provider.
