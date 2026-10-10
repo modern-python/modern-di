@@ -45,7 +45,7 @@ nav:
   - Recipes:
       - Async SQLAlchemy: recipes/sqlalchemy.md
       - Async resources via lifespan: recipes/async-lifespan.md
-      - Multi-Group organization: recipes/multi-group.md
+      - Multi-group organization: recipes/multi-group.md
       - Testing with overrides: recipes/testing-overrides.md
       - Request-scoped engine selection: recipes/request-scoped-engine.md
       - Good and bad practices: recipes/good-and-bad-practices.md
@@ -58,20 +58,20 @@ nav:
       - Invalid scope type: troubleshooting/invalid-scope-type-error.md
       - Container closed: troubleshooting/container-closed-error.md
       - Validation failed: troubleshooting/validation-failed-error.md
-      - Missing provider for type: troubleshooting/missing-provider.md
+      - Provider not registered: troubleshooting/missing-provider.md
       - Alias source not registered: troubleshooting/alias-source-not-registered-error.md
       - Alias bound to its source: troubleshooting/alias-bound-to-source-error.md
       - Argument resolution error: troubleshooting/argument-resolution-error.md
       - Circular dependency: troubleshooting/circular-dependency.md
       - Creator call error: troubleshooting/creator-call-error.md
       - ContextProvider has no value: troubleshooting/context-not-set.md
-      - Duplicate type error: troubleshooting/duplicate-type-error.md
+      - Duplicate provider type: troubleshooting/duplicate-type-error.md
       - Child container registration: troubleshooting/child-container-registration-error.md
       - Group scope conflict: troubleshooting/group-scope-conflict-error.md
       - Provider scope frozen: troubleshooting/provider-scope-frozen-error.md
       - Unknown factory kwarg: troubleshooting/unknown-factory-kwarg-error.md
       - Unsupported creator parameter: troubleshooting/unsupported-creator-parameter-error.md
-      - Scope chain violation: troubleshooting/scope-chain.md
+      - Invalid scope dependency: troubleshooting/scope-chain.md
       - Scope enum mismatch: troubleshooting/scope-enum-mismatch-error.md
       - Finalizer error: troubleshooting/finalizer-error.md
       - Async finalizer in sync close: troubleshooting/async-finalizer-in-sync-close-error.md
@@ -178,7 +178,7 @@ plugins:
           - providers/lifecycle.md: How instances are created, cached, and cleaned up
           - providers/factories.md: Regular vs cached Factory providers
           - providers/context.md: Injecting runtime context values with ContextProvider
-          - providers/container.md: The auto-registered provider that resolves to the Container itself
+          - providers/container.md: "The Container API: building containers, a map of its methods, injecting the container itself, and registering or looking up providers"
           - providers/alias.md: Binding one type to an already-registered provider
           - providers/errors-and-exceptions.md: The ModernDIError exception hierarchy
           - providers/advanced-api.md: Low-level extension points for library authors
@@ -205,19 +205,20 @@ plugins:
           - troubleshooting/invalid-scope-type-error.md: Diagnosing InvalidScopeTypeError
           - troubleshooting/container-closed-error.md: Diagnosing ContainerClosedError
           - troubleshooting/validation-failed-error.md: Diagnosing ValidationFailedError
-          - troubleshooting/missing-provider.md: Diagnosing missing provider registration errors
+          - troubleshooting/missing-provider.md: Diagnosing ProviderNotRegisteredError
           - troubleshooting/alias-source-not-registered-error.md: Diagnosing AliasSourceNotRegisteredError
+          - troubleshooting/alias-bound-to-source-error.md: Diagnosing AliasBoundToSourceError
           - troubleshooting/argument-resolution-error.md: Diagnosing ArgumentResolutionError
-          - troubleshooting/circular-dependency.md: Diagnosing circular dependency errors
+          - troubleshooting/circular-dependency.md: Diagnosing CircularDependencyError
           - troubleshooting/creator-call-error.md: Diagnosing CreatorCallError
-          - troubleshooting/context-not-set.md: Diagnosing ContextProvider-has-no-value errors
-          - troubleshooting/duplicate-type-error.md: Diagnosing duplicate bound_type registration errors
+          - troubleshooting/context-not-set.md: Diagnosing ContextValueNotSetError
+          - troubleshooting/duplicate-type-error.md: Diagnosing DuplicateProviderTypeError
           - troubleshooting/child-container-registration-error.md: Diagnosing ChildContainerRegistrationError
           - troubleshooting/group-scope-conflict-error.md: Diagnosing GroupScopeConflictError
           - troubleshooting/provider-scope-frozen-error.md: Diagnosing ProviderScopeFrozenError
           - troubleshooting/unknown-factory-kwarg-error.md: Diagnosing UnknownFactoryKwargError
           - troubleshooting/unsupported-creator-parameter-error.md: Diagnosing UnsupportedCreatorParameterError
-          - troubleshooting/scope-chain.md: Diagnosing scope chain violation errors
+          - troubleshooting/scope-chain.md: Diagnosing InvalidScopeDependencyError
           - troubleshooting/scope-enum-mismatch-error.md: Diagnosing ScopeEnumMismatchError
           - troubleshooting/finalizer-error.md: Diagnosing FinalizerError
           - troubleshooting/async-finalizer-in-sync-close-error.md: Diagnosing AsyncFinalizerInSyncCloseError

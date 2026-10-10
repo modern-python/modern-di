@@ -55,6 +55,7 @@ providers.Factory(create_thing, scope=Scope.APP)
 ```
 
 ```python
+# Works:
 def create_thing(items: tuple[Item, ...] = ()) -> Thing:
     return Thing(items)
 

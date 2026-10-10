@@ -33,7 +33,7 @@ class Dependencies(Group):
 
 `container.validate()` reports the broken version before anything resolves: it raises
 `ValidationFailedError` carrying an `InvalidScopeDependencyError`; see
-[Scope chain violation](../troubleshooting/scope-chain.md). Without `validate()`, the first resolve of
+[InvalidScopeDependencyError](../troubleshooting/scope-chain.md). Without `validate()`, the first resolve of
 `UserCache` raises `ScopeNotInitializedError`, whose message names both `UserCache` and `Session`, on
 the first request that reaches it instead of at startup.
 

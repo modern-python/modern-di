@@ -80,8 +80,10 @@ What `except*` does not catch is raised again as a `FinalizerError` holding only
 errors.
 
 A finalizer that raised is not retried. Its instance is dropped from the cache, so a later close does
-not call that finalizer again, and resolving after a reopen builds a new instance. Because every other
-finalizer still ran, a broken one does not leak a resource that a later finalizer would have closed.
+not call that finalizer again, and resolving after a reopen builds a new instance. With
+`clear_cache=False` the instance stays cached and a reopen returns it, but its finalizer still does
+not run again. Because every other finalizer still ran, a broken one does not leak a resource that a
+later finalizer would have closed.
 
 An `AsyncFinalizerInSyncCloseError` entry is the exception to this: `close_sync()` keeps that
 instance cached, and a later `await container.close_async()` runs its finalizer. See

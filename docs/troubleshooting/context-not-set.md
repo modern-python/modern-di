@@ -20,43 +20,11 @@ When a creator body calls `container.resolve(TenantId)` itself, the chain ends a
 
 ### 1. The value is set on a container of a different scope
 
-A `ContextProvider` reads only the container of its own scope, and context never propagates between
-containers; see [context propagation](../providers/context.md#context-propagation). A value set on
-any other container is invisible to it, in either direction:
-
-- A `ContextProvider(TenantId, scope=Scope.REQUEST)` does not see a value set on the APP parent.
-- A `ContextProvider(TenantId, scope=Scope.APP)` does not see a value set on a REQUEST child.
-
-<!-- invisible-code-block: python
-from modern_di import Container, Scope, providers
-
-
-class TenantId(str): ...
-
-
-app_container = Container(scope=Scope.APP)
--->
-
-```python
-# Broken: the TenantId provider is REQUEST-scoped, so the APP value is never read.
-app_container.set_context(TenantId, TenantId("acme"))
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-```
-
-Set the value on the container whose scope matches the provider's scope, either when building it or
-afterwards:
-
-```python
-# Works:
-request_container = app_container.build_child_container(
-    scope=Scope.REQUEST,
-    context={TenantId: TenantId("acme")},
-)
-
-# Works:
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-request_container.set_context(TenantId, TenantId("acme"))
-```
+A `ContextProvider` reads only the container of its own scope, so a value set on a parent or a child
+container never reaches it. Set the value on the container whose scope matches the provider's
+scope, with `context=` when building it or `set_context()` afterwards;
+[Context propagation](../providers/context.md#context-propagation) shows both, and the rule in each
+direction.
 
 If the value really is per request, declare the provider with `scope=Scope.REQUEST`. If it is one
 value for the whole app, declare it with `scope=Scope.APP` and set it on the APP container.
@@ -76,6 +44,13 @@ value still raises. See [Optional parameters](../providers/context.md#optional-p
 To make the value optional for every consumer, direct resolves included, give the provider a
 default. See [Optional context: `default=`](../providers/context.md#optional-context-default):
 
+<!-- invisible-code-block: python
+from modern_di import Scope, providers
+
+
+class TenantId(str): ...
+-->
+
 ```python
 tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)
 ```
@@ -86,3 +61,4 @@ tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)
 - [When no value is set](../providers/context.md#when-no-value-is-set): what each kind of consumer gets.
 - [Scopes](../providers/scopes.md): per-container context and why it never propagates.
 - [Async resources via lifespan](../recipes/async-lifespan.md): the "construct in lifespan, inject as context" pattern.
+- [Migration: a missing context value for a required parameter raises `ContextValueNotSetError`](../migration/to-4.x.md#a-missing-context-value-for-a-required-parameter-raises-contextvaluenotseterror): the 3.x behavior, and why `except ArgumentResolutionError` no longer catches it.

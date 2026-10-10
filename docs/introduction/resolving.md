@@ -68,7 +68,7 @@ raising. That includes the case where you meant to register the provider and for
 ## When resolution fails
 
 - `resolve(SomeType)` with no provider bound to `SomeType` raises `ProviderNotRegisteredError`
-  (see [No provider registered for type](../troubleshooting/missing-provider.md)).
+  (see [ProviderNotRegisteredError](../troubleshooting/missing-provider.md)).
 - A creator parameter that nothing can satisfy raises `ArgumentResolutionError`, which names the
   whole dependency chain (see [ArgumentResolutionError](../troubleshooting/argument-resolution-error.md)).
 
