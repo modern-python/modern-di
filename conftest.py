@@ -7,6 +7,8 @@ A block that demonstrates an error carries `<!-- raises: ErrorClassName -->` and
 
 import ast
 import asyncio
+import importlib.machinery
+import importlib.util
 import inspect
 import pathlib
 import re
@@ -52,9 +54,13 @@ def _page_module(example: Example) -> types.ModuleType:
     module = example.namespace.get(_PAGE_MODULE_KEY)
     if module is None:
         page = pathlib.Path(example.path)
-        module = types.ModuleType(re.sub(r"\W", "_", f"docs_example_{page.parent.name}_{page.stem}"))
-        module.__file__ = str(page)
-        sys.modules[module.__name__] = module
+        name = re.sub(r"\W", "_", f"docs_example_{page.parent.name}_{page.stem}")
+        spec = importlib.machinery.ModuleSpec(
+            name, importlib.machinery.SourceFileLoader(name, str(page)), origin=str(page)
+        )
+        spec.has_location = True
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
         example.namespace[_PAGE_MODULE_KEY] = module
     return module
 
