@@ -286,7 +286,8 @@ What survives close and reopen depends on `CacheSettings`:
 `container.validate()` checks the whole graph in one pass: cycles, dependencies on a deeper scope,
 and dependencies nothing provides. Nothing else validates, not construction, `open()`,
 `add_providers` or `resolve()`. Without it, a broken graph surfaces at the first resolve that
-reaches the problem.
+reaches the problem. It skips a provider declared with `bound_type=None` unless a provider registered
+by type depends on it; see [`bound_type`](factories.md#bound_type).
 
 ```python
 container = Container(groups=[Dependencies])
