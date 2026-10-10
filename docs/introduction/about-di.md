@@ -104,7 +104,7 @@ container.resolve(Registration).register_user("user@example.com")
 `bound_type=EmailSender` tells the container which provider satisfies an `EmailSender` argument.
 In tests, an override swaps one provider for the whole application; see
 [Testing with overrides](../recipes/testing-overrides.md). The
-[Quickstart](../index.md#2-first-success) walks through the syntax step by step.
+[Quickstart](../index.md#2-resolve-a-dependency) walks through the syntax step by step.
 
 ## Scope and caching
 

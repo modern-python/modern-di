@@ -30,15 +30,20 @@
 | [modern-di-taskiq](https://github.com/modern-python/modern-di-taskiq)         | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-taskiq.svg)](https://pypi.python.org/pypi/modern-di-taskiq) [![downloads](https://static.pepy.tech/badge/modern-di-taskiq/month)](https://pepy.tech/projects/modern-di-taskiq)                 |
 | [modern-di-typer](https://github.com/modern-python/modern-di-typer)           | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-typer.svg)](https://pypi.python.org/pypi/modern-di-typer) [![downloads](https://static.pepy.tech/badge/modern-di-typer/month)](https://pepy.tech/projects/modern-di-typer)                     |
 
-`modern-di` is a python dependency injection framework which supports the following:
+`modern-di` is a dependency injection container for Python 3.11+. You declare how each object is
+built, and the container builds it, fills its constructor from type annotations, keeps it for as
+long as its scope lives, and runs its teardown when that scope closes.
 
-- Automatic dependency graph based on type annotations
-- Also, explicit dependencies are allowed where needed
-- Scopes and context management
-- Python 3.11+ support
-- Fully typed and tested
-- Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastMCP`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, and `Typer`
-- Pytest integration (`modern-di-pytest`) that turns any DI dependency into a pytest fixture
+- Constructor parameters are matched by type, and you can pass explicit arguments where a type is
+  ambiguous.
+- Scopes (APP, REQUEST and finer ones) decide how long a cached object lives, and finalizers close
+  it when its scope ends.
+- `container.validate()` finds cycles and scope errors at startup instead of on the first request.
+- One override replaces a dependency for the whole container tree, so HTTP handlers, workers and
+  direct unit tests all see the same fake.
+- Typed end to end, with no type-checker plugin.
+- Integrations for aiogram, aiohttp, arq, Celery, FastAPI, FastMCP, FastStream, Flask, gRPC,
+  Litestar, Starlette, taskiq and Typer, plus a pytest plugin.
 
 ## Install
 
