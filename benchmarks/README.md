@@ -151,9 +151,9 @@ timed as a batch of K=100 cycles per loop entry.
 |-----------------|--------------|--------------|----------------------------|------------|
 | modern-di | `Factory` (uncached) | `Factory(cache=True)` | REQUEST `Factory(cache=CacheSettings(finalizer=async))`, `await close_async()` | **sync** |
 | dishka 1.10.1 | `provide(cache=False)` | `provide` (cache default) | async-gen `@provide(REQUEST)`, `async with container()` | await |
-| that-depends 4.1.0 | `Factory` | `Singleton` | async-gen `ContextResource`, `container_context` | await |
+| that-depends 4.2.0 | `Factory` | `Singleton` | async-gen `ContextResource`, `container_context` | await |
 | dependency-injector 4.49.1 | `Factory` | `Singleton` | async-gen `Resource`, `init/shutdown_resources` | await |
-| wireup 2.12.0 | `injectable(transient)` + scope | `injectable` (singleton default) | async-gen `injectable(scoped)`, async container | await |
+| wireup 2.12.1 | `injectable(transient)` + scope | `injectable` (singleton default) | async-gen `injectable(scoped)`, async container | await |
 
 **Fixed timing shape for the published scenarios (C1-C4, C6).** pytest-benchmark auto-calibrates
 `iterations` per benchmark per run, which in practice left some cells at `iterations=1` -- each

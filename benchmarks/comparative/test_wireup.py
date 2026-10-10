@@ -1,5 +1,5 @@
 # ruff: noqa: ANN001, ANN201
-"""Comparative tier — wireup (2.12.0).
+"""Comparative tier — wireup (2.12.1).
 
 C1/C3 (transient) require an active scope; it is entered once in setup so only
 resolution is timed. C2 (singleton, wireup's default) resolves from the root.
