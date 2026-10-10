@@ -31,6 +31,41 @@ child container should open at. This is the single source of the
 kind → scope mapping; `setup_di` registers them and the child-container builder
 dispatches off them.
 
+<!-- invisible-code-block: python
+import dataclasses
+import types
+import typing
+
+from modern_di import Container, Group, Scope, providers
+
+
+class _App:
+    def __init__(self) -> None:
+        self.state = types.SimpleNamespace()
+
+
+class _Request:
+    def __init__(self, app: _App) -> None:
+        self.app = app
+
+
+class _WebSocket:
+    def __init__(self, app: _App) -> None:
+        self.app = app
+
+
+myfw = types.SimpleNamespace(App=_App, Request=_Request, WebSocket=_WebSocket, Depends=lambda dependency: dependency)
+HTTPConnection = _Request
+T_co = typing.TypeVar("T_co", covariant=True)
+
+
+class MyService: ...
+
+
+class Dependencies(Group):
+    service = providers.Factory(MyService, scope=Scope.REQUEST)
+-->
+
 ```python
 from modern_di import Scope, providers
 
@@ -167,6 +202,18 @@ class Dependency(typing.Generic[T_co]):
 def FromDI(dependency: providers.AbstractProvider[T_co] | type[T_co]) -> T_co:  # noqa: N802
     return typing.cast(T_co, myfw.Depends(Dependency(integrations.Marker(dependency))))
 ```
+
+<!-- invisible-code-block: python
+app = myfw.App()
+setup_di(app, Container(groups=[Dependencies]))
+request = myfw.Request(app)
+builder = build_di_container(request)
+request_container = await anext(builder)
+assert request_container.scope is Scope.REQUEST
+assert request_container.resolve(myfw.Request) is request
+assert isinstance(await FromDI(Dependencies.service)(request_container), MyService)
+await builder.aclose()
+-->
 
 `Marker.resolve(container)` is a single call, invariant across every
 integration and both modes: it hands the wrapped provider-or-type to

@@ -8,6 +8,7 @@ A block that demonstrates an error carries `<!-- raises: ErrorClassName -->` and
 import ast
 import asyncio
 import inspect
+import pathlib
 from collections.abc import Iterator
 
 import pytest
@@ -23,9 +24,10 @@ _UNINSTALLED_PACKAGES = frozenset(
 _EXCLUDED_PAGES = (
     "adr/*",
     "agents/*",
-    "integrations/*",
     "migration/*",
 )
+
+_FRAMEWORK_INDEPENDENT_INTEGRATION_PAGES = frozenset({"writing-integrations.md"})
 
 _EXPECTED_ERROR_KEY = "__docs_expected_error__"
 
@@ -65,7 +67,7 @@ def _evaluate_python(example: Example) -> None:
         pytest.fail(f"expected the block to raise {expected_error}, it raised nothing")
 
 
-pytest_collect_file = Sybil(
+_collect_docs = Sybil(
     parsers=[
         CodeBlockParser("python", _evaluate_python),
         SkipParser(),
@@ -76,3 +78,9 @@ pytest_collect_file = Sybil(
     patterns=["*.md"],
     excludes=_EXCLUDED_PAGES,
 ).pytest()
+
+
+def pytest_collect_file(file_path: pathlib.Path, parent: pytest.Collector) -> pytest.Collector | None:
+    if file_path.parent.name == "integrations" and file_path.name not in _FRAMEWORK_INDEPENDENT_INTEGRATION_PAGES:
+        return None
+    return _collect_docs(file_path, parent)
