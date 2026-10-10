@@ -1,17 +1,13 @@
 # Usage with `pytest`
 
-`modern-di-pytest` turns any DI dependency into a pytest fixture. Two
-callables cover the entire surface: `modern_di_fixture` for a single
-dependency and `expose` for bulk-generating one fixture per provider across
-one or more `Group` subclasses.
+`modern-di-pytest` turns DI dependencies into pytest fixtures. It registers no pytest plugin, so
+nothing loads on its own: you import its two functions in `conftest.py` or a test module.
+`modern_di_fixture` makes one fixture from one dependency, and `expose` makes one fixture per provider
+across one or more `Group` subclasses.
 
-You don't need the extra dependency to test with modern-di. Define
-`di_container` as a session-scoped pytest fixture around `Container(...)`
-used as a context manager, build a request-scoped child-container fixture
-from it, and resolve dependencies inside tests with `container.resolve(...)`
-directly. See the
-[testing-with-overrides recipe](../recipes/testing-overrides.md) for a worked
-example of that approach. The rest of this page assumes the plugin.
+You can test without it. Yield a `Container` from your own fixture and call `container.resolve(...)`
+in the tests; [Testing with overrides](../recipes/testing-overrides.md) covers swapping in fakes that
+way.
 
 ## How to use
 
@@ -37,8 +33,7 @@ example of that approach. The rest of this page assumes the plugin.
 
 ### 2. Define a `di_container` fixture
 
-Define it at the highest pytest scope you want. The plugin never builds the
-container; you own it:
+The package never builds a container. You own it, and you pick its pytest scope:
 
 <!-- invisible-code-block: python
 import sys
@@ -53,7 +48,8 @@ class UserRepo:
 
 
 class FakeRepo(UserRepo):
-    pass
+    def list_users(self) -> list[str]:
+        return ["fake"]
 
 
 class UserService:
@@ -113,13 +109,16 @@ from app import ioc
 @pytest.fixture(scope="session")
 def di_container() -> typing.Iterator[modern_di.Container]:
     with modern_di.Container(groups=ioc.ALL_GROUPS) as container:
-        container.validate()  # fail fast on a broken graph before any test runs
+        container.validate()  # a broken graph errors every test that uses the container
         yield container
 ```
 
-### 3. Materialize dependencies as fixtures
+If any provider has an async finalizer, make this an async fixture that uses `async with`. A sync
+`with` closes the container through `close_sync()`, which cannot await, so teardown raises
+[`FinalizerError`](../troubleshooting/finalizer-error.md) wrapping
+[`AsyncFinalizerInSyncCloseError`](../troubleshooting/async-finalizer-in-sync-close-error.md).
 
-Either in bulk via `expose` or one-by-one via `modern_di_fixture`:
+### 3. Materialize dependencies as fixtures
 
 ```python
 from modern_di_pytest import expose, modern_di_fixture
@@ -128,17 +127,16 @@ from app.ioc import Auth, Billing, Dependencies
 from app.services import EmailClient
 
 
-# Bulk: every Provider on each group becomes a pytest fixture
-# named after the class attribute. Pass several groups in one call;
-# duplicate names across groups raise ValueError. Non-Provider attributes
-# are skipped.
-expose(Dependencies, Auth, Billing)
-# e.g. user_service is the attribute name on the Dependencies group,
-# so it becomes the user_service fixture used in the tests below.
+expose(Dependencies, Auth, Billing)  # one fixture per provider, named after the attribute
 
-# Manual: a single type or Provider as a named fixture.
-email_client = modern_di_fixture(EmailClient)
+email_client = modern_di_fixture(EmailClient)  # one fixture, named after this variable
 ```
+
+`expose` installs its fixtures onto the module that calls it, found by stack inspection, so call it at
+module level in `conftest.py` or a test module, or pass `module=` explicitly. Attributes that are not
+providers are skipped. Before installing anything, it raises `ValueError` when two groups share an
+attribute name and `TypeError` when called with no groups. It overwrites any module attribute with the
+same name as a fixture.
 
 ### 4. Use the fixtures in tests
 
@@ -158,8 +156,10 @@ def test_email(email_client: EmailClient) -> None:
 
 ## Pointing a fixture at a child container
 
-Define the child-container fixture yourself, then pass its name via
-`container_fixture=`:
+The generated fixtures resolve from `di_container`, an `APP` container, so a `REQUEST`-scoped provider
+fails at fixture setup with
+[`ScopeNotInitializedError`](../troubleshooting/scope-not-initialized-error.md). Define a child
+container fixture and pass its name with `container_fixture=`:
 
 ```python
 import typing
@@ -184,20 +184,43 @@ request_user_service = modern_di_fixture(
 )
 ```
 
-The same `container_fixture=` parameter is also accepted by `expose`, so
-one or more `Group` subclasses can be exposed against the request container.
+`expose` takes `container_fixture=` too. Its fixture names come from the group's attributes, so
+exposing the same group against two containers in one module keeps only the second call's fixtures.
+Put the two `expose` calls in separate modules.
+
+A fixture's `pytest_scope` cannot be wider than its container fixture's scope. A `"session"` fixture
+built on the function-scoped `request_container` fails with pytest's `ScopeMismatch`.
 
 ## Overrides
 
-`modern-di-pytest` deliberately does not ship override sugar. Use
-`Container.override()` directly; it is already backed by a tree-shared
-`OverridesRegistry`.
+Fixtures resolve during test setup, before the test body runs, so an override set inside the test
+comes too late. Apply it in a fixture that the generated fixtures depend on. Redefining `di_container`
+in a test module does that for every generated fixture in the module, and the `with` block resets the
+override after each test:
 
-A fixture such as `user_service` resolves during test setup, before the test
-body runs, so an override set inside the test body comes too late to reach it.
-Apply the override in a fixture and point the dependency's fixture at it with
-`container_fixture=`, so the override is in place when the dependency resolves
-and is reset afterwards:
+```python
+import typing
+
+import modern_di
+import pytest
+
+from app.ioc import Dependencies
+from app.services import UserService
+from tests.fakes import FakeRepo
+
+
+@pytest.fixture
+def di_container(di_container: modern_di.Container) -> typing.Iterator[modern_di.Container]:
+    with di_container.override(Dependencies.user_repo, FakeRepo()):
+        yield di_container
+
+
+def test_with_fake_repo(user_service: UserService) -> None:
+    assert user_service.list_users() == ["fake"]
+```
+
+To fake a dependency for some fixtures only, put the override in its own fixture and point those
+fixtures at it with `container_fixture=`:
 
 ```python
 import typing
@@ -215,9 +238,8 @@ from tests.fakes import FakeRepo
 def fake_repo_container(
     di_container: modern_di.Container,
 ) -> typing.Iterator[modern_di.Container]:
-    di_container.override(Dependencies.user_repo, FakeRepo())
-    yield di_container
-    di_container.reset_override(Dependencies.user_repo)
+    with di_container.override(Dependencies.user_repo, FakeRepo()):
+        yield di_container
 
 
 user_service_with_fake_repo = modern_di_fixture(
@@ -225,18 +247,43 @@ user_service_with_fake_repo = modern_di_fixture(
 )
 
 
-def test_with_override(user_service_with_fake_repo: UserService) -> None:
-    assert user_service_with_fake_repo.list_users() == []
+def test_targeted_override(user_service_with_fake_repo: UserService) -> None:
+    assert user_service_with_fake_repo.list_users() == ["fake"]
 ```
 
 <!-- invisible-code-block: python
+assert {"user_repo", "user_service", "email_client_provider"} <= globals().keys()
+
+with modern_di.Container(groups=ioc.ALL_GROUPS) as plain_container:
+    test_listing(plain_container.resolve(UserService))
+    test_email(plain_container.resolve(EmailClient))
+    with plain_container.override(Dependencies.user_repo, FakeRepo()):
+        test_with_fake_repo(plain_container.resolve(UserService))
+        test_targeted_override(plain_container.resolve(UserService))
+    test_listing(plain_container.resolve(UserService))
+
 for stand_in in ("app", "app.ioc", "app.services", "tests.fakes"):
     sys.modules.pop(stand_in)
 -->
 
-For deeper patterns (transactional DB sessions, resetting all overrides) see the [testing-with-overrides recipe](../recipes/testing-overrides.md).
+With a session-scoped `di_container`, watch cached providers (`cache=True`). A cached instance keeps
+the dependencies it was built with. If an earlier test resolved it, a later override of one of its
+dependencies does not reach it; if it was first resolved under an override, it keeps the fake after
+the override ends. Override the cached provider itself, or give the tests that need the fake a
+function-scoped container.
+
+For transactional database sessions and other patterns, see
+[Testing with overrides](../recipes/testing-overrides.md).
 
 ## See also
 
 - [Testing with overrides](../recipes/testing-overrides.md): override patterns beyond fixtures.
-- [Scopes](../providers/scopes.md): session vs request container fixtures.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model behind child container fixtures.
+- [FinalizerError](../troubleshooting/finalizer-error.md): closing a container with async finalizers.
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `modern_di_fixture(dependency, *, container_fixture="di_container", name=None, pytest_scope="function")` | Returns a pytest fixture that resolves `dependency` (a type or a provider) through `container.resolve_dependency` on the container fixture. Assign it to a module-level name; `name=` overrides the fixture name. |
+| `expose(*groups, container_fixture="di_container", pytest_scope="function", module=None)` | Installs one fixture per provider attribute of each group onto the calling module, or onto `module=`. Raises `ValueError` on a duplicate name across groups and `TypeError` with no groups, before installing anything. |
