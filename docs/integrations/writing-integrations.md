@@ -387,7 +387,7 @@ Each official integration is its own repository and PyPI package, mirroring the
       surface; keep private helpers out of it).
 - In `pyproject.toml`, set `name = "modern-di-<framework>"`,
   `description = "modern-di integration for <Framework>"`, dependencies
-  `["<framework>>=...,<...", "modern-di>=<current>,<4"]`, the standard
+  `["<framework>>=...,<...", "modern-di>=4,<5"]`, the standard
   `classifiers` (Typed, supported Python versions) and `[project.urls]` pointing
   at the shared docs site and the integration's own repo. Use `version = "0"`, since
   the release tag sets it.
