@@ -1,179 +1,155 @@
 # Factories
 
-Factories are providers that create instances of dependencies.
-
-## Types of factories
-
-There are two types of factories: **regular** and **cached**.
-
-### Regular factories
-
-Regular factories create a new instance on every call; nothing is cached.
+A `Factory` calls its creator, a class or function, and fills the creator's parameters by type
+from the container. Without `cache`, every resolve calls the creator again:
 
 ```python
 import dataclasses
 
-from modern_di import Group, Container, Scope, providers
+from modern_di import Container, Group, Scope, providers
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class IndependentFactory:
-    dep1: str
-    dep2: int
+class Settings:
+    api_url: str = "https://api.example.com"
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class ApiClient:
+    settings: Settings
 
 
 class Dependencies(Group):
-    independent_factory = providers.Factory(
-        IndependentFactory,
-        scope=Scope.APP,
-        kwargs={"dep1": "text", "dep2": 123}
-    )
+    settings = providers.Factory(Settings, cache=True)
+    api_client = providers.Factory(ApiClient)
 
 
 container = Container(groups=[Dependencies])
-# Resolve by provider reference
-instance = container.resolve_provider(Dependencies.independent_factory)
-assert isinstance(instance, IndependentFactory)
+client = container.resolve(ApiClient)
 
-# Resolve by type (uses the return type of the creator function/class)
-instance2 = container.resolve(IndependentFactory)
-assert isinstance(instance2, IndependentFactory)
+assert client.settings is container.resolve(Settings)  # cached: one instance
+assert container.resolve(ApiClient) is not client  # uncached: a new one per resolve
 ```
 
-### Cached factories
+`api_url` keeps its default because no provider is registered for `str`.
+[Resolving dependencies](../introduction/resolving.md) covers how parameters are matched.
 
-Cached factories resolve the dependency only once and cache the resolved instance for future injections.
+## Cached factories
 
-This is modern-di's Singleton. There is no separate `Singleton` provider class: `Factory(cache=True)`
-*is* the singleton idiom, at whatever scope you declare it (`Scope.APP` for one-per-process,
-`Scope.REQUEST` for one-per-request, etc.). Other DI frameworks name this concept `Singleton`,
-`provide(..., scope=...)`, `@injectable(lifetime="singleton")`, or `@lru_cache`; see
+With `cache=True`, a factory builds its instance once per container at its scope and returns that
+instance on every later resolve. This is the singleton idiom, and `modern-di` has no separate
+`Singleton` provider: `Scope.APP` gives one instance per process, `Scope.REQUEST` one per request.
 [Where is Singleton?](../introduction/comparison.md#where-is-singleton-cross-framework-vocabulary)
-for the full cross-framework mapping.
+maps the names other DI frameworks use.
 
-The caching mechanism is thread-safe: when multiple threads resolve the same cached factory simultaneously, only one instance is created, and its dependencies are resolved once for it. Other threads wait for that instance; resolves of other cached factories do not.
+The cache is thread-safe. When several threads resolve the same cached factory at once, one
+instance is created and its dependencies are resolved once for it. The other threads wait for that
+instance, and resolves of other cached factories do not wait.
 
-```python
-import random
-
-from modern_di import Group, Container, Scope, providers
-
-
-def generate_random_number() -> float:
-    return random.random()
-
-
-class Dependencies(Group):
-    singleton = providers.Factory(
-        generate_random_number,
-        scope=Scope.APP,
-        cache=True
-    )
-
-
-container = Container(groups=[Dependencies])
-singleton_instance1 = container.resolve_provider(Dependencies.singleton)
-singleton_instance2 = container.resolve_provider(Dependencies.singleton)
-
-# If resolved in the same container, the instance will be the same
-assert singleton_instance1 is singleton_instance2
-```
-
-#### Tuning the cache
-
-You can customize caching behavior by passing a `CacheSettings` to `cache=`:
-
-```python
-import contextlib
-
-from modern_di import Group, Scope, providers
-
-
-class SomeResource:
-    def close(self) -> None: ...
-
-
-def create_resource() -> SomeResource:
-    # Create and return resource
-    return SomeResource()
-
-
-def close_resource(resource: SomeResource) -> None:
-    resource.close()
-
-
-class Dependencies(Group):
-    # Cache with cleanup — clear_cache=True (the default) ensures the closed
-    # resource is evicted from cache so it cannot be returned again after close
-    resource = providers.Factory(
-        create_resource,
-        scope=Scope.APP,
-        cache=providers.CacheSettings(
-            finalizer=close_resource,
-        )
-    )
-```
+To clean the instance up when its container closes, pass
+`cache=providers.CacheSettings(finalizer=...)`; see
+[Caching and finalizers](lifecycle.md#caching-and-finalizers).
 
 ## Parameters
 
-`Factory(creator, *, scope=Scope.APP, bound_type=UNSET, kwargs=None, cache=False, skip_creator_parsing=False)`.
-The `creator` may also be passed as a keyword (`creator=`).
-
-When creating a Factory provider, you can configure several parameters:
-
-### scope
-
-Defines the lifetime (scope) of the dependency. Defaults to `Scope.APP`. The available scopes are `APP → SESSION → REQUEST → ACTION → STEP`; see [Scopes](scopes.md) for the full mental model and the dependency rule.
-
-Groups can declare a default scope for all their members; see [Group-level default scope](scopes.md#group-level-default-scope).
+`Factory(creator, *, scope, bound_type, kwargs=None, cache=False, skip_creator_parsing=False)`.
+Everything after `creator` is keyword-only, and `creator` can be passed as `creator=` too. The
+defaults for `scope` and `bound_type` are described below.
 
 ### creator
 
-The callable (function or class) that will be invoked to create instances of the dependency.
-Modern-DI analyzes the creator's signature to:
+The callable, a function or a class, that builds the instance. `modern-di` reads its signature to:
 
-1. Determine the return type (used for `bound_type` if not explicitly set)
-2. Identify parameter names and types for automatic dependency resolution
+1. Find the return type, which becomes the `bound_type` unless you set one.
+2. Find the parameter names and types to wire by type.
+
+### scope
+
+The provider's lifetime. Without `scope=`, the provider takes its group's default scope, or
+`Scope.APP` when the group sets none; see
+[Group-level default scope](scopes.md#group-level-default-scope).
+[Scopes](scopes.md) covers the five scopes and the dependency rule.
 
 ### bound_type
 
-Explicitly sets the type for resolving by type. By default, this is automatically inferred from the creator's return type annotation.
-Set to `None` to make the provider unresolvable by type.
+The type the provider is registered under. `container.resolve(SomeType)` looks it up by this type,
+and a parameter annotated with it is wired to this provider. It defaults to the creator's return
+annotation.
+
+`bound_type=None` makes the provider resolvable only by reference: through
+`container.resolve_provider(Dependencies.some_provider)` or as a value in another factory's
+[`kwargs`](#kwargs). `container.validate()` does not check such a provider unless a provider
+registered by type depends on it, so a broken one fails on its first resolve instead
+([#656](https://github.com/modern-python/modern-di/issues/656)).
 
 A `NewType` or a `type X = ...` alias is a bound type of its own. A provider declared with
 `bound_type=UserId` (or a creator returning `UserId`) is what a `user_id: UserId` parameter
 resolves to; a provider bound to the underlying `int` is not. Pass the same object to
 `container.resolve()` or `container.find_provider()` to look the provider up by it.
 `container.resolve(UserId)` is typed `Any`, so annotate the variable you assign it to. mypy, which
-treats a `NewType` as a class, types it `UserId` instead, and types `resolve(SomeProtocol)` as `Any`
-where it used to report `type-abstract`.
+treats a `NewType` as a class, types it `UserId`.
 
 A return annotation that is a union of several types (`-> A | B`) gives no bound type, and
 `Factory(...)` emits a `UserWarning`. Pass `bound_type=` with the type to register under, or
-`bound_type=None` if the provider is only resolved directly.
+`bound_type=None` if the provider is only resolved by reference.
 
 ### kwargs
 
-Manual values for creator parameters that override automatic dependency resolution.
-Use this to provide specific values for parameters or override automatically resolved dependencies.
+Values for creator parameters, by name. A parameter named in `kwargs` is not wired by type.
+
+- A plain value is passed as is.
+- A provider is resolved when the factory resolves, and its result is passed. Use it to pick a
+  specific provider for one parameter, or to wire arguments under `skip_creator_parsing=True`.
+- A name the creator does not have raises `UnknownFactoryKwargError` when the `Factory` is
+  declared.
+
+```python
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Backend:
+    name: str
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Worker:
+    backend: Backend
+    retries: int
+
+
+class WorkerDependencies(Group):
+    primary = providers.Factory(Backend, kwargs={"name": "primary"}, cache=True)
+    replica = providers.Factory(Backend, kwargs={"name": "replica"}, bound_type=None, cache=True)
+    worker = providers.Factory(Worker, kwargs={"backend": replica, "retries": 3})
+
+
+container = Container(groups=[WorkerDependencies])
+assert container.resolve(Worker).backend.name == "replica"
+```
+
+`replica` has `bound_type=None` because two providers cannot both register under `Backend`.
 
 ### cache
 
-Enables caching for the provider. Pass `cache=True` to cache with default settings (no finalizer, cache cleared on close), or `cache=providers.CacheSettings(...)` to tune the finalizer and/or `clear_cache` behavior. With `cache=False`, the default, a fresh instance is created on every resolve. Any other value, `None` included, raises `TypeError`. See [Lifecycle](lifecycle.md) for how caching, finalizers, and `close_async()` fit together.
+`cache=True` caches with the default settings: no finalizer, and the instance is dropped when the
+container closes. `cache=providers.CacheSettings(...)` sets a finalizer or `clear_cache`; see
+[Lifecycle](lifecycle.md). The default, `cache=False`, creates a new instance on every resolve. Any
+other value, `None` included, raises `TypeError`.
 
 ### skip_creator_parsing
 
-Disables automatic dependency resolution. When `True`:
+Turns off wiring. With `skip_creator_parsing=True`:
 
-- No automatic dependency resolution occurs
-- All parameters must be provided via the `kwargs` parameter
-- The `bound_type` will not be automatically inferred from the creator's return type; unless `bound_type` is explicitly provided, it defaults to `None`
+- No parameter is wired by type, so every required argument must come from `kwargs`.
+- The return annotation is not read, so `bound_type` is `None` unless you pass one.
+
+Without an explicit `bound_type`, `Factory(...)` emits a `UserWarning` saying the provider cannot be
+resolved by type. Pass `bound_type=SomeType` to register it, or `bound_type=None` to confirm it is
+resolved by reference only.
 
 ## Resolution behavior
 
 ### Union type parameters
 
-When a parameter is annotated with a union type (e.g. `dep: A | B`), Modern-DI resolves the **first registered type** that matches. The order is determined by how types appear in the union left-to-right. If you rely on a specific type being injected, prefer a concrete type annotation over a union.
+When a parameter is annotated with a union type (e.g. `dep: A | B`), `modern-di` resolves the **first registered type** that matches. The order is determined by how types appear in the union left-to-right. If you rely on a specific type being injected, prefer a concrete type annotation over a union.
 
 ### Optional parameters
 
@@ -212,7 +188,7 @@ assert service.cache is None  # no Cache provider registered -> None injected
 
 ### Creator-signature support matrix
 
-The table below summarises how Modern-DI handles each parameter shape during **declaration** (when the `Factory` object is constructed) and **resolution** (when `container.resolve` is called). "Escapes" means the parameter is silently excluded from automatic wiring and must be covered by `kwargs` or a default.
+The table below summarises how `modern-di` handles each parameter shape during **declaration** (when the `Factory` object is constructed) and **resolution** (when `container.resolve` is called). "Escapes" means the parameter is silently excluded from automatic wiring and must be covered by `kwargs` or a default.
 
 | Parameter shape | Behaviour | When it fails |
 |---|---|---|
@@ -229,10 +205,9 @@ The table below summarises how Modern-DI handles each parameter shape during **d
 A parameterized generic used *inside* a union (`param: int | list[X]`) is the one exception to
 the "parameterized generic raises at declaration" row above: the member degrades to its bare
 origin type like any other union member, so it can match a provider registered for `list`. The
-element type `X` is not checked in that case. That is deliberate, and it is not a wiring
-guarantee, so don't rely on it to route only correctly-typed collections.
+element type `X` is not checked, so don't rely on it to route only correctly typed collections.
 
-Escaping problem shapes: if a parameter shape would raise at declaration, there are three escape routes, in order of preference:
+If a parameter shape would raise at declaration, there are three ways around it, in order of preference:
 
 1. Give the parameter a default value (`def f(items: list[X] | None = None)`).
 2. Supply the value via `kwargs={"items": []}` at `Factory` declaration time.
@@ -242,79 +217,45 @@ Routes 2 and 3 pass the value by keyword, so they only work for a parameterized 
 positional-only parameter needs route 1: with route 2 it still raises
 `UnsupportedCreatorParameterError`, and with route 3 it raises `CreatorCallError` at resolve.
 
-### Provider passed as a kwargs value
-
-Passing an `AbstractProvider` instance directly as a value in the `kwargs` dict is treated as **explicit wiring**: Modern-DI resolves the provider and injects the resolved value; the provider object itself is never seen by the creator.
-
-```python
-from modern_di import Container, Group, Scope, providers
-
-
-class Backend:
-    pass
-
-
-def make_service(dep: object) -> object:
-    ...
-
-
-class Dependencies(Group):
-    backend = providers.Factory(Backend, scope=Scope.APP)
-    service = providers.Factory(
-        make_service,
-        scope=Scope.APP,
-        skip_creator_parsing=True,
-        bound_type=None,
-        kwargs={"dep": backend},  # provider object — resolved at resolve-time
-    )
-
-
-container = Container(groups=[Dependencies])
-# make_service receives a Backend instance, not the Factory provider
-```
-
-This is useful when `skip_creator_parsing=True` is in effect but you still want dependency injection for some arguments rather than hard-coding concrete values.
 
 ### Creator-failure semantics
 
-If a creator raises an exception during resolution:
+If a creator raises during resolution:
 
-- Nothing is cached: the failed instance is never stored in the container's cache, even if `cache` is set.
-- The next `resolve` call retries. Subsequent resolves call the creator again from scratch, so a transiently-failing creator will eventually succeed once the underlying condition is fixed.
-- Already-resolved dependencies are not rolled back. Dependencies that were successfully resolved before the creator raised are still held in their respective containers and will be finalized normally when those containers are closed.
+- Nothing is cached, even with `cache` set.
+- The next resolve calls the creator again, so a creator that fails transiently succeeds once the
+  underlying condition is fixed.
+- Dependencies resolved before the creator raised are not rolled back. They stay cached in their
+  containers and are finalized when those containers close.
 
 ```python
-import dataclasses
+class Connection:
+    attempts = 0
 
-from modern_di import Container, Group, Scope, providers
-
-
-attempt = 0
-
-
-def flaky_creator() -> object:
-    global attempt
-    attempt += 1
-    if attempt == 1:
-        raise RuntimeError("transient failure")
-    return object()
+    def __init__(self) -> None:
+        Connection.attempts += 1
+        if Connection.attempts == 1:
+            raise ConnectionError("transient failure")
 
 
-class Dependencies(Group):
-    svc = providers.Factory(
-        flaky_creator,
-        scope=Scope.APP,
-        cache=True,
-    )
+class ConnectionDependencies(Group):
+    connection = providers.Factory(Connection, cache=True)
 
 
-container = Container(groups=[Dependencies])
+container = Container(groups=[ConnectionDependencies])
 
 try:
-    container.resolve(object)
-except RuntimeError:
-    pass  # first call fails — nothing is cached
+    container.resolve(Connection)
+except ConnectionError:
+    pass  # the first call fails and nothing is cached
 
-result = container.resolve(object)  # retry succeeds
-assert result is container.resolve(object)  # now cached
+connection = container.resolve(Connection)  # the retry succeeds
+assert connection is container.resolve(Connection)  # and is cached now
 ```
+
+## See also
+
+- [Resolving dependencies](../introduction/resolving.md): how parameters are matched to providers.
+- [Lifecycle](lifecycle.md): finalizers, closing, and `validate()`.
+- [Scopes](scopes.md): which container caches an instance.
+- [Alias](alias.md): making one type resolve to another type's provider, such as a `Protocol` to its implementation.
