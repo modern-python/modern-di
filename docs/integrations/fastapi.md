@@ -75,6 +75,20 @@ async def get_report(
     `setup_di` on the top-level served app, or close the root yourself
     (`await container.close_async()`) at shutdown.
 
+## Coming from `Depends`
+
+The [FastAPI `Depends` tab](../introduction/comparison.md#where-is-singleton-cross-framework-vocabulary)
+of the vocabulary table maps each `Depends` idiom to its modern-di equivalent.
+
+FastAPI runs the cleanup code of a `yield` dependency after the response is sent, and modern-di
+closes the request container at the same point. REQUEST-scoped finalizers therefore run after the
+client already has its response, so a commit that fails in a finalizer can no longer change the
+status code. Commit in the handler or in a service method instead.
+
+FastAPI's `Depends(scope="function" | "request")` decides whether the code after `yield` runs
+before or after the response is sent. modern-di's `Scope` is unrelated: it decides how long a
+cached instance lives. See [Scopes](../providers/scopes.md).
+
 ## Websockets
 
 Websockets add `SESSION` scope between `APP` and `REQUEST`; see [the scope
