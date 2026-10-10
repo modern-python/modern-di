@@ -1,7 +1,7 @@
 # modern-di vs other libraries
 
-This page covers where modern-di fits among the other ways to do dependency
-injection in Python, including when you don't need a DI container at all.
+Where modern-di fits among Python's DI libraries, what it leaves out, and when you need no DI
+container at all.
 
 ## Do you even need a DI container?
 
@@ -22,82 +22,101 @@ Reach for a container when one of these is true:
   entrypoint (HTTP, worker, CLI, direct unit tests) sees it, including code the
   HTTP layer never reaches.
 
-modern-di covers those cases with one typed wiring shared across twelve
-frameworks: aiohttp, FastAPI, Litestar, FastStream, Starlette, Typer, Flask,
-gRPC, Celery, arq, taskiq, and aiogram.
+modern-di covers those cases with one typed wiring shared across thirteen
+frameworks: aiogram, aiohttp, arq, Celery, FastAPI, FastMCP, FastStream, Flask, gRPC, Litestar,
+Starlette, taskiq, and Typer.
 
 ## Feature comparison
 
-| | modern-di | Dishka | dependency-injector | injector | FastAPI `Depends` |
-|---|---|---|---|---|---|
-| Style | type-based autowiring | type-based autowiring (provider classes) | declarative containers + markers | Guice-style `@inject` | callable-based |
-| Scopes | APP→…→STEP + any IntEnum | RUNTIME→…→STEP (+ custom) | lifetimes (Singleton/Factory/Resource) | Singleton / Thread / None | request only |
-| Resolution | sync (async finalizers supported) | sync + async | sync + async | sync | async |
-| First-party pytest plugin | ✅ | ❌ | ❌ | ❌ | n/a |
-| Integrations | 12 official frameworks (aiogram, aiohttp, arq, Celery, FastAPI, FastStream, Flask, gRPC, Litestar, Starlette, taskiq, Typer) + a pytest plugin | 13 official frameworks + ~10 community-maintained | aiohttp, Flask, Starlette; FastAPI via wiring | Flask (1st-party), FastAPI (3rd-party) | n/a |
-| Typed resolution | ✅ | ✅ | partial | ✅ | callable-keyed |
-| License | MIT | Apache-2.0 | BSD-3 | BSD-3 | n/a |
-| Adoption | newest, very active | established, large community | most popular, mature | mature | built into FastAPI |
+| | modern-di | Dishka | dependency-injector | wireup | that-depends | injector |
+|---|---|---|---|---|---|---|
+| Style | `Factory` providers in a `Group`, wired by type | `Provider` classes, wired by type | declarative containers + `Provide[...]` markers | `@injectable` classes and factories, wired by type | providers on a container class | Guice-style `Module` bindings + `@inject` |
+| Scopes | APP→…→STEP + any `IntEnum` | APP→…→STEP + custom | none; lifetime comes from the provider type | singleton / scoped / transient | named context scopes (APP, REQUEST, custom) | singleton / thread-local / none + custom |
+| Async resolution | ❌ (async finalizers ✅) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Graph validation before first resolve | `container.validate()`, called explicitly | automatic at container build | `check_dependencies()`, undefined dependencies only | automatic at container creation | ❌ | ❌ |
+| Test override | `container.override(provider, mock)` | a provider with `override=True` | `provider.override(mock)` | `container.override({Type: fake})` | `provider.override_sync(mock)` | no API; build the injector from test modules |
+| First-party pytest plugin | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Integrations | 13 frameworks + a pytest plugin | 13 built in + 10 community | wiring works with any framework; `ext` module for Starlette | 10, including Django and FastMCP | FastAPI, FastStream | none bundled; `flask_injector` (same org), `fastapi-injector` (third party) |
+| Typed resolution | ✅ | ✅ | partial (`Provide[...]` is `Any`) | ✅ | ✅ | ✅ |
+| Speed vs modern-di | n/a | [modern-di faster in 4 of 5 scenarios](performance.md#at-a-glance) | [modern-di faster in 4 of 5](performance.md#at-a-glance) | [modern-di faster in 4 of 5](performance.md#at-a-glance) | [modern-di faster in 4 of 5](performance.md#at-a-glance) | not benchmarked |
+| License | MIT | Apache-2.0 | BSD-3 | MIT | MIT | BSD-3 |
+| GitHub stars (2026-10-10) | 66 | 1.3k | 4.9k | 437 | 254 | 1.5k |
 
-On the typed-resolution row: modern-di keeps the concrete static type end to
-end. `resolve(SomeType)` is typed `SomeType` (not `Any`), and the injection
-marker for integrations, `Annotated[T, from_di(dep)]`, type-checks as `T` (the
-same clean shape as Dishka's `FromDishka[T]` and FastAPI's
-`Annotated[T, Depends(...)]`). That is deliberate: the older marker spellings
-erase the type. `dependency-injector`'s `Provider[Animal]` annotation infers
-the base `Animal` rather than a concrete subtype, and a bare `x = Depends(fn)`
-is typed `Any`. It also needs no type-checker plugin to hold; see the
-[non-goal on static wiring verification](design-decisions.md#non-goals).
+The library columns were checked against Dishka 1.10.1, dependency-injector 4.49.1, wireup 2.12.1,
+that-depends 4.2.0 and injector 0.24.0.
+
+On typed resolution: `resolve(SomeType)` is typed `SomeType`, and the integration marker
+`Annotated[T, from_di(dep)]` type-checks as `T`, the same shape as Dishka's `FromDishka[T]` and
+FastAPI's `Annotated[T, Depends(...)]`. dependency-injector's `Provide[...]` marker is typed `Any`,
+and its `Provider[Animal]` annotation infers the base `Animal` instead of a concrete subtype. A bare
+`x = Depends(fn)` is typed `Any` too. modern-di's typing needs no type-checker plugin; see the
+[non-goal on static wiring verification](design-decisions.md#static-compile-time-wiring-verification-a-type-checker-plugin).
+
+## What modern-di leaves out
+
+These are [non-goals](design-decisions.md#non-goals). If you need one, another library fits better.
+
+- Async resolution: Dishka, dependency-injector, wireup and that-depends can await an async
+  factory. modern-di resolves synchronously; async setup belongs in your framework's lifespan
+  (see [Async resources via lifespan](../recipes/async-lifespan.md)), and async teardown in a
+  finalizer.
+- Collection injection: one type has one provider. To inject a list, write a `Factory` that
+  takes the individual dependencies and returns the list
+  ([why](design-decisions.md#multibinding-collection-injection)).
+- Generator factories: wireup and Dishka run the code after `yield` as teardown. modern-di takes
+  the teardown as `CacheSettings(finalizer=...)`
+  ([why](design-decisions.md#generator-creators-teardown-after-yield)).
+- Auto-registration: modern-di never registers a provider you did not declare, so a missing one
+  shows up in `validate()` ([why](design-decisions.md#auto-binding-auto-registration)).
 
 ## Library by library
 
 ### vs Dishka
 
-Dishka is the closest library to modern-di (also typed, also scopes-first, also
-integrating with FastAPI and Litestar), and it's more established, with a larger
-community and a wider integration surface: 13 official framework integrations,
-plus the ~10 community-maintained ones it links from its own docs. Its FastStream
-and Starlette support are two of those community packages
-([`dishka-faststream`](https://github.com/faststream-community/dishka-faststream)
-and [`starlette-dishka`](https://github.com/reagento/starlette-dishka)); the
-bundled `dishka.integrations` modules for both are deprecated in favor of them.
-If you need arbitrary *named* scopes or async resolution, Dishka is an
-excellent choice, as it is if you need an integration modern-di doesn't have
-yet: aiogram-dialog, Click, Sanic and telebot officially, or Pyramid, Quart, RQ,
-Strawberry and APScheduler from the community.
+Dishka is the closest library to modern-di: typed, built around scopes, and integrated with FastAPI
+and Litestar. It is older and has a larger community. Its docs list 13 built-in framework
+integrations and 10 community ones, including its FastStream and Starlette support
+([`dishka-faststream`](https://github.com/faststream-community/dishka-faststream) and
+[`starlette-dishka`](https://github.com/reagento/starlette-dishka)); the bundled modules for those
+two are deprecated. Pick Dishka if you need async resolution or an integration modern-di lacks:
+aiogram-dialog, Click, Sanic or pyTelegramBotAPI built in, or Pyramid, Quart, RQ, Strawberry or
+APScheduler from the community.
 
-modern-di's deliberate differences:
+Where modern-di differs:
 
-- A first-party pytest plugin (`modern-di-pytest`) turns any dependency into a
-  fixture. Dishka ships no pytest *plugin* and documents a hand-written fixtures
-  recipe instead.
-- *Resolution* is sync-only (async finalizers are still supported), and the
-  built-in scope chain is small, though you can extend it with any `IntEnum`.
-  Dishka's own docs note that custom scopes are "hardly ever needed,"
-  which is the case for modern-di's simpler design. See
-  [Custom scopes](../providers/scopes.md#custom-scopes).
-- Every integration is official and uniformly maintained under a single
-  MIT-licensed project, part of the broader [modern-python](https://github.com/modern-python)
-  stack.
+- `modern-di-pytest` turns any dependency into a fixture. Dishka has no pytest plugin; its docs
+  show hand-written fixtures.
+- Resolution is sync-only, with async finalizers. Both libraries have an APP→…→STEP chain that you
+  can extend (see [Custom scopes](../providers/scopes.md#custom-scopes)), and Dishka's own docs say
+  custom scopes are "hardly ever needed".
+- Dishka validates the graph when it builds the container. modern-di validates when you call
+  `validate()`, at startup or in a test.
+- Every integration is MIT-licensed and lives in the [modern-python](https://github.com/modern-python)
+  organization, including FastMCP, which Dishka does not list.
 
 ### vs dependency-injector
 
-`dependency-injector` is the most popular Python DI library, with a mature,
-Cython-accelerated core and a declarative style using `Provide[...]` markers and
-`@inject`. It is actively maintained again after an earlier hiatus. modern-di
-differs in style (type-based autowiring instead of explicit markers) and adds
-nested request scopes and a first-party pytest plugin. If you prefer
-explicit declarative wiring and the largest ecosystem, dependency-injector is a
-solid, proven choice. To migrate an existing codebase, see the
-[migration guide](../migration/from-dependency-injector.md) for the full
-provider-by-provider mapping.
+`dependency-injector` is the most popular Python DI library, with a mature, Cython-accelerated core
+and a declarative style using `Provide[...]` markers and `@inject`. It is actively maintained again
+after an earlier pause. modern-di wires by type instead of by marker, and adds nested request scopes,
+a typed injection marker and a first-party pytest plugin. If you prefer explicit declarative wiring
+and the largest community, dependency-injector is the established option. The
+[migration guide](../migration/from-dependency-injector.md) maps it provider by provider.
+
+### vs wireup
+
+wireup is typed, MIT-licensed and wires by type, like modern-di. It validates the graph when the
+container is created, supports async resolution and generator teardown, and has 10 integrations,
+including Django, Click and FastMCP. Its scopes are lifetimes (singleton, scoped, transient), and its
+docs say it avoids full nested scopes. modern-di has an ordered scope chain you can nest and extend,
+and a pytest plugin.
 
 ### vs injector
 
-`injector` is a Guice-inspired, mature library with `@inject` and `Module`-based
-configuration. Its core has no async support and no nested request scope
-(request scoping comes from third-party FastAPI adapters). modern-di has
-built-in scopes, official framework integrations, and resource finalization.
+`injector` is a mature, Guice-inspired library with `Module`-based configuration and `@inject`. Its
+core has no async support, no request scope and no teardown for what it creates. Request scoping
+comes from third-party FastAPI adapters. modern-di has built-in scopes, finalizers and official
+framework integrations.
 
 ### vs framework-native (`Depends` / `Provide`)
 
@@ -108,19 +127,16 @@ app-wide singletons with overrides that also apply off the HTTP path.
 
 ## that-depends or modern-di?
 
-[`that-depends`](https://github.com/modern-python/that-depends) is a sibling
-project from the same author, in the same
-[modern-python](https://github.com/modern-python) family. It isn't in the table
-above because choosing between the two is mostly a matter of which generation
-of the same design you want.
+[`that-depends`](https://github.com/modern-python/that-depends) is a sibling project from the same
+author, in the same [modern-python](https://github.com/modern-python) organization, and an earlier
+take on the same design.
 
-- For a new project, use modern-di. It has explicit scopes, no
-  global state, a small strictly-typed core, and separate framework adapters;
-  see [Design decisions](design-decisions.md).
-- If you already use that-depends, it remains actively maintained and
-  production-proven, so you don't need to migrate. Move when you want explicit
-  scopes or a no-global-state architecture; the
-  [migration guide](../migration/from-that-depends.md) maps every concept across.
+- For a new project, use modern-di. It has explicit scopes, no global state, a small strictly typed
+  core, and separate framework adapters; see [Design decisions](design-decisions.md).
+- If you already use that-depends, it is still maintained, so you don't need to migrate. Stay on it
+  if you want async resolution (`await container.resolve(...)`), which modern-di will not add.
+  Move when you want explicit scopes or no global state; the
+  [migration guide](../migration/from-that-depends.md) maps every provider and concept.
 
 | | that-depends | modern-di |
 |---|---|---|
@@ -128,37 +144,72 @@ of the same design you want.
 | Container model | the container class is both schema and runtime | `Group` (schema) and `Container` (runtime) are separate |
 | Scopes | context-based lifetimes | explicit, enforced scope chain (APP→…→STEP) |
 | Global state | resolves directly from the container class | none; you create and pass containers explicitly |
-| Integrations | bundled | separate adapter packages (install only what you need) |
-
-Choose that-depends if you specifically want async resolution
-(`await container.resolve(...)`; modern-di is sync-only by design and won't
-add it), want the simplest setup for a single service without an explicit
-scope chain, or already run it in production with no reason to change.
-
-The [migration guide](../migration/from-that-depends.md) covers every
-provider type and concept, including the conceptual shifts: the
-schema/runtime split (`Group` vs `Container`), sync-only resolution, and
-explicit scopes.
+| Integrations | bundled (FastAPI, FastStream) | separate adapter packages (install only what you need) |
 
 ## Where is Singleton? Cross-framework vocabulary
 
-modern-di deliberately has no `Singleton` class: "create once and reuse" is spelled via a scope
-plus `cache=True` on an ordinary `Factory`. The table translates six lifetime concepts from other
-frameworks:
+modern-di has no `Singleton` class. "Create once and reuse" is a scope plus `cache=True` on an
+ordinary `Factory`. The tabs translate six lifetime concepts from other libraries:
 
-| Concept | dependency-injector | dishka | wireup | svcs | FastAPI `Depends` | modern-di |
-|---|---|---|---|---|---|---|
-| Singleton (create once, share) | `providers.Singleton(...)` | `provide(Impl, scope=Scope.APP)`, cached by default within its scope | `@injectable` (default `lifetime="singleton"`) | `registry.register_value(Type, value)` at startup | a dependency wrapped in `@lru_cache` | [`Factory(..., scope=Scope.APP, cache=True)`](../providers/factories.md#cached-factories) |
-| Transient (fresh instance every time) | `providers.Factory(...)` | `provide(Impl, cache=False)` | `@injectable(lifetime="transient")` | no dedicated provider; call the plain factory directly | `Depends(fn, use_cache=False)` | a plain [`Factory(...)`](../providers/factories.md) with no `cache` |
-| Request-scoped | `providers.Resource` + the `Closing` wiring marker | `provide(Impl, scope=Scope.REQUEST)` | `@injectable(lifetime="scoped")` | one instance per `svcs.Container` (built per request) | bare `Depends(fn)`, computed once per request by default | [`Factory(..., scope=Scope.REQUEST, cache=True)`](../providers/scopes.md) |
-| Runtime value (request object, etc.) | `providers.Configuration` / `.from_value()` | `from_context(provides=Type, scope=...)` declared, then `context={Type: value}` at scope entry | a typed constructor parameter resolved from the active scope's context | `registry.register_value(Type, value)`, or a per-container local factory | the framework injects `Request`/`WebSocket` directly by type | [`ContextProvider(...)`](../providers/context.md) + `context={...}` |
-| Interface binding (concrete → abstract type) | `providers.AbstractFactory`, which must be overridden with a concrete `Factory` before use | `alias(source=Impl, provides=Interface)` | `@injectable(as_type=Interface)` | `register_factory(Interface, factory)`; svcs keys by whatever type you register under | n/a (`Depends` is callable-keyed, not type-keyed) | [`Alias(Impl, bound_type=Interface)`](../providers/alias.md) |
-| Test override | `provider.override(...)`, or `with provider.override(...):` | no dedicated API; build a separate container from mock providers | `with container.override.injectable(Target, new=fake):` | re-call `register_value()`/`register_factory()`; `container.close()` first if already cached | `app.dependency_overrides[dep] = fake` | [`container.override(provider, mock)`](../recipes/testing-overrides.md) |
+=== "dependency-injector"
+
+    | Concept | modern-di | dependency-injector |
+    |---|---|---|
+    | Singleton (create once, share) | [`Factory(..., scope=Scope.APP, cache=True)`](../providers/factories.md#cached-factories) | `providers.Singleton(...)` |
+    | Transient (fresh instance every time) | a plain [`Factory(...)`](../providers/factories.md) with no `cache` | `providers.Factory(...)` |
+    | Request-scoped | [`Factory(..., scope=Scope.REQUEST, cache=True)`](../providers/scopes.md) | `providers.Resource` + the `Closing` wiring marker |
+    | Runtime value (request object, etc.) | [`ContextProvider(...)`](../providers/context.md) + `context={...}` | `providers.Configuration` / `.from_value()` |
+    | Interface binding (concrete → abstract type) | [`Alias(Impl, bound_type=Interface)`](../providers/alias.md) | `providers.AbstractFactory`, overridden with a concrete `Factory` before use |
+    | Test override | [`container.override(provider, mock)`](../recipes/testing-overrides.md) | `provider.override(...)`, or `with provider.override(...):` |
+
+=== "Dishka"
+
+    | Concept | modern-di | Dishka |
+    |---|---|---|
+    | Singleton (create once, share) | [`Factory(..., scope=Scope.APP, cache=True)`](../providers/factories.md#cached-factories) | `provide(Impl, scope=Scope.APP)`, cached by default within its scope |
+    | Transient (fresh instance every time) | a plain [`Factory(...)`](../providers/factories.md) with no `cache` | `provide(Impl, cache=False)` |
+    | Request-scoped | [`Factory(..., scope=Scope.REQUEST, cache=True)`](../providers/scopes.md) | `provide(Impl, scope=Scope.REQUEST)` |
+    | Runtime value (request object, etc.) | [`ContextProvider(...)`](../providers/context.md) + `context={...}` | `from_context(provides=Type, scope=...)`, then `context={Type: value}` at scope entry |
+    | Interface binding (concrete → abstract type) | [`Alias(Impl, bound_type=Interface)`](../providers/alias.md) | `alias(source=Impl, provides=Interface)` |
+    | Test override | [`container.override(provider, mock)`](../recipes/testing-overrides.md) | `provide(Mock, provides=Type, override=True)` in a test provider |
+
+=== "wireup"
+
+    | Concept | modern-di | wireup |
+    |---|---|---|
+    | Singleton (create once, share) | [`Factory(..., scope=Scope.APP, cache=True)`](../providers/factories.md#cached-factories) | `@injectable` (default `lifetime="singleton"`) |
+    | Transient (fresh instance every time) | a plain [`Factory(...)`](../providers/factories.md) with no `cache` | `@injectable(lifetime="transient")` |
+    | Request-scoped | [`Factory(..., scope=Scope.REQUEST, cache=True)`](../providers/scopes.md) | `@injectable(lifetime="scoped")` |
+    | Runtime value (request object, etc.) | [`ContextProvider(...)`](../providers/context.md) + `context={...}` | a typed constructor parameter resolved from the active scope's context |
+    | Interface binding (concrete → abstract type) | [`Alias(Impl, bound_type=Interface)`](../providers/alias.md) | `@injectable(as_type=Interface)` |
+    | Test override | [`container.override(provider, mock)`](../recipes/testing-overrides.md) | `with container.override({Target: fake}):` |
+
+=== "svcs"
+
+    | Concept | modern-di | svcs |
+    |---|---|---|
+    | Singleton (create once, share) | [`Factory(..., scope=Scope.APP, cache=True)`](../providers/factories.md#cached-factories) | `registry.register_value(Type, value)` at startup |
+    | Transient (fresh instance every time) | a plain [`Factory(...)`](../providers/factories.md) with no `cache` | no dedicated provider; call the plain factory directly |
+    | Request-scoped | [`Factory(..., scope=Scope.REQUEST, cache=True)`](../providers/scopes.md) | one instance per `svcs.Container` (built per request) |
+    | Runtime value (request object, etc.) | [`ContextProvider(...)`](../providers/context.md) + `context={...}` | `registry.register_value(Type, value)`, or a per-container local factory |
+    | Interface binding (concrete → abstract type) | [`Alias(Impl, bound_type=Interface)`](../providers/alias.md) | `register_factory(Interface, factory)`; svcs keys by whatever type you register under |
+    | Test override | [`container.override(provider, mock)`](../recipes/testing-overrides.md) | re-call `register_value()`/`register_factory()`; `container.close()` first if already cached |
+
+=== "FastAPI `Depends`"
+
+    | Concept | modern-di | FastAPI `Depends` |
+    |---|---|---|
+    | Singleton (create once, share) | [`Factory(..., scope=Scope.APP, cache=True)`](../providers/factories.md#cached-factories) | a dependency wrapped in `@lru_cache` |
+    | Transient (fresh instance every time) | a plain [`Factory(...)`](../providers/factories.md) with no `cache` | `Depends(fn, use_cache=False)` |
+    | Request-scoped | [`Factory(..., scope=Scope.REQUEST, cache=True)`](../providers/scopes.md) | bare `Depends(fn)`, computed once per request by default |
+    | Runtime value (request object, etc.) | [`ContextProvider(...)`](../providers/context.md) + `context={...}` | the framework injects `Request`/`WebSocket` directly by type |
+    | Interface binding (concrete → abstract type) | [`Alias(Impl, bound_type=Interface)`](../providers/alias.md) | n/a (`Depends` is keyed by callable, not by type) |
+    | Test override | [`container.override(provider, mock)`](../recipes/testing-overrides.md) | `app.dependency_overrides[dep] = fake` |
 
 ## See also
 
 - [Design decisions](design-decisions.md): the reasoning behind sync-only
-  resolution, no global state, a conservative core, and the deliberate
+  resolution, no global state, a conservative core, and the
   [non-goals](design-decisions.md#non-goals) that keep it that way.
 - [Performance](performance.md): comparative benchmarks of how fast resolution is
   versus other DI frameworks, and the method behind the numbers.
