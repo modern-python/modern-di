@@ -15,6 +15,8 @@ child would silently mutate every container in the tree, so the call is disallow
 Register on the root container instead, either with `groups=` when you build it or with
 `add_providers()` later:
 
+<!-- skip: next "fragment" -->
+
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 request_container = app_container.build_child_container(scope=Scope.REQUEST)

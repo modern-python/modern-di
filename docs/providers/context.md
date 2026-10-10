@@ -139,6 +139,8 @@ Each container copies the `context=` dict it is built with, so containers built 
 !!! warning "Scope determines which container is read, not timing"
     Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:
 
+    <!-- skip: next "fragment" -->
+
     ```python
     # Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
     # Setting it on the APP parent has no effect.
@@ -148,6 +150,8 @@ Each container copies the `context=` dict it is built with, so containers built 
     ```
 
     For a REQUEST-scoped `ContextProvider`, set the value on the request container:
+
+    <!-- skip: next "fragment" -->
 
     ```python
     # Option A: pass context directly when building the child
@@ -229,6 +233,8 @@ For explicit, provider-based resolution, every integration also exports the unde
 `aiohttp_request_provider`, `faststream_message_provider`) so you can wire it through `kwargs`
 instead of relying on type-based resolution. This is useful with `skip_creator_parsing=True`, or
 when the parameter name doesn't match the type:
+
+<!-- skip: next "continues the FastAPI example above" -->
 
 ```python
 kwargs={"request": fastapi_request_provider}  # explicit wiring, see Factories: kwargs

@@ -54,6 +54,8 @@ diagnostic is much clearer than the runtime symptoms.
 
 Bump the depender's scope:
 
+<!-- skip: next "fragment" -->
+
 ```python
 class Dependencies(Group):
     session = providers.Factory(

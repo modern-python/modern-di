@@ -15,6 +15,8 @@ the smallest enum member greater than the parent's. The built-in `Scope` enum en
 
 Define an `IntEnum` with a member deeper than `STEP` and build the child with that scope explicitly:
 
+<!-- skip: next "fragment" -->
+
 ```python
 import enum
 

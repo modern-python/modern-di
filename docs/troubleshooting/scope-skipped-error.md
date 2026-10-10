@@ -25,6 +25,8 @@ The chain has no container at the provider's scope, for one of two reasons:
 
 Build child containers through every intermediate scope your providers need:
 
+<!-- skip: next "fragment" -->
+
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 
@@ -40,6 +42,8 @@ action_container.resolve(RequestScopedThing)
 
 When the root is too deep, build the root at the provider's scope and derive the deeper containers
 from it:
+
+<!-- skip: next "fragment" -->
 
 ```python
 # Broken: the chain starts at SESSION, so there is no APP container

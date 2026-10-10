@@ -15,6 +15,8 @@ reference to `Container(groups=[MyGroup])` or read via `MyGroup.some_provider`.
 
 Use the class itself, not an instance:
 
+<!-- skip: next "fragment" -->
+
 ```python
 class Dependencies(Group):
     service = providers.Factory(Service, scope=Scope.APP)

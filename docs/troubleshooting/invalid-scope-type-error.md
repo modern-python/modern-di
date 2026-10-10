@@ -18,6 +18,8 @@ Example invalid uses: `Container(scope=1)`, `Container(scope="APP")`, `container
 
 Use the built-in `Scope` enum, or your own `IntEnum` subclass:
 
+<!-- skip: next "raises InvalidScopeTypeError on purpose" -->
+
 ```python
 from modern_di import Container, Scope
 

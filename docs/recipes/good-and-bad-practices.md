@@ -8,6 +8,8 @@ mistakes the framework lets you make, each paired with the mechanism that catche
 A *captive dependency* is a wide-scoped provider holding a narrow-scoped one it cannot actually
 outlive. See [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why.
 
+<!-- skip: next "fragment" -->
+
 ```python
 class Dependencies(Group):
     session = providers.Factory(Session, scope=Scope.REQUEST)
@@ -34,6 +36,8 @@ dependencies). Nothing calls it for you: not construction, not `open()`, not `ad
 `resolve()`. Skipping it leaves the bugs in place until whichever resolve happens to hit one
 first.
 
+<!-- skip: next "fragment" -->
+
 ```python
 # Broken: never validated, so wiring bugs surface one at a time, in production, on whatever request trips them
 container = Container(groups=[Dependencies])
@@ -52,6 +56,8 @@ reaches it. An unvalidated cyclic graph still isn't a silent hang; see
 
 Context values are read live on every resolve of a non-cached factory. A cached factory is
 built once, and a later `set_context` does not rebuild it.
+
+<!-- skip: next "fragment" -->
 
 ```python
 class Dependencies(Group):
@@ -102,6 +108,8 @@ tree. See [Testing with overrides](testing-overrides.md) for the mechanics. Forg
 affects more than the test that set it: every later test that shares the container inherits the
 replacement.
 
+<!-- skip: next "fragment" -->
+
 ```python
 # Broken: no reset, so the next test that resolves Clock silently gets the fake
 def test_one() -> None:
@@ -126,6 +134,8 @@ arguments, to clear everything) is the fix. Closing the root container does not 
 `skip_creator_parsing=True` turns off signature introspection, which helps with callables that can't
 be reflected (C extensions, `functools.partial`). But skipping introspection also means modern-di has
 no idea what type the provider produces, so type-based resolution silently can't find it.
+
+<!-- skip: next "fragment" -->
 
 ```python
 # Broken: nothing else can resolve this provider by type, and a UserWarning fires at declaration time

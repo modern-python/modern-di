@@ -15,6 +15,8 @@ shallower (e.g. `Scope.APP` from a `SESSION` parent) raises this error.
 
 Pass a scope whose value is strictly greater than the parent's:
 
+<!-- skip: next "fragment" -->
+
 ```python
 from modern_di import Scope
 

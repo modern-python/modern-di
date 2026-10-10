@@ -18,6 +18,8 @@ built.
 
 Build the deeper-scoped container before resolving from it:
 
+<!-- skip: next "fragment" -->
+
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 

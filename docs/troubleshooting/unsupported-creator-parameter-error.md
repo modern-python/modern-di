@@ -16,6 +16,8 @@ ones.
 
 For a parameterized generic, pick one of three escape routes, in order of preference:
 
+<!-- skip: next "fragment" -->
+
 ```python
 def create_thing(items: list[Item]) -> Thing: ...
 

@@ -18,6 +18,8 @@ discarding it.
 Use `close_async()` (or `async with container:`) for containers that hold any resource with an async
 finalizer, since it's the only path that can actually run that cleanup:
 
+<!-- skip: next "fragment" -->
+
 ```python
 container.resolve(AsyncResource)   # has an async finalizer
 

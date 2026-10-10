@@ -44,6 +44,8 @@ If the graph might have a cycle, call `validate()` at startup, before any thread
 Calling `validate()` up front finds the *same* cycle earlier, and finds *every* issue in the graph
 in one pass (not just the one a particular resolve happens to hit). Prefer it in development:
 
+<!-- skip: next "fragment" -->
+
 ```python
 from modern_di import Container
 

@@ -16,6 +16,8 @@ at call time.
 
 Match the `kwargs` keys to the creator's actual parameter names:
 
+<!-- skip: next "fragment" -->
+
 ```python
 def create_service(connection_string: str) -> Service: ...
 

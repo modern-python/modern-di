@@ -35,6 +35,8 @@ on a `Tenancy.TENANT` provider when the chain is built `APP → TENANT → REQUE
 
 Give the dependency the same scope member as the provider that needs it, or a shallower one:
 
+<!-- skip: next "fragment" -->
+
 ```python
 class Tenancy(IntEnum):
     TENANT = 2

@@ -15,6 +15,8 @@ This is checked eagerly during `validate()`, and again at resolve time if valida
 
 Register (and include) a provider for the source type. It only has to be registered by the time the alias is first resolved:
 
+<!-- skip: next "fragment" -->
+
 ```python
 from modern_di import Group, Scope, providers
 

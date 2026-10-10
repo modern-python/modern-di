@@ -42,6 +42,8 @@ Inspect `.exceptions` to see every underlying issue, or read the traceback. Each
 `ArgumentResolutionError`, or `AliasSourceNotRegisteredError` today. Fix each one; their own pages cover the specific cause and
 remedy:
 
+<!-- skip: next "fragment" -->
+
 ```python
 try:
     container.validate()
@@ -51,6 +53,8 @@ except exceptions.ValidationFailedError as exc:
 ```
 
 To handle one kind of issue and let the rest propagate, use `except*`:
+
+<!-- skip: next "fragment" -->
 
 ```python
 try:

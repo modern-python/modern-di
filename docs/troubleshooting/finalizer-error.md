@@ -22,6 +22,8 @@ at the first failure: every finalizer runs regardless, so this error aggregates 
 
 Inspect `.exceptions` for the individual exceptions and fix the offending finalizer(s):
 
+<!-- skip: next "fragment" -->
+
 ```python
 try:
     container.close_sync()
@@ -31,6 +33,8 @@ except exceptions.FinalizerError as exc:
 ```
 
 To handle one kind of finalizer failure and let the rest propagate, use `except*`:
+
+<!-- skip: next "fragment" -->
 
 ```python
 try:
