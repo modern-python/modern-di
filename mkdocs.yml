@@ -207,6 +207,7 @@ plugins:
           - troubleshooting/validation-failed-error.md: Diagnosing ValidationFailedError
           - troubleshooting/missing-provider.md: Diagnosing ProviderNotRegisteredError
           - troubleshooting/alias-source-not-registered-error.md: Diagnosing AliasSourceNotRegisteredError
+          - troubleshooting/alias-bound-to-source-error.md: Diagnosing AliasBoundToSourceError
           - troubleshooting/argument-resolution-error.md: Diagnosing ArgumentResolutionError
           - troubleshooting/circular-dependency.md: Diagnosing CircularDependencyError
           - troubleshooting/creator-call-error.md: Diagnosing CreatorCallError
