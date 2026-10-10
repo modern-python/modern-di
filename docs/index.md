@@ -7,27 +7,27 @@
 
 </div>
 
-`modern-di` is a Python dependency injection framework which supports the following:
+`modern-di` is a dependency injection container for Python 3.11+. You declare how each object is
+built, and the container builds it, fills its constructor from type annotations, keeps it for as
+long as its scope lives, and runs its teardown when that scope closes.
 
-- Automatic dependency graph based on type annotations
-- Also, explicit dependencies are allowed where needed
-- Scopes and context management
-- Python 3.11+ support
-- Fully typed and tested
-- Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastMCP`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, `Typer`, and `pytest`
+- Constructor parameters are matched by type, and you can pass explicit arguments where a type is
+  ambiguous.
+- Scopes (APP, REQUEST and finer ones) decide how long a cached object lives, and finalizers close
+  it when its scope ends.
+- `container.validate()` finds cycles and scope errors at startup instead of on the first request.
+- One override replaces a dependency for the whole container tree, so HTTP handlers, workers and
+  direct unit tests all see the same fake.
+- Typed end to end, with no type-checker plugin.
+- Integrations for aiogram, aiohttp, arq, Celery, FastAPI, FastMCP, FastStream, Flask, gRPC,
+  Litestar, Starlette, taskiq and Typer, plus a pytest plugin.
 
-Reference templates:
+[About DI](introduction/about-di.md) explains dependency injection from scratch, and
+[modern-di vs other libraries](introduction/comparison.md) covers when you need a container and how
+modern-di differs from Dishka, dependency-injector and the rest. For complete services, see the [FastAPI](https://github.com/modern-python/fastapi-sqlalchemy-template) and
+[Litestar](https://github.com/modern-python/litestar-sqlalchemy-template) templates.
 
-- Litestar: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
-- FastAPI: [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
-
-For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqlalchemy.md) section.
-
----
-
-# Quickstart
-
-## 1. Install `modern-di`
+## 1. Install
 
 === "uv"
 
@@ -47,12 +47,12 @@ For end-to-end patterns drawn from real services, see the [Recipes](recipes/sqla
     poetry add modern-di
     ```
 
-If you want a framework integration, install the matching adapter, one `modern-di-*` package per framework (`modern-di-fastapi`, `modern-di-aiohttp`, `modern-di-litestar`, …). The Integrations section has the full list. For pytest support, install `modern-di-pytest`.
+Each framework integration is a separate package named `modern-di-<framework>`, such as
+`modern-di-fastapi`. The pytest plugin is `modern-di-pytest`.
 
-## 2. First success
+## 2. Resolve a dependency
 
-One provider, no scopes, no caching: the smallest example. A `Group` is a namespace that
-lists your providers; `Container.resolve` looks a value up by its type.
+A `Group` lists your providers, and `Container.resolve` builds a value by its type.
 
 ```python
 import dataclasses
@@ -62,27 +62,26 @@ from modern_di import Container, Group, providers
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    database_url: str = "postgresql+asyncpg://localhost/app"
+    api_url: str = "https://api.example.com"
 
 
 class Dependencies(Group):
     settings = providers.Factory(Settings)
 
 
-# Call validate() to detect cycles and scope-chain errors up front, at startup
 container = Container(groups=[Dependencies])
 container.validate()
 settings = container.resolve(Settings)
-print(settings.database_url)
+assert settings.api_url == "https://api.example.com"
 ```
 
-Without `cache=`, `Factory` calls the creator on every resolve. That is fine for cheap,
-stateless objects, but not what you want for a database engine you only want to build once.
+A provider without `scope=` is APP-scoped: it lives as long as the root container. Without `cache=`,
+`Factory` calls `Settings` again on every resolve.
 
-## 3. Create once, reuse
+## 3. Create once, close at shutdown
 
-Add `cache=True` (via `CacheSettings`, which also lets you attach a finalizer) to turn `settings`
-into a singleton, and switch to the `with` form so the finalizer runs when the container closes.
+`cache=True` keeps the first instance and returns it on every later resolve. To close the instance
+when the container closes, pass `CacheSettings` with a `finalizer` instead.
 
 ```python
 import dataclasses
@@ -92,33 +91,39 @@ from modern_di import Container, Group, providers
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    database_url: str = "postgresql+asyncpg://localhost/app"
+    api_url: str = "https://api.example.com"
 
 
-def close_settings(settings: Settings) -> None:
-    print(f"closing settings ({id(settings)})")
+class HttpClient:
+    def __init__(self, settings: Settings) -> None:
+        self.base_url = settings.api_url
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 class Dependencies(Group):
-    settings = providers.Factory(
-        Settings,
-        cache=providers.CacheSettings(finalizer=close_settings),
-    )
+    settings = providers.Factory(Settings, cache=True)
+    http_client = providers.Factory(HttpClient, cache=providers.CacheSettings(finalizer=HttpClient.close))
 
 
 with Container(groups=[Dependencies]) as container:
-    first = container.resolve(Settings)
-    second = container.resolve(Settings)
-    print(id(first), id(second), first is second)  # same instance, cached on first resolve
-# `close_settings` ran here, on `with` exit
+    container.validate()
+    client = container.resolve(HttpClient)
+    assert container.resolve(HttpClient) is client
+
+assert client.closed
 ```
 
-## 4. Request scope
+`HttpClient` gets its `settings` argument by type, with no wiring code. The `with` block closes the
+container on exit, which runs the finalizer. Finalizers may be async; then use `async with`. See
+[Lifecycle](providers/lifecycle.md).
 
-Real apps also need state that lives for one request: a `UserRepository` rebuilt per request, fed
-by a `RequestId` supplied at request time via `ContextProvider`. Build a `Scope.REQUEST` child
-container with `build_child_container(scope=..., context={...})`; it can still resolve the
-APP-scoped `Settings` through the parent.
+## 4. Add a request scope
+
+Some objects should live for one request. Give their provider `scope=Scope.REQUEST`, then resolve
+them from a child container built for that request.
 
 ```python
 import dataclasses
@@ -128,64 +133,101 @@ from modern_di import Container, Group, Scope, providers
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Settings:
-    database_url: str = "postgresql+asyncpg://localhost/app"
+    api_url: str = "https://api.example.com"
 
 
-def close_settings(settings: Settings) -> None:
-    print(f"closing settings ({id(settings)})")
+class HttpClient:
+    def __init__(self, settings: Settings) -> None:
+        self.base_url = settings.api_url
+        self.closed = False
 
-
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class RequestId:
-    value: str
+    def close(self) -> None:
+        self.closed = True
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class UserRepository:
-    settings: Settings       # auto-injected by type, resolved through the request container
-    request_id: RequestId    # supplied via context, one value per request
+    client: HttpClient
 
     def find(self, user_id: int) -> dict[str, object]:
-        return {"id": user_id, "request_id": self.request_id.value}
+        return {"id": user_id, "source": self.client.base_url}
 
 
 class Dependencies(Group):
-    settings = providers.Factory(
-        Settings,
-        cache=providers.CacheSettings(finalizer=close_settings),
-    )
-    request_id = providers.ContextProvider(RequestId, scope=Scope.REQUEST)
+    settings = providers.Factory(Settings, cache=True)
+    http_client = providers.Factory(HttpClient, cache=providers.CacheSettings(finalizer=HttpClient.close))
     user_repository = providers.Factory(UserRepository, scope=Scope.REQUEST)
 
 
 with Container(groups=[Dependencies]) as container:
-    request_context = {RequestId: RequestId(value="req-1")}
-    with container.build_child_container(scope=Scope.REQUEST, context=request_context) as request:
-        repo = request.resolve(UserRepository)
-        user = repo.find(42)
-        print(user)
-    # REQUEST-scope finalizers ran here (none declared in this example)
-# APP-scope finalizers ran here (closes settings)
+    container.validate()
+    with container.build_child_container(scope=Scope.REQUEST) as request_container:
+        repository = request_container.resolve(UserRepository)
+        assert repository.client is container.resolve(HttpClient)
 ```
 
-A framework integration (linked under "Where to next" below) builds and tears down this REQUEST
-child container for you automatically. Resolution itself is always synchronous; use `async with`
-(on both the container and the child) instead of `with` only when a provider registers an
-**async** finalizer. See [Lifecycle](providers/lifecycle.md).
+The request container builds `UserRepository` and reaches up to the root for the shared
+`HttpClient`. Resolving `UserRepository` from the root container raises `ScopeNotInitializedError`,
+because the root has no REQUEST scope; see
+[Which container resolves](introduction/resolving.md#which-container-resolves). Values that exist
+only at request time, such as the incoming request object, come in through a
+[`ContextProvider`](providers/context.md).
+
+## 5. Use it in a framework
+
+An integration builds the request container for each request and closes it afterward. With
+FastAPI, install `modern-di-fastapi` and reuse the `Dependencies` group from step 4:
+
+```python
+import typing
+
+import fastapi
+import modern_di_fastapi
+from modern_di import Container
+
+
+app = fastapi.FastAPI()
+container = Container(groups=[Dependencies])
+modern_di_fastapi.setup_di(app, container)
+container.validate()
+
+
+@app.get("/users/{user_id}")
+async def get_user(
+    user_id: int,
+    repository: typing.Annotated[UserRepository, modern_di_fastapi.FromDI(UserRepository)],
+) -> dict[str, object]:
+    return repository.find(user_id)
+```
+
+`setup_di` also closes the root container at shutdown, which runs the `HttpClient` finalizer. The
+other integrations work the same way; each has its own page under Integrations, starting with
+[FastAPI](integrations/fastapi.md).
+
+## 6. Override in tests
+
+`container.override` replaces a provider for the whole container tree. Used as a context manager,
+it restores the original on exit.
+
+```python
+fake_client = HttpClient(settings=Settings(api_url="http://test"))
+
+with Container(groups=[Dependencies]) as container:
+    with container.override(Dependencies.http_client, fake_client):
+        with container.build_child_container(scope=Scope.REQUEST) as request_container:
+            assert request_container.resolve(UserRepository).client is fake_client
+```
+
+The override reaches every request container, including the ones an integration builds, so the
+FastAPI route above would see the fake too. See [Testing with overrides](recipes/testing-overrides.md).
 
 ## Where to next
 
-- Framework integrations: [aiogram](integrations/aiogram.md), [aiohttp](integrations/aiohttp.md),
-  [arq](integrations/arq.md), [Celery](integrations/celery.md), [FastAPI](integrations/fastapi.md),
-  [FastMCP](integrations/fastmcp.md), [FastStream](integrations/faststream.md), [Flask](integrations/flask.md), [gRPC](integrations/grpc.md),
-  [Litestar](integrations/litestar.md), [Starlette](integrations/starlette.md),
-  [taskiq](integrations/taskiq.md), [Typer](integrations/typer.md), [Pytest](integrations/pytest.md).
-  The framework integrations build a scoped child container per request/task/call automatically,
-  and most close the APP container at shutdown. Flask, gRPC, and Typer have no shutdown hook, so
-  you close the root container yourself. The Pytest plugin exposes providers as fixtures.
-- [Resolving](introduction/resolving.md): how type-based auto-injection works.
-- [Factories](providers/factories.md): the provider you just used.
-- [Scopes](providers/scopes.md): the APP → REQUEST scope model in one page.
-- [Lifecycle](providers/lifecycle.md): finalizers, `close_async()`, validation.
-- [Recipes](recipes/sqlalchemy.md): async SQLAlchemy, lifespan-managed resources, testing with overrides.
-- [Good and bad practices](recipes/good-and-bad-practices.md): named footguns and the mechanism that catches each one.
+- [Resolving](introduction/resolving.md): how parameters are matched by type, and what happens when
+  they can't be.
+- [Scopes](providers/scopes.md): the full scope model, from APP down to STEP.
+- [Factories](providers/factories.md): every `Factory` option.
+- [Lifecycle](providers/lifecycle.md): finalizers, async teardown and validation.
+- [Recipes](recipes/sqlalchemy.md): async SQLAlchemy, lifespan-managed resources and more.
+- [Good and bad practices](recipes/good-and-bad-practices.md): common mistakes and how modern-di
+  catches each one.
