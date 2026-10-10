@@ -384,6 +384,23 @@ None of these were meant for use outside the package. Accessing them raises `Att
 `resolve()` on a closed container raises `ContainerClosedError` even when the type is not
 registered. In 3.x that call raised `ProviderNotRegisteredError`.
 
+### `Alias` requires `bound_type`
+
+In 3.x `bound_type` defaulted to `source_type`, so `Alias(X)` registered under `X` and resolved to
+itself: `validate()` reported a `CircularDependencyError`, or registration raised
+`DuplicateProviderTypeError` when a provider for `X` existed too. In 4.x `bound_type` has no
+default. `Alias(X)` raises `TypeError`, and `Alias(X, bound_type=X)` raises
+`AliasBoundToSourceError`. Pass the type the alias answers for, or `bound_type=None` to use it
+by reference only:
+
+```python
+# 3.x
+alias = providers.Alias(PostgresDatabase)
+
+# 4.x
+alias = providers.Alias(PostgresDatabase, bound_type=DatabaseProtocol)
+```
+
 ### The 3.x deprecations are removed
 
 - `Container(validate=...)` raises `TypeError`, and `ValidateArgumentWarning` is gone with it. Drop

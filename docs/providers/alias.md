@@ -6,7 +6,7 @@ Resolving the alias calls the source's resolver directly, so overrides and cachi
 
 ## Parameters
 
-`Alias(source_type, *, bound_type=UNSET)`. The `source_type` may also be passed as a keyword
+`Alias(source_type, *, bound_type)`. The `source_type` may also be passed as a keyword
 (`source_type=`).
 
 ### source_type
@@ -15,7 +15,7 @@ The type whose registered provider should answer the call. At resolution time, t
 
 ### bound_type
 
-The type the alias is registered under in the providers registry, i.e. the type you pass to `container.resolve(...)`. Set it to the abstract or `Protocol` type you want resolvable, or to `None` to make the alias resolvable by reference only. It defaults to `source_type`, and an alias bound to its own source type would resolve to itself, so that combination raises `AliasBoundToSourceError` at declaration. In practice `bound_type` is required.
+The type the alias is registered under in the providers registry, i.e. the type you pass to `container.resolve(...)`. Required. Set it to the abstract or `Protocol` type you want resolvable, or to `None` to make the alias resolvable by reference only. An alias bound to its own source type would resolve to itself, so `bound_type=source_type` raises `AliasBoundToSourceError` at declaration.
 
 An alias holds no instance and applies no caching; its effective scope is derived from its source provider.
 
