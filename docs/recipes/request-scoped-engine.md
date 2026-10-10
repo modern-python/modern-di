@@ -6,24 +6,13 @@ This recipe routes read-only requests (`GET`, `HEAD`) to a read-replica engine a
 
 ## Solution
 
-Two APP-scoped engine factories (primary and replica) and one REQUEST-scoped factory that inspects the request and returns the engine to use for it. Sessions and repositories depend on the *request-scoped* engine, not the named factories.
-
-<!-- invisible-code-block: python
-import sqlalchemy.ext.asyncio as sa_async
-
-
-def create_session(engine: sa_async.AsyncEngine) -> sa_async.AsyncSession:
-    return sa_async.AsyncSession(engine)
-
-
-async def close_session(session: sa_async.AsyncSession) -> None:
-    await session.close()
--->
+Declare two APP-scoped engine factories, primary and replica, and one REQUEST-scoped factory that looks at the request and returns the engine to use for it. The session depends on that request-scoped engine by type.
 
 ```python
-import sqlalchemy.ext.asyncio as sa_async
 import fastapi
-from modern_di import Group, Scope, providers
+import modern_di_fastapi
+import sqlalchemy.ext.asyncio as sa_async
+from modern_di import Container, Group, Scope, providers
 
 
 def create_primary_engine() -> sa_async.AsyncEngine:
@@ -34,13 +23,6 @@ def create_replica_engine() -> sa_async.AsyncEngine:
     return sa_async.create_async_engine("postgresql+asyncpg://replica/db")
 
 
-async def close_engine(engine: sa_async.AsyncEngine) -> None:
-    await engine.dispose()
-
-
-# Choose which engine this request uses.
-# `primary` and `replica` are injected by name from kwargs.
-# `request` is injected by type from the framework's request ContextProvider.
 def choose_engine(
     primary: sa_async.AsyncEngine,
     replica: sa_async.AsyncEngine,
@@ -51,48 +33,67 @@ def choose_engine(
     return primary
 
 
-class PrimaryEngine(sa_async.AsyncEngine): ...
-class ReplicaEngine(sa_async.AsyncEngine): ...
+def create_session(engine: sa_async.AsyncEngine) -> sa_async.AsyncSession:
+    return sa_async.AsyncSession(engine, expire_on_commit=False)
 
 
 class Dependencies(Group):
     primary = providers.Factory(
         create_primary_engine,
         scope=Scope.APP,
-        bound_type=PrimaryEngine,
-        cache=providers.CacheSettings(finalizer=close_engine),
+        bound_type=None,
+        cache=providers.CacheSettings(finalizer=sa_async.AsyncEngine.dispose),
     )
     replica = providers.Factory(
         create_replica_engine,
         scope=Scope.APP,
-        bound_type=ReplicaEngine,
-        cache=providers.CacheSettings(finalizer=close_engine),
+        bound_type=None,
+        cache=providers.CacheSettings(finalizer=sa_async.AsyncEngine.dispose),
     )
-
-    # REQUEST-scope: picks per-request, cached for the rest of that request
     engine = providers.Factory(
         choose_engine,
         scope=Scope.REQUEST,
         kwargs={"primary": primary, "replica": replica},
         cache=True,
     )
-
-    # Sessions and repositories use the REQUEST-scoped engine
     session = providers.Factory(
         create_session,
         scope=Scope.REQUEST,
-        cache=providers.CacheSettings(finalizer=close_session),
+        cache=providers.CacheSettings(finalizer=sa_async.AsyncSession.close),
     )
+
+
+container = Container(groups=[Dependencies])
+
+app = fastapi.FastAPI()
+modern_di_fastapi.setup_di(app, container)
+container.validate()
+
+
+@app.api_route("/engine", methods=["GET", "POST"])
+async def engine_url(
+    session: sa_async.AsyncSession = modern_di_fastapi.FromDI(sa_async.AsyncSession),
+) -> str:
+    return str(session.bind.url)
 ```
 
-Why the `PrimaryEngine` / `ReplicaEngine` subclasses: type-based resolution needs distinct types for the two factories. Without them, both would register under `AsyncEngine` and `Container(groups=[...])` would raise `DuplicateProviderTypeError` at startup. See [Duplicate provider type](../troubleshooting/duplicate-type-error.md).
+<!-- invisible-code-block: python
+from fastapi.testclient import TestClient
+
+with TestClient(app) as client:
+    assert client.get("/engine").json() == "postgresql+asyncpg://replica/db"
+    assert client.post("/engine").json() == "postgresql+asyncpg://primary/db"
+-->
+
+Only `engine` is registered under `AsyncEngine`, so `create_session` gets the engine chosen for the request. Two providers cannot both register under one type, so `primary` and `replica` have `bound_type=None` and reach `choose_engine` through `kwargs`; see [`bound_type`](../providers/factories.md#bound_type). `request` is wired by type to the `fastapi.Request` the integration puts in each request's container.
 
 ## Pitfalls
 
-- The choice factory must be REQUEST-scoped. It depends on the per-request `Request` object. An APP-scoped factory cannot consume request-scoped data and `container.validate()` will reject it.
-- The framework integration provides `fastapi.Request` (or `litestar.Request`) automatically. No need to declare a `ContextProvider` for it. For Litestar, use `litestar.Request`.
-- Don't apply this to per-connection pooling decisions. Engines (and their pools) are APP-scoped, so the choice you make per request selects which long-lived pool the session checks out from. Trying to make the engine itself REQUEST-scoped would create and dispose a pool every request.
-- Watch for write-after-read in a single request. If a `GET` handler ends up doing a write (e.g. updating a `last_seen_at` field), it'll go to the replica and fail. Either move the side-effect out of the read path, or pick a different routing predicate than HTTP method.
+- The choice factory must be REQUEST-scoped, because it consumes the per-request `Request`. `container.validate()` rejects an APP-scoped one with `InvalidScopeDependencyError`.
+- The integration registers the `ContextProvider` for `fastapi.Request` (on Litestar, `litestar.Request`), so you don't declare one. It does so in `setup_di`, so call `container.validate()` after `setup_di`, as above; see [Framework context objects](../providers/context.md#framework-context-objects).
+- `kwargs` resolves both engines every time `choose_engine` runs, so the first request creates both and they stay cached, even though it uses one of them. `create_async_engine` opens no connection, so this costs nothing until a session checks one out.
+- Keep the engines APP-scoped. Each engine owns a connection pool, and the per-request choice only selects which long-lived pool the session uses. A REQUEST-scoped engine would build and dispose a pool on every request.
+- Watch for writes in a read request. If a `GET` handler writes (updating a `last_seen_at` column, say), the write goes to the replica and fails. Move the side effect out of the read path, or route on something other than the HTTP method.
 
 ## See also
 

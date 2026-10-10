@@ -5,8 +5,8 @@ mistakes the framework lets you make, each paired with the mechanism that catche
 
 ## 1. Captive dependency: a wide-scoped provider holding a narrow-scoped one
 
-A *captive dependency* is a wide-scoped provider holding a narrow-scoped one it cannot actually
-outlive. See [the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why.
+A *captive dependency* is a wide-scoped provider holding a narrow-scoped one it cannot outlive. See
+[the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) for why.
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group, Scope, providers
@@ -31,20 +31,16 @@ class Dependencies(Group):
     user_cache = providers.Factory(UserCache, scope=Scope.REQUEST)
 ```
 
-An explicit `container.validate()` call catches this: it raises `ValidationFailedError`
-carrying an `InvalidScopeDependencyError` for this exact graph before anything is ever resolved.
-See [Scope chain violation](../troubleshooting/scope-chain.md). Nothing validates automatically, so if
-the graph is never validated, the runtime failure is a `ScopeNotInitializedError`/`ScopeSkippedError`
-where the runtime error names both the provider that captured the dependency and the one that
-failed, and it fires on the first request that hits it rather
-than at startup. Prefer catching it statically with an explicit `validate()` call.
+`container.validate()` reports the broken version before anything resolves: it raises
+`ValidationFailedError` carrying an `InvalidScopeDependencyError`; see
+[Scope chain violation](../troubleshooting/scope-chain.md). Without `validate()`, the first resolve of
+`UserCache` raises `ScopeNotInitializedError`, whose message names both `UserCache` and `Session`, on
+the first request that reaches it instead of at startup.
 
 ## 2. Shipping a never-validated graph
 
-`validate()` is the only thing that checks the *whole* graph (cycles, inverted scopes, and missing
-dependencies). Nothing calls it for you: not construction, not `open()`, not `add_providers`, not
-`resolve()`. Skipping it leaves the bugs in place until whichever resolve happens to hit one
-first.
+`validate()` is the only check of the whole graph: cycles, scope violations, and dependencies
+nothing provides. Nothing calls it for you; see [Validation](../providers/lifecycle.md#validation).
 
 ```python
 # Broken: never validated, so wiring bugs surface one at a time, in production, on whatever request trips them
@@ -55,15 +51,15 @@ container = Container(groups=[Dependencies])
 container.validate()  # raises ValidationFailedError here if the graph is broken
 ```
 
-An explicit `container.validate()` call catches this. It is the only thing that finds every issue
-in the graph up front; without it, each wiring bug surfaces individually, at whichever resolve first
-reaches it. An unvalidated cyclic graph still isn't a silent hang; see
+`validate()` skips a provider declared with `bound_type=None` unless a provider registered by type
+depends on it, so such a provider can still fail on its first resolve. An unvalidated cyclic graph
+does not hang; see
 [the runtime cycle guard](../troubleshooting/circular-dependency.md#the-runtime-cycle-guard-without-validate).
 
 ## 3. A cached factory resolved before `set_context`
 
-Context values are read live on every resolve of a non-cached factory. A cached factory is
-built once, and a later `set_context` does not rebuild it.
+A cached factory is built once, and a later `set_context` does not rebuild it. An uncached factory
+reads the context again on every resolve.
 
 <!-- invisible-code-block: python
 class TenantConfig:
@@ -86,21 +82,18 @@ class Dependencies(Group):
     tenant_config = providers.Factory(create_tenant_config, scope=Scope.REQUEST)
 ```
 
-If a request container resolves `tenant_config` before the real tenant ID is known (e.g. during
-setup), the cached version keeps serving that first value for the rest of the request even after
-`request.set_context(str, real_tenant_id)` runs. Either drop `cache=True` for anything whose
-correctness depends on context set later, or make sure `set_context` runs before the first resolve.
-Nothing catches this automatically. It is a timing bug, not a wiring bug, so `validate()` cannot
-see it. See [Context propagation](../providers/context.md#context-propagation) for how `set_context`
-timing interacts with a provider's scope, and [Lifecycle](../providers/lifecycle.md) for caching.
+If a request container resolves `tenant_config` before the real tenant ID is set, the cached instance
+keeps the earlier value for the rest of the request. Drop `cache=True` for anything that depends on
+context set later, or set the context before the first resolve. `validate()` cannot catch this,
+because the graph is correct and only the timing is wrong. See
+[Context propagation](../providers/context.md#context-propagation).
 
-## 4. Service location via `container_provider` overuse
+## 4. Service location through an injected `Container`
 
-`container_provider` lets a creator accept the resolving `Container` itself and pull dependencies
-out of it manually. Used for its intended purpose (a provider that genuinely needs the container,
-such as building a child container), it's fine. Used as a shortcut to avoid declaring real
-parameters, it turns type-driven DI into a service locator: the dependency is hidden from
-`validate()`, from readers, and from anyone trying to see the graph.
+A creator can take the resolving `Container` as a parameter; see
+[Injecting the container itself](../providers/container.md#injecting-the-container-itself). Using it
+to pull the creator's real dependencies out of the container turns DI into a service locator: the
+dependency disappears from the signature and from `validate()`.
 
 <!-- invisible-code-block: python
 class Settings:
@@ -112,56 +105,70 @@ class Settings:
 def create_api_key(container: Container) -> str:
     return container.resolve(Settings).api_key
 
-# Works: declared as an ordinary parameter, so it is visible, validated, and testable via override
+# Works: declared as an ordinary parameter, so validate() checks it
 def create_api_key(settings: Settings) -> str:
     return settings.api_key
 ```
 
-Nothing enforces this; it is a matter of style discipline. Reserve
-`container_provider` for cases that are actually about the container (building a child container,
-introspecting the current scope), and declare everything else as a typed parameter so
-`validate()` and [Resolving dependencies](../introduction/resolving.md) can see it.
+When nothing provides `Settings`, the broken version passes `validate()` and raises
+`ProviderNotRegisteredError` on its first resolve, while `validate()` reports the declared parameter
+up front. Keep `Container` parameters for code that is about the container, such as building a child
+container.
 
 ## 5. Override leaks across tests
 
-`container.override(provider, replacement)` replacements are shared across the *whole* container
-tree. See [Testing with overrides](testing-overrides.md) for the mechanics. Forgetting to reset it
-affects more than the test that set it: every later test that shares the container inherits the
-replacement.
+Overrides are shared by the whole container tree (see [Testing with overrides](testing-overrides.md)),
+so one that is never reset reaches every later test that shares the container. Nothing reports the
+leak.
 
 <!-- invisible-code-block: python
+import typing
 from unittest.mock import Mock
 
 import pytest
-
-
-class Clock: ...
 -->
 
 ```python
-# Broken: no reset, so the next test that resolves Clock silently gets the fake
-def test_one() -> None:
-    container.override(Dependencies.clock, fake_clock)
-    ...
+class Clock:
+    def now(self) -> float:
+        return 0.0
 
-# Works: always reset, even if the test fails; a fixture teardown is the reliable place for this
+
+class Dependencies(Group):
+    clock = providers.Factory(Clock)
+
+
+container = Container(groups=[Dependencies])
+
+
+# Broken: nothing resets the override, so every later test that resolves Clock gets the fake
+def test_one() -> None:
+    container.override(Dependencies.clock, Mock(spec=Clock))
+
+
+# Works: the with block resets the override after each test, even when the test fails
 @pytest.fixture
-def frozen_clock() -> Mock:
-    fake = Mock(spec=Clock)
-    container.override(Dependencies.clock, fake)
-    yield fake
-    container.reset_override(Dependencies.clock)
+def fake_clock() -> typing.Iterator[Mock]:
+    with container.override(Dependencies.clock, Mock(spec=Clock)) as fake:
+        yield fake
 ```
 
-Nothing catches this automatically mid-suite. `reset_override(provider)` (or `reset_override()` with no
-arguments, to clear everything) is the fix. Closing the root container does not clear overrides. See
-[Testing with overrides](testing-overrides.md#pitfalls).
+<!-- invisible-code-block: python
+test_one()
+assert isinstance(container.resolve(Clock), Mock)
+container.reset_override()
+assert isinstance(container.resolve(Clock), Clock)
+-->
+
+`reset_override(provider)`, or `reset_override()` with no argument, clears an imperative override.
+Closing the container does not. See [Testing with overrides](testing-overrides.md#pitfalls).
 
 ## 6. `skip_creator_parsing=True` with no `bound_type`
 
-`skip_creator_parsing=True` turns off signature introspection, which helps with callables that can't
-be reflected (C extensions, `functools.partial`). But skipping introspection also means modern-di has
-no idea what type the provider produces, so type-based resolution silently can't find it.
+`skip_creator_parsing=True` turns off signature introspection, for creators modern-di cannot
+introspect. It also skips the return annotation, so the provider has no bound type unless you pass
+one: `Factory(...)` warns at declaration, and resolving the type raises `ProviderNotRegisteredError`.
+See [`skip_creator_parsing`](../providers/factories.md#skip_creator_parsing).
 
 <!-- invisible-code-block: python
 class MyClass: ...
@@ -186,8 +193,39 @@ providers.Factory(
 )
 ```
 
-A `UserWarning` at declaration time catches this. It's easy to miss in test output, so treat it
-as a signal to add `bound_type=`.
+The warning is easy to miss in test output. Treat it as a signal to add `bound_type=`.
+
+## 7. Async finalizer on a container closed with `close_sync()`
+
+`close_sync()` cannot await, and a sync `with container:` block closes with it. An async finalizer
+there fails with `AsyncFinalizerInSyncCloseError` inside a `FinalizerError`, and the instance stays
+cached until `close_async()` runs. The Celery integration closes the APP container with
+`close_sync()`. See [Async finalizers and `close_sync()`](../providers/lifecycle.md#async-finalizers-and-close_sync).
+
+```python
+class HttpClient: ...
+
+
+async def close_client(client: HttpClient) -> None: ...
+
+
+class ClientDependencies(Group):
+    client = providers.Factory(HttpClient, cache=providers.CacheSettings(finalizer=close_client))
+```
+
+<!-- raises: FinalizerError -->
+
+```python
+# Broken: `with` closes the container with close_sync(), which cannot await close_client
+with Container(groups=[ClientDependencies]) as client_container:
+    client_container.resolve(HttpClient)
+```
+
+```python
+# Works: `async with` closes the container with close_async()
+async with Container(groups=[ClientDependencies]) as client_container:
+    client_container.resolve(HttpClient)
+```
 
 ## See also
 

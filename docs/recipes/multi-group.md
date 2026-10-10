@@ -4,79 +4,60 @@ Your application has 30+ providers, and one `Group` holding all of them is unrea
 
 ## Solution
 
-Split providers into multiple `Group` subclasses by domain (database, cache, messaging, use cases) and pass them all to `Container(groups=[...])`. Cross-group dependencies wire by type, with no explicit references between groups.
-
-<!-- invisible-code-block: python
-import redis.asyncio as aioredis
-import sqlalchemy.ext.asyncio as sa_async
-
-
-class UserRepository:
-    def __init__(self, session: sa_async.AsyncSession) -> None:
-        self.session = session
-
-
-class OrderRepository:
-    def __init__(self, session: sa_async.AsyncSession) -> None:
-        self.session = session
-
-
-class PlaceOrder:
-    def __init__(self, users: UserRepository, orders: OrderRepository, cache: aioredis.Redis) -> None:
-        self.users = users
-        self.orders = orders
-        self.cache = cache
-
-
-class CancelOrder:
-    def __init__(self, orders: OrderRepository) -> None:
-        self.orders = orders
--->
+Split providers into several `Group` subclasses by domain (database, cache, repositories, use cases) and pass them all to `Container(groups=[...])`. Dependencies between groups wire by type, so no group refers to another.
 
 ```python
+import dataclasses
+
 import redis.asyncio as aioredis
 import sqlalchemy.ext.asyncio as sa_async
 from modern_di import Container, Group, Scope, providers
 
 
-# --- factory functions (defined once, shared across groups) ---
-
 def create_engine() -> sa_async.AsyncEngine:
     return sa_async.create_async_engine("postgresql+asyncpg://localhost/app")
-
-
-async def close_engine(engine: sa_async.AsyncEngine) -> None:
-    await engine.dispose()
 
 
 def create_session(engine: sa_async.AsyncEngine) -> sa_async.AsyncSession:
     return sa_async.AsyncSession(engine, expire_on_commit=False)
 
 
-async def close_session(session: sa_async.AsyncSession) -> None:
-    await session.close()
-
-
 def create_redis() -> aioredis.Redis:
     return aioredis.Redis.from_url("redis://localhost")
 
 
-async def close_redis(client: aioredis.Redis) -> None:
-    await client.aclose()
+@dataclasses.dataclass
+class UserRepository:
+    session: sa_async.AsyncSession
 
 
-# --- groups ---
+@dataclasses.dataclass
+class OrderRepository:
+    session: sa_async.AsyncSession
+
+
+@dataclasses.dataclass
+class PlaceOrder:
+    users: UserRepository
+    orders: OrderRepository
+    cache: aioredis.Redis
+
+
+@dataclasses.dataclass
+class CancelOrder:
+    orders: OrderRepository
+
 
 class Database(Group):
     engine = providers.Factory(
         create_engine,
         scope=Scope.APP,
-        cache=providers.CacheSettings(finalizer=close_engine),
+        cache=providers.CacheSettings(finalizer=sa_async.AsyncEngine.dispose),
     )
     session = providers.Factory(
         create_session,
         scope=Scope.REQUEST,
-        cache=providers.CacheSettings(finalizer=close_session),
+        cache=providers.CacheSettings(finalizer=sa_async.AsyncSession.close),
     )
 
 
@@ -84,50 +65,59 @@ class Cache(Group):
     redis_client = providers.Factory(
         create_redis,
         scope=Scope.APP,
-        cache=providers.CacheSettings(finalizer=close_redis),
+        cache=providers.CacheSettings(finalizer=aioredis.Redis.aclose),
     )
 
 
-class Repositories(Group):
-    # UserRepository signature: (session: AsyncSession)
-    users = providers.Factory(UserRepository, scope=Scope.REQUEST)
-    orders = providers.Factory(OrderRepository, scope=Scope.REQUEST)
+class Repositories(Group, scope=Scope.REQUEST):
+    users = providers.Factory(UserRepository)
+    orders = providers.Factory(OrderRepository)
 
 
-class UseCases(Group):
-    # PlaceOrder signature: (users: UserRepository, orders: OrderRepository, cache: aioredis.Redis)
-    place_order = providers.Factory(PlaceOrder, scope=Scope.REQUEST)
-    cancel_order = providers.Factory(CancelOrder, scope=Scope.REQUEST)
+class UseCases(Group, scope=Scope.REQUEST):
+    place_order = providers.Factory(PlaceOrder)
+    cancel_order = providers.Factory(CancelOrder)
 
 
 ALL_GROUPS = [Database, Cache, Repositories, UseCases]
 
 container = Container(groups=ALL_GROUPS)
+container.validate()
+```
+
+`Repositories` and `UseCases` set `scope=Scope.REQUEST` once on the class instead of on every provider; see [Group-level default scope](../providers/scopes.md#group-level-default-scope).
+
+`PlaceOrder` depends on providers from three other groups: the repositories, the Redis client from `Cache`, and through the repositories the session from `Database`. Inside one request both repositories get the same cached session:
+
+```python
+import sqlalchemy.ext.asyncio as sa_async
+
+async with container.build_child_container(scope=Scope.REQUEST) as request_container:
+    place_order = request_container.resolve(PlaceOrder)
+    session = request_container.resolve(sa_async.AsyncSession)
+    assert place_order.users.session is session
+    assert place_order.orders.session is session
 ```
 
 <!-- invisible-code-block: python
-import redis.asyncio as aioredis
+import sqlalchemy
 
-container.validate()
+await container.close_async()
 -->
-
-`PlaceOrder` depends on providers from three different groups: `Repositories`, `Cache`, and `Database` (transitively via the repositories). Nothing in `UseCases` references the other groups directly; type-based wiring sorts it out.
 
 ## Pitfalls
 
-- Duplicate `bound_type` raises at container creation. If two groups register providers for the same type (e.g. both bind to `AsyncSession`), `Container(groups=[...])` raises `DuplicateProviderTypeError` immediately. Fix by assigning distinct types, for instance by declaring thin subclasses (`class WriteSession(AsyncSession): ...`), or set `bound_type=None` on one provider and wire it explicitly via `kwargs`. See [Duplicate provider type](../troubleshooting/duplicate-type-error.md).
-- Attribute-name collisions do not affect `Container`. `Container` keys providers on their `bound_type`, not on the attribute name. Two groups can both have an attribute named `session` as long as their `bound_type`s differ, and `Container` sees no conflict. The duplicate-name `ValueError` belongs to `modern-di-pytest`'s `expose(*groups)` helper (a separate package), which generates one pytest fixture per attribute name and does raise `ValueError` on duplicates. If you use `expose()`, ensure attribute names are unique across the groups you pass to it.
-- Order in `groups=[...]` does not matter for resolution. Validate at startup by calling `container.validate()` explicitly, since nothing runs the check for you.
+- Two providers for the same type make `Container(groups=[...])` raise `DuplicateProviderTypeError`, whichever groups they are in. Give one of them `bound_type=None` and pass it to its consumers through [`kwargs`](../providers/factories.md#kwargs); see [DuplicateProviderTypeError](../troubleshooting/duplicate-type-error.md).
+- A provider object belongs to one group. Assigning it to a second group (`engine = Database.engine`) registers it twice and raises the same `DuplicateProviderTypeError`. To use another group's provider, depend on its type, or reference it in `kwargs={"engine": Database.engine}`.
+- `Container` ignores attribute names, so two groups can both have a `session` attribute. Litestar's `autowired_groups` and `modern-di-pytest`'s `expose()` do use them: the first warns and keeps the provider from the last group, and the second raises `ValueError`.
+- The order of `groups=[...]` does not matter. Nothing checks the combined graph for you, so call `container.validate()` at startup.
 
 ## Auto-wiring with Litestar
 
-If you're on Litestar, pass `autowired_groups=ALL_GROUPS` to `ModernDIPlugin` and every provider in those groups is automatically registered as a Litestar dependency by attribute name. A handler then receives one by naming a parameter after it, `place_order: NamedDependency[PlaceOrder]`, with no per-route `FromDI`.
-
-<!-- invisible-code-block: python
-from litestar import Litestar
--->
+On Litestar, pass `autowired_groups=ALL_GROUPS` to `ModernDIPlugin` and every provider in those groups becomes a Litestar dependency named after its attribute. A handler receives one by naming a parameter after it, `place_order: NamedDependency[PlaceOrder]`, with no per-route `FromDI`:
 
 ```python
+from litestar import Litestar
 from modern_di_litestar import ModernDIPlugin
 
 app = Litestar(
@@ -135,7 +125,7 @@ app = Litestar(
 )
 ```
 
-See the [Litestar integration](../integrations/litestar.md) for the full pattern.
+See [Auto-wiring with `autowired_groups`](../integrations/litestar.md#auto-wiring-with-autowired_groups) for a handler and the name-collision rules.
 
 ## See also
 

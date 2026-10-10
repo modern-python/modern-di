@@ -1,40 +1,34 @@
 # Async resources via lifespan
 
-Some resources need an `await` (or a running event loop) to construct, such as `aiohttp.ClientSession`, an `asyncpg` connection pool, an authenticated client whose construction does a token exchange. `modern-di` resolves synchronously, so the construction has to happen outside the resolve path.
+Some resources need an `await` or a running event loop to construct: `aiohttp.ClientSession`, an `asyncpg` connection pool, or a client that exchanges a token at startup. `modern-di` resolves synchronously, so a creator cannot `await`. Build these resources in the framework's lifespan and hand the live object to the container.
 
 ## Solution
 
-Do the async construction in the framework's lifespan. Use `container.set_context(SomeType, instance)` to register the live object on the APP container, then declare a `ContextProvider(SomeType, scope=Scope.APP)` so downstream factories can depend on the type.
-
-<!-- invisible-code-block: python
-import aiohttp
-
-
-class WeatherApi:
-    def __init__(self, client: aiohttp.ClientSession) -> None:
-        self.client = client
--->
+In the lifespan, build the resource and register it on the APP container with `container.set_context(SomeType, instance)`. Declare a `ContextProvider(SomeType, scope=Scope.APP)` so other factories can depend on the type. With FastAPI:
 
 ```python
 import contextlib
+import dataclasses
 from collections.abc import AsyncIterator
 
 import aiohttp
 import fastapi
+import modern_di_fastapi
 from modern_di import Container, Group, Scope, providers
 
 
-class Dependencies(Group):
-    http_client = providers.ContextProvider(
-        aiohttp.ClientSession,
-        scope=Scope.APP,
-    )
+@dataclasses.dataclass
+class WeatherApi:
+    client: aiohttp.ClientSession
 
-    # Downstream factories declare `client: aiohttp.ClientSession` and get the live instance
-    weather_api = providers.Factory(
-        WeatherApi,                    # signature: (client: aiohttp.ClientSession)
-        scope=Scope.REQUEST,
-    )
+    async def forecast(self, city: str) -> dict[str, str]:
+        async with self.client.get(f"https://weather.example.com/{city}") as response:
+            return await response.json()
+
+
+class Dependencies(Group):
+    http_client = providers.ContextProvider(aiohttp.ClientSession, scope=Scope.APP)
+    weather_api = providers.Factory(WeatherApi, scope=Scope.REQUEST)
 
 
 container = Container(groups=[Dependencies])
@@ -42,44 +36,79 @@ container = Container(groups=[Dependencies])
 
 @contextlib.asynccontextmanager
 async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
-    async with container:                                          # ensures close_async on exit
-        async with aiohttp.ClientSession() as session:             # must be inside running loop
-            container.set_context(aiohttp.ClientSession, session)
-            yield
-        # ClientSession is closed by `async with` here
+    async with aiohttp.ClientSession() as session:
+        container.set_context(aiohttp.ClientSession, session)
+        yield
 
 
 app = fastapi.FastAPI(lifespan=lifespan)
+modern_di_fastapi.setup_di(app, container)
+container.validate()
+
+
+@app.get("/forecast/{city}")
+async def forecast(
+    city: str,
+    weather_api: WeatherApi = modern_di_fastapi.FromDI(WeatherApi),
+) -> dict[str, str]:
+    return await weather_api.forecast(city)
 ```
 
 <!-- invisible-code-block: python
-import aiohttp
+from fastapi.testclient import TestClient
 
-async with lifespan(app):
-    request_container = container.build_child_container(scope=Scope.REQUEST)
-    assert isinstance(request_container.resolve(WeatherApi).client, aiohttp.ClientSession)
+
+@app.get("/client-open")
+async def client_open(weather_api: WeatherApi = modern_di_fastapi.FromDI(WeatherApi)) -> bool:
+    return not weather_api.client.closed
+
+
+with TestClient(app) as client:
+    assert client.get("/client-open").json() is True
 -->
 
-`aiohttp.ClientSession` captures the running event loop at construction time, so it has to be built inside an async context, which the lifespan provides.
+`WeatherApi` receives the session through its `client: aiohttp.ClientSession` annotation. `aiohttp.ClientSession` needs a running event loop when it is constructed, and the lifespan runs inside the application's loop.
 
-The same pattern works for `asyncpg.create_pool(...)` (truly async), authenticated API clients that do a token exchange at startup, or anything else that needs `await` to be ready.
+`setup_di` wraps your lifespan: yours stays the outer context, and the integration opens the container inside it and closes it at shutdown, before your `async with` block exits. APP-scoped finalizers therefore run while the session is still open, and the session closes after them.
 
-`asyncpg.create_pool(...)` returns an awaitable `Pool` that only opens its
-connections when `await`ed (or entered with `async with`); modern-di has async
-*finalizers* but no async *initializer*, so the `await` has to happen in the
-lifespan.
+Without an integration, enter the container yourself, after the resource, so it closes first:
+
+```python
+import contextlib
+from collections.abc import AsyncIterator
+
+import aiohttp
+import fastapi
+
+
+@contextlib.asynccontextmanager
+async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
+    async with aiohttp.ClientSession() as session, container:
+        container.set_context(aiohttp.ClientSession, session)
+        yield
+```
+
+<!-- invisible-code-block: python
+import fastapi
+from modern_di import Scope
+
+async with lifespan(fastapi.FastAPI()):
+    request_container = container.build_child_container(scope=Scope.REQUEST)
+    assert not request_container.resolve(WeatherApi).client.closed
+assert container.closed
+-->
+
+The same pattern fits `asyncpg.create_pool(...)`, which returns a pool that opens its connections only when awaited, and any client that needs an `await` before it is ready. `modern-di` has async finalizers but no async initializer, so that `await` belongs in the lifespan.
 
 ## Pitfalls
 
-- Set context *before* yielding. The lifespan hands control to the app inside the `yield`. If you `set_context` after yielding, requests that arrive in between won't see the value.
-- `set_context` never propagates between containers; see [context propagation](../providers/context.md#context-propagation). In the lifespan pattern above that is fine, because the resource is APP-scoped, so the APP-scoped `ContextProvider` reads the value set on the APP container. Per-request context is passed to each REQUEST child via `build_child_container(context={...})`.
-- Take care when combining a hand-written lifespan with an integration's `setup_di`. The integration (e.g. [`modern-di-fastapi`](../integrations/fastapi.md)'s `setup_di(app, container)`) already appends a lifespan that closes the container, and it merges with any `lifespan=` you pass. Keep the resource setup in your lifespan but drop the `async with container` wrapper: the integration owns the container close, and wrapping both closes it twice.
-- Choose APP scope unless the resource is per-connection. Redis and Kafka clients are process-singletons. For per-websocket-session resources, use `Scope.SESSION`.
-- `async with container:` handles APP-scope finalizers. If you also registered a `CacheSettings(finalizer=...)` somewhere, this runs it on exit. The lifespan-managed object isn't wrapped by a Factory, so its cleanup (`async with aiohttp.ClientSession()` in the example) is on you.
+- `set_context` never propagates between containers; see [Context propagation](../providers/context.md#context-propagation). Here that is fine: the `ContextProvider` is APP-scoped and the value is set on the APP container, so every REQUEST child reaches it.
+- Don't also wrap the lifespan in `async with container:` when you use `setup_di`. It is redundant: the integration already closes the container, and the second close runs no finalizers.
+- The container does not own the lifespan's resource. It was never created by a `Factory`, so no finalizer closes it; the `async with aiohttp.ClientSession()` block does.
 
 ## When a sync creator works instead
 
-Many "async" resources actually construct synchronously: `redis.asyncio.Redis.from_url(...)`, `sqlalchemy.ext.asyncio.create_async_engine(...)`, and `httpx.AsyncClient(...)` all return without awaiting. For those, prefer a normal `Factory` with `cache=CacheSettings(finalizer=async_close_fn)` and skip the lifespan + `set_context` dance entirely. Use this recipe only when construction needs `await` or a running event loop.
+Many async clients construct synchronously: `redis.asyncio.Redis.from_url(...)`, `sqlalchemy.ext.asyncio.create_async_engine(...)` and `httpx.AsyncClient(...)` all return without awaiting. For those, use a plain `Factory` with `cache=CacheSettings(finalizer=...)` and an async finalizer, and skip the lifespan and `set_context`. Use this recipe only when construction needs `await` or a running event loop.
 
 ## See also
 
