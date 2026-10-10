@@ -23,7 +23,7 @@ from sybil.parsers.markdown.lexers import DirectiveInHTMLCommentLexer
 
 
 _UNINSTALLED_PACKAGES = frozenset(
-    {"aiohttp", "fastapi", "modern_di_litestar", "modern_di_pytest", "pydantic_ai", "redis", "sqlalchemy"}
+    {"aiohttp", "fastapi", "litestar", "modern_di_litestar", "modern_di_pytest", "pydantic_ai", "redis", "sqlalchemy"}
 )
 
 _EXCLUDED_PAGES = (
@@ -37,6 +37,8 @@ _FRAMEWORK_INDEPENDENT_INTEGRATION_PAGES = frozenset({"writing-integrations.md"}
 _EXPECTED_ERROR_KEY = "__docs_expected_error__"
 
 _PAGE_MODULE_KEY = "__docs_page_module__"
+
+_RUN_OPTIONS = {"docs_integrations": False}
 
 _RAISES_LEXER = DirectiveInHTMLCommentLexer("raises", arguments=r"\w+")
 
@@ -78,7 +80,7 @@ def _evaluate_python(example: Example) -> None:
     try:
         _run(example)
     except ModuleNotFoundError as error:
-        if (error.name or "").partition(".")[0] not in _UNINSTALLED_PACKAGES:
+        if _RUN_OPTIONS["docs_integrations"] or (error.name or "").partition(".")[0] not in _UNINSTALLED_PACKAGES:
             raise
         pytest.skip(f"{error.name} is not installed in this repo")
     except Exception as error:
@@ -106,8 +108,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--docs-integrations",
         action="store_true",
-        help="also run the framework pages under docs/integrations/; needs every modern-di-<page> package installed",
+        help="also run the framework pages under docs/integrations/, and fail instead of skip on a missing package",
     )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    _RUN_OPTIONS["docs_integrations"] = config.getoption("--docs-integrations")
 
 
 def pytest_collect_file(file_path: pathlib.Path, parent: pytest.Collector) -> pytest.Collector | None:

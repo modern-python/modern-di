@@ -63,11 +63,13 @@ not ban the English words: an example class may be a `UserService`, and an appli
 
 `just test-docs` runs every `python` block in the site, page by page, with each page's blocks
 sharing one namespace in order. `conftest.py` excludes `migration/`. The framework pages under
-`integrations/` run only in `just test-docs-integrations`, which installs every `modern-di-<page>`
-package with modern-di pinned to the checkout; a package a page imports that no integration depends
-on goes in `docs_integration_extras` in the `justfile`. A block that can't run as written gets
-`<!-- skip: next "reason" -->` on the line above its fence. Setup the reader doesn't need to see
-goes in an `<!-- invisible-code-block: python -->` comment. A block that demonstrates an error gets
-`<!-- raises: ErrorClassName -->` right above its fence, after any hidden setup, and passes only if
-it raises that class. An import of a third-party package that isn't installed here skips only if the
-package is listed in `conftest.py`; any other missing import fails.
+`integrations/` run only in `just test-docs-integrations`, which runs every page with every
+`modern-di-<page>` package installed and modern-di pinned to the checkout; a package the docs import
+that no integration depends on goes in `docs_integration_extras` in the `justfile`. A block that
+can't run as written gets `<!-- skip: next "reason" -->` on the line above its fence. Setup the
+reader doesn't need to see goes in an `<!-- invisible-code-block: python -->` comment. A block that
+demonstrates an error gets `<!-- raises: ErrorClassName -->` right above its fence, after any hidden
+setup, and passes only if it raises that class. In `just test-docs`, an import of a third-party
+package skips only if the package is listed in `conftest.py`, and any other missing import fails; in
+`just test-docs-integrations` every missing import fails. A hidden block that only exists to support
+a skipped block should import the same package first, so it skips too.

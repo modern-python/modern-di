@@ -6,6 +6,15 @@ Some resources need an `await` (or a running event loop) to construct, such as `
 
 Do the async construction in the framework's lifespan. Use `container.set_context(SomeType, instance)` to register the live object on the APP container, then declare a `ContextProvider(SomeType, scope=Scope.APP)` so downstream factories can depend on the type.
 
+<!-- invisible-code-block: python
+import aiohttp
+
+
+class WeatherApi:
+    def __init__(self, client: aiohttp.ClientSession) -> None:
+        self.client = client
+-->
+
 ```python
 import contextlib
 from collections.abc import AsyncIterator
@@ -42,6 +51,14 @@ async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
 
 app = fastapi.FastAPI(lifespan=lifespan)
 ```
+
+<!-- invisible-code-block: python
+import aiohttp
+
+async with lifespan(app):
+    request_container = container.build_child_container(scope=Scope.REQUEST)
+    assert isinstance(request_container.resolve(WeatherApi).client, aiohttp.ClientSession)
+-->
 
 `aiohttp.ClientSession` captures the running event loop at construction time, so it has to be built inside an async context, which the lifespan provides.
 
