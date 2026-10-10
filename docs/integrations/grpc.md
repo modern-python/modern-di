@@ -149,16 +149,11 @@ described in [Writing an integration](writing-integrations.md#lifecycle-rules).
 ### 3. Async server (`grpc.aio`)
 
 `DIAioInterceptor` is the async twin: pass it to `grpc.aio.server(...)` and write
-`async def` servicer methods (server-streaming methods as `async` generators):
+`async def` servicer methods (server-streaming methods as `async` generators). The
+`AppGroup` and `container` from the sync example work unchanged:
 
 <!-- invisible-code-block: python
 import asyncio
-
-
-class Greeter:
-    def greet(self, name: str) -> str:
-        return f"Hello, {name}"
-
 
 asyncio.set_event_loop(asyncio.new_event_loop())
 -->
@@ -174,9 +169,9 @@ class GreeterService(greeter_pb2_grpc.GreeterServicer):
         self,
         request: greeter_pb2.HelloRequest,
         context: grpc.aio.ServicerContext,
-        greeter: typing.Annotated[Greeter, FromDI(Greeter)],
+        report: typing.Annotated[RpcReport, FromDI(RpcReport)],
     ) -> greeter_pb2.HelloReply:
-        return greeter_pb2.HelloReply(message=greeter.greet(request.name))
+        return greeter_pb2.HelloReply(message=report.line())
 
 
 server = grpc.aio.server(interceptors=[DIAioInterceptor(container)])
@@ -201,6 +196,10 @@ including on the error and client-cancellation paths. REQUEST-scoped providers
 (and their finalizers) live for exactly one RPC. APP-scoped providers persist for
 the life of the container.
 
+The sync server closes each RPC's child with `close_sync()`, so an async finalizer on a
+REQUEST-scoped provider fails the RPC with `StatusCode.UNKNOWN` and a `FinalizerError` in the
+details. The aio server closes it with `close_async()`, where async finalizers run.
+
 There is no `Scope.SESSION` for gRPC: a streaming RPC is one method invocation,
 modelled as a single REQUEST-scoped unit of work.
 
@@ -223,6 +222,10 @@ def make_caller(context: grpc.ServicerContext) -> str:
 class AppGroup(Group):
     caller = providers.Factory(make_caller, scope=Scope.REQUEST)
 ```
+
+Annotate the parameter as `grpc.ServicerContext` on both servers. The aio interceptor stores
+its context under that type too, and `grpc.aio.ServicerContext` is not a subclass of it, so a
+factory parameter annotated `grpc.aio.ServicerContext` does not resolve.
 
 The interceptor's provider has no default, so the context is required for a direct resolve and
 for a required parameter. Outside an RPC no context is set, and resolving `caller` raises
@@ -247,8 +250,8 @@ argument.
 ## Root container lifecycle
 
 gRPC has no server startup/shutdown hook, so the root container's lifecycle is
-yours to own (as with Flask). Create the container open, pass it to the
-interceptor, and close it after the server stops to run APP-scoped finalizers:
+yours to own (as with Flask). Build the container, pass it to the interceptor, and
+close it after the server stops to run APP-scoped finalizers:
 
 <!-- invisible-code-block: python
 server = sync_server
@@ -278,9 +281,10 @@ container = fetch_di_container()   # raises RuntimeError outside an intercepted 
 
 ## `*args` / `**kwargs`
 
-Unlike the Celery/Typer decorator integrations, gRPC always calls a servicer
-method as `(request, context)`, so `@inject` needs no signature rewrite and
-imposes no restriction on the method signature beyond the injected parameters.
+gRPC always calls a servicer method as `(request, context)`, so `@inject` needs no
+signature rewrite and puts no restriction on the method signature beyond the injected
+parameters. The arq and Celery `@inject` decorators, by contrast, raise `TypeError` for a
+task that declares `*args` or `**kwargs`.
 
 ## See also
 

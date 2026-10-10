@@ -54,7 +54,7 @@ class AppGroup(Group):
 broker = InMemoryBroker()
 container = Container(groups=[AppGroup])
 setup_di(broker, container)
-container.validate()  # after setup_di — its connection providers are now registered
+container.validate()  # after setup_di: its context provider is now registered
 
 
 @broker.task
@@ -64,25 +64,35 @@ async def get_report(
     return report.as_dict()
 ```
 
-`setup_di(broker, container)` stores the container on `broker.state` and registers `TaskiqEvents.WORKER_STARTUP`/`WORKER_SHUTDOWN` handlers that open/close it. Those fire when the broker's worker process starts and stops, so a script that calls tasks directly (like `InMemoryBroker` in a test) must drive the container lifecycle itself, e.g. `async with broker: ...` or an explicit `container.open()` / `await container.close_async()`.
-
-!!! warning "Deployment: `run_receiver_task` skips startup by default"
-    `taskiq.api.run_receiver_task(...)` defaults `run_startup=False`, which
-    skips the worker startup that opens the root container. Tasks still run
-    (the container is already open from construction), but nothing ever
-    closes it, so its finalizers never run at shutdown. Pass
-    `run_startup=True` (or close the root yourself around consuming) when
-    embedding a receiver with `run_receiver_task`.
+`setup_di(broker, container)` stores the container on `broker.state`, registers the
+message context provider, and hooks the root container's lifecycle to taskiq's worker
+events. Each task that uses `FromDI` gets its own `Scope.REQUEST` child container.
 
 ## Scopes
 
-The integration creates a `Scope.REQUEST` child container for each task that uses `FromDI`, built lazily through `TaskiqDepends` when the task's dependencies are resolved. A task with no `FromDI` parameter gets no child container. REQUEST-scoped providers (and their finalizers) live for the duration of that one task: the child container is closed after the task returns, including when it raises. APP-scoped providers persist for the whole worker process; `setup_di` opens the APP container on `WORKER_STARTUP` and runs `await container.close_async()` on `WORKER_SHUTDOWN`.
+The integration creates a `Scope.REQUEST` child container for each task that uses `FromDI`,
+built through `TaskiqDepends` when the task's dependencies are resolved. A task with no
+`FromDI` parameter gets no child container. REQUEST-scoped providers and their finalizers
+live for that one task, and the child is closed after the task returns or raises.
 
-There is no `Scope.SESSION` for taskiq: a task queue doesn't have a session concept comparable to websockets.
+Resolution is synchronous, as everywhere in modern-di, while the child is closed with
+`close_async()`, so REQUEST-scoped finalizers may be async or sync.
 
-## Sync resolution, async cleanup
+There is no `Scope.SESSION` for taskiq: a task queue doesn't have a session concept
+comparable to websockets.
 
-`FromDI` resolves its dependency with `Container.resolve_dependency(...)`, which is synchronous; modern-di's resolution is always sync, regardless of the framework. The per-task `Scope.REQUEST` child container that resolution runs against is nevertheless torn down asynchronously: after the task handler finishes (or raises), the integration awaits `container.close_async()` on it. So async finalizers on REQUEST-scoped providers run correctly, while the factories themselves must build synchronously.
+## Root container lifecycle
+
+`setup_di` opens the root container on `TaskiqEvents.WORKER_STARTUP` and closes it with
+`close_async()` on `WORKER_SHUTDOWN`, which runs APP-scoped finalizers. `taskiq worker`
+fires both. With an `InMemoryBroker`, `async with broker:` fires both too.
+
+!!! warning "`run_receiver_task` never closes the root"
+    A receiver embedded with `taskiq.api.run_receiver_task(...)` never calls
+    `broker.shutdown()`, so `WORKER_SHUTDOWN` never fires and APP-scoped finalizers
+    never run, whatever `run_startup` is set to. Tasks still resolve, since a
+    constructed container is already open. After the receiver stops, call
+    `await broker.shutdown()` or `await container.close_async()` yourself.
 
 ## Framework context objects
 
@@ -132,6 +142,18 @@ class AppGroup(Group):
         scope=Scope.REQUEST,
         kwargs={"message": modern_di_taskiq.taskiq_message_provider},
     )
+```
+
+## Testing
+
+Enter an `InMemoryBroker` with `async with` so the worker events fire, then send a task and
+wait for its result:
+
+```python
+async with broker:
+    task = await get_report.kiq()
+    result = await task.wait_result()
+assert result.return_value == {"service": "catalog"}
 ```
 
 ## See also

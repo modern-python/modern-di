@@ -1,7 +1,8 @@
 # Usage with `Typer`
 
-A Typer application is a Click application, so this adapter is also the answer for Click; there is
-no separate `modern-di-click`.
+`setup_di` attaches the container to a `typer.Typer` app, and `@inject` builds a `Scope.REQUEST`
+child container for each command run. The root container is yours to close. `setup_di` needs a
+`typer.Typer`: a plain Click group fails with `AttributeError`, and there is no Click adapter.
 
 ## How to use
 
@@ -73,39 +74,62 @@ if __name__ == "__main__":
         app()
 ```
 
-`@modern_di_typer.inject` builds a `REQUEST` child container for each command invocation and resolves `FromDI`-annotated parameters from it. The outer `with container:` ensures APP-scope finalizers run when the CLI exits.
+## Scopes
+
+`@inject` builds one `Scope.REQUEST` child container per command run, even for a command with no
+`FromDI` parameter, and closes it with `close_sync()` when the command returns or raises. An async
+finalizer on a REQUEST-scoped provider therefore fails the command with `FinalizerError`.
+
+## Root container lifecycle
+
+Typer has no startup or shutdown hook, so the integration never closes the root container. Wrap
+the call to `app()` in `with container:`, as above. Typer ends the process with `sys.exit`, which
+passes through the `with` block, and the block closes the root with `close_sync()` and runs
+APP-scoped finalizers. As with the per-command child, an async finalizer fails there with
+`FinalizerError`.
+
+## Framework context objects
+
+The integration registers no context provider. A command reads its own arguments, and a command
+that needs the Click context declares a `typer.Context` parameter.
 
 ## Action scope
 
-To resolve `Scope.ACTION` dependencies, inject `modern_di.Container`: `@inject` supplies the
-`REQUEST`-scoped container it creates per invocation. Call `build_child_container()` on it to enter
-`ACTION` scope:
-
-Building on the first example's `app` and `container`:
+`modern_di_typer.action_scope(ctx)` opens a `Scope.ACTION` child of the command's container and
+closes it on exit. The command must be decorated with `@inject` and declare a `typer.Context`
+parameter; without `@inject`, `action_scope` raises `RuntimeError`. Building on the first
+example's `app`:
 
 ```python
-import modern_di
-import modern_di_typer
-import typing
-from modern_di import Group, Scope, providers
-
-
 class Job:
     def run(self) -> None: ...
 
 
-class AppGroup(Group):
+class JobGroup(Group):
     job = providers.Factory(Job, scope=Scope.ACTION, bound_type=None)
 
 
 @app.command()
 @modern_di_typer.inject
-def run_job(
-    container: typing.Annotated[modern_di.Container, modern_di_typer.FromDI(modern_di.Container)],
-) -> None:
-    with container.build_child_container() as action_container:
-        job = action_container.resolve_provider(AppGroup.job)
-        job.run()
+def run_job(ctx: typer.Context) -> None:
+    with modern_di_typer.action_scope(ctx) as action_container:
+        action_container.resolve_provider(JobGroup.job).run()
+```
+
+The command can also inject the REQUEST container itself with
+`FromDI(modern_di.Container)` and call `build_child_container()` on it.
+
+## Testing
+
+Typer's `CliRunner` invokes the app in-process. It does not close the root container, so close
+it yourself when the test needs APP-scoped finalizers to run:
+
+```python
+from typer.testing import CliRunner
+
+result = CliRunner().invoke(app, ["status"])
+assert result.exit_code == 0
+assert result.output == "service=catalog\n"
 ```
 
 ## See also
@@ -118,8 +142,8 @@ def run_job(
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Register the app-scoped container with a Typer app |
-| `@inject` | Decorator that resolves `FromDI`-annotated parameters before the command runs |
-| `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]`; accepts a provider instance or a plain type |
-| `fetch_di_container(ctx)` | Returns the app-scoped container registered by `setup_di`, from any command including those of nested `add_typer` sub-apps; does not read `ctx.obj` |
-| `action_scope(ctx)` | Context manager that yields a `Scope.ACTION` child of the per-command container built by `@inject`, and closes it on exit. Raises `RuntimeError` when the command isn't decorated with `@inject` |
+| `setup_di(app, container)` | Attaches the root container to a `typer.Typer` app and returns it. |
+| `@inject` | Builds a `Scope.REQUEST` child container per command run, resolves `FromDI`-annotated parameters from it, and closes it with `close_sync()`. |
+| `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in command signatures; accepts a provider instance or a plain type. |
+| `fetch_di_container(ctx)` | Returns the root container attached by `setup_di`, from any command, including those of nested `add_typer` sub-apps. Raises `RuntimeError` naming `setup_di` when the app has none. |
+| `action_scope(ctx)` | Context manager that yields a `Scope.ACTION` child of the container `@inject` built for the command, and closes it on exit. Raises `RuntimeError` when the command isn't decorated with `@inject`. |

@@ -84,13 +84,22 @@ extend-immutable-calls = ["modern_di_fastmcp.FromDI"]
 
 ## Scopes
 
-`setup_di` opens the APP container when the server's lifespan starts and closes it with
-`close_async()` when the lifespan ends. A middleware opens a `Scope.REQUEST` child for every MCP
-request: a tool call, a resource read, a prompt render or a list call. Notifications open nothing.
-There is no `Scope.SESSION` child: an MCP session has no close hook, so nothing could close it.
+A middleware opens a `Scope.REQUEST` child container for every MCP request: a tool call, a
+resource read, a prompt render or a list call. Notifications open nothing. The child is
+closed with `close_async()`, so REQUEST-scoped finalizers may be async or sync. There is no
+`Scope.SESSION` child: an MCP session has no close hook, so nothing could close it.
 
-A tool of a mounted server resolves through the parent's middleware, so call `setup_di` on the
-server that clients connect to.
+`setup_di` on the server that clients connect to covers its own components and those of
+every server mounted on it. `setup_di` on a mounted server covers only that server's
+components, and a `FromDI` parameter on the parent's own tools then fails with a
+`ToolError` that names `setup_di`.
+
+## Root container lifecycle
+
+`setup_di` opens the root container when the server's lifespan starts and closes it with
+`close_async()` when the lifespan ends, which runs APP-scoped finalizers. With
+`manage_lifespan=False` it leaves both to another app; see
+[Sharing a container with FastAPI](#sharing-a-container-with-fastapi).
 
 ## Framework context objects
 
@@ -140,8 +149,11 @@ app.mount("/mcp", mcp_app)
 
 ## Background tasks
 
-A tool registered with `task=True` runs in FastMCP's task worker, outside middleware, so there is no
-request container for it. `FromDI` raises a `RuntimeError` there that names this case.
+A tool registered with `task=True` needs `fastmcp[tasks]` and a `TasksExtension` added with
+`mcp.add_extension(...)`. Such a tool runs in FastMCP's task worker, outside middleware, so
+there is no request container for it and `FromDI` cannot resolve. The client gets a
+`ToolError` with `Failed to resolve dependencies for parameter(s): ...`, and the server logs a
+`RuntimeError` that names background tasks.
 
 ## Testing
 
@@ -157,6 +169,10 @@ async with fastmcp.Client(mcp) as client:
     result = await client.call_tool("greet", {"name": "world"})
 assert result.data == "Hello, world!"
 ```
+
+A `FromDI` inside `Annotated` that the server rejects at startup reaches the test as
+`RuntimeError: Client failed to connect: ...`, followed by the server's message naming the
+parameter.
 
 ## See also
 

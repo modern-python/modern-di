@@ -1,10 +1,10 @@
 # Usage with `aiogram`
 
-aiogram has no dependency-injection system of its own, so `modern-di-aiogram`
-uses the `@inject` decorator with `FromDI` markers (or `auto_inject=True` to
-skip the decorator entirely). `setup_di` opens the root container on
-dispatcher startup, closes it on shutdown, and installs middleware that opens
-a per-update child container automatically.
+aiogram passes handler arguments by name from its middleware data, but it has no typed
+provider graph. `modern-di-aiogram` adds one: mark handler parameters with `FromDI` and
+decorate the handler with `@inject`, or pass `auto_inject=True` to skip the decorator.
+`setup_di` builds a `Scope.REQUEST` child container per update and opens and closes the root
+container with the dispatcher.
 
 ## How to use
 
@@ -61,7 +61,7 @@ class AppGroup(Group):
 dispatcher = Dispatcher()
 container = Container(groups=[AppGroup])
 setup_di(dispatcher, container)
-container.validate()  # after setup_di — its connection providers are now registered
+container.validate()  # after setup_di: its context providers are now registered
 
 
 @dispatcher.message()
@@ -73,10 +73,106 @@ async def greet(
     await message.answer(str(report.as_dict()))
 ```
 
-`setup_di(dispatcher, container)` stores the container on the dispatcher,
-registers `dispatcher.startup`/`dispatcher.shutdown` handlers that open/close
-it, and installs an update-level outer middleware that builds a per-update
-child container.
+<!-- invisible-code-block: python
+report_settings, report_group = Settings, AppGroup
+-->
+
+## Scopes
+
+The integration creates one `Scope.REQUEST` child container per update. Its middleware is an
+[outer middleware](https://docs.aiogram.dev/en/latest/dispatcher/middlewares.html) on
+`dispatcher.update`, so it wraps every update whichever router or handler processes it. The
+child is closed with `close_async()` after the handler returns or raises, so REQUEST-scoped
+finalizers may be async or sync. Resolution itself is synchronous, as everywhere in modern-di.
+
+There is no `Scope.SESSION` for aiogram: each Telegram update is handled
+independently; there's no persistent per-chat/per-user connection comparable
+to a WebSocket. See [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for).
+
+## Root container lifecycle
+
+`setup_di` registers `container.open` on `dispatcher.startup` and `container.close_async` on
+`dispatcher.shutdown`, and closing runs APP-scoped finalizers. `start_polling()` emits both
+events, and so does an aiohttp app wired with aiogram's `setup_application()`.
+
+## Framework context objects
+
+Two types resolve by annotation: `aiogram.types.Update` and `aiogram.types.TelegramObject`,
+the concrete event unwrapped from the update. See
+[Framework context objects](../providers/context.md#framework-context-objects) for how
+implicit and explicit resolution work.
+
+The following context providers are also available for explicit import:
+
+- `aiogram_update_provider` provides the current `aiogram.types.Update`.
+- `aiogram_event_provider` provides the current `aiogram.types.TelegramObject`,
+  the concrete event unwrapped from the `Update` (e.g. a `Message` or
+  `CallbackQuery` instance).
+
+A concrete event type such as `Message` has no provider of its own, so a factory that
+declares `message: Message` fails `container.validate()`. Annotate the parameter as
+`TelegramObject`, or wire it to `aiogram_event_provider` with `kwargs`.
+
+### Implicit (type-based) usage
+
+```python
+from aiogram.types import TelegramObject, Update
+from modern_di import Group, Scope, providers
+
+
+def create_update_info(update: Update, event: TelegramObject) -> dict[str, str]:
+    return {
+        "update_id": str(update.update_id),
+        "event_type": type(event).__name__,
+    }
+
+
+class AppGroup(Group):
+    # Update and TelegramObject are resolved by type annotation
+    update_info = providers.Factory(
+        create_update_info,
+        scope=Scope.REQUEST,
+    )
+```
+
+### Explicit (provider-based) usage
+
+`aiogram_event_provider` is bound to the base `TelegramObject` type. To get the event
+typed as `Message`, wire the provider explicitly. In a factory that is `kwargs`:
+
+```python
+from aiogram.types import Message
+from modern_di_aiogram import aiogram_event_provider
+
+
+def message_text(message: Message) -> str:
+    return message.text or ""
+
+
+class AppGroup(Group):
+    text = providers.Factory(
+        message_text,
+        scope=Scope.REQUEST,
+        kwargs={"message": aiogram_event_provider},
+    )
+```
+
+In a handler it is `FromDI`:
+
+```python
+import typing
+
+from aiogram.types import Message
+from modern_di_aiogram import FromDI, aiogram_event_provider, inject
+
+
+@inject
+async def log_message(
+    message: Message,
+    same_message: typing.Annotated[Message, FromDI(aiogram_event_provider)],
+) -> None:
+    assert message is same_message
+```
 
 ## Auto-injecting handlers
 
@@ -117,114 +213,19 @@ dispatcher = Dispatcher()
 dispatcher.include_router(router)
 container = Container(groups=[AppGroup])
 setup_di(dispatcher, container, auto_inject=True)
-container.validate()  # after setup_di — its connection providers are now registered
+container.validate()  # after setup_di: its context providers are now registered
 ```
 
 !!! warning "Register handlers before startup"
     `auto_inject` wraps handlers on `dispatcher.startup`, which fires from
-    `dispatcher.emit_startup()`, the call `start_polling()`/`start_webhook()`
-    makes before serving updates. Only handlers registered (via
-    `dispatcher.include_router()` or the decorators directly) **before**
-    `emit_startup()` runs are wrapped; a handler added afterward is invoked
-    without injection and any `FromDI` parameter on it is left unresolved.
+    `dispatcher.emit_startup()`, the call `start_polling()` makes before serving
+    updates. Only handlers registered (via `dispatcher.include_router()` or the
+    decorators directly) **before** `emit_startup()` runs are wrapped. A handler
+    added afterward is called without injection, so aiogram raises `TypeError`
+    for its missing `FromDI` argument.
 
-## Scopes
-
-The integration creates one `Scope.REQUEST` child container per update.
-The middleware is installed on `dispatcher.update` as an
-[outer middleware](https://docs.aiogram.dev/en/latest/dispatcher/middlewares.html),
-so it wraps every update regardless of which router or handler ultimately
-processes it. The child container is closed after the handler runs,
-including when it raises.
-
-There is no `Scope.SESSION` for aiogram: each Telegram update is handled
-independently; there's no persistent per-chat/per-user connection comparable
-to a WebSocket. See [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for).
-
-## Sync resolution, async cleanup
-
-`FromDI` resolves its dependency with `Container.resolve_dependency(...)`,
-which is synchronous; modern-di's resolution is always sync, regardless of
-the framework. The per-update `Scope.REQUEST` child container that resolution
-runs against is nevertheless torn down asynchronously: after the handler
-finishes (or raises), the integration awaits `child_container.close_async()`.
-So async finalizers on REQUEST-scoped providers run correctly, while the
-factories themselves must build synchronously.
-
-## Framework context objects
-
-`aiogram.types.Update` and the concrete event it carries (`Message`,
-`CallbackQuery`, etc.) are automatically made available by the integration,
-so factories can declare them as parameters. See
-[Framework context objects](../providers/context.md#framework-context-objects)
-for how implicit and explicit resolution work.
-
-The following context providers are also available for explicit import:
-
-- `aiogram_update_provider` provides the current `aiogram.types.Update`.
-- `aiogram_event_provider` provides the current `aiogram.types.TelegramObject`,
-  the concrete event unwrapped from the `Update` (e.g. a `Message` or
-  `CallbackQuery` instance).
-
-### Implicit (type-based) usage
-
-```python
-from aiogram.types import TelegramObject, Update
-from modern_di import Group, Scope, providers
-
-
-def create_update_info(update: Update, event: TelegramObject) -> dict[str, str]:
-    return {
-        "update_id": str(update.update_id),
-        "event_type": type(event).__name__,
-    }
-
-
-class AppGroup(Group):
-    # Update and TelegramObject are resolved by type annotation
-    update_info = providers.Factory(
-        create_update_info,
-        scope=Scope.REQUEST,
-    )
-```
-
-### Explicit (provider-based) usage
-
-`aiogram_event_provider` is bound to the base `TelegramObject` type, so
-narrowing a parameter to a concrete event type (like `Message`) requires
-wiring it explicitly with `FromDI`:
-
-```python
-import typing
-
-from aiogram.types import Message
-from modern_di_aiogram import FromDI, aiogram_event_provider, inject
-
-
-@inject
-async def log_message(
-    message: Message,
-    same_message: typing.Annotated[Message, FromDI(aiogram_event_provider)],
-) -> None:
-    assert message is same_message
-```
-
-## See also
-
-- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
-- [Lifecycle](../providers/lifecycle.md): finalizers and container teardown.
-- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
-
-## API
-
-| Symbol | Description |
-|---|---|
-| `setup_di(dispatcher, container, *, auto_inject=False)` | Stores the container on the dispatcher, registers `aiogram_update_provider`/`aiogram_event_provider`, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close the container, and installs the per-update middleware. With `auto_inject=True`, also wraps every handler already registered on the dispatcher at startup. |
-| `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-update child container. |
-| `inject` | Decorator for an aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed. |
-| `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher. |
-| `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (REQUEST scope). |
-| `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (REQUEST scope), the concrete event unwrapped from the `Update`. |
+Handlers on `update` observers (`@dispatcher.update()` or `@router.update()`) are never
+wrapped. Decorate those with `@inject` yourself.
 
 ## Usage with `aiogram-dialog`
 
@@ -284,3 +285,71 @@ the per-update container.
 - An `@inject` getter must still declare `**kwargs` (aiogram-dialog always calls
   getters with the full `middleware_data`), and a `FromDI` getter parameter must
   not share a name with a `middleware_data` key (e.g. `bot`, `event`).
+
+## Testing
+
+Drive a real `Dispatcher` with a bot that has a fake token: emit startup, feed it an
+`Update`, and emit shutdown. `feed_update` returns what the handler returned, so a handler
+that returns a value is easy to assert on.
+
+<!-- invisible-code-block: python
+Settings, AppGroup = report_settings, report_group
+-->
+
+```python
+import datetime
+
+from aiogram import Bot, Dispatcher
+from aiogram.types import Chat, Message, Update
+from modern_di_aiogram import FromDI, inject, setup_di
+
+
+async def test_report() -> None:
+    dispatcher = Dispatcher()
+    container = Container(groups=[AppGroup])
+    setup_di(dispatcher, container)
+
+    @dispatcher.message()
+    @inject
+    async def report_handler(
+        message: Message,
+        report: typing.Annotated[Report, FromDI(Report)],
+    ) -> dict[str, str]:
+        return report.as_dict()
+
+    bot = Bot("123456:" + "A" * 35)
+    update = Update(
+        update_id=1,
+        message=Message(
+            message_id=1,
+            date=datetime.datetime.now(tz=datetime.UTC),
+            chat=Chat(id=1, type="private"),
+            text="report",
+        ),
+    )
+    await dispatcher.emit_startup(bot=bot)
+    assert await dispatcher.feed_update(bot, update) == {"service": "catalog"}
+    await dispatcher.emit_shutdown(bot=bot)
+    await bot.session.close()
+```
+
+<!-- invisible-code-block: python
+await test_report()
+-->
+
+## See also
+
+- [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
+- [Lifecycle](../providers/lifecycle.md): finalizers and container teardown.
+- [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
+
+## API
+
+| Symbol | Description |
+|---|---|
+| `setup_di(dispatcher, container, *, auto_inject=False)` | Stores the container on the dispatcher, registers `aiogram_update_provider`/`aiogram_event_provider`, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close the container, and installs the per-update middleware. With `auto_inject=True`, also wraps every handler already registered on the dispatcher at startup. |
+| `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-update child container. |
+| `inject` | Decorator for an aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed. |
+| `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher. |
+| `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (REQUEST scope). |
+| `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (REQUEST scope), the concrete event unwrapped from the `Update`. |
