@@ -108,9 +108,13 @@ def test_build_table_compares_each_variant_against_its_matching_rivals() -> None
     )
     table = build_table([run])
     # by-reference: 1.0/0.5 = 2.00 vs dependency-injector, 1.0/2.0 = 0.50 vs that-depends
-    assert _section(table, "By-reference resolution") == [["C1 transient", "1.00 µs", "2.00", "**0.50**"]]
+    assert _section(table, "By-reference resolution") == [
+        ["C1 transient", "1.00 µs", "500 ns (2.00)", "2.00 µs (**0.50**)"]
+    ]
     # by-type: 2.0/4.0 = 0.50 vs dishka, 2.0/1.0 = 2.00 vs wireup
-    assert _section(table, "By-type resolution") == [["C1 transient", "2.00 µs", "**0.50**", "2.00"]]
+    assert _section(table, "By-type resolution") == [
+        ["C1 transient", "2.00 µs", "4.00 µs (**0.50**)", "1.00 µs (2.00)"]
+    ]
 
 
 def test_build_table_publishes_c4_per_request_not_per_batch() -> None:
@@ -124,7 +128,14 @@ def test_build_table_publishes_c4_per_request_not_per_batch() -> None:
         test_c4_request_lifecycle_wireup=400e-6,
     )
     assert _section(build_table([run]), "Request lifecycle") == [
-        ["C4 request lifecycle", "2.00 µs", "**0.50**", "**0.50**", "**0.50**", "**0.50**"]
+        [
+            "C4 request lifecycle",
+            "2.00 µs",
+            "4.00 µs (**0.50**)",
+            "4.00 µs (**0.50**)",
+            "4.00 µs (**0.50**)",
+            "4.00 µs (**0.50**)",
+        ]
     ]
 
 
@@ -142,7 +153,7 @@ def test_build_table_takes_the_median_across_runs() -> None:
     # The ratios are paired per run: (0.5, 1.5, 1.0) against each constant 2 µs rival -> median
     # 1.00, quantiles Q1=0.75, Q3=1.25 -> IQR 0.5 / median 1.0 * 100 = 50.0%.
     assert _section(build_table(runs), "By-reference resolution") == [
-        ["C1 transient", "2.00 µs ±50.0%", "1.00 ±50.0%", "1.00 ±50.0%"]
+        ["C1 transient", "2.00 µs ±50.0%", "2.00 µs (1.00 ±50.0%)", "2.00 µs (1.00 ±50.0%)"]
     ]
 
 
@@ -158,7 +169,7 @@ def test_build_table_ratio_is_median_of_paired_per_run_ratios() -> None:
         for ours, theirs in ((1e-6, 2e-6), (2e-6, 1e-6), (6e-6, 3e-6))
     ]
     row = _section(build_table(runs), "By-reference resolution")[0]
-    assert row[:3] == ["C1 transient", "2.00 µs ±125.0%", "2.00 ±37.5%"]
+    assert row[:3] == ["C1 transient", "2.00 µs ±125.0%", "2.00 µs (2.00 ±37.5%)"]
 
 
 def test_build_table_bolds_a_sub_one_ratio_without_swallowing_its_annotation() -> None:
@@ -170,7 +181,7 @@ def test_build_table_bolds_a_sub_one_ratio_without_swallowing_its_annotation() -
         for theirs in (2e-7, 4e-7, 4e-7)
     ]
     row = _section(build_table(runs), "By-reference resolution")[0]
-    assert row[2] == "**0.25** ±50.0%"
+    assert row[2] == "400 ns (**0.25** ±50.0%)"
 
 
 def test_build_table_ratio_pairs_only_runs_reporting_both_sides() -> None:
@@ -184,7 +195,7 @@ def test_build_table_ratio_pairs_only_runs_reporting_both_sides() -> None:
         _run(test_c1_transient_by_ref_modern_di=3e-6, test_c1_transient_dependency_injector=2e-6),
     ]
     row = _section(build_table(runs), "By-reference resolution")[0]
-    assert row[2] == "1.00 ±50.0%"
+    assert row[2] == "2.00 µs (1.00 ±50.0%)"
 
 
 def test_comparative_batch_literals_match_the_report_divisor() -> None:
@@ -281,7 +292,7 @@ def test_build_table_single_run_has_no_iqr_annotation_or_footnote() -> None:
     run = _run(test_c1_transient_by_ref_modern_di=3.1e-7, test_c1_transient_dependency_injector=6.2e-7)
     table = build_table([run])
     # IQR is undefined for a single run: no ± on the cell, and no footnote -- never crash, never fake 0.0%.
-    assert _section(table, "By-reference resolution") == [["C1 transient", "310 ns", "**0.50**", "n/a"]]
+    assert _section(table, "By-reference resolution") == [["C1 transient", "310 ns", "620 ns (**0.50**)", "n/a"]]
     assert _footnote(table, "By-reference resolution") is None
 
 
@@ -303,5 +314,38 @@ def test_build_table_publishes_c6_per_request_undivided() -> None:
         test_c6_context_wireup=1e-6,
     )
     assert _section(build_table([run]), "Per-request context") == [
-        ["C6 context", "1.45 µs", "**0.50**", "**0.50**", "1.45", "1.45"]
+        ["C6 context", "1.45 µs", "2.90 µs (**0.50**)", "2.90 µs (**0.50**)", "1.00 µs (1.45)", "1.00 µs (1.45)"]
+    ]
+
+
+def test_build_table_summary_takes_each_rival_from_the_table_whose_api_matches_it() -> None:
+    # by reference: 1.0/0.5 = 2.0 vs dependency-injector, 1.0/2.0 = 0.5 vs that-depends
+    # by type: 2.0/4.0 = 0.5 vs dishka, 2.0/1.0 = 2.0 vs wireup. Pairing dishka with the
+    # by-reference cell instead would read 1.0/4.0 = 0.25, "4.0x faster".
+    run = _run(
+        test_c1_transient_by_ref_modern_di=1e-6,
+        test_c1_transient_by_type_modern_di=2e-6,
+        test_c1_transient_dependency_injector=5e-7,
+        test_c1_transient_that_depends=2e-6,
+        test_c1_transient_dishka=4e-6,
+        test_c1_transient_wireup=1e-6,
+    )
+    assert _section(build_table([run]), "At a glance") == [
+        ["C1 transient", "2.0x slower", "2.0x faster", "2.0x faster", "2.0x slower"]
+    ]
+
+
+def test_build_table_summary_rounds_the_unrounded_ratio() -> None:
+    # 0.198/10 = 0.0198 -> 50.5x, published as "51x" (the two-decimal ratio cell, 0.02, would read 50x).
+    # 0.198/0.198 = 1.0 and 0.198/0.19 = 1.042 both round to 1.0x, so both read "level".
+    # 0.198/0.22 = 0.9 -> 1.11x.
+    run = _run(
+        test_c6_context_modern_di=1.98e-7,
+        test_c6_context_dependency_injector=1e-5,
+        test_c6_context_that_depends=1.98e-7,
+        test_c6_context_dishka=1.9e-7,
+        test_c6_context_wireup=2.2e-7,
+    )
+    assert _section(build_table([run]), "At a glance") == [
+        ["C6 context", "51x faster", "level", "level", "1.1x faster"]
     ]

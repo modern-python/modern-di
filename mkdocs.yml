@@ -85,6 +85,7 @@ nav:
       - From dependency-injector: migration/from-dependency-injector.md
   - Development:
       - Contributing: dev/contributing.md
+      - Performance history: dev/performance-history.md
 
 theme:
   name: material
@@ -231,6 +232,7 @@ plugins:
           - migration/from-dependency-injector.md: Migrating an existing dependency-injector codebase to modern-di
         Development:
           - dev/contributing.md: Contributing guide for local setup and workflow
+          - dev/performance-history.md: Each resolve-path optimization and its measured effect
 
 extra:
   social:

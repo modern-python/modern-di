@@ -22,6 +22,10 @@ Two different across-run IQRs therefore appear per table and are named apart: th
 the spread of that cell's own reduced values (paired ratios for a ratio cell, medians for the
 modern-di column), while the footnote bounds each *side's own median*. They do not agree, and
 must not be presented as if they did.
+
+The "At a glance" table restates the same paired ratios as "Nx faster" or "Nx slower", one row per
+scenario, taking each rival's cell from the table whose API matches it. It rounds the unrounded
+median, so a 0.0198 ratio reads 51x where its two-decimal cell would read 0.02.
 """
 
 import argparse
@@ -36,6 +40,7 @@ import tempfile
 
 BATCH = 100
 _MICROSECOND = 1e-6  # named so ruff's PLR2004 (magic value in comparison) stays clean
+_WHOLE_FACTOR = 10
 
 BY_REFERENCE = ("dependency_injector", "that_depends")
 BY_TYPE = ("dishka", "wireup")
@@ -159,6 +164,30 @@ def _format_time(seconds: float) -> str:
     return f"{seconds * 1e6:.2f} µs" if seconds >= _MICROSECOND else f"{seconds * 1e9:.0f} ns"
 
 
+def _verdict(ratio: float) -> str:
+    """Render a modern-di ÷ rival ratio as how many times faster or slower modern-di is."""
+    factor = 1 / ratio if ratio < 1.0 else ratio
+    text = f"{factor:.0f}x" if factor >= _WHOLE_FACTOR else f"{factor:.1f}x"
+    if text == "1.0x":
+        return "level"
+    return f"{text} faster" if ratio < 1.0 else f"{text} slower"
+
+
+def _render_summary(parsed: list[dict[tuple[str, str], float]]) -> str:
+    rivals = BY_REFERENCE + BY_TYPE
+    header = "| Scenario | " + " | ".join(f"vs {r.replace('_', '-')}" for r in rivals) + " |"
+    lines = ["### At a glance", "", header, "|" + "---|" * (len(rivals) + 1)]
+    for label in dict.fromkeys(row.label for table in TABLES for row in table.rows):
+        cells = [label]
+        for rival in rivals:
+            row = next(row for table in TABLES if rival in table.rivals for row in table.rows if row.label == label)
+            ratio = _reduce_ratio(parsed, (row.modern_di_key, "modern_di"), (row.rival_key, rival))
+            cells.append("n/a" if ratio is None else _verdict(ratio.median))
+        if any(cell != "n/a" for cell in cells[1:]):
+            lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
 def _render(table: Table, parsed: list[dict[tuple[str, str], float]]) -> str:
     header = "| Scenario | modern-di | " + " | ".join(f"vs {r.replace('_', '-')}" for r in table.rivals) + " |"
     lines = [f"### {table.title}", "", header, "|" + "---|" * (len(table.rivals) + 2)]
@@ -185,10 +214,12 @@ def _render(table: Table, parsed: list[dict[tuple[str, str], float]]) -> str:
             text = f"**{ratio.median:.2f}**" if ratio.median < 1.0 else f"{ratio.median:.2f}"
             if ratio.iqr_pct is not None:
                 text += f" ±{ratio.iqr_pct:.1f}%"
-            cells.append(text)
             theirs = _reduce_cell(parsed, (row.rival_key, rival))
-            if theirs is not None and theirs.iqr_pct is not None:
-                rival_pcts.append(theirs.iqr_pct)
+            if theirs is not None:
+                text = f"{_format_time(theirs.median / row.divisor)} ({text})"
+                if theirs.iqr_pct is not None:
+                    rival_pcts.append(theirs.iqr_pct)
+            cells.append(text)
         lines.append("| " + " | ".join(cells) + " |")
     if modern_di_pcts and rival_pcts:
         lines.append("")
@@ -206,7 +237,7 @@ def _render(table: Table, parsed: list[dict[tuple[str, str], float]]) -> str:
 def build_table(runs: list[dict]) -> str:
     """Render every published markdown table from N raw pytest-benchmark payloads."""
     parsed = [parse_run(run) for run in runs]
-    return "\n\n".join(_render(table, parsed) for table in TABLES)
+    return "\n\n".join([_render_summary(parsed), *(_render(table, parsed) for table in TABLES)])
 
 
 def main() -> None:
