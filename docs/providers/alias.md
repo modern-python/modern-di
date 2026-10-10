@@ -1,25 +1,8 @@
 # Alias
 
-`Alias` lets one type resolve to whatever provider already handles a different type. The most common use is binding an abstract base or `Protocol` to a concrete implementation that is already registered, without registering the implementation twice.
-
-Resolving the alias calls the source's resolver directly, so overrides and caching on the source provider apply transparently.
-
-## Parameters
-
-`Alias(source_type, *, bound_type)`. The `source_type` may also be passed as a keyword
-(`source_type=`).
-
-### source_type
-
-The type whose registered provider should answer the call. At resolution time, the alias looks up `source_type` in the providers registry and delegates to that provider. If `source_type` is not registered, an `AliasSourceNotRegisteredError` is raised.
-
-### bound_type
-
-The type the alias is registered under in the providers registry, i.e. the type you pass to `container.resolve(...)`. Required. Set it to the abstract or `Protocol` type you want resolvable, or to `None` to make the alias resolvable by reference only. An alias bound to its own source type would resolve to itself, so `bound_type=source_type` raises `AliasBoundToSourceError` at declaration.
-
-An alias holds no instance and applies no caching; its effective scope is derived from its source provider.
-
-## Basic usage
+`Alias` makes one type resolve through the provider already registered for another type. Use it to
+bind an abstract base or `Protocol` to a registered implementation without registering the
+implementation twice:
 
 ```python
 import dataclasses
@@ -56,31 +39,56 @@ container = Container(groups=[Dependencies])
 concrete = container.resolve(PostgresRepository)
 abstract = container.resolve(Repository)
 
-# Both resolve to the same instance — the alias delegates to the
-# cached source factory.
 assert concrete is abstract
 ```
 
-## Sharing the source's cache
+An alias holds no instance and caches nothing, so every resolve goes through the source provider.
+With a cached source, as here, the concrete type, the alias type and a downstream parameter typed
+as the alias all get the same instance. With an uncached source, each resolve creates a new one.
+Aliases chain (an alias whose source type is another alias's `bound_type` works), and an alias can
+be wired into `kwargs` like any other provider.
 
-Because `Alias` does not cache anything itself, callers automatically share whatever instance the source provider returns. With a cached `Factory`, every resolution path returns the same singleton: by the concrete type, by the abstract type, or via a downstream factory parameter typed as the abstract.
+## Parameters
 
-With an uncached source `Factory`, each resolution still goes through the source factory, so each call produces a new instance (matching the source factory's own behavior).
+`Alias(source_type, *, bound_type)`. The `source_type` may also be passed as a keyword
+(`source_type=`).
+
+### source_type
+
+The type whose registered provider answers the call. The alias looks `source_type` up in the
+providers registry and delegates to that provider. If nothing is registered for it, resolving the
+alias raises `AliasSourceNotRegisteredError`.
+
+### bound_type
+
+The type the alias is registered under, the one you pass to `container.resolve(...)`. Required. Set
+it to the abstract or `Protocol` type you want resolvable, or to `None` to make the alias resolvable
+by reference only. An alias bound to its own source type would resolve to itself, so
+`bound_type=source_type` raises `AliasBoundToSourceError` at declaration. modern-di does not check
+that the source's instances satisfy `bound_type`.
+
+### No scope
+
+`Alias` takes no `scope=`, and a group's default scope does not apply to it. It resolves at its
+source's scope: an alias of a REQUEST-scoped factory resolves from a REQUEST container and raises
+`ScopeNotInitializedError` from the APP container, the same as its source.
 
 ## Overrides
 
-Overrides are keyed by `provider_id`, so the alias and its source can be overridden independently. See [Testing with overrides](../recipes/testing-overrides.md) for the `container.override` / `reset_override` primitives.
+Overrides are keyed by the provider, so the alias and its source can be overridden independently.
+See [Testing with overrides](../recipes/testing-overrides.md) for `container.override` and
+`reset_override`; the `with container.override(...)` form restores the previous state on exit.
 
 ```python
 mock_for_alias = PostgresRepository(dsn="alias-mock")
 container.override(Dependencies.abstract_repo, mock_for_alias)
 
 assert container.resolve(Repository) is mock_for_alias
-# The source provider is untouched.
 assert container.resolve(PostgresRepository) is not mock_for_alias
 ```
 
-Note: an active override on the alias takes precedence over an override on its source for the aliased type, so reset the alias override first if you want the source override to win.
+While both are overridden, the alias's override wins for the alias type. Reset the alias override
+first if you want the source override to apply to both:
 
 ```python
 container.reset_override(Dependencies.abstract_repo)
@@ -98,18 +106,49 @@ assert container.resolve(Repository) is mock_for_source
 
 ## Validation and cycle detection
 
-`Alias` participates in `container.validate()`:
+`container.validate()` treats the source provider as the alias's dependency and reports problems
+inside one `ValidationFailedError`:
 
-- If `source_type` is not registered, `AliasSourceNotRegisteredError` is raised eagerly.
-- The alias reports the source provider as a dependency, so cycles that pass through an alias are
-  detected and reported via `CircularDependencyError`; see
+- `AliasSourceNotRegisteredError` when nothing is registered for `source_type`.
+- `CircularDependencyError` for a cycle that passes through an alias; see
   [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md).
+- `InvalidScopeDependencyError` when a provider depends, through an alias, on a source at a deeper
+  scope.
 
-!!! note "Scope is checked transitively through `validate()`"
-    `Container.validate()` checks scope transitively through aliases. A shallow-scoped caller that
-    depends, via an alias, on a deeper-scoped source is flagged with `InvalidScopeDependencyError`
-    at validation time. It is the same [scope dependency rule](scopes.md#the-scope-dependency-rule)
-    enforced everywhere else, applied through the alias's source chain instead of letting it surface
-    as `ScopeNotInitializedError` at runtime. The error names every hop of that chain and its
-    terminal source, since the alias's own type carries no scope to point at; see
+Without `validate()`, the first resolve that reaches the problem raises
+`AliasSourceNotRegisteredError`, `CircularDependencyError` or `ScopeNotInitializedError` directly.
+
+```python
+class Cache(Protocol): ...
+
+
+class InMemoryCache: ...
+
+
+class CacheDependencies(Group):
+    cache = providers.Alias(InMemoryCache, bound_type=Cache)
+
+
+cache_container = Container(groups=[CacheDependencies])
+```
+
+<!-- raises: ValidationFailedError -->
+
+```python
+cache_container.validate()  # .exceptions holds an AliasSourceNotRegisteredError
+```
+
+!!! note "Scope is checked through the alias's source chain"
+    `validate()` applies the [scope dependency rule](scopes.md#the-scope-dependency-rule) through
+    aliases. The error names every hop of the chain and its terminal source, since the alias's own
+    type carries no scope to point at; see
     [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md#when-the-dependency-is-reached-through-an-alias).
+
+## See also
+
+- [Factories: `bound_type`](factories.md#bound_type) — how a provider's registered type is chosen.
+- [AliasSourceNotRegisteredError](../troubleshooting/alias-source-not-registered-error.md) — the
+  source type has no provider.
+- [AliasBoundToSourceError](../troubleshooting/alias-bound-to-source-error.md) — an alias bound to
+  its own source type.
+- [Testing with overrides](../recipes/testing-overrides.md) — overriding providers in tests.
