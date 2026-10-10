@@ -14,5 +14,5 @@ The Release body is GitHub's generated notes, built from the squashed PR titles 
 tag. A conventional-commit PR title is therefore the changelog entry a reader gets, and that is
 where the care goes. A release wanting prose gets it after the fact with
 `gh release edit <tag> --notes-file <file>`. There is no committed notes file and no template.
-Releases 2.15.0 through 3.4.0 have curated bodies, which live on the
+Releases from 2.15.0 on have curated bodies, which live on the
 [Releases page](https://github.com/modern-python/modern-di/releases) and nowhere else.
