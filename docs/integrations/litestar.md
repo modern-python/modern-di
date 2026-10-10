@@ -25,6 +25,9 @@
     ```
 
 ### 2. Apply to your application
+
+<!-- skip: next "inferred dependencies are deprecated since Litestar 2.23; modern-python/modern-di-litestar#72" -->
+
 ```python
 import dataclasses
 
@@ -108,6 +111,8 @@ Websockets add `SESSION` scope between `APP` and `REQUEST`; see [the scope
 hierarchy](../providers/scopes.md#what-each-scope-is-for). `SESSION` covers
 the lifetime of the websocket connection and is entered automatically;
 `REQUEST` covers one message and must be entered manually:
+
+<!-- skip: next "inferred dependencies are deprecated since Litestar 2.23; modern-python/modern-di-litestar#72" -->
 
 ```python
 import dataclasses

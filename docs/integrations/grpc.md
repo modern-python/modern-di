@@ -28,6 +28,53 @@
 opens one `Scope.REQUEST` child container per RPC and resolves `FromDI`-annotated
 parameters of `@inject`-decorated servicer methods.
 
+<!-- invisible-code-block: python
+import sys
+import types
+
+import grpc
+
+
+class HelloRequest(types.SimpleNamespace):
+    pass
+
+
+class HelloReply(types.SimpleNamespace):
+    pass
+
+
+class GreeterServicer:
+    pass
+
+
+def add_GreeterServicer_to_server(servicer: GreeterServicer, target: grpc.Server) -> None:
+    handler = grpc.unary_unary_rpc_method_handler(servicer.SayHello)
+    target.add_generic_rpc_handlers((grpc.method_handlers_generic_handler("helloworld.Greeter", {"SayHello": handler}),))
+
+
+def offline_server(*args: object, **kwargs: object) -> grpc.Server:
+    built = real_grpc_server(*args, **kwargs)
+    built.add_insecure_port = lambda address: 0
+    built.start = lambda: None
+    built.wait_for_termination = lambda timeout=None: True
+    return built
+
+
+myapp_module = types.ModuleType("myapp")
+pb2_module = types.ModuleType("myapp.greeter_pb2")
+pb2_grpc_module = types.ModuleType("myapp.greeter_pb2_grpc")
+pb2_module.HelloRequest = HelloRequest
+pb2_module.HelloReply = HelloReply
+pb2_grpc_module.GreeterServicer = GreeterServicer
+pb2_grpc_module.add_GreeterServicer_to_server = add_GreeterServicer_to_server
+myapp_module.greeter_pb2 = pb2_module
+myapp_module.greeter_pb2_grpc = pb2_grpc_module
+sys.modules.update({"myapp": myapp_module, "myapp.greeter_pb2": pb2_module, "myapp.greeter_pb2_grpc": pb2_grpc_module})
+real_grpc_server = grpc.server
+grpc.server = offline_server
+del HelloRequest, HelloReply, GreeterServicer, add_GreeterServicer_to_server
+-->
+
 ```python
 import typing
 from concurrent import futures
@@ -81,6 +128,19 @@ server.start()
 server.wait_for_termination()
 ```
 
+<!-- invisible-code-block: python
+from unittest import mock
+
+grpc.server = real_grpc_server
+sync_server = server
+peer_context = mock.Mock(spec=grpc.ServicerContext)
+peer_context.peer.return_value = "ipv4:127.0.0.1:1"
+say_hello = DIInterceptor(container).intercept_service(
+    lambda details: grpc.unary_unary_rpc_method_handler(GreeterService().SayHello), None
+)
+assert say_hello.unary_unary(greeter_pb2.HelloRequest(), peer_context).message == "catalog <- ipv4:127.0.0.1:1"
+-->
+
 Constructing `DIInterceptor(container)` registers the `ServicerContext` context
 provider on the container automatically, with no separate setup call. Call
 `container.validate()` after that construction, not before, for the same reason
@@ -90,6 +150,18 @@ described in [Writing an integration](writing-integrations.md#lifecycle-rules).
 
 `DIAioInterceptor` is the async twin: pass it to `grpc.aio.server(...)` and write
 `async def` servicer methods (server-streaming methods as `async` generators):
+
+<!-- invisible-code-block: python
+import asyncio
+
+
+class Greeter:
+    def greet(self, name: str) -> str:
+        return f"Hello, {name}"
+
+
+asyncio.set_event_loop(asyncio.new_event_loop())
+-->
 
 ```python
 import grpc
@@ -109,6 +181,11 @@ class GreeterService(greeter_pb2_grpc.GreeterServicer):
 
 server = grpc.aio.server(interceptors=[DIAioInterceptor(container)])
 ```
+
+<!-- invisible-code-block: python
+asyncio.get_event_loop().close()
+asyncio.set_event_loop(None)
+-->
 
 `@inject` adapts to the method it decorates, whether a sync method, `async def`,
 or async generator (server-streaming), so the same decorator works on any of the
@@ -173,6 +250,10 @@ gRPC has no server startup/shutdown hook, so the root container's lifecycle is
 yours to own (as with Flask). Create the container open, pass it to the
 interceptor, and close it after the server stops to run APP-scoped finalizers:
 
+<!-- invisible-code-block: python
+server = sync_server
+-->
+
 ```python
 server.stop(grace=5).wait()
 container.close_sync()          # or: await container.close_async() on grpc.aio
@@ -183,6 +264,12 @@ container.close_sync()          # or: await container.close_async() on grpc.aio
 Inside a servicer method (or anything it calls during the RPC),
 `fetch_di_container()` returns the current RPC's child container:
 
+<!-- invisible-code-block: python
+for stand_in in ("myapp", "myapp.greeter_pb2", "myapp.greeter_pb2_grpc"):
+    sys.modules.pop(stand_in)
+-->
+
+<!-- raises: RuntimeError -->
 ```python
 from modern_di_grpc import fetch_di_container
 
