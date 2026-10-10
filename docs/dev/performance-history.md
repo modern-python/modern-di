@@ -84,9 +84,9 @@ builds a container per test would pay that in every test.
 [ADR 0001](https://github.com/modern-python/modern-di/blob/main/docs/adr/0001-resolver-hot-path-generated-source.md)
 records the decision.
 
-## After 3.5: the request path
+## 3.6: the request path
 
-Three smaller changes moved the per-request path:
+Three smaller changes in 3.6.0 moved the per-request path:
 
 - [#540](https://github.com/modern-python/modern-di/issues/540) inlined the cross-scope hop. The
   generated resolver reads the container's ancestor map itself instead of calling
@@ -184,8 +184,9 @@ did not move then, because on G7 #585 measured −2.9% and #597 +4.6%.
 so the change in that ratio is modern-di's.
 
 The two publications after 4.0.0 (`ab327b3` and `8845e6a`) measured the 4.0.0 library plus
-[#631](https://github.com/modern-python/modern-di/issues/631), which adds checks at provider
-definition and runs nothing during a resolve, against that-depends 4.2.0 and wireup 2.12.1. Every
-ratio stayed within 0.03 of 4.0.0 except dependency-injector's C2 (2.20 to 2.13, then 2.14) and,
-at `8845e6a`, dishka's C4 (0.88 to 0.84). No cell crossed 1.0. modern-di's C4 fell from 1.85 to 1.80 µs at `ab327b3` and 1.74 µs at
-`8845e6a`; #631 adds nothing to that path, and neither run explains the drop.
+[#631](https://github.com/modern-python/modern-di/issues/631), which shipped in 4.1.0. It adds
+checks at provider definition and runs nothing during a resolve. Both ran against that-depends 4.2.0
+and wireup 2.12.1. Every ratio stayed within 0.03 of 4.0.0 except dependency-injector's C2 (2.20 to
+2.13, then 2.14) and, at `8845e6a`, dishka's C4 (0.88 to 0.84). No cell crossed 1.0. modern-di's C4
+fell from 1.85 to 1.80 µs at `ab327b3` and 1.74 µs at `8845e6a`; #631 adds nothing to that path, and
+neither run explains the drop.
