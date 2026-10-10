@@ -1,5 +1,5 @@
 # ruff: noqa: ANN001, ANN201
-"""Comparative tier — that-depends (4.0.2).
+"""Comparative tier — that-depends (4.2.0).
 
 C1-C3 resolve synchronously via provider.resolve_sync(). C4's async-generator
 ContextResource cannot resolve_sync (raises), so C4 awaits resolve() inside a
