@@ -11,7 +11,6 @@ nav:
       - Design decisions: introduction/design-decisions.md
       - Comparison: introduction/comparison.md
       - Performance: introduction/performance.md
-      - modern-di for FastAPI users: introduction/for-fastapi-users.md
   - Providers:
       - Scopes: providers/scopes.md
       - Lifecycle: providers/lifecycle.md
@@ -173,7 +172,6 @@ plugins:
           - introduction/design-decisions.md: The deliberate API choices behind modern-di
           - introduction/comparison.md: How modern-di compares to other DI approaches, including that-depends
           - introduction/performance.md: Comparative benchmarks vs other DI frameworks, and how to reproduce them
-          - introduction/for-fastapi-users.md: Translating FastAPI's Depends idioms to modern-di
         Providers:
           - providers/scopes.md: The five built-in scopes and the resolution rule
           - providers/lifecycle.md: How instances are created, cached, and cleaned up
