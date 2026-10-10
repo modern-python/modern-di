@@ -2,51 +2,83 @@
 
 ## Symptom
 
-A resolution fails naming a provider's scope and the current container's scope, optionally with a
-dependency-path breadcrumb when the failing provider was captured by a shallower one. Each
-breadcrumb line may end with a pointer to where that provider was declared (module and line
-number), so you can jump straight to the declaration.
+`resolve()` or `resolve_provider()` raises it when a provider's scope is deeper than the container
+that has to build it. Resolving a `REQUEST`-scoped provider from the `APP` container prints:
+
+```text
+modern_di.exceptions.container.ScopeNotInitializedError: Cannot resolve dependency chain:
+  REQUEST  Session (myapp.providers:7)
+  caused by: Provider of scope REQUEST cannot be resolved in container of scope APP.
+See: https://modern-di.modern-python.org/troubleshooting/scope-not-initialized-error/
+```
+
+When a shallower provider depends on the deeper one, the chain starts at the shallower provider:
+
+```text
+modern_di.exceptions.container.ScopeNotInitializedError: Cannot resolve dependency chain:
+  APP      UserCache (myapp.providers:10)
+  REQUEST  └─> Session (myapp.providers:7)
+  caused by: Provider of scope REQUEST cannot be resolved in container of scope APP.
+See: https://modern-di.modern-python.org/troubleshooting/scope-not-initialized-error/
+```
+
+Each chain line names a provider's scope and type and, when it can be found, the `module:line` where
+its creator is defined (the class or function, not the `Factory(...)` line). `.provider_scope` and
+`.container_scope` hold the two scopes in the `caused by` line.
 
 ## Cause
 
-A provider's scope is deeper than any container currently in the chain: you resolved (directly or
-transitively) a provider whose scope has no matching container built yet. For example, a
-`REQUEST`-scoped provider resolved straight from the `APP` container, with no `REQUEST` child ever
-built.
+The container that has to build the provider is shallower than the provider's scope, in one of two
+ways:
+
+- You resolved a provider from a container shallower than the provider's scope, and no container at
+  that scope exists below it yet. The first sample is `container.resolve(Session)` on the `APP`
+  container, with no `REQUEST` child built.
+- A provider depends on a deeper-scoped one, a captive dependency. An `APP`-scoped `UserCache` is
+  built in the `APP` container even when you call `resolve(UserCache)` on a `REQUEST` child, and the
+  `APP` container cannot build the `REQUEST`-scoped `Session` it needs. That is why the second sample
+  names container scope `APP` although the call went to a `REQUEST` container.
 
 ## Fix
 
-Build the deeper-scoped container before resolving from it:
+In the first case, build the deeper container and resolve from it:
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group, Scope, providers
 
 
-class RequestScopedThing: ...
+class Session: ...
 
 
-class MyGroup(Group):
-    thing = providers.Factory(RequestScopedThing, scope=Scope.REQUEST)
+class Dependencies(Group):
+    session = providers.Factory(Session, scope=Scope.REQUEST)
+
+
+app_container = Container(groups=[Dependencies])
 -->
 
 <!-- raises: ScopeNotInitializedError -->
 
 ```python
-app_container = Container(scope=Scope.APP, groups=[MyGroup])
-
 # Broken: no REQUEST container exists yet
-app_container.resolve(RequestScopedThing)  # raises ScopeNotInitializedError
-
-# Works
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-request_container.resolve(RequestScopedThing)
+app_container.resolve(Session)
 ```
 
-When the breadcrumb shows a captive dependency (a shallower provider depending on this deeper one),
-the real fix is usually to move the *depending* provider to the deeper scope instead. See the scope
-dependency rule below, which `validate()` catches ahead of time as `InvalidScopeDependencyError`.
+```python
+# Works
+request_container = app_container.build_child_container(scope=Scope.REQUEST)
+request_container.resolve(Session)
+```
+
+In the captive case a deeper container does not help. Move the depending provider to the deeper
+scope, or give the dependency a shallower scope if its lifetime allows. `container.validate()` finds
+every captive dependency at startup and reports it as
+[`InvalidScopeDependencyError`](scope-chain.md), whose page shows both fixes.
 
 ## See also
 
-- [Scope chain violation](scope-chain.md) covers the related, statically-detected form of this problem.
-- [Scopes: the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule).
+- [InvalidScopeDependencyError](scope-chain.md) — the same problem reported by `validate()`.
+- [Scopes: the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) — why a
+  provider cannot depend on a deeper scope.
+- [Captive dependency](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one)
+  — the bug this error usually points at.

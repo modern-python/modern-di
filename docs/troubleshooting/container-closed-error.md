@@ -6,7 +6,8 @@ Raised from `resolve()` or `resolve_provider()` (and so from `resolve_dependency
 integration's `FromDI`) when the call reaches a container that was closed:
 
 ```text
-Container (scope APP) is closed. Reopen it with `open()` or by re-entering `with`/`async with` before resolving from it or from any of its child containers.
+modern_di.exceptions.container.ContainerClosedError: Container (scope APP) is closed. Reopen it with `open()` or by re-entering `with`/`async with` before resolving from it or from any of its child containers.
+See: https://modern-di.modern-python.org/troubleshooting/container-closed-error/
 ```
 
 `.container_scope` names the closed container. When a child's resolve reaches back into a closed
@@ -26,9 +27,8 @@ A fresh container is open from construction, so this never means "you forgot to 
 ## Fix
 
 Reopen the container before resolving from it again. Call `container.open()`, or enter it again
-with `with` / `async with`: `__enter__` and `__aenter__` call `open()` for you. This is how a test
-harness enters the same container twice, how a broker stops and starts, and how a framework
-lifespan runs more than once in one process. Integrations call `open()` in their startup hook.
+with `with` / `async with`, whose `__enter__` and `__aenter__` call `open()` for you. Integrations
+call `open()` in their startup hook.
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group, providers
@@ -39,20 +39,25 @@ class Settings: ...
 
 class Dependencies(Group):
     settings = providers.Factory(Settings)
+
+
+container = Container(groups=[Dependencies])
 -->
 
 <!-- raises: ContainerClosedError -->
 
 ```python
-container = Container(groups=[Dependencies])
-
 with container:
     container.resolve(Settings)
 # closed here: finalizers ran
 
-container.resolve(Settings)  # Broken: raises ContainerClosedError
+# Broken
+container.resolve(Settings)
+```
 
-with container:  # Works: __enter__ reopens it
+```python
+# Works: __enter__ reopens the container
+with container:
     container.resolve(Settings)
 ```
 
@@ -63,9 +68,10 @@ comes from and stop it outliving the container. Reopening there would hide the l
 cached after the reopen would never be finalized, because the shutdown that should close it has
 already run.
 
-A finalizer that resolves from its own container also raises, because the container counts as
-closed while its finalizers run. Do not reopen the container from a finalizer. Give the cached
-instance what its finalizer needs when it is created.
+A finalizer that resolves from its own container fails the same way, because the container counts
+as closed while its finalizers run. That `ContainerClosedError` arrives as an entry inside the
+[`FinalizerError`](finalizer-error.md) that `close_sync()` or `close_async()` raises. Do not reopen
+the container from a finalizer. Give the cached instance what its finalizer needs when it is created.
 
 ## See also
 

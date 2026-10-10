@@ -2,18 +2,24 @@
 
 ## Symptom
 
-Raised from `Container.add_providers()` on a child container. It names the child container's scope.
+`Container.add_providers()` raises it when called on a child container:
+
+```text
+modern_di.exceptions.registration.ChildContainerRegistrationError: Providers can only be registered on a root container: the providers registry is shared tree-wide, so registering on a child container (scope REQUEST) would mutate every container in the tree. Pass groups= to the root Container or call add_providers on it instead.
+See: https://modern-di.modern-python.org/troubleshooting/child-container-registration-error/
+```
+
+`.container_scope` holds the child container's scope.
 
 ## Cause
 
-Providers were registered on a child container rather than the root. The providers registry is
-shared tree-wide (every container in the chain points at the same registry), so registering from a
-child would silently mutate every container in the tree, so the call is disallowed.
+Every container in a tree shares one providers registry, so a registration on a child would change
+what every other container in the tree resolves. `add_providers()` accepts calls only on a root.
 
 ## Fix
 
-Register on the root container instead, either with `groups=` when you build it or with
-`add_providers()` later:
+Register on the root container, either with `groups=` when you build it or with `add_providers()`
+afterwards:
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group, Scope, providers
@@ -30,23 +36,25 @@ class MyGroup(Group):
 
 
 late_provider = providers.Factory(Mailer, scope=Scope.APP)
+
+app_container = Container(scope=Scope.APP, groups=[MyGroup])
+request_container = app_container.build_child_container(scope=Scope.REQUEST)
 -->
 
 <!-- raises: ChildContainerRegistrationError -->
 
 ```python
-app_container = Container(scope=Scope.APP, groups=[MyGroup])
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
-
 # Broken
-request_container.add_providers(late_provider)  # raises ChildContainerRegistrationError
+request_container.add_providers(late_provider)
+```
 
+```python
 # Works
 app_container.add_providers(late_provider)
 ```
 
-If you only have a reference to the child container at the call site, keep a reference to the root
-container around (e.g. store it at app startup) instead of walking up via `parent_container`.
+Any root works, whatever its scope. Register at startup, because `add_providers()` is not
+coordinated with resolves running at the same time on other threads.
 
 ## See also
 

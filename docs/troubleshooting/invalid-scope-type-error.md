@@ -2,21 +2,25 @@
 
 ## Symptom
 
-Raised when constructing a `Container`, when calling `build_child_container()`, or when defining a `Group` subclass with a `scope=` class kwarg, naming the value that was passed as `scope=` and its type.
+Raised when a value passed as `scope=` is not an `enum.IntEnum` member. The message shows the value
+and its type:
+
+```text
+modern_di.exceptions.container.InvalidScopeTypeError: Scope must be an enum.IntEnum member; got 1 (int).
+See: https://modern-di.modern-python.org/troubleshooting/invalid-scope-type-error/
+```
+
+`.scope_value` holds the value that was passed.
 
 ## Cause
 
-`scope=` must be an `enum.IntEnum` member. This fires in three contexts:
-
-1. When passed to the `Container` constructor, with a plain `int`, a string, a regular `enum.Enum` (not `IntEnum`), or any other non-`IntEnum` value.
-2. When passed to `build_child_container()`; the same validation applies.
-3. When passed to a `Group` subclass as a class kwarg; the same validation applies.
-
-Example invalid uses: `Container(scope=1)`, `Container(scope="APP")`, `container.build_child_container(scope=3)`, `class MyGroup(Group, scope=1)`, `class MyGroup(Group, scope="REQUEST")`.
+`Container(scope=...)`, `build_child_container(scope=...)` and a group declared as
+`class MyGroup(Group, scope=...)` all check the value, and each rejects an `int`, a `str`, a member of
+a plain `enum.Enum`, and a member of an `enum.IntFlag`.
 
 ## Fix
 
-Use the built-in `Scope` enum, or your own `IntEnum` subclass:
+Pass a member of `Scope` or of your own `IntEnum`:
 
 <!-- raises: InvalidScopeTypeError -->
 
@@ -24,16 +28,25 @@ Use the built-in `Scope` enum, or your own `IntEnum` subclass:
 from modern_di import Container, Scope
 
 # Broken
-container = Container(scope=1)                 # raises InvalidScopeTypeError
-container = Container(scope="APP")              # raises InvalidScopeTypeError
+container = Container(scope=1)
+```
 
+```python
 # Works
 container = Container(scope=Scope.APP)
 ```
 
-If you need scopes beyond the five built-in ones, define your own `enum.IntEnum` whose members'
-values are ordered the way you want the hierarchy to resolve, and use that instead of `Scope`.
+When the scope comes from configuration as a number or a name, convert it to a member first:
+
+```python
+assert Scope(3) is Scope.REQUEST
+assert Scope["REQUEST"] is Scope.REQUEST
+```
+
+For scopes beyond the five built-in ones, define your own `enum.IntEnum` and order its values the
+way the hierarchy should nest.
 
 ## See also
 
-- [Scopes](../providers/scopes.md) explains the `IntEnum` hierarchy and why membership is required.
+- [Scopes: custom scopes](../providers/scopes.md#custom-scopes) — using your own `IntEnum` as a
+  scope.
