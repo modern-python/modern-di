@@ -1,79 +1,142 @@
 # Container
 
-The container provider is a special provider that you should not initialize.
-It is automatically registered with each container, so you can resolve the container itself directly.
+A `Container` resolves providers. You build one root container, usually at `Scope.APP`, and a child
+for each shorter-lived scope such as a request. Every container in a tree shares the same providers
+and overrides, and each one owns its own cache and context. See [Scopes](scopes.md) for the scope
+model and [Resolving dependencies](../introduction/resolving.md) for how a resolve works.
+
+## Building a container
+
+`Container(scope=Scope.APP, *, context=None, groups=None)` builds a root container, open and ready
+to resolve:
+
+- `scope`: any `IntEnum` member; anything else raises `InvalidScopeTypeError`.
+- `context`: values for the root's [context providers](context.md). The dict is copied, so later
+  changes to it are not seen.
+- `groups`: a list of `Group` classes whose providers it registers. Passing a group together with
+  its subclass, or one group twice, registers the same providers twice and raises
+  `DuplicateProviderTypeError`.
+
+<!-- invisible-code-block: python
+import copy
+-->
+
+```python
+import dataclasses
+
+from modern_di import Container, Group, Scope, providers
+
+
+@dataclasses.dataclass(frozen=True)
+class Settings:
+    debug: bool
+
+
+class Dependencies(Group):
+    settings = providers.ContextProvider(Settings)
+
+
+app_container = Container(groups=[Dependencies], context={Settings: Settings(debug=True)})
+assert app_container.resolve(Settings).debug
+assert copy.copy(app_container) is app_container
+assert copy.deepcopy(app_container) is app_container
+```
+
+Children come from `build_child_container()`. `copy.copy()` and `copy.deepcopy()` return the
+container itself, because a copy would own a cache whose finalizers never run.
+
+## Methods at a glance
+
+| Member | What it does | Covered in |
+|---|---|---|
+| `build_child_container(scope=, context=)` | builds a child at a deeper scope | [Scopes](scopes.md#building-child-containers) |
+| `set_context(type, value)` | sets a context value on this container | [Context providers](context.md) |
+| `resolve(type)`, `resolve_provider(provider)` | resolve by type or by provider | [Resolving dependencies](../introduction/resolving.md) |
+| `resolve_dependency(dep)` | takes a provider or a type and calls `resolve_provider` or `resolve`; integrations use it for `FromDI`-style markers | [Writing an integration](../integrations/writing-integrations.md#the-contract) |
+| `validate()` | checks the whole graph | [Lifecycle](lifecycle.md#validation) |
+| `close_sync()`, `close_async()`, `with`, `async with` | run finalizers and close | [Lifecycle](lifecycle.md#closing-the-container) |
+| `open()`, `closed` | reopen a closed container; whether it is closed | [Lifecycle](lifecycle.md#closing-and-reopening) |
+| `override(provider, obj)`, `reset_override(provider)` | replace a provider's result, tree-wide | [Testing with overrides](../recipes/testing-overrides.md) |
+| `add_providers(*providers)` | registers providers on a root | [below](#registering-providers-after-construction) |
+| `find_provider(type)` | looks up the provider for a type | [below](#looking-up-a-provider) |
+| `scope`, `parent_container`, `find_container(scope)` | navigate the container tree | [Advanced API](advanced-api.md#container-navigation) |
 
 ## Injecting the container itself
 
-You can inject the container into your dependencies in two ways:
-
-### Automatic injection (type-based)
-
-If your creator function has a parameter annotated with `Container`, it will be automatically resolved:
+Every container registers `providers.container_provider` under the `Container` type, so a creator
+parameter annotated `Container` receives a container:
 
 ```python
-from modern_di import Container, Group, Scope, providers
+class JobRunner:
+    def __init__(self, container: Container) -> None:
+        self.container = container
 
-def my_creator(di_container: Container) -> str:
-    # Access the container's scope or other properties
-    return f"Container scope: {di_container.scope.name}"
 
-class Dependencies(Group):
-    my_factory = providers.Factory(my_creator, scope=Scope.APP)
+class Jobs(Group):
+    runner = providers.Factory(JobRunner, scope=Scope.REQUEST)
 
-container = Container(groups=[Dependencies])
-result = container.resolve(str)
-# result: "Container scope: APP"
+
+jobs_container = Container(groups=[Jobs])
+request_container = jobs_container.build_child_container(scope=Scope.REQUEST)
+
+assert request_container.resolve(JobRunner).container is request_container
 ```
 
-### Explicit injection
-
-You can also explicitly inject the container using `providers.container_provider`. Reach for this when the parameter is not annotated as `Container` (so type-based injection can't find it), or when you want an explicit binding instead of relying on the type:
+For a parameter not annotated `Container`, wire `providers.container_provider` through `kwargs`:
 
 ```python
 import typing
 
-from modern_di import Container, Group, Scope, providers
 
-def another_creator(di_container: typing.Any) -> str:
-    return f"resolved from {di_container.scope.name} scope"
+class Reporter:
+    def __init__(self, di: typing.Any) -> None:
+        self.di = di
 
-class Dependencies(Group):
-    another_factory = providers.Factory(
-        another_creator,
-        scope=Scope.APP,
-        kwargs={"di_container": providers.container_provider}
+
+class Reports(Group):
+    reporter = providers.Factory(
+        Reporter, scope=Scope.REQUEST, kwargs={"di": providers.container_provider}
     )
 
-container = Container(groups=[Dependencies])
-result = container.resolve(str)
-# result: "resolved from APP scope"
+
+reports_container = Container(groups=[Reports])
+reports_request = reports_container.build_child_container(scope=Scope.REQUEST)
+
+assert reports_request.resolve(Reporter).di is reports_request
 ```
 
-## Which container you get
+### Which container you get
 
-Resolving `Container` returns the **calling container**: the deepest, most-specific container in
-the active chain, not the `APP` root. The `container_provider` hands back whichever container
-ran the resolve, so a `REQUEST` child resolves `Container` to *itself*:
+`resolve(Container)` returns the container you call it on. A creator receives the container at its
+factory's own scope, which is not always the one you called: an APP-scoped factory resolved from a
+REQUEST container gets the APP container, because that is where it is built.
 
 ```python
-app_container = Container(scope=Scope.APP)
-request_container = app_container.build_child_container(scope=Scope.REQUEST)
+class AppJobRunner(JobRunner): ...
 
-assert app_container.resolve(Container) is app_container
-assert request_container.resolve(Container) is request_container  # the child, not the APP root
+
+class AppJobs(Group):
+    runner = providers.Factory(AppJobRunner, scope=Scope.APP)
+
+
+root = Container(groups=[AppJobs])
+child = root.build_child_container(scope=Scope.REQUEST)
+
+assert child.resolve(Container) is child
+assert child.resolve(AppJobRunner).container is root
 ```
 
-The same holds for type-based injection: a creator with a `Container` parameter receives the
-container that is resolving it. This means request-scoped code reaches the request container (and its
-context/cache), while app-scoped code reaches the app container.
+`container_provider` is a prebuilt instance of a private class, so there is nothing to construct.
+It is always APP-scoped and ignores a group's default scope.
 
 ## Registering providers after construction
 
-`container.add_providers(*providers)` registers additional providers on a **root** container after
-it's built. Framework integrations use it to register their connection providers. Raises
-`ChildContainerRegistrationError` if called on a child container. See [Writing an integration](../integrations/writing-integrations.md#the-contract) for
-the full contract.
+`container.add_providers(*providers)` registers more providers on a root container after it is
+built. Framework integrations use it to register their context providers. It raises
+`ChildContainerRegistrationError` on a child, and `DuplicateProviderTypeError` when a provider's
+type is already registered. It does not validate, and it clears the validated state, so call
+`validate()` after the last registration. See
+[Writing an integration](../integrations/writing-integrations.md#the-contract) for the full contract.
 
 ## Looking up a provider
 
@@ -86,6 +149,7 @@ class UserRepository: ...
 
 
 app_container.add_providers(providers.Factory(UserRepository, scope=Scope.REQUEST))
+request_container = app_container.build_child_container(scope=Scope.REQUEST)
 -->
 
 ```python
@@ -94,15 +158,10 @@ if provider is not None:
     repository = request_container.resolve_provider(provider)
 ```
 
-## Resolving a provider or type
-
-`container.resolve_dependency(dep)` accepts either a provider reference or a type and dispatches to
-`resolve_provider` or `resolve` accordingly. It is the single entry point integrations use to
-resolve a `FromDI`-style marker. See [Writing an integration](../integrations/writing-integrations.md#the-contract).
-
 ## See also
 
-- [Context providers](context.md#context-propagation) covers how context values reach (and don't
+- [Context providers](context.md#context-propagation) — how context values reach (and don't
   reach) a `ContextProvider`.
-- [Advanced / low-level API](advanced-api.md) lists the public modules and documents
-  `find_container`, `parent_container` and `Group.get_providers()`.
+- [Scopes](scopes.md) — the scope model and child containers.
+- [Advanced / low-level API](advanced-api.md) — the public modules, `find_container`,
+  `parent_container` and `Group.get_providers()`.

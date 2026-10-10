@@ -1,69 +1,72 @@
 # Context providers
 
-Often, scopes are connected with external events: HTTP requests, messages from a queue, callbacks from a framework.
-These events can be represented by objects which can be used for dependency creation.
+A `ContextProvider` injects a value that exists only at runtime, such as an HTTP request, a queue
+message or the current tenant, and each container gets that value from whoever builds it. Framework
+integrations declare these providers for their own request and message objects; see
+[Framework context objects](#framework-context-objects).
 
-`ContextProvider` is a provider type that injects runtime context values into dependencies
-(framework objects like requests or websockets, or your own custom context), extracting them from
-the container's context at resolve time.
-
-In integrations, some context objects (like `fastapi.Request`, `litestar.WebSocket`, etc.) are
-automatically provided; see [Framework context objects](#framework-context-objects) below.
-
-`ContextProvider(context_type, *, scope=Scope.APP, bound_type=UNSET, default=UNSET)`. The
+`ContextProvider(context_type, *, scope=UNSET, bound_type=UNSET, default=UNSET)`. The
 `context_type` may also be passed as a keyword (`context_type=`).
+
+- `scope`: the scope of the container whose context the provider reads. Left unset, it takes the
+  [group's default scope](scopes.md#group-level-default-scope), or `Scope.APP` when the group has
+  none.
+- `bound_type`: the type the provider is registered under, `context_type` by default. Set it to
+  `None` to make the provider resolvable by reference only. Values are always keyed by
+  `context_type` in `context=` and `set_context()`, whatever `bound_type` is.
+- `default`: what the provider returns when no value is set; see
+  [Optional context: `default=`](#optional-context-default).
 
 ## Basic usage
 
-Declare a `ContextProvider` for your context type, supply the value when you build the child container, and any [`Factory`](factories.md) that takes that type as a parameter receives it automatically:
+Declare a `ContextProvider` for your context type, supply the value when you build the child
+container, and any [`Factory`](factories.md) that takes that type as a parameter receives it:
 
 ```python
-from modern_di import Group, Container, Scope, providers
+import dataclasses
 
-# Custom context type
+from modern_di import Container, Group, Scope, providers
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class CustomContext:
-    def __init__(self, user_id: str, tenant_id: str) -> None:
-        self.user_id = user_id
-        self.tenant_id = tenant_id
+    user_id: str
+    tenant_id: str
 
 
-def create_user_info(custom_context: CustomContext) -> dict[str, str]:
-    return {
-        "user_id": custom_context.user_id,
-        "tenant_id": custom_context.tenant_id,
-    }
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class UserInfo:
+    user_id: str
+    tenant_id: str
+
+
+def create_user_info(custom_context: CustomContext) -> UserInfo:
+    return UserInfo(user_id=custom_context.user_id, tenant_id=custom_context.tenant_id)
 
 
 class Dependencies(Group):
-    # Manually defined ContextProvider for custom context
     custom_context = providers.ContextProvider(CustomContext, scope=Scope.REQUEST)
-
-    # Factory uses the custom context
-    user_info = providers.Factory(
-        create_user_info,
-        scope=Scope.REQUEST,
-    )
+    user_info = providers.Factory(create_user_info, scope=Scope.REQUEST)
 
 
-# Provide custom context when building the child container
 container = Container(groups=[Dependencies])
-custom_context = CustomContext(user_id="123", tenant_id="abc")
 request_container = container.build_child_container(
     scope=Scope.REQUEST,
-    context={CustomContext: custom_context}
+    context={CustomContext: CustomContext(user_id="123", tenant_id="abc")},
 )
 
-# Now resolve the factory — it will receive the custom context automatically
-user_info = request_container.resolve_provider(Dependencies.user_info)
-# {"user_id": "123", "tenant_id": "abc"}
+user_info = request_container.resolve(UserInfo)
+assert user_info == UserInfo(user_id="123", tenant_id="abc")
 ```
 
-The provider is bound to a [scope](scopes.md) (here `Scope.REQUEST`) and the value is supplied via
-[`build_child_container(context={...})`](container.md).
+The root container takes the same argument, `Container(context={...})`, for APP-scoped values, and
+`container.set_context(CustomContext, value)` sets a value on a container after it is built. A
+`context=` entry only supplies a value: without a declared `ContextProvider` for that type,
+resolving it raises `ProviderNotRegisteredError`.
 
 ## When no value is set
 
-A `ContextProvider` reads its value from the context of the container at its bound scope. When
+A `ContextProvider` reads its value from the context of the container at its own scope. When
 nothing was supplied, the result depends on how the value is used:
 
 - A direct resolve (`container.resolve(CustomContext)`) raises `ContextValueNotSetError`.
@@ -74,7 +77,7 @@ nothing was supplied, the result depends on how the value is used:
 
 ```
 Cannot resolve dependency chain:
-  REQUEST  dict (myapp.deps:12)
+  REQUEST  UserInfo (myapp.deps:18)
   caused by: No context value is set for <class 'myapp.deps.CustomContext'> (scope REQUEST), needed for argument custom_context. Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.
 See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
 ```
@@ -84,36 +87,50 @@ cases. See [ContextProvider has no value](../troubleshooting/context-not-set.md)
 
 ### Optional parameters
 
-Make the parameter optional when a creator runs both with and without the value. This works with
-an integration's provider too. With `modern-di-fastapi` set up, `fastapi.Request` is wired by type
-to the integration's provider:
+Make the parameter optional when a creator runs both with and without the value:
 
 ```python
-import fastapi
-from modern_di import Group, Scope, providers
+class Request:
+    def __init__(self, client_host: str) -> None:
+        self.client_host = client_host
 
 
 class AuditLog:
-    def __init__(self, request: fastapi.Request | None = None) -> None:
-        self.client_host = request.client.host if request and request.client else None
+    def __init__(self, request: Request | None = None) -> None:
+        self.client_host = request.client_host if request else None
 
 
-class Dependencies(Group):
-    audit_log = providers.Factory(AuditLog, scope=Scope.REQUEST)
+class WebDependencies(Group, scope=Scope.REQUEST):
+    request = providers.ContextProvider(Request)
+    audit_log = providers.Factory(AuditLog)
+
+
+web_container = Container(groups=[WebDependencies])
+
+without_request = web_container.build_child_container(scope=Scope.REQUEST)
+assert without_request.resolve(AuditLog).client_host is None
+
+with_request = web_container.build_child_container(
+    scope=Scope.REQUEST, context={Request: Request("10.0.0.1")}
+)
+assert with_request.resolve(AuditLog).client_host == "10.0.0.1"
 ```
 
-Inside a request, `AuditLog` gets the real `Request`. Where no request is set, for example in a
-FastStream consumer that shares the container, it gets `None`. The integration's provider stays
-required, so `container.resolve(fastapi.Request)` outside a request still raises.
+The same works with an integration's provider. With `modern-di-fastapi` set up, an
+`AuditLog(request: fastapi.Request | None = None)` gets the real request inside a FastAPI handler
+and `None` in a FastStream consumer that shares the container. The provider itself stays required,
+so `container.resolve(fastapi.Request)` outside a request still raises.
 
-The parameter decides this however it is wired: by type, by a member of a union, through an
-`Alias`, or with `kwargs={...}`. It applies only to an argument that comes straight from the
-`ContextProvider`. If the parameter's provider is a `Factory` that itself needs the missing value,
-the resolve raises. A creator with `skip_creator_parsing=True` or a `**kwargs` signature has no
-parsed parameters, so its context arguments never fall back.
+The fallback has limits:
 
-A cached factory built while the value was unset keeps the fallback value for the lifetime of its
-container. A later `set_context()` does not rebuild it.
+- It applies however the parameter is wired: by type, by a member of a union, through an `Alias`,
+  or with `kwargs={...}`.
+- It applies only to an argument that comes straight from the `ContextProvider`. If the
+  parameter's provider is a `Factory` that itself needs the missing value, the resolve raises.
+- A creator with `skip_creator_parsing=True` or a `**kwargs` signature has no parsed parameters,
+  so its context arguments never fall back.
+- A cached factory built while the value was unset keeps the fallback value for the lifetime of
+  its container. A later `set_context()` does not rebuild it.
 
 ### Optional context: `default=`
 
@@ -122,19 +139,32 @@ included, give the provider a default. It returns `default=` whenever no value i
 value otherwise:
 
 ```python
-class Dependencies(Group):
-    custom_context = providers.ContextProvider(CustomContext, scope=Scope.REQUEST, default=None)
+GUEST = CustomContext(user_id="guest", tenant_id="public")
+
+
+class GuestDependencies(Group):
+    custom_context = providers.ContextProvider(CustomContext, scope=Scope.REQUEST, default=GUEST)
+    user_info = providers.Factory(create_user_info, scope=Scope.REQUEST)
+
+
+guest_container = Container(groups=[GuestDependencies])
+anonymous = guest_container.build_child_container(scope=Scope.REQUEST)
+
+assert anonymous.resolve(CustomContext) is GUEST
+assert anonymous.resolve(UserInfo) == UserInfo(user_id="guest", tenant_id="public")
 ```
 
 The provider's default wins over a parameter's default. The provider returns the default object
-itself on every unset resolve; it does not call or copy it. Type checkers see `default=None` too:
-the provider above is a `ContextProvider[CustomContext | None]`.
+itself on every unset resolve, without calling or copying it. Type checkers see `default=None` too:
+`ContextProvider(CustomContext, default=None)` is a `ContextProvider[CustomContext | None]`.
 
 ## Context propagation
 
-Context never propagates between containers. A `ContextProvider` reads the context of the container **at the provider's own scope**; build order is irrelevant.
-
-Each container copies the `context=` dict it is built with, so containers built from one dict do not share values, and `set_context()` never writes into your dict.
+Context never propagates between containers. A `ContextProvider` reads only the context of the
+container at its own scope (see [Resolving across scopes](scopes.md#resolving-across-scopes)), so
+build order and the direction of the hop make no difference. Each container copies the `context=`
+dict it is built with, so containers built from one dict do not share values, and `set_context()`
+never writes into your dict.
 
 <!-- invisible-code-block: python
 value = CustomContext(user_id="123", tenant_id="abc")
@@ -144,95 +174,111 @@ value = CustomContext(user_id="123", tenant_id="abc")
     Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:
 
     ```python
-    # Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
+    # Broken: a REQUEST-scoped provider reads the REQUEST container's context.
     # Setting it on the APP parent has no effect.
     app_container = Container()
-    app_container.set_context(CustomContext, value)  # ignored for REQUEST-scoped providers
+    app_container.set_context(CustomContext, value)
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     ```
 
     For a REQUEST-scoped `ContextProvider`, set the value on the request container:
 
     ```python
-    # Option A: pass context directly when building the child
+    # Works: pass context directly when building the child
     request_container = app_container.build_child_container(
         scope=Scope.REQUEST, context={CustomContext: value}
     )
 
-    # Option B: set on the request container after building it
+    # Works: set it on the request container after building it
     request_container = app_container.build_child_container(scope=Scope.REQUEST)
     request_container.set_context(CustomContext, value)
     ```
 
-    Setting context on the parent only works when the `ContextProvider`'s scope matches the parent's scope.
+The rule holds in the other direction too. An APP-scoped provider ignores a value passed to a
+child's `context=`, and a REQUEST-scoped provider resolved from an ACTION child reads the REQUEST
+container even when the ACTION child has a value of its own:
+
+```python
+@dataclasses.dataclass(frozen=True)
+class Settings:
+    source: str
+
+
+@dataclasses.dataclass(frozen=True)
+class Tenant:
+    source: str
+
+
+class Propagation(Group):
+    settings = providers.ContextProvider(Settings, scope=Scope.APP)
+    tenant = providers.ContextProvider(Tenant, scope=Scope.REQUEST)
+
+
+root = Container(groups=[Propagation], context={Settings: Settings("app")})
+request = root.build_child_container(
+    scope=Scope.REQUEST, context={Settings: Settings("request"), Tenant: Tenant("request")}
+)
+action = request.build_child_container(scope=Scope.ACTION, context={Tenant: Tenant("action")})
+
+assert request.resolve(Settings).source == "app"
+assert action.resolve(Tenant).source == "request"
+```
 
 ## Framework context objects
 
-Every framework integration auto-registers `ContextProvider`s for its own request/websocket-like
-objects, so you never declare a `ContextProvider` for these yourself. Each integration builds a
-per-request (or per-message, or per-connection) child container and sets the framework object as
-context on it before your code resolves anything from it. There are two ways to consume that value:
+Most integrations register `ContextProvider`s for their framework's request, websocket, message or
+call objects: aiohttp, aiogram, FastAPI, FastMCP, FastStream, Flask, gRPC, Litestar, Starlette and
+taskiq. arq, Celery and Typer register none. The provider is registered by the integration's setup
+call (`setup_di()`, or constructing `DIInterceptor` for gRPC), and the integration seeds each
+per-request (or per-message, or per-call) child container's context with the framework object
+before your code resolves from it.
 
-For implicit, type-based resolution, annotate a factory parameter with the framework's
-type; because the integration already registered a matching `ContextProvider`, modern-di resolves
-it automatically. It is the same mechanism as [Basic usage](#basic-usage) above, with the
-`ContextProvider` declared by the integration instead of by you. With
-[FastAPI](../integrations/fastapi.md), the `fastapi.Request` is injected into each per-request
-child container automatically:
+To consume the value by type, annotate a factory parameter with the framework's type. It is the
+same mechanism as [Basic usage](#basic-usage), with the `ContextProvider` declared by the
+integration instead of by you. The graph is complete only once the setup call has registered the
+provider, so `validate()` raises before it and passes after. Here `add_providers` stands in for
+`setup_di()`:
 
 ```python
-from modern_di import Group, Container, Scope, providers
-import fastapi
-import modern_di_fastapi
+request_provider = providers.ContextProvider(Request, scope=Scope.REQUEST)
 
 
-def create_request_info(request: fastapi.Request) -> dict[str, str]:
-    return {"method": request.method, "url": str(request.url)}
+@dataclasses.dataclass(frozen=True)
+class ClientInfo:
+    host: str
 
 
-class Dependencies(Group):
-    # Factory uses the request from context (automatically provided by the integration)
-    request_info = providers.Factory(
-        create_request_info,
-        scope=Scope.REQUEST,
-    )
+def create_client_info(request: Request) -> ClientInfo:
+    return ClientInfo(host=request.client_host)
 
 
-ALL_GROUPS = [Dependencies]
-app = fastapi.FastAPI()
-container = Container(groups=ALL_GROUPS)
-modern_di_fastapi.setup_di(app, container)
-# setup_di() registers fastapi.Request's ContextProvider, so the graph is complete
-# from here on — call validate() after this line, not before.
-container.validate()
-# The integration creates a REQUEST-scoped child container per request and
-# injects the fastapi.Request into its context, so `request` is the real object
-# at runtime.
+class Handlers(Group):
+    client_info = providers.Factory(create_client_info, scope=Scope.REQUEST)
+
+
+app_container = Container(groups=[Handlers])
 ```
 
-Nothing validates automatically, so the ordering above is what matters: `fastapi.Request`'s
-`ContextProvider` only exists once `setup_di()` has registered it, so calling
-`container.validate()` before that line would raise
-[`ValidationFailedError`](../troubleshooting/validation-failed-error.md), and its `.exceptions` would
-carry an [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) for the
-required `request` parameter, since the provider isn't there yet. Call `validate()` after
-`setup_di()`, as above, and a required parameter validates cleanly. See [Writing an
-integration](../integrations/writing-integrations.md#lifecycle-rules) for the same rule from the
-integration author's side.
+<!-- raises: ValidationFailedError -->
 
-If you need to validate the rest of the graph before `setup_di()` runs (e.g. as part of a
-narrower, construction-time check), make the parameter optional instead
-(`request: fastapi.Request | None = None`), so `validate()` skips it while no provider for
-`fastapi.Request` is registered; at runtime the integration still injects the real `Request`,
-since it always sets the per-request context before resolving. Once `setup_di()` has registered
-the provider, resolving the factory where no request is set gives it `None` (see
-[Optional parameters](#optional-parameters) above).
+```python
+app_container.validate()
+```
 
-For explicit, provider-based resolution, every integration also exports the underlying
-`ContextProvider` object itself (e.g. `fastapi_request_provider`, `litestar_request_provider`,
-`aiohttp_request_provider`, `faststream_message_provider`) so you can wire it through `kwargs`
-instead of relying on type-based resolution. This is useful with `skip_creator_parsing=True`, or
-when the parameter name doesn't match the type:
+```python
+app_container.add_providers(request_provider)
+app_container.validate()
+```
+
+Call `validate()` after the setup call; see
+[Writing an integration](../integrations/writing-integrations.md#lifecycle-rules) and
+[Validation](lifecycle.md#validation). A parameter typed `Request | None = None` validates either
+way, as in [Optional parameters](#optional-parameters).
+
+To wire the value explicitly, use the `ContextProvider` object the integration exports (for example
+`fastapi_request_provider`, `litestar_request_provider`, `aiohttp_request_provider` or
+`faststream_message_provider`) in `kwargs`. This helps with `skip_creator_parsing=True`, or when
+the parameter is not annotated with the framework type:
 
 <!-- invisible-code-block: python
 try:
@@ -245,16 +291,25 @@ except ModuleNotFoundError:
 kwargs={"request": fastapi_request_provider}  # explicit wiring, see Factories: kwargs
 ```
 
-Each integration's own page has its exact provider names, scopes, and API table:
+Each integration's page lists its provider names, scopes and types:
+[aiohttp](../integrations/aiohttp.md#api),
+[aiogram](../integrations/aiogram.md#framework-context-objects),
 [FastAPI](../integrations/fastapi.md#framework-context-objects),
+[FastMCP](../integrations/fastmcp.md#framework-context-objects),
+[FastStream](../integrations/faststream.md#framework-context-objects),
+[Flask](../integrations/flask.md#framework-context-objects),
+[gRPC](../integrations/grpc.md#injecting-the-servicercontext),
 [Litestar](../integrations/litestar.md#framework-context-objects),
 [Starlette](../integrations/starlette.md#framework-context-objects),
-[FastStream](../integrations/faststream.md#framework-context-objects),
-[aiohttp](../integrations/aiohttp.md#api).
+[taskiq](../integrations/taskiq.md#framework-context-objects).
 
 ## See also
 
-- [Factories](factories.md): how factories receive injected context values.
-- [Scopes](scopes.md): choosing the scope a `ContextProvider` is bound to.
-- [Container](container.md): `build_child_container` and `set_context`.
-- [FastAPI integration](../integrations/fastapi.md): framework-provided context objects.
+- [Factories](factories.md) — how factories receive injected context values.
+- [Scopes](scopes.md) — choosing the scope a `ContextProvider` is bound to.
+- [Container](container.md) — building containers with `context=`, and where `set_context` and
+  `build_child_container` are covered.
+- [ContextProvider has no value](../troubleshooting/context-not-set.md) — fixing
+  `ContextValueNotSetError`.
+- [Writing an integration](../integrations/writing-integrations.md) — how an integration registers
+  its providers and seeds the context.

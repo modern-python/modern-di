@@ -9,9 +9,11 @@ Import public names from four modules, and only from them:
 - `modern_di`: `Container`, `Group`, `Scope`, `OverrideHandle` (what `override()` returns),
   `Suggestion` (an element of an error's `.suggestions`), `UNSET` and its type `UnsetType`, plus
   the three submodules below.
-- `modern_di.providers`: the provider types, `CacheSettings` and `container_provider`.
+- `modern_di.providers`: the provider types, their base `AbstractProvider`, `CacheSettings` and
+  `container_provider`.
 - `modern_di.exceptions`: every error class.
-- `modern_di.integrations`: the building blocks for framework integrations.
+- `modern_di.integrations`: the building blocks for framework integrations; see
+  [Writing an integration](../integrations/writing-integrations.md).
 
 Every other module is internal and can change in any release, even one that defines an exported
 name. That covers `modern_di.container`, `modern_di.group`, `modern_di.scope`, `modern_di.types`,
@@ -24,24 +26,30 @@ rest. Names that start with an underscore are internal wherever they are.
 
 `Group.get_providers()` is a classmethod that traverses the MRO (excluding `Group` and
 `object`) and collects every class attribute that is an `AbstractProvider` instance, respecting
-MRO override order (subclass attribute shadows parent attribute of the same name). Use it to
-inspect or iterate all providers declared on a group hierarchy. `Group.get_named_providers()`
-returns the same providers as a dict keyed by attribute name.
+MRO override order: a subclass attribute shadows a parent attribute of the same name. Shadowing
+with a non-provider value (`repo = None`) removes the inherited provider. Use it to inspect or
+iterate all providers declared on a group hierarchy. `Group.get_named_providers()` returns the same
+providers as a dict keyed by attribute name.
+
+A subclass already includes its parents' providers. Passing a group together with its subclass to
+`Container(groups=[...])`, or one group twice, registers the same provider objects twice and raises
+`DuplicateProviderTypeError`.
 
 !!! note "The provider set is closed: `AbstractProvider` is not an extension point"
     `Factory`, `Alias`, `ContextProvider`, and the pre-built `container_provider` are the
     only provider types. `AbstractProvider` is their shared base and the type that appears
-    in public signatures (`resolve_dependency`, `kwargs=`), but it is not a hook for
-    adding your own: resolution compiles a resolver per known provider type, so defining a
-    subclass of `AbstractProvider` (or of `Factory`) raises `TypeError` when the class is
-    created. Compose behavior in a creator function, or use `Alias`, instead of introducing a
-    provider type.
+    in public signatures (`resolve_provider`, `resolve_dependency`, `override`,
+    `reset_override`, `find_provider`, `add_providers`), but it is not a hook for adding your
+    own: resolution compiles a resolver per known provider type, so defining a subclass of
+    `AbstractProvider` (or of `Factory`) raises `TypeError` when the class is created. Compose
+    behavior in a creator function, or use `Alias`, instead of introducing a provider type.
 
 ## Container navigation
 
 - `parent_container` is a read-only property: the container a child was built from, or `None` for a
   root. `scope` is read-only too. `Container(...)` builds a root; children come only from
-  `build_child_container()`, which raises `InvalidChildScopeError` for a `scope` that is not deeper.
+  `build_child_container()`, which raises `InvalidChildScopeError` for a `scope` that is not deeper
+  (see [Building child containers](scopes.md#building-child-containers)).
 - `build_child_container()` on a `Container` subclass returns an instance of that subclass. It does
   not call the subclass's `__init__`, so state that `__init__` sets exists on the root only.
 - `find_container(scope)` returns `self` when `scope` is the container's own scope, otherwise the
@@ -52,7 +60,19 @@ returns the same providers as a dict keyed by attribute name.
   `Container` subclass does not redirect navigation. `resolve` and `resolve_provider` are entry
   points, not hooks either: a compiled resolver calls its dependencies' resolvers directly, so an
   override of either sees only the top-level call.
-- Each cached `Factory` gets its own `threading.RLock` in each container that caches it, created
-  with the cache item on the first resolve there. Building a child allocates no lock. On a cold
-  cache miss the factory holds its lock while it resolves its dependencies and calls the creator,
-  so one instance is created per cache key. A warm resolve does not take the lock.
+
+## Cached factory locking
+
+Each cached `Factory` gets its own `threading.RLock` in each container that caches it, created
+with the cache item on the first resolve there. Building a child allocates no lock. On a cold
+cache miss the factory holds its lock while it resolves its dependencies and calls the creator,
+so one instance is created per cache key. A warm resolve does not take the lock. The guarantee
+this gives callers is in [Cached factories](factories.md#cached-factories).
+
+## See also
+
+- [Container](container.md) — building containers and a map of their methods.
+- [Writing an integration](../integrations/writing-integrations.md) — the contract built on
+  `modern_di.integrations`.
+- [Design decisions](../introduction/design-decisions.md) — why the public surface is small and
+  `Container` subclassing is limited.
