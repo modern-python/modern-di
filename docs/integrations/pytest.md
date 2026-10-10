@@ -40,6 +40,67 @@ example of that approach. The rest of this page assumes the plugin.
 Define it at the highest pytest scope you want. The plugin never builds the
 container; you own it:
 
+<!-- invisible-code-block: python
+import sys
+import types
+
+from modern_di import Group, Scope, providers
+
+
+class UserRepo:
+    def list_users(self) -> list[str]:
+        return []
+
+
+class FakeRepo(UserRepo):
+    pass
+
+
+class UserService:
+    def __init__(self, repo: UserRepo) -> None:
+        self._repo = repo
+
+    def list_users(self) -> list[str]:
+        return self._repo.list_users()
+
+
+class EmailClient:
+    def send(self, message: str) -> None:
+        pass
+
+
+class Dependencies(Group):
+    user_repo = providers.Factory(UserRepo, scope=Scope.APP)
+    user_service = providers.Factory(UserService, scope=Scope.APP)
+
+
+class Auth(Group):
+    pass
+
+
+class Billing(Group):
+    email_client_provider = providers.Factory(EmailClient, scope=Scope.APP)
+
+
+app_module = types.ModuleType("app")
+ioc_module = types.ModuleType("app.ioc")
+services_module = types.ModuleType("app.services")
+fakes_module = types.ModuleType("tests.fakes")
+ioc_module.Dependencies = Dependencies
+ioc_module.Auth = Auth
+ioc_module.Billing = Billing
+ioc_module.ALL_GROUPS = [Dependencies, Auth, Billing]
+services_module.UserService = UserService
+services_module.EmailClient = EmailClient
+fakes_module.FakeRepo = FakeRepo
+app_module.ioc = ioc_module
+app_module.services = services_module
+sys.modules.update(
+    {"app": app_module, "app.ioc": ioc_module, "app.services": services_module, "tests.fakes": fakes_module}
+)
+del UserRepo, FakeRepo, UserService, EmailClient, Dependencies, Auth, Billing
+-->
+
 ```python
 import typing
 
@@ -167,6 +228,11 @@ user_service_with_fake_repo = modern_di_fixture(
 def test_with_override(user_service_with_fake_repo: UserService) -> None:
     assert user_service_with_fake_repo.list_users() == []
 ```
+
+<!-- invisible-code-block: python
+for stand_in in ("app", "app.ioc", "app.services", "tests.fakes"):
+    sys.modules.pop(stand_in)
+-->
 
 For deeper patterns (transactional DB sessions, resetting all overrides) see the [testing-with-overrides recipe](../recipes/testing-overrides.md).
 

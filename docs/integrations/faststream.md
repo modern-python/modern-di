@@ -53,7 +53,7 @@ class AppGroup(Group):
 
 
 broker = NatsBroker()
-app = faststream.FastStream(broker=broker)
+app = faststream.FastStream(broker)
 container = Container(groups=[AppGroup])
 modern_di_faststream.setup_di(app, container)
 container.validate()  # after setup_di — its connection providers are now registered
@@ -72,6 +72,20 @@ async def handle_order(
 by an `on_startup` hook that walks `app.brokers`, so a broker passed to `FastStream(...)` and
 one added with `app.add_broker` after `setup_di` are treated the same:
 
+<!-- clear-namespace -->
+
+<!-- invisible-code-block: python
+import faststream
+import modern_di_faststream
+from faststream.kafka import KafkaBroker
+from faststream.nats import NatsBroker
+from modern_di import Container
+
+container = Container()
+nats_broker = NatsBroker()
+kafka_broker = KafkaBroker()
+-->
+
 ```python
 app = faststream.FastStream(nats_broker)
 modern_di_faststream.setup_di(app, container)
@@ -83,6 +97,17 @@ broker at call time. Hooks run in registration order, so register that hook **be
 calling `setup_di`; otherwise the install step runs first and does not see the broker. If the
 app still has no broker when the install step runs, it raises a `RuntimeError` naming both
 remedies.
+
+<!-- clear-namespace -->
+
+<!-- invisible-code-block: python
+import faststream
+import modern_di_faststream
+from faststream.nats import NatsBroker
+from modern_di import Container
+
+container = Container()
+-->
 
 ```python
 app = faststream.FastStream()
@@ -166,6 +191,8 @@ class AppGroup(Group):
     its middleware and reopens the container in those hooks, so a `FromDI`
     subscriber reached this way has no request container and raises a
     `RuntimeError` that names `setup_di` and `TestApp` as the fix.
+
+    <!-- skip: next "br.publish(...) is a placeholder; NatsBroker.publish needs a message and a subject" -->
 
     ```python
     async with TestNatsBroker(broker) as br, TestApp(app):

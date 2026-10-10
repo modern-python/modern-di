@@ -120,6 +120,12 @@ When a FastMCP server is mounted inside a FastAPI app, one container can serve b
 of them must own the container's lifespan, or the first to stop closes it for the other. Let
 FastAPI own it and pass `manage_lifespan=False` to the FastMCP side:
 
+<!-- invisible-code-block: python
+greeter_mcp = mcp
+mcp = fastmcp.FastMCP("greeter")
+container = Container(groups=[AppGroup])
+-->
+
 ```python
 import fastapi
 import modern_di_fastapi
@@ -141,6 +147,10 @@ request container for it. `FromDI` raises a `RuntimeError` there that names this
 
 Use FastMCP's in-memory client. Entering it runs the server's lifespan, so the container opens and
 closes with it:
+
+<!-- invisible-code-block: python
+mcp = greeter_mcp
+-->
 
 ```python
 async with fastmcp.Client(mcp) as client:

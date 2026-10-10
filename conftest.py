@@ -9,6 +9,9 @@ import ast
 import asyncio
 import inspect
 import pathlib
+import re
+import sys
+import types
 from collections.abc import Iterator
 
 import pytest
@@ -31,6 +34,8 @@ _FRAMEWORK_INDEPENDENT_INTEGRATION_PAGES = frozenset({"writing-integrations.md"}
 
 _EXPECTED_ERROR_KEY = "__docs_expected_error__"
 
+_PAGE_MODULE_KEY = "__docs_page_module__"
+
 _RAISES_LEXER = DirectiveInHTMLCommentLexer("raises", arguments=r"\w+")
 
 
@@ -43,10 +48,21 @@ def _parse_raises(document: Document) -> Iterator[Region]:
         yield Region(lexed.start, lexed.end, lexed.lexemes["arguments"], _expect_error)
 
 
+def _page_module(example: Example) -> types.ModuleType:
+    module = example.namespace.get(_PAGE_MODULE_KEY)
+    if module is None:
+        page = pathlib.Path(example.path)
+        module = types.ModuleType(re.sub(r"\W", "_", f"docs_example_{page.parent.name}_{page.stem}"))
+        module.__file__ = str(page)
+        sys.modules[module.__name__] = module
+        example.namespace[_PAGE_MODULE_KEY] = module
+    return module
+
+
 def _run(example: Example) -> None:
     source = "\n" * (example.line + example.parsed.line_offset) + example.parsed
     code = compile(source, example.path, "exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT, dont_inherit=True)
-    result = eval(code, example.namespace)  # noqa: S307
+    result = eval(code, vars(_page_module(example)))  # noqa: S307
     if inspect.iscoroutine(result):
         asyncio.run(result)
 
@@ -80,7 +96,19 @@ _collect_docs = Sybil(
 ).pytest()
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--docs-integrations",
+        action="store_true",
+        help="also run the framework pages under docs/integrations/; needs every modern-di-<page> package installed",
+    )
+
+
 def pytest_collect_file(file_path: pathlib.Path, parent: pytest.Collector) -> pytest.Collector | None:
-    if file_path.parent.name == "integrations" and file_path.name not in _FRAMEWORK_INDEPENDENT_INTEGRATION_PAGES:
+    if (
+        file_path.parent.name == "integrations"
+        and file_path.name not in _FRAMEWORK_INDEPENDENT_INTEGRATION_PAGES
+        and not parent.config.getoption("--docs-integrations")
+    ):
         return None
     return _collect_docs(file_path, parent)
