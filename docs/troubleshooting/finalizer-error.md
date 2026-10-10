@@ -2,11 +2,12 @@
 
 ## Symptom
 
-Raised by `close_sync()` / `close_async()` when finalizers fail during cleanup. The message is one
-line naming each kind of error with its count:
+Raised by `close_sync()` / `close_async()` when finalizers fail during cleanup. The message's first
+line names each kind of error with its count:
 
 ```
-FinalizerError: Container.close_sync() found 2 finalizer error(s): ConnectionError (1), ValueError (1)
+modern_di.exceptions.lifecycle.FinalizerError: Container.close_sync() found 2 finalizer error(s): ConnectionError (1), ValueError (1)
+See: https://modern-di.modern-python.org/troubleshooting/finalizer-error/
 ```
 
 It is an `ExceptionGroup`, so a traceback shows each finalizer exception below it, with a note naming

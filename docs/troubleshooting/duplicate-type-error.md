@@ -7,7 +7,7 @@ This error occurs when two or more providers are registered with the same `bound
 When you see this error:
 
 ```
-DuplicateProviderTypeError: Provider is duplicated by type <class 'SomeType'>.
+modern_di.exceptions.registration.DuplicateProviderTypeError: Provider is duplicated by type <class 'SomeType'>.
   - Factory (myapp.ioc:12)
   - Factory (myapp.other:30)
 Set bound_type=None on one of them to make it resolvable by reference only.

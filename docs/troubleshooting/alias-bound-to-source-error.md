@@ -5,7 +5,7 @@
 Raised when the `Alias(...)` is declared, before any container exists:
 
 ```
-AliasBoundToSourceError: Alias of <class 'Implementation'> is bound to its own source type, so it would resolve to itself. Pass bound_type= with the type the alias should answer for, such as a base class or Protocol, or bound_type=None to resolve it by reference only.
+modern_di.exceptions.registration.AliasBoundToSourceError: Alias of <class 'Implementation'> is bound to its own source type, so it would resolve to itself. Pass bound_type= with the type the alias should answer for, such as a base class or Protocol, or bound_type=None to resolve it by reference only.
 See: https://modern-di.modern-python.org/troubleshooting/alias-bound-to-source-error/
 ```
 

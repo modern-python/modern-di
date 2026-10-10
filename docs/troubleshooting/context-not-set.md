@@ -5,7 +5,7 @@ A `ContextProvider(SomeType)` resolves by looking up `SomeType` in the container
 ## Symptom
 
 ```
-Cannot resolve dependency chain:
+modern_di.exceptions.resolution.ContextValueNotSetError: Cannot resolve dependency chain:
   REQUEST  MyService (myapp.ctx:9)
   caused by: No context value is set for <class 'myapp.ctx.TenantId'> (scope REQUEST), needed for argument tenant. Pass context={...} to the container or call set_context(), or pass default= to the ContextProvider.
 See: https://modern-di.modern-python.org/troubleshooting/context-not-set/
