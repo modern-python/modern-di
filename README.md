@@ -20,6 +20,7 @@
 | [modern-di-arq](https://github.com/modern-python/modern-di-arq)               | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-arq.svg)](https://pypi.python.org/pypi/modern-di-arq) [![downloads](https://static.pepy.tech/badge/modern-di-arq/month)](https://pepy.tech/projects/modern-di-arq)                             |
 | [modern-di-celery](https://github.com/modern-python/modern-di-celery)         | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-celery.svg)](https://pypi.python.org/pypi/modern-di-celery) [![downloads](https://static.pepy.tech/badge/modern-di-celery/month)](https://pepy.tech/projects/modern-di-celery)                 |
 | [modern-di-fastapi](https://github.com/modern-python/modern-di-fastapi)       | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-fastapi.svg)](https://pypi.python.org/pypi/modern-di-fastapi) [![downloads](https://static.pepy.tech/badge/modern-di-fastapi/month)](https://pepy.tech/projects/modern-di-fastapi)             |
+| [modern-di-fastmcp](https://github.com/modern-python/modern-di-fastmcp)       | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-fastmcp.svg)](https://pypi.python.org/pypi/modern-di-fastmcp) [![downloads](https://static.pepy.tech/badge/modern-di-fastmcp/month)](https://pepy.tech/projects/modern-di-fastmcp)             |
 | [modern-di-faststream](https://github.com/modern-python/modern-di-faststream) | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-faststream.svg)](https://pypi.python.org/pypi/modern-di-faststream) [![downloads](https://static.pepy.tech/badge/modern-di-faststream/month)](https://pepy.tech/projects/modern-di-faststream) |
 | [modern-di-flask](https://github.com/modern-python/modern-di-flask)           | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-flask.svg)](https://pypi.python.org/pypi/modern-di-flask) [![downloads](https://static.pepy.tech/badge/modern-di-flask/month)](https://pepy.tech/projects/modern-di-flask)                     |
 | [modern-di-grpc](https://github.com/modern-python/modern-di-grpc)             | [![Supported versions](https://img.shields.io/pypi/pyversions/modern-di-grpc.svg)](https://pypi.python.org/pypi/modern-di-grpc) [![downloads](https://static.pepy.tech/badge/modern-di-grpc/month)](https://pepy.tech/projects/modern-di-grpc)                         |
@@ -36,7 +37,7 @@
 - Scopes and context management
 - Python 3.11+ support
 - Fully typed and tested
-- Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, and `Typer`
+- Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastMCP`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, and `Typer`
 - Pytest integration (`modern-di-pytest`) that turns any DI dependency into a pytest fixture
 
 ## Install

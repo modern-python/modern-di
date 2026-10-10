@@ -14,7 +14,7 @@
 - Scopes and context management
 - Python 3.11+ support
 - Fully typed and tested
-- Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, `Typer`, and `pytest`
+- Integrations with `aiogram`, `aiohttp`, `arq`, `Celery`, `FastAPI`, `FastMCP`, `FastStream`, `Flask`, `gRPC`, `Litestar`, `Starlette`, `taskiq`, `Typer`, and `pytest`
 
 Reference templates:
 
@@ -177,7 +177,7 @@ child container for you automatically. Resolution itself is always synchronous; 
 
 - Framework integrations: [aiogram](integrations/aiogram.md), [aiohttp](integrations/aiohttp.md),
   [arq](integrations/arq.md), [Celery](integrations/celery.md), [FastAPI](integrations/fastapi.md),
-  [FastStream](integrations/faststream.md), [Flask](integrations/flask.md), [gRPC](integrations/grpc.md),
+  [FastMCP](integrations/fastmcp.md), [FastStream](integrations/faststream.md), [Flask](integrations/flask.md), [gRPC](integrations/grpc.md),
   [Litestar](integrations/litestar.md), [Starlette](integrations/starlette.md),
   [taskiq](integrations/taskiq.md), [Typer](integrations/typer.md), [Pytest](integrations/pytest.md).
   The framework integrations build a scoped child container per request/task/call automatically,

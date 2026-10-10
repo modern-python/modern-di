@@ -36,6 +36,7 @@ nav:
       - Bots:
           - aiogram: integrations/aiogram.md
       - RPC:
+          - FastMCP: integrations/fastmcp.md
           - gRPC: integrations/grpc.md
       - CLI:
           - Typer: integrations/typer.md

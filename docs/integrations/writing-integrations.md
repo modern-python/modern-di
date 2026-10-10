@@ -137,10 +137,12 @@ depends on how the framework runs handlers:
 site, stands in for the resolved value: `x: Annotated[Foo, FromDI(foo_provider)]`.
 How it delivers that value splits into two modes depending on the framework:
 
-- Native-DI frameworks (FastAPI, FastStream, Litestar) have a per-handler
+- Native-DI frameworks (FastAPI, FastMCP, FastStream, Litestar) have a per-handler
   injection seam: `Depends`, `Provide`. `FromDI` returns that native marker and
   the framework calls your resolver with the request container. This is the path
-  documented below.
+  documented below. FastMCP is the exception to the `Annotated` form: it strips an
+  injected parameter from the tool schema only when the marker is the parameter's
+  default, so there `FromDI` is a default value, `x: T = FromDI(T)`.
 - Frameworks with no request-scoped DI (Typer/Click CLIs, argparse, task
   runners) have no seam. `FromDI` returns an inert marker and a decorator
   does the resolution. See [Frameworks without native
@@ -281,7 +283,7 @@ a Typer/Click command, an argparse handler, or a plain task callable receives
 only what the framework's argument parser binds.
 
 The rule: an integration is decorator-free only where the framework evaluates a parameter
-default as a provider (FastAPI and FastStream `Depends`, Litestar `Provide`, taskiq
+default as a provider (FastAPI, FastMCP and FastStream `Depends`, Litestar `Provide`, taskiq
 `TaskiqDepends`). Flask, Starlette, aiohttp, Celery, arq, Typer and gRPC hand the handler a plain
 callable, and aiogram matches its `data` dict by parameter name, so those need `@inject`. Some
 of them apply it for you: Flask and aiogram take `setup_di(..., auto_inject=True)`, and Celery
