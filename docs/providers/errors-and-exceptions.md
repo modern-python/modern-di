@@ -161,7 +161,8 @@ declared or registered, or by `validate()`, which reports `InvalidScopeDependenc
 `ScopeEnumMismatchError`.
 
 - `DuplicateProviderTypeError` is raised when two providers are registered for the same bound type
-  (within one group, across groups passed together, or against an already-registered type). See
+  (within one group, across groups passed together, or against an already-registered type).
+  `.first_provider` and `.second_provider` hold the two providers in registration order. See
   [Troubleshooting: Duplicate type](../troubleshooting/duplicate-type-error.md).
 - `ChildContainerRegistrationError` is raised by `Container.add_providers()` when called on a child
   container. Registration is root-only because the providers registry is shared tree-wide, so
@@ -222,8 +223,8 @@ These don't fit the register/resolve/validate grouping:
 ## Security note
 
 `modern-di` exception messages are intended for developers (logs, tracebacks during wiring). A
-`CreatorCallError` embeds the wrapped exception's text, and a `FinalizerError` embeds the repr of every
+`CreatorCallError` embeds the wrapped exception's text, and a `FinalizerError` traceback shows every
 finalizer exception. So if a creator or finalizer raises an error whose message contains sensitive
-runtime data, that text becomes part of the `modern-di` message. The DI-specific errors themselves are
+runtime data, that text becomes part of what `modern-di` reports. The DI-specific errors themselves are
 conservative (type names and provider reprs only; context values are keyed by type and never repr'd).
 Applications must not echo raw exception strings to untrusted clients.

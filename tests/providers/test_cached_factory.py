@@ -166,7 +166,9 @@ def test_sync_finalizer_exception_does_not_abort_remaining_cleanup() -> None:
     app_container.resolve_provider(BrokenGroup.first)
     app_container.resolve_provider(BrokenGroup.second)
 
-    with pytest.raises(FinalizerError, match="Errors during sync cleanup") as exc:
+    with pytest.raises(
+        FinalizerError, match=r"Container.close_sync\(\) found 1 finalizer error\(s\): RuntimeError \(1\)"
+    ) as exc:
         app_container.close_sync()
     assert exc.value.is_async is False
     assert len(exc.value.exceptions) == 1
@@ -201,7 +203,9 @@ async def test_async_finalizer_exception_does_not_abort_remaining_cleanup() -> N
     app_container.resolve_provider(BrokenAsyncGroup.first)
     app_container.resolve_provider(BrokenAsyncGroup.second)
 
-    with pytest.raises(FinalizerError, match="Errors during async cleanup") as exc:
+    with pytest.raises(
+        FinalizerError, match=r"Container.close_async\(\) found 1 finalizer error\(s\): RuntimeError \(1\)"
+    ) as exc:
         await app_container.close_async()
     assert exc.value.is_async is True
     assert len(exc.value.exceptions) == 1
@@ -236,9 +240,38 @@ def test_finalizer_error_is_an_exception_group() -> None:
     assert len(err.exceptions) == 1
     assert isinstance(err.exceptions[0], ValueError)
     assert str(err) == (
-        "Errors during sync cleanup: [ValueError('boom')]\n"
+        "Container.close_sync() found 1 finalizer error(s): ValueError (1)\n"
         "See: https://modern-di.modern-python.org/troubleshooting/finalizer-error/"
     )
+
+
+def test_finalizer_error_notes_name_the_instance_type() -> None:
+    container = Container(groups=[_ValueErrorFinalizerGroup])
+    container.resolve_provider(_ValueErrorFinalizerGroup.failing)
+
+    with pytest.raises(FinalizerError) as exc_info:
+        container.close_sync()
+
+    assert exc_info.value.exceptions[0].__notes__ == ["raised by the finalizer of a cached SimpleCreator"]
+
+
+async def test_async_finalizer_error_notes_name_the_instance_type() -> None:
+    async def failing_finalizer(_: SimpleCreator) -> None:
+        msg = "async boom"
+        raise RuntimeError(msg)
+
+    class G(Group):
+        failing = providers.Factory(
+            creator=SimpleCreator, kwargs={"dep1": "x"}, cache=providers.CacheSettings(finalizer=failing_finalizer)
+        )
+
+    container = Container(groups=[G])
+    container.resolve_provider(G.failing)
+
+    with pytest.raises(FinalizerError) as exc_info:
+        await container.close_async()
+
+    assert exc_info.value.exceptions[0].__notes__ == ["raised by the finalizer of a cached SimpleCreator"]
 
 
 def test_except_star_catches_user_finalizer_error_from_close_sync() -> None:

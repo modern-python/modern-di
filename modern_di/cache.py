@@ -4,6 +4,7 @@ import threading
 import typing
 
 from modern_di import exceptions, types
+from modern_di.exceptions.lifecycle import finalizer_note
 from modern_di.providers import CacheSettings
 
 
@@ -55,6 +56,7 @@ async def close_async(creation_order: list[CacheItem]) -> None:
                 if result is not None and inspect.isawaitable(result):
                     await result
             except Exception as e:  # noqa: BLE001
+                e.add_note(finalizer_note(type(cache_item.cache)))
                 finalizer_errors.append(e)
             else:
                 cache_item.finalized = True
@@ -79,6 +81,7 @@ def close_sync(creation_order: list[CacheItem]) -> None:
             try:
                 result = finalizer(value)
             except Exception as e:  # noqa: BLE001
+                e.add_note(finalizer_note(type(value)))
                 finalizer_errors.append(e)
             else:
                 if result is not None and inspect.isawaitable(result):

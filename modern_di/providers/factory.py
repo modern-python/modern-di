@@ -12,6 +12,14 @@ from modern_di.wiring import WiringPlan
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class CacheSettings(typing.Generic[types.T_contra]):
+    """How a cached ``Factory`` keeps and releases its instance.
+
+    ``finalizer`` runs on the instance when its container closes; it may be sync or async. With
+    ``clear_cache=True``, the default, the instance is dropped at close and rebuilt on the next
+    resolve after reopening. With ``clear_cache=False`` the same instance survives close and reopen,
+    and its finalizer runs only once.
+    """
+
     clear_cache: bool = True
     finalizer: typing.Callable[[types.T_contra], object] | None = None
     _is_async_finalizer: bool = dataclasses.field(init=False, repr=False, compare=False)
@@ -37,6 +45,15 @@ class CacheSettings(typing.Generic[types.T_contra]):
 
 
 class Factory(AbstractProvider[types.T_co]):
+    """Provider that calls ``creator`` to build its value, wiring its parameters from the container.
+
+    Each parameter is resolved by its annotated type unless ``kwargs`` gives it a value or a
+    provider. The bound type defaults to the creator's return annotation; ``bound_type=None`` makes
+    the provider resolvable by reference only. ``cache=True`` or a ``CacheSettings`` builds the value
+    once per container at the provider's scope. ``skip_creator_parsing=True`` turns off wiring, so
+    every required argument must come from ``kwargs``.
+    """
+
     __slots__ = (
         "_cache_settings",
         "_cached_definition_site",

@@ -1,9 +1,11 @@
 """Errors outside the register and resolve paths: closing a container, constructing a group."""
 
+import collections
 import typing
 from collections.abc import Sequence
 
 from modern_di.exceptions.base import ModernDIError
+from modern_di.exceptions.rendering import type_name
 
 
 class FinalizerError(ModernDIError, ExceptionGroup[Exception]):
@@ -32,8 +34,15 @@ class FinalizerError(ModernDIError, ExceptionGroup[Exception]):
 
 
 def _cleanup_message(exceptions: Sequence[Exception], *, is_async: bool) -> str:
-    kind = "async" if is_async else "sync"
-    return f"Errors during {kind} cleanup: {list(exceptions)}"
+    counts = collections.Counter(type(error).__name__ for error in exceptions)
+    kinds = ", ".join(f"{kind} ({counts[kind]})" for kind in sorted(counts))
+    method = "close_async" if is_async else "close_sync"
+    return f"Container.{method}() found {len(exceptions)} finalizer error(s): {kinds}"
+
+
+def finalizer_note(instance_type: type) -> str:
+    """Return the note for an exception raised by the finalizer of a cached ``instance_type``."""
+    return f"raised by the finalizer of a cached {type_name(instance_type)}"
 
 
 class AsyncFinalizerInSyncCloseError(ModernDIError):

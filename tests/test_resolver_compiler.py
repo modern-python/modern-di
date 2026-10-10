@@ -883,6 +883,7 @@ def test_compile_resolver_rejects_an_unknown_provider_type() -> None:
     """
 
     class _Unsupported(AbstractProvider[int]):
+        __module__ = "modern_di.providers.unsupported"  # an internal type, which may subclass
         __slots__ = ()
 
     with pytest.raises(TypeError, match="no compiled resolver for provider type _Unsupported"):

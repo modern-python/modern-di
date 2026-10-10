@@ -142,7 +142,11 @@ class ProvidersRegistry:
             if not provider.bound_type:
                 continue
             if provider.bound_type in new_providers:
-                raise exceptions.DuplicateProviderTypeError(provider_type=provider.bound_type)
+                raise exceptions.DuplicateProviderTypeError(
+                    provider_type=provider.bound_type,
+                    first_provider=new_providers[provider.bound_type],
+                    second_provider=provider,
+                )
             new_providers[provider.bound_type] = provider
         self._add(new_providers, (*bindings.values(), *args) if bindings else args)
 
@@ -153,9 +157,11 @@ class ProvidersRegistry:
     ) -> None:
         """Bind ``new_providers`` and latch every provider in ``registered``; a type already bound raises."""
         with self._lock:
-            for provider_type in new_providers:
-                if provider_type in self._providers:
-                    raise exceptions.DuplicateProviderTypeError(provider_type=provider_type)
+            for provider_type, provider in new_providers.items():
+                if (existing := self._providers.get(provider_type)) is not None:
+                    raise exceptions.DuplicateProviderTypeError(
+                        provider_type=provider_type, first_provider=existing, second_provider=provider
+                    )
             self._providers.update(new_providers)
             # Over `registered`: a reference-only provider never enters `_providers` but is still compiled.
             for provider in registered:

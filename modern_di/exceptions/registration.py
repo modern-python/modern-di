@@ -5,7 +5,7 @@ import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import ModernDIError
-from modern_di.exceptions.rendering import provider_step, render_chain, render_suggestion_lines
+from modern_di.exceptions.rendering import provider_step, render_chain, render_provider_lines, render_suggestion_lines
 
 
 if typing.TYPE_CHECKING:
@@ -19,20 +19,30 @@ class RegistrationError(ModernDIError):
 
 
 class DuplicateProviderTypeError(RegistrationError):
-    """Two providers were registered for the same ``.provider_type``."""
+    """Two providers were registered for the same ``.provider_type``.
+
+    Inspect ``.first_provider`` (registered first) and ``.second_provider``; either is ``None`` when the
+    error was built without it.
+    """
 
     docs_slug = "duplicate-type-error"
 
-    __slots__ = ("provider_type",)
+    __slots__ = ("first_provider", "provider_type", "second_provider")
 
-    def __init__(self, *, provider_type: type) -> None:
+    def __init__(
+        self,
+        *,
+        provider_type: type,
+        first_provider: "AbstractProvider[typing.Any] | None" = None,
+        second_provider: "AbstractProvider[typing.Any] | None" = None,
+    ) -> None:
         self.provider_type = provider_type
-        super().__init__(
-            f"Provider is duplicated by type {provider_type}. "
-            "To resolve this issue:\n"
-            "1. Set bound_type=None on one of the providers to make it unresolvable by type\n"
-            "2. Explicitly pass dependencies via the kwargs parameter to avoid automatic resolution"
-        )
+        self.first_provider = first_provider
+        self.second_provider = second_provider
+        lines = [f"Provider is duplicated by type {provider_type}."]
+        lines.extend(render_provider_lines([p for p in (first_provider, second_provider) if p is not None]))
+        lines.append("Set bound_type=None on one of them to make it resolvable by reference only.")
+        super().__init__("\n".join(lines))
 
 
 class ChildContainerRegistrationError(RegistrationError):

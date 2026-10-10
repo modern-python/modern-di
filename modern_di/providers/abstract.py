@@ -10,10 +10,25 @@ _provider_id_counter = itertools.count()
 
 
 class AbstractProvider(typing.Generic[types.T_co]):
+    """Shared base of ``Factory``, ``Alias``, ``ContextProvider`` and ``container_provider``.
+
+    It appears in signatures that accept any provider. The provider set is closed: subclassing it,
+    or any provider, outside modern-di raises ``TypeError``.
+    """
+
     __slots__ = ("_bound_type", "_explicit_scope", "_group_claim", "_provider_id", "_registered")
 
     _takes_group_scope: typing.ClassVar[bool] = True
     """Whether a Group-level default scope applies. False when the effective scope is derived."""
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        if cls.__module__.partition(".")[0] != "modern_di":
+            msg = (
+                f"{cls.__qualname__} subclasses a modern-di provider. The provider set is closed, so a "
+                "subclass would not resolve. Compose behavior in a creator function or an Alias instead."
+            )
+            raise TypeError(msg)
+        super().__init_subclass__(**kwargs)
 
     def __init__(
         self,

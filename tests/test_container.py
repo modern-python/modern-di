@@ -31,6 +31,14 @@ from modern_di.registries.providers_registry import ProvidersRegistry
 from tests.helpers import cache_item
 
 
+def _make_str_one() -> str:
+    return "one"
+
+
+def _make_str_two() -> str:
+    return "two"
+
+
 def test_container_prevent_copy() -> None:
     container = Container()
     container_deepcopy = copy.deepcopy(container)
@@ -776,6 +784,8 @@ def test_add_providers_raises_on_duplicate_against_registered() -> None:
     with pytest.raises(DuplicateProviderTypeError) as exc:
         container.add_providers(other_str_factory)
     assert exc.value.provider_type is str
+    assert exc.value.first_provider is str_factory
+    assert exc.value.second_provider is other_str_factory
 
 
 def test_add_providers_raises_on_duplicate_intra_batch() -> None:
@@ -786,6 +796,22 @@ def test_add_providers_raises_on_duplicate_intra_batch() -> None:
     with pytest.raises(DuplicateProviderTypeError) as exc:
         container.add_providers(str_factory, other_str_factory)
     assert exc.value.provider_type is str
+    assert exc.value.first_provider is str_factory
+    assert exc.value.second_provider is other_str_factory
+
+
+def test_duplicate_provider_message_names_both_definition_sites() -> None:
+    first = providers.Factory(creator=_make_str_one, bound_type=str)
+    second = providers.Factory(creator=_make_str_two, bound_type=str)
+    container = Container(scope=Scope.APP)
+
+    with pytest.raises(DuplicateProviderTypeError) as exc:
+        container.add_providers(first, second)
+
+    message = str(exc.value)
+    assert f"  - Factory ({first.definition_site})" in message
+    assert f"  - Factory ({second.definition_site})" in message
+    assert "kwargs" not in message
 
 
 def test_add_providers_on_child_container_raises() -> None:
@@ -1037,18 +1063,6 @@ def test_override_context_manager_exit_after_root_close_restores_prior_override(
         container.open()
         assert container.resolve(_OverrideSvc) is second
     assert container.resolve(_OverrideSvc) is first
-
-
-def test_resolve_provider_raises_for_unhandled_provider_type() -> None:
-    # Every real provider type compiles; an unknown AbstractProvider subclass hits compile_resolver's
-    # final explicit raise (the single place a new, unregistered provider type is rejected).
-    class _UnknownProvider(AbstractProvider[object]):
-        __slots__ = ()
-
-    provider = _UnknownProvider(scope=Scope.APP, bound_type=None)
-    container = Container()
-    with pytest.raises(TypeError, match="no compiled resolver for provider type _UnknownProvider"):
-        container.resolve_provider(provider)
 
 
 def test_abstract_provider_is_a_plain_class() -> None:

@@ -53,7 +53,7 @@ The codebase is type-checked with `ty` and linted with ruff's full rule set (`se
 
 New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton. Most other DI frameworks have two to three times that. The small core is deliberate, because a small, composable core is easier to learn, test, and keep correct.
 
-The provider set is closed. `AbstractProvider` is the shared base that appears in signatures, not a hook: resolution compiles a resolver per known provider type, so a subclass of `AbstractProvider` or `Factory` raises `TypeError` at its first resolve. Compose behaviour in a creator function or an `Alias` instead.
+The provider set is closed. `AbstractProvider` is the shared base that appears in signatures, not a hook: resolution compiles a resolver per known provider type, so defining a subclass of `AbstractProvider` or `Factory` raises `TypeError` when the class is created. Compose behaviour in a creator function or an `Alias` instead.
 
 Caching is one argument, `Factory(cache=True | CacheSettings(...))`, rather than a `Singleton` class: a class would say "cached" in its name and again in the settings it still needs for a finalizer, and the two can drift.
 
