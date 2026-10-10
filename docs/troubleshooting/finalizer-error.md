@@ -5,23 +5,25 @@
 Raised by `close_sync()` / `close_async()` when finalizers fail during cleanup. The message's first
 line names each kind of error with its count:
 
-```
+```text
 modern_di.exceptions.lifecycle.FinalizerError: Container.close_sync() found 2 finalizer error(s): ConnectionError (1), ValueError (1)
 See: https://modern-di.modern-python.org/troubleshooting/finalizer-error/
 ```
 
 It is an `ExceptionGroup`, so a traceback shows each finalizer exception below it, with a note naming
 the type of the cached instance whose finalizer raised it, such as
-`raised by the finalizer of a cached Database`.
+`raised by the finalizer of a cached Database`. `.is_async` tells you whether `close_sync()` or
+`close_async()` raised it.
 
 ## Cause
 
-One or more cached providers' finalizers raised while the container was closing. Closing never stops
-at the first failure: every finalizer runs regardless, so this error aggregates every failure.
+One or more finalizers of cached providers raised while the container was closing. Finalizers run
+newest first, in the reverse of the order their instances were created, and closing never stops at
+the first failure. Every finalizer runs, and this error collects every failure.
 
 ## Fix
 
-Inspect `.exceptions` for the individual exceptions and fix the offending finalizer(s):
+Inspect `.exceptions` for the individual exceptions and fix the finalizers that raised:
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group, Scope, exceptions, providers
@@ -74,16 +76,20 @@ except* ConnectionError as group:
         print("cleanup failed:", err)
 ```
 
-Because every finalizer still ran, a broken one doesn't leak a resource a later finalizer would have
-closed. Only the exceptions themselves need attention, not the cleanup order. `.is_async` tells you
-whether `close_sync()` or `close_async()` produced the error.
+What `except*` does not catch is raised again as a `FinalizerError` holding only the remaining
+errors.
 
-## Escape hatches
+A finalizer that raised is not retried. Its instance is dropped from the cache, so a later close does
+not call that finalizer again, and resolving after a reopen builds a new instance. Because every other
+finalizer still ran, a broken one does not leak a resource that a later finalizer would have closed.
 
-If one entry in `.exceptions` is an `AsyncFinalizerInSyncCloseError`, that specific resource's
-cache was retained, and calling `await container.close_async()` afterward finalizes it
-and completes cleanup.
+An `AsyncFinalizerInSyncCloseError` entry is the exception to this: `close_sync()` keeps that
+instance cached, and a later `await container.close_async()` runs its finalizer. See
+[AsyncFinalizerInSyncCloseError](async-finalizer-in-sync-close-error.md).
 
 ## See also
 
-- [Lifecycle: close-failure semantics](../providers/lifecycle.md#close-failure-semantics).
+- [Lifecycle: close-failure semantics](../providers/lifecycle.md#close-failure-semantics) — what
+  closing does when a finalizer fails or is cancelled.
+- [AsyncFinalizerInSyncCloseError](async-finalizer-in-sync-close-error.md) — an async finalizer
+  reached by `close_sync()`.
