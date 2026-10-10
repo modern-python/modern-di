@@ -112,3 +112,8 @@ def test_cache_settings_accepts_a_finalizer_that_returns_a_value() -> None:
     with Container() as container:
         instance = container.resolve_provider(factory)
     assert instance.closed
+
+
+def test_alias_without_bound_type_is_a_type_error() -> None:
+    with pytest.raises(TypeError, match="bound_type"):
+        providers.Alias(_Base)  # ty: ignore[missing-argument]

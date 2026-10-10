@@ -119,12 +119,6 @@ def test_alias_participates_in_cycle_detection() -> None:
     assert "Concrete" in str(issue)
 
 
-def test_alias_without_bound_type_is_rejected_at_declaration() -> None:
-    with pytest.raises(exceptions.AliasBoundToSourceError) as exc_info:
-        providers.Alias(source_type=PostgresRepository)
-    assert exc_info.value.source_type is PostgresRepository
-
-
 def test_alias_bound_to_its_own_source_type_is_rejected_at_declaration() -> None:
     with pytest.raises(exceptions.AliasBoundToSourceError, match="PostgresRepository"):
         providers.Alias(PostgresRepository, bound_type=PostgresRepository)
@@ -401,7 +395,7 @@ class _DepSrc: ...
 
 def test_alias_scope_param_removed() -> None:
     with pytest.raises(TypeError, match="unexpected keyword argument 'scope'"):
-        providers.Alias(_DepSrc, scope=Scope.APP)  # ty: ignore[unknown-argument]
+        providers.Alias(_DepSrc, bound_type=AbstractRepository, scope=Scope.APP)  # ty: ignore[unknown-argument]
 
 
 def test_alias_accepts_positional_source_type() -> None:
@@ -415,7 +409,7 @@ def test_alias_accepts_positional_source_type() -> None:
 
 def test_alias_rejects_source_type_passed_twice() -> None:
     with pytest.raises(TypeError, match="source_type"):
-        providers.Alias(PostgresRepository, source_type=PostgresRepository)  # ty: ignore[parameter-already-assigned]
+        providers.Alias(PostgresRepository, source_type=PostgresRepository, bound_type=AbstractRepository)  # ty: ignore[parameter-already-assigned]
 
 
 # redirect_target: transparent redirects
