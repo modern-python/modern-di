@@ -31,6 +31,8 @@ rejected when the `Factory` is declared, as
 
 An exception raised inside the creator's body, a `TypeError` included, propagates as itself and is
 never wrapped in this error.
+A `ResolutionError` raised by a `container.resolve()` call in the body keeps its class too, and gains
+the creator's step in its `.dependency_path`, so its message draws the chain down to that creator.
 
 ## Fix
 
