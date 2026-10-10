@@ -1,32 +1,32 @@
-# No provider registered for type
+# ProviderNotRegisteredError
 
-This error fires when a creator parameter is typed `Foo` and the container has no registered provider for `Foo`.
+`container.resolve(SomeType)` raises this when no provider is registered under `SomeType`. When the
+missing type is a parameter of a registered provider's creator, the error is
+[`ArgumentResolutionError`](argument-resolution-error.md) instead.
 
 ## Symptom
-
-Resolving an unregistered type directly raises:
 
 ```
 modern_di.exceptions.resolution.ProviderNotRegisteredError: No provider is registered for MissingDep.
 See: https://modern-di.modern-python.org/troubleshooting/missing-provider/
 ```
 
-Resolving a registered factory whose creator depends on an unregistered type raises:
+When a subclass, a base class or a similarly named type is registered, the message lists it:
 
 ```
-modern_di.exceptions.resolution.ArgumentResolutionError: Cannot resolve dependency chain:
-  APP  MyService (myapp.missing:7)
-  caused by: Argument dep of type <class 'myapp.missing.MissingDep'> cannot be resolved. Trying to build dependency <class 'myapp.missing.MyService'>.
-See: https://modern-di.modern-python.org/troubleshooting/argument-resolution-error/
+modern_di.exceptions.resolution.ProviderNotRegisteredError: No provider is registered for Clock.
+Did you mean:
+  - SystemClock (registered subclass, scope=APP)
+See: https://modern-di.modern-python.org/troubleshooting/missing-provider/
 ```
 
-The resolver walked the creator's signature, found a parameter typed `MissingDep`, and found nothing for it in the providers registry. The "dependency chain" header shows where in the resolution graph the miss occurred.
+`.dependency_type` holds the type you asked for, and `.suggestions` holds the "Did you mean" entries.
 
 ## Cause
 
 ### 1. The group containing the provider was not passed to `Container`
 
-This is the most common cause. If you split providers across `Database`, `UseCases`, `Cache`, you have to list them all:
+If you split providers across `Database`, `UseCases` and `Cache`, list them all:
 
 <!-- invisible-code-block: python
 from modern_di import Container, Group
@@ -46,50 +46,60 @@ container = Container(groups=[Database, UseCases, Cache])
 container.validate()
 ```
 
-Missing one group means none of its providers are registered. Calling `container.validate()` at
-startup catches this before the first request.
+Leaving out a group leaves out all of its providers. `container.validate()` at startup catches the
+gap when another registered provider depends on one of the missing types, and reports it as an
+`ArgumentResolutionError` inside [`ValidationFailedError`](validation-failed-error.md). A type that
+your code only resolves directly is invisible to `validate()`, so that miss still surfaces at the
+first `resolve`.
 
 ### 2. The creator has no return type annotation
 
-`modern-di` infers the provider's `bound_type` from the creator's return annotation. A creator like `def create_thing(...): ...` (no `-> SomeType`) has no inferable `bound_type` and won't be resolvable by type.
+`modern-di` takes the provider's `bound_type` from the creator's return annotation. A creator without
+`-> SomeType` gets `bound_type=None`, so the provider is reachable only by reference:
 
 <!-- invisible-code-block: python
-import types
+from modern_di import Scope, providers
 
 
-class Settings:
-    database_url = "postgresql+asyncpg://localhost/app"
-
-
-sa_async = types.SimpleNamespace(AsyncEngine=type("AsyncEngine", (), {}))
+class Engine: ...
 -->
 
-```python
-# Broken: cannot resolve by type
-def create_engine(settings: Settings):
-    return sa_async.create_async_engine(settings.database_url)
+<!-- raises: ProviderNotRegisteredError -->
 
-# Works: return-typed
-def create_engine(settings: Settings) -> sa_async.AsyncEngine:
-    return sa_async.create_async_engine(settings.database_url)
+```python
+# Broken:
+def create_engine():
+    return Engine()
+
+
+container = Container(groups=[])
+container.add_providers(providers.Factory(create_engine, scope=Scope.APP))
+container.resolve(Engine)
 ```
 
-To fix it, add the return annotation, or set `bound_type=SomeType` on the provider explicitly.
+Add the return annotation, or pass `bound_type=Engine` to the provider:
+
+```python
+# Works:
+def create_engine() -> Engine:
+    return Engine()
+
+
+container = Container(groups=[])
+container.add_providers(providers.Factory(create_engine, scope=Scope.APP))
+assert isinstance(container.resolve(Engine), Engine)
+```
 
 ### 3. `bound_type=None` was set on the provider you want to resolve
 
-`bound_type=None` makes the provider unresolvable by type. It's a deliberate opt-out for cases where two providers return the same type (see [Duplicate provider type](duplicate-type-error.md)). If you set it on the wrong provider, the type lookup misses.
-
-Leave `bound_type` at its default on the provider you want resolvable by type. If both providers really do produce the same type, resolve the unresolvable one by reference (`container.resolve_provider(...)`).
-
-### 4. The parameter is a union and the chosen branch isn't registered
-
-For `dep: A | B`, `modern-di` resolves the *first* type in the union order that has a registered provider. If neither is registered, the resolver fails.
-
-Register a provider for one of the union types, or annotate the parameter with a concrete type.
+`bound_type=None` takes a provider out of the by-type lookup. It is the opt-out for two providers that
+return the same type (see [DuplicateProviderTypeError](duplicate-type-error.md)), and setting it on
+the wrong one makes the lookup miss. Leave `bound_type` at its default on the provider you resolve by
+type, and resolve the other one by reference with `container.resolve_provider(...)`.
 
 ## See also
 
-- [Resolving](../introduction/resolving.md) describes the by-type lookup algorithm.
-- [Duplicate provider type](duplicate-type-error.md) covers the inverse problem, where two providers compete for the same type.
-- [Factories: `bound_type`](../providers/factories.md) explains how the bound type is inferred and how to override it.
+- [Resolving dependencies](../introduction/resolving.md): the by-type lookup.
+- [ArgumentResolutionError](argument-resolution-error.md): the same gap, hit by a creator parameter.
+- [DuplicateProviderTypeError](duplicate-type-error.md): two providers competing for one type.
+- [Factories: `bound_type`](../providers/factories.md#bound_type): how the bound type is inferred and overridden.

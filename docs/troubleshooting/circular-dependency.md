@@ -1,10 +1,19 @@
 # CircularDependencyError
 
-This error occurs when providers form a dependency cycle, meaning A depends on B which depends back on A (directly or through intermediate providers).
-
 ## Symptom
 
-When you see this error:
+Resolving a provider that sits on a cycle raises:
+
+```
+modern_di.exceptions.resolution.CircularDependencyError: Circular dependency detected:
+  APP  ServiceA (myapp.cycle:6)
+  APP  └─> ServiceB (myapp.cycle:11)
+  APP      └─> ServiceA (myapp.cycle:6)
+Check your provider graph for unintended cycles.
+See: https://modern-di.modern-python.org/troubleshooting/circular-dependency/
+```
+
+`container.validate()` reports the same cycle inside [`ValidationFailedError`](validation-failed-error.md):
 
 ```
   + Exception Group Traceback (most recent call last):
@@ -14,16 +23,22 @@ When you see this error:
   +-+---------------- 1 ----------------
     | modern_di.exceptions.resolution.CircularDependencyError: Circular dependency detected:
     |   APP  ServiceA (myapp.cycle:6)
-    |   APP  └─> ServiceB (myapp.cycle:10)
+    |   APP  └─> ServiceB (myapp.cycle:11)
     |   APP      └─> ServiceA (myapp.cycle:6)
     | Check your provider graph for unintended cycles.
     | See: https://modern-di.modern-python.org/troubleshooting/circular-dependency/
     +------------------------------------
 ```
 
-It means the listed providers form a cycle that cannot be resolved. Each hop in the arrow chain may also end with a pointer to where that provider was declared (module and line number), making it easier to locate the offending provider in a large codebase.
+Each line is one hop of the cycle, with its scope and, for a `Factory`, the module and line where its
+creator is declared. `.steps` holds the hops, and `.cycle_path` and `.cycle_locations` hold their
+names and locations.
 
-## How to detect
+## Cause
+
+The providers form a loop: A depends on B, which depends back on A, directly or through other
+providers. The loop can run through a parameter's type annotation, a `kwargs` entry that holds a
+provider, or an `Alias`.
 
 ### The runtime cycle guard (without `validate()`)
 
@@ -31,21 +46,24 @@ Resolving from an unvalidated cyclic graph still raises `CircularDependencyError
 resolve overflows the stack, and `Container.resolve_provider` catches that `RecursionError`,
 re-walks the static graph from the failing provider, and, since a cycle is reachable, raises
 `CircularDependencyError` (with the same cycle-path rendering shown above) `from` the original
-`RecursionError`. A creator that merely recurses on its own, with no actual cycle in the provider
-graph, still raises the original `RecursionError` unchanged. This guard runs on every resolve, whether or not `validate()` was ever called.
+`RecursionError`. A creator that recurses on its own, with no cycle in the provider graph, still
+raises the original `RecursionError` unchanged. This guard runs on every resolve, whether or not
+`validate()` was ever called.
 
 The guard covers resolution on one thread. Each cached factory locks its cache item while it is
 created, so two threads that cold-resolve different providers of the same cycle at the same time
 can each hold one of those locks and wait for the other forever, and neither reaches the guard.
 If the graph might have a cycle, call `validate()` at startup, before any thread resolves.
 
-### Cycle detection with `validate()`
+## Fix
 
-Calling `validate()` up front finds the *same* cycle earlier, and finds *every* issue in the graph
-in one pass (not just the one a particular resolve happens to hit). Prefer it in development:
+Find every cycle at startup with `validate()`. It walks the whole graph in one pass and reports each
+issue it finds, where a resolve reports only the cycle it happens to hit:
 
 <!-- invisible-code-block: python
 from __future__ import annotations
+
+from typing import Protocol
 
 from modern_di import Group, Scope, providers
 
@@ -71,16 +89,49 @@ class MyGroup(Group):
 from modern_di import Container
 
 container = Container(groups=[MyGroup])
-container.validate()  # raises ValidationFailedError (wraps CircularDependencyError) if a cycle exists
+container.validate()
 ```
 
-## Fix
+Then break the loop with one of these:
 
-1. Break the cycle by introducing an interface or protocol that one side depends on instead of the concrete type.
-2. Inject one dependency manually by passing a factory or value via `kwargs` instead of relying on automatic resolution.
-3. Restructure your dependencies by extracting shared logic into a third provider that both can depend on without forming a cycle.
+1. Pass one side a static value through `kwargs`. Only a value breaks the cycle: a `kwargs` entry
+   that holds a provider is still an edge of the graph, so `kwargs={"a": service_a}` keeps the loop.
+2. Have one side depend on an interface whose provider sits outside the cycle. An `Alias` that maps
+   the interface back to a provider on the cycle keeps the loop.
+3. Move the logic both sides need into a third provider that both depend on.
+
+Option 2, with `ServiceB` taking a `Notifier` that `EmailNotifier` provides instead of `ServiceA`:
+
+```python
+class Notifier(Protocol): ...
+
+
+class EmailNotifier: ...
+
+
+class ServiceB:
+    def __init__(self, notifier: Notifier) -> None:
+        self.notifier = notifier
+
+
+class ServiceA:
+    def __init__(self, b: ServiceB) -> None:
+        self.b = b
+
+
+class Fixed(Group):
+    email = providers.Factory(EmailNotifier, scope=Scope.APP)
+    notifier = providers.Alias(EmailNotifier, bound_type=Notifier)
+    service_a = providers.Factory(ServiceA, scope=Scope.APP)
+    service_b = providers.Factory(ServiceB, scope=Scope.APP)
+
+
+container = Container(groups=[Fixed])
+container.validate()
+```
 
 ## See also
 
-- [Errors and exceptions](../providers/errors-and-exceptions.md)
-- [Lifecycle](../providers/lifecycle.md), the validation section.
+- [Errors and exceptions](../providers/errors-and-exceptions.md): where this error sits in the hierarchy.
+- [Lifecycle: validation](../providers/lifecycle.md#validation): what `validate()` checks.
+- [ValidationFailedError](validation-failed-error.md): how `validate()` groups the errors it finds.
