@@ -14,7 +14,42 @@ from modern_di import Container, Scope, providers, exceptions
 
 If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook.
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Group
+
+
+class Settings: ...
+
+
+class Engine:
+    def dispose(self) -> None: ...
+
+
+class AsyncEngine:
+    async def dispose(self) -> None: ...
+
+
+class AsyncSession:
+    async def close(self) -> None: ...
+
+
+def create_session(engine: AsyncEngine) -> AsyncSession:
+    return AsyncSession()
+
+
+async def close_session(session: AsyncSession) -> None:
+    await session.close()
+
+
+class Dependencies(Group):
+    settings = providers.Factory(Settings, cache=True)
+    engine = providers.Factory(AsyncEngine, cache=True)
+    session = providers.Factory(
+        create_session,
+        scope=Scope.REQUEST,
+        cache=providers.CacheSettings(finalizer=close_session),
+    )
+-->
 
 ```python
 container = Container(groups=[Dependencies])
@@ -27,8 +62,6 @@ container.resolve(Settings)
 ## Caching and finalizers
 
 `CacheSettings` controls two things: whether resolved instances are cached, and what to do when they're cleaned up.
-
-<!-- skip: next "fragment" -->
 
 ```python
 session = providers.Factory(
@@ -55,8 +88,6 @@ Both work; pick whichever matches the resource.
 ## Closing the container
 
 Three ways to run finalizers:
-
-<!-- skip: next "fragment" -->
 
 ```python
 # Sync
@@ -86,7 +117,21 @@ So a broken finalizer can't leak a resource that a later finalizer would have cl
 Because it is an exception group, `except*` catches the finalizer errors by type. `except
 FinalizerError` and `except ModernDIError` still catch the whole group:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+class Connection: ...
+
+
+def close_connection(connection: Connection) -> None:
+    raise ConnectionError("connection reset")
+
+
+class ConnectionDependencies(Group):
+    connection = providers.Factory(Connection, cache=providers.CacheSettings(finalizer=close_connection))
+
+
+container = Container(groups=[ConnectionDependencies])
+container.resolve(Connection)
+-->
 
 ```python
 try:
@@ -106,7 +151,9 @@ If `close_async()` is cancelled, or a finalizer raises a `BaseException` that is
 container is marked closed, and every resource whose finalizer has not completed, including the one
 that was interrupted, stays queued. Awaiting `close_async()` again runs the remaining finalizers:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+import asyncio
+-->
 
 ```python
 try:
@@ -124,7 +171,19 @@ aggregates like any other failure. The resource's cache entry is **retained**
 rather than discarded, so the resource is not lost: a later `await container.close_async()` finalizes
 it correctly and completes the cleanup.
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+class AsyncResource: ...
+
+
+async def close_async_resource(resource: AsyncResource) -> None: ...
+
+
+class AsyncResourceDependencies(Group):
+    async_resource = providers.Factory(AsyncResource, cache=providers.CacheSettings(finalizer=close_async_resource))
+
+
+container = Container(groups=[AsyncResourceDependencies])
+-->
 
 ```python
 # Resource with an async finalizer, resolved into the cache.
@@ -163,7 +222,7 @@ resolves what it owns; only a provider that resolves in the closed scope raises.
 reopens the container, and so does entering `with container:` or `async with container:` again,
 because `__enter__` and `__aenter__` call `open()`:
 
-<!-- skip: next "fragment" -->
+<!-- raises: ContainerClosedError -->
 
 ```python
 container = Container(groups=[Dependencies])
@@ -204,8 +263,6 @@ How a cached instance survives this cycle depends on its `CacheSettings`:
 
 Each container has its own finalizers, the ones for the providers it cached. When a child container exits its `with` block, only the child's finalizers run; the parent's stay alive for as long as the parent does.
 
-<!-- skip: next "fragment" -->
-
 ```python
 app_container = Container(groups=[Dependencies])
 app_container.validate()  # optional: fails fast here instead of at whichever resolve hits a problem first
@@ -231,8 +288,6 @@ at whichever resolve first hits the problem, as an ordinary resolution error.
 
 Call it explicitly, whenever you want the whole graph checked at once: cycles, inverted scope
 dependencies, and missing required dependencies, all in a single pass:
-
-<!-- skip: next "fragment" -->
 
 ```python
 container = Container(groups=[Dependencies])

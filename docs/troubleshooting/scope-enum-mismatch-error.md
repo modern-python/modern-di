@@ -35,7 +35,19 @@ on a `Tenancy.TENANT` provider when the chain is built `APP → TENANT → REQUE
 
 Give the dependency the same scope member as the provider that needs it, or a shallower one:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from enum import IntEnum
+
+from modern_di import Group, Scope, providers
+
+
+class TenantSettings: ...
+
+
+class UserSession:
+    def __init__(self, settings: TenantSettings) -> None:
+        self.settings = settings
+-->
 
 ```python
 class Tenancy(IntEnum):

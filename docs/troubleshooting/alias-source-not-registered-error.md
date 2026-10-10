@@ -15,7 +15,12 @@ This is checked eagerly during `validate()`, and again at resolve time if valida
 
 Register (and include) a provider for the source type. It only has to be registered by the time the alias is first resolved:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+class Interface: ...
+
+
+class Implementation(Interface): ...
+-->
 
 ```python
 from modern_di import Group, Scope, providers
@@ -25,8 +30,14 @@ class Dependencies(Group):
     # The alias's source must resolve by type — no bound_type=None here.
     impl = providers.Factory(Implementation, scope=Scope.APP)
 
-    interface_alias = providers.Alias(Implementation)
+    interface_alias = providers.Alias(Implementation, bound_type=Interface)
 ```
+
+<!-- invisible-code-block: python
+from modern_di import Container
+
+Container(groups=[Dependencies]).validate()
+-->
 
 If the source provider lives in a different `Group`, make sure that group is also passed to
 `Container(groups=[...])`. Call `container.validate()` so this is caught at startup rather than on first

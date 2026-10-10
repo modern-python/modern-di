@@ -136,10 +136,12 @@ Context never propagates between containers. A `ContextProvider` reads the conte
 
 Each container copies the `context=` dict it is built with, so containers built from one dict do not share values, and `set_context()` never writes into your dict.
 
+<!-- invisible-code-block: python
+value = CustomContext(user_id="123", tenant_id="abc")
+-->
+
 !!! warning "Scope determines which container is read, not timing"
     Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:
-
-    <!-- skip: next "fragment" -->
 
     ```python
     # Broken: a REQUEST-scoped provider reads the REQUEST container's registry.
@@ -150,8 +152,6 @@ Each container copies the `context=` dict it is built with, so containers built 
     ```
 
     For a REQUEST-scoped `ContextProvider`, set the value on the request container:
-
-    <!-- skip: next "fragment" -->
 
     ```python
     # Option A: pass context directly when building the child

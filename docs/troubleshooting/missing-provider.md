@@ -28,7 +28,18 @@ The resolver walked the creator's signature, found a parameter typed `MissingDep
 
 This is the most common cause. If you split providers across `Database`, `UseCases`, `Cache`, you have to list them all:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Container, Group
+
+
+class Database(Group): ...
+
+
+class UseCases(Group): ...
+
+
+class Cache(Group): ...
+-->
 
 ```python
 container = Container(groups=[Database, UseCases, Cache])
@@ -41,6 +52,17 @@ startup catches this before the first request.
 ### 2. The creator has no return type annotation
 
 `modern-di` infers the provider's `bound_type` from the creator's return annotation. A creator like `def create_thing(...): ...` (no `-> SomeType`) has no inferable `bound_type` and won't be resolvable by type.
+
+<!-- invisible-code-block: python
+import types
+
+
+class Settings:
+    database_url = "postgresql+asyncpg://localhost/app"
+
+
+sa_async = types.SimpleNamespace(AsyncEngine=type("AsyncEngine", (), {}))
+-->
 
 ```python
 # Broken: cannot resolve by type

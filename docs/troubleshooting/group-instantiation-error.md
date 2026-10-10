@@ -15,7 +15,14 @@ reference to `Container(groups=[MyGroup])` or read via `MyGroup.some_provider`.
 
 Use the class itself, not an instance:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, providers
+
+
+class Service: ...
+-->
+
+<!-- raises: GroupInstantiationError -->
 
 ```python
 class Dependencies(Group):

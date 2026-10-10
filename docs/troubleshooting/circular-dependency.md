@@ -44,7 +44,28 @@ If the graph might have a cycle, call `validate()` at startup, before any thread
 Calling `validate()` up front finds the *same* cycle earlier, and finds *every* issue in the graph
 in one pass (not just the one a particular resolve happens to hit). Prefer it in development:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from __future__ import annotations
+
+from modern_di import Group, Scope, providers
+
+
+class ServiceA:
+    def __init__(self, b: ServiceB) -> None:
+        self.b = b
+
+
+class ServiceB:
+    def __init__(self, a: ServiceA) -> None:
+        self.a = a
+
+
+class MyGroup(Group):
+    service_a = providers.Factory(ServiceA, scope=Scope.APP)
+    service_b = providers.Factory(ServiceB, scope=Scope.APP)
+-->
+
+<!-- raises: ValidationFailedError -->
 
 ```python
 from modern_di import Container

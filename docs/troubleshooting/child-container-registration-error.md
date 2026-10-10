@@ -15,7 +15,24 @@ child would silently mutate every container in the tree, so the call is disallow
 Register on the root container instead, either with `groups=` when you build it or with
 `add_providers()` later:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, providers
+
+
+class Settings: ...
+
+
+class Mailer: ...
+
+
+class MyGroup(Group):
+    settings = providers.Factory(Settings, scope=Scope.APP)
+
+
+late_provider = providers.Factory(Mailer, scope=Scope.APP)
+-->
+
+<!-- raises: ChildContainerRegistrationError -->
 
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])

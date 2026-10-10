@@ -24,7 +24,24 @@ APP → SESSION → REQUEST → ACTION → STEP
 
 The root `Container` is at `APP` scope. Child containers are built from a parent via `build_child_container(scope=...)`, where the child's scope must be *higher* (shorter-lived) than the parent's.
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Group, Scope, providers
+
+
+class AsyncEngine: ...
+
+
+class AsyncSession: ...
+
+
+class UserService: ...
+
+
+class Dependencies(Group):
+    engine = providers.Factory(AsyncEngine, cache=True)
+    session = providers.Factory(AsyncSession, scope=Scope.REQUEST, cache=True)
+    user_service = providers.Factory(UserService, scope=Scope.REQUEST)
+-->
 
 ```python
 from modern_di import Container, Scope
@@ -61,8 +78,6 @@ If you pick a broader scope than the rule allows, `container.validate()` catches
 You can build child containers yourself or let a framework integration do it. To build one
 yourself, use the child container as a context manager so finalizers run on exit:
 
-<!-- skip: next "fragment" -->
-
 ```python
 with app_container.build_child_container(scope=Scope.REQUEST) as request_container:
     service = request_container.resolve(UserService)
@@ -81,7 +96,9 @@ If you use a [framework integration](../integrations/fastapi.md), it builds the 
 
 Resolution looks up each parameter's type in the providers registry, finds the container at that provider's declared scope, and resolves from there. If you resolve an APP-scoped provider from a REQUEST container, you transparently walk up to the APP container, and the cached APP instance is returned.
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+request_container = app_container.build_child_container(scope=Scope.REQUEST)
+-->
 
 ```python
 # REQUEST container can resolve APP-scoped providers

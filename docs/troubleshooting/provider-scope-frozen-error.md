@@ -19,7 +19,14 @@ Changing the scope afterwards would apply only to resolvers compiled later, so t
 would resolve one way through the existing container and another way through a fresh one. To keep
 the two from disagreeing silently, the scope is frozen at registration and the change is rejected.
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, providers
+
+
+class SomeService: ...
+-->
+
+<!-- raises: ProviderScopeFrozenError -->
 
 ```python
 shared = providers.Factory(SomeService)          # no explicit scope -> APP default, unclaimed
@@ -34,8 +41,6 @@ class ScopedGroup(Group, scope=Scope.REQUEST):    # ProviderScopeFrozenError
 ```
 
 ## Fix
-
-<!-- skip: next "fragment" -->
 
 ```python
 # 1. Set scope= explicitly on the provider — explicit always wins over a group default,

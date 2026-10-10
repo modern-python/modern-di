@@ -16,7 +16,15 @@ ones.
 
 For a parameterized generic, pick one of three escape routes, in order of preference:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Group, Scope, providers
+
+
+class Item: ...
+
+
+class Thing: ...
+-->
 
 ```python
 def create_thing(items: list[Item]) -> Thing: ...
@@ -31,7 +39,11 @@ class Dependencies(Group):
 
     # 3. Skip creator parsing entirely and supply every argument via kwargs
     thing2 = providers.Factory(
-        create_thing, scope=Scope.APP, skip_creator_parsing=True, kwargs={"items": []}
+        create_thing,
+        scope=Scope.APP,
+        skip_creator_parsing=True,
+        bound_type=Thing,
+        kwargs={"items": []},
     )
 ```
 

@@ -18,7 +18,20 @@ context value is unset raises [`ContextValueNotSetError`](context-not-set.md) in
 Pick whichever applies: register a provider for the missing type, give the parameter a default, or
 pass it explicitly via `kwargs`:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Group, Scope, providers
+
+
+class Clock: ...
+
+
+class SystemClock(Clock): ...
+
+
+class Service:
+    def __init__(self, clock: Clock) -> None:
+        self.clock = clock
+-->
 
 ```python
 class Dependencies(Group):

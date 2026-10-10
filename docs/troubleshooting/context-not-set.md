@@ -21,7 +21,15 @@ When a creator body calls `container.resolve(TenantId)` itself, the chain ends a
 
 Context never propagates between containers; see [context propagation](../providers/context.md#context-propagation) for why. For a REQUEST-scoped provider, only the request container's registry is ever consulted, so setting the value on the parent has no effect, regardless of build order.
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Container, Scope, providers
+
+
+class TenantId(str): ...
+
+
+app_container = Container(scope=Scope.APP)
+-->
 
 ```python
 # Broken: TenantId provider has scope=Scope.REQUEST, so it reads the REQUEST
@@ -31,8 +39,6 @@ request_container = app_container.build_child_container(scope=Scope.REQUEST)
 ```
 
 To fix it, set the value on the container whose scope matches the provider's scope:
-
-<!-- skip: next "fragment" -->
 
 ```python
 # Option A: pass directly to the child when building it
@@ -71,8 +77,6 @@ class MyService:
 This works for an integration's provider too, which stays required for a direct resolve. It applies only to a parameter that takes the context value itself; a parameter whose provider is another `Factory` that needs the value still raises.
 
 To make the value optional for every consumer, direct resolves included, give the provider a default. The provider returns `default=` whenever nothing is set:
-
-<!-- skip: next "fragment" -->
 
 ```python
 tenant = providers.ContextProvider(TenantId, scope=Scope.REQUEST, default=None)

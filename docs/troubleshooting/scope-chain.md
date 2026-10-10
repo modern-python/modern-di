@@ -54,7 +54,24 @@ diagnostic is much clearer than the runtime symptoms.
 
 Bump the depender's scope:
 
-<!-- skip: next "fragment" -->
+<!-- invisible-code-block: python
+from modern_di import Group, Scope, providers
+
+
+class Session: ...
+
+
+class UserRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+
+def create_session() -> Session:
+    return Session()
+
+
+def close_session(session: Session) -> None: ...
+-->
 
 ```python
 class Dependencies(Group):
