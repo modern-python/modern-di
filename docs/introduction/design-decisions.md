@@ -1,12 +1,15 @@
 # Design decisions
 
-`modern-di` is opinionated. These are the deliberate choices behind the API so you can decide whether the framework matches your project.
+The choices behind modern-di's API, and what it leaves out, so you can decide whether it fits your
+project.
 
 ## 1. Resolution is sync-only; finalizers may be sync or async
 
-Since 2.x, `Container.resolve(...)` and `resolve_provider(...)` are synchronous. There is no `await container.resolve(...)`, no `AsyncFactory`, no `AsyncSingleton`. Async work belongs in the framework's lifespan and per-request hooks; the container holds the already-constructed objects (see [Async resources via lifespan](../recipes/async-lifespan.md)). Teardown is separate from resolution: finalizers may be sync or async (`close_sync` / `close_async`), so async cleanup is fully supported.
-
-Async resolution will not be added.
+`Container.resolve(...)` and `resolve_provider(...)` are synchronous, and async resolution will not
+be added. There is no `await container.resolve(...)`, no `AsyncFactory` and no `AsyncSingleton`.
+Async work belongs in the framework's lifespan and per-request hooks, and the container holds the
+objects they built (see [Async resources via lifespan](../recipes/async-lifespan.md)). Teardown is
+separate from resolution: finalizers may be sync or async (`close_sync` / `close_async`).
 
 ## 2. Cached factories are thread-safe
 
@@ -14,52 +17,71 @@ Each cache item, the cached instance of one `Factory` in one container, has its 
 
 ### The thread-safety boundary
 
-- Cached / singleton creation is locked per cached provider. Two threads racing to resolve the same cached provider get the same single instance, and transient dependencies of that provider are built once for it. Creations of different cached providers do not wait for each other, so a creator can hand a resolve of another cached type to a worker thread and wait for the result. A creator that waits on another thread resolving the provider it is creating, directly or through its dependencies, still deadlocks: that is a cycle.
-- Call `validate()` at startup if the graph might contain a cycle. Without it, a single thread resolving a cyclic graph gets `CircularDependencyError` from the runtime guard. Two threads that cold-resolve different providers of the same cycle at the same time can each hold one cache item's lock while waiting for the other's, and block forever.
-- Provider registration is safe. `ProvidersRegistry` mutations (`register`, `add_providers`) are guarded by the registry's own lock, and iteration snapshots the provider dict (`iter(list(...))`), so registering providers concurrently, or while another thread iterates, will not corrupt the registry or raise "dict changed size during iteration".
-- Registration belongs to the setup phase. The registry is lock-guarded
-  against corruption, but the supported model is to register every provider
-  *before* serving. Registering a provider while other threads are
-  already resolving is timing-dependent by nature: nothing breaks, but whether
-  a given resolve sees the new provider is undefined.
-- `set_context` and overrides are last-write-wins. Both write into a dict
-  with no ordering, queueing, or merge; concurrent writes to the same key keep
-  whichever landed last. Context is per container, so per-request context
-  belongs on a request-local child container. Overrides live in one registry
-  shared by the whole container tree, so an override set on any container is
-  seen by every container in it. Set overrides during setup, never from
-  competing threads.
-- Closing one container concurrently is unsupported: never overlap two
-  `close_async()` calls on it, or call `close_sync()` while a `close_async()`
-  is still running.
-- Free-threaded CPython (PEP 703) is supported at `2 - Beta`. It is tested
-  under real multithreading on the `3.14t` build. It is Beta rather than Stable
-  for one specific reason: modern-di relies on object-publication ordering
-  (that a reader observing a stored reference sees fully-initialized fields), and
-  CPython publishes no memory model, so that is implementation behaviour rather than
-  a spec guarantee. Throughput also does not scale across cores; per-op latency is
-  competitive, but atomic reference counting of the objects every resolve shares
-  tracks the GIL.
+What modern-di guarantees:
+
+- Two threads that race to resolve the same cached provider get one instance, and the transient
+  dependencies of that provider are built once for it. Different cached providers never wait for
+  each other, so a creator can hand a resolve of another cached type to a worker thread and wait
+  for the result.
+- Registering providers is safe while other threads register or iterate. `ProvidersRegistry`
+  guards `register` and `add_providers` with its own lock and iterates over a snapshot of the
+  provider dict, so it never gets corrupted or raises "dict changed size during iteration".
+- Free-threaded CPython (PEP 703) is supported at `2 - Beta` and tested under real multithreading
+  on the `3.14t` build. It is Beta because modern-di relies on object-publication ordering (a
+  reader that sees a stored reference sees fully initialized fields), and CPython implements that
+  without a published memory model to guarantee it. Per-operation latency is competitive, but
+  throughput does not scale across cores: atomic reference counting of the objects every resolve
+  shares keeps it close to the GIL build.
+
+What you must do:
+
+- Call `validate()` at startup if the graph might contain a cycle. On one thread, a cycle raises
+  `CircularDependencyError` from the runtime guard. Two threads that cold-resolve different
+  providers of the same cycle at once can each hold one cache item's lock while waiting for the
+  other's, and block forever. A creator that waits on another thread resolving the provider it is
+  creating, directly or through its dependencies, deadlocks the same way.
+- Register every provider before serving. Nothing breaks if you register while other threads
+  resolve, but whether a given resolve sees the new provider is undefined.
+- Set overrides during setup, never from competing threads. `set_context` and overrides are
+  last-write-wins: concurrent writes to the same key keep whichever landed last. Context is per
+  container, so per-request context belongs on a request-local child container. Overrides live in
+  one registry shared by the whole container tree, so an override set on any container is seen by
+  every container in it.
+- Never close one container from two places at once: no overlapping `close_async()` calls on it,
+  and no `close_sync()` while a `close_async()` is still running.
 
 ## 3. No global state
 
 All state lives in container registries: resolved instances, context values, overrides. There is no module-level container, no `current_container()`, no thread-local singleton. You explicitly create a `Container` and pass it (or its children) where it needs to go. Framework integrations handle this for you.
 
-## 4. Maximum type safety
+## 4. Typed end to end
 
-The codebase is type-checked with `ty` and linted with ruff's full rule set (`select = ["ALL"]`). Escape hatches (`typing.cast`, `ty: ignore`) are rare and localized: a handful across the whole library. Provider types parameterize on the resolved type, so type checkers infer the right thing without help.
+Provider types are generic over the type they resolve, so `resolve(SomeType)` is typed `SomeType`
+and an integration's `Annotated[T, from_di(dep)]` type-checks as `T`, with no type-checker plugin.
+The library itself is checked with `ty` and ruff's full rule set (`select = ["ALL"]`), with four
+escape hatches (`typing.cast`, `ty: ignore`) in the whole codebase.
 
 ## 5. Conservative feature set
 
-New features get added only when existing primitives genuinely cannot solve the task. The core has three concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base and the pre-built `container_provider` singleton. Most other DI frameworks have two to three times that. The small core is deliberate, because a small, composable core is easier to learn, test, and keep correct.
+A feature is added only when the existing primitives cannot solve the task. The core has three
+concrete provider types (`Factory`, `Alias`, `ContextProvider`), plus the `AbstractProvider` base
+and the pre-built `container_provider` singleton. For comparison, dependency-injector 4.49 has about
+40 provider classes and that-depends about a dozen. A small core is less to learn and less to keep
+correct.
 
-The provider set is closed. `AbstractProvider` is the shared base that appears in signatures, not a hook: resolution compiles a resolver per known provider type, so defining a subclass of `AbstractProvider` or `Factory` raises `TypeError` when the class is created. Compose behaviour in a creator function or an `Alias` instead.
+The provider set is closed. `AbstractProvider` is the shared base that appears in signatures, not a hook: resolution compiles a resolver per known provider type (see
+[why modern-di is fast](performance.md#why-modern-di-is-fast-here)), so defining a subclass of `AbstractProvider` or `Factory` raises `TypeError` when the class is created. Compose behaviour in a creator function or an `Alias` instead.
 
 Caching is one argument, `Factory(cache=True | CacheSettings(...))`, rather than a `Singleton` class: a class would say "cached" in its name and again in the settings it still needs for a finalizer, and the two can drift.
 
 ## 6. Validation is explicit
 
-`container.validate()` is the only thing that walks the graph. Construction, `open()`, `add_providers` and `resolve()` never validate. 3.0 tied validation to a mandatory `open()`, and that produced six production defects with one root cause (the root's open hook does not fire in every execution context) plus an ordering rule that existed only because of the binding. An implicit scheme was built and discarded for the machinery it needed; a per-resolve check would tax the hot path for a property that matters once, at boot. The cost is that a broken graph surfaces from an explicit `validate()` or at resolve time.
+`container.validate()` is the only thing that walks the graph. It checks cycles, scope ordering
+and unresolvable dependencies, and reports every error it finds at once. Construction, `open()`,
+`add_providers` and `resolve()` never validate: a per-resolve check would tax every resolve for a
+property that matters once, at boot, and a validation hook on container setup would not run in
+every execution context. Call `validate()` in a startup path or in one test. Otherwise a broken graph
+surfaces at resolve time.
 
 ## 7. Errors are `RuntimeError`s
 
@@ -74,10 +96,14 @@ and nothing would warn about it. Catch `ModernDIError` to handle only `modern-di
 `build_child_container()`, which is the single spelling for it, and the constructor has no
 `parent_container=` argument.
 
+### Subclassing `Container`
+
 A child of a `Container` subclass is an instance of that subclass, but `build_child_container()`
 does not call its `__init__`. A subclass `__init__` cannot receive the parent, so running it for a
 child would mean guessing its arguments. State that a subclass sets in `__init__` exists on the
 root only.
+
+### What is public
 
 The public names are the ones exported by four modules: `modern_di`, `modern_di.providers`,
 `modern_di.exceptions` and `modern_di.integrations`. Every other module is internal, including
@@ -86,7 +112,8 @@ release. See [What is public](../providers/advanced-api.md#what-is-public).
 
 ## Non-goals
 
-Beyond the choices above, these are deliberately out of scope. Naming them here is meant to save you from filing (or us from re-litigating) the same request.
+These are out of scope. If you were about to request one, the reason it is out and what to do
+instead are below.
 
 ### Auto-binding / auto-registration
 
@@ -102,11 +129,11 @@ One type, one provider. Registering several providers for one type and injecting
 
 ### Generator creators (teardown after `yield`)
 
-`Factory` does not treat a generator creator as "yield the value, run the rest as a finalizer"; `CacheSettings(finalizer=)` is the only teardown spelling. The generator form is breaking (a generator creator resolves to the generator today), needs per-instance finalizer records for uncached factories and `bound_type` extraction from `Iterator[T]`, and cannot express an async finalizer under sync resolution, which the explicit form can. Write a plain creator that returns the value and pass the teardown as `Factory(..., cache=CacheSettings(finalizer=...))`.
+`Factory` does not treat a generator creator as "yield the value, run the rest as a finalizer"; `CacheSettings(finalizer=)` is the only teardown spelling. Under sync resolution a generator cannot express an async finalizer, which the explicit form can, and a generator creator currently resolves to the generator itself, so the change would break existing code. Write a plain creator that returns the value and pass the teardown as `Factory(..., cache=CacheSettings(finalizer=...))`.
 
 ### An `enter_scope` alias for `build_child_container`
 
-Peers name scope entry by intent (`enter_scope`, `CreateScope`); modern-di names the mechanism, because here the mechanism is the concept: a child container is a real object with its own cache and context, and "entering a scope" would hide that model. One spelling for the most-written call after `resolve()`.
+Peers name scope entry by intent (`enter_scope`, `CreateScope`); modern-di names the mechanism, because here the mechanism is the concept: a child container is a real object with its own cache and context, and "entering a scope" would hide that model. One spelling for the most-written call after `resolve()`: use `build_child_container()`.
 
 ### Resolution tracing / logging
 
@@ -123,4 +150,5 @@ No static dependency-graph checker and no type-checker plugin. True compile-time
 ## See also
 
 - [About DI](about-di.md): the framework-agnostic introduction.
+- [Comparison](comparison.md): what other libraries do where modern-di says no.
 - [Migration from `that-depends`](../migration/from-that-depends.md): what these decisions changed compared to the older framework.
