@@ -202,7 +202,8 @@ ordinary `Factory`. The tabs translate six lifetime concepts from other librarie
     | Request-scoped | [`Factory(..., scope=Scope.REQUEST, cache=True)`](../providers/scopes.md) | bare `Depends(fn)`, computed once per request by default |
     | Runtime value (request object, etc.) | [`ContextProvider(...)`](../providers/context.md) + `context={...}` | the framework injects `Request`/`WebSocket` directly by type |
     | Interface binding (concrete → abstract type) | [`Alias(Impl, bound_type=Interface)`](../providers/alias.md) | n/a (`Depends` is keyed by callable, not by type) |
-    | Test override | [`container.override(provider, mock)`](../recipes/testing-overrides.md) | `app.dependency_overrides[dep] = fake` |
+    | Teardown | [`cache=CacheSettings(finalizer=cleanup)`](../providers/lifecycle.md#caching-and-finalizers), sync or async | code after `yield` in the dependency |
+    | Test override | [`container.override(provider, mock)`](../recipes/testing-overrides.md), or `with container.override(...)` to reset on exit | `app.dependency_overrides[dep] = fake`, reset by hand in a `finally` |
 
 ## See also
 
