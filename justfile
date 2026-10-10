@@ -38,6 +38,11 @@ test *args:
 test-race *args:
     uv run --no-sync pytest -m thread_race {{ args }}
 
+# Run the python code blocks in docs/ as tests (Sybil, wired in conftest.py). Kept out of
+# test-ci so doc examples never count toward library coverage. Passes args through.
+test-docs *args:
+    uv run --no-sync pytest docs {{ args }}
+
 # The gated full run: 100% line and branch coverage of modern_di required. CI runs this.
 test-ci:
     uv run --no-sync pytest --cov --cov-report term-missing --cov-report xml

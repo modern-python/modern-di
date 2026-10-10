@@ -81,6 +81,13 @@ the full contract.
 nothing is. Every container in a tree sees the same providers, so a child answers the same as its
 root. The lookup ignores overrides and the closed state, and it never resolves anything:
 
+<!-- invisible-code-block: python
+class UserRepository: ...
+
+
+app_container.add_providers(providers.Factory(UserRepository, scope=Scope.REQUEST))
+-->
+
 ```python
 provider = request_container.find_provider(UserRepository)
 if provider is not None:

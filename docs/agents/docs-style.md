@@ -58,3 +58,14 @@ exception class, so a page cannot be renamed, added, or deleted by itself.
 `_Avoid_: service, dependency` under **Provider** means don't call a Provider a "service". It does
 not ban the English words: an example class may be a `UserService`, and an application may have
 "30+ providers". Agents have over-applied this twice.
+
+## Code samples run
+
+`just test-docs` runs every `python` block in the site, page by page, with each page's blocks
+sharing one namespace in order. `integrations/` and `migration/` are excluded in `conftest.py`. A
+block that can't run as written gets `<!-- skip: next "reason" -->` on the line above its fence.
+Setup the reader doesn't need to see goes in an `<!-- invisible-code-block: python -->` comment. A
+block that demonstrates an error gets `<!-- raises: ErrorClassName -->` right above its fence, after
+any hidden setup, and passes only if it raises that class. An import of a third-party package that
+isn't installed here skips only if the package is listed in `conftest.py`; any other missing import
+fails.

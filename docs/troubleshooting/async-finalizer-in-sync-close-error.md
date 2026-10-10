@@ -18,6 +18,27 @@ discarding it.
 Use `close_async()` (or `async with container:`) for containers that hold any resource with an async
 finalizer, since it's the only path that can actually run that cleanup:
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, exceptions, providers
+
+
+class AsyncResource:
+    async def close(self) -> None: ...
+
+
+async def close_resource(resource: AsyncResource) -> None:
+    await resource.close()
+
+
+class Dependencies(Group):
+    resource = providers.Factory(
+        AsyncResource, scope=Scope.APP, cache=providers.CacheSettings(finalizer=close_resource)
+    )
+
+
+container = Container(groups=[Dependencies])
+-->
+
 ```python
 container.resolve(AsyncResource)   # has an async finalizer
 

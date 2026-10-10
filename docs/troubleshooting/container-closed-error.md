@@ -30,6 +30,19 @@ with `with` / `async with`: `__enter__` and `__aenter__` call `open()` for you. 
 harness enters the same container twice, how a broker stops and starts, and how a framework
 lifespan runs more than once in one process. Integrations call `open()` in their startup hook.
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, providers
+
+
+class Settings: ...
+
+
+class Dependencies(Group):
+    settings = providers.Factory(Settings)
+-->
+
+<!-- raises: ContainerClosedError -->
+
 ```python
 container = Container(groups=[Dependencies])
 

@@ -42,6 +42,7 @@ dev = [
     "pytest-asyncio",
     "pytest-repeat",
     "pytest-benchmark",
+    "sybil",
 ]
 lint = [
     "ruff",

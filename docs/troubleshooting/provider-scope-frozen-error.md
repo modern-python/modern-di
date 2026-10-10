@@ -19,6 +19,15 @@ Changing the scope afterwards would apply only to resolvers compiled later, so t
 would resolve one way through the existing container and another way through a fresh one. To keep
 the two from disagreeing silently, the scope is frozen at registration and the change is rejected.
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, providers
+
+
+class SomeService: ...
+-->
+
+<!-- raises: ProviderScopeFrozenError -->
+
 ```python
 shared = providers.Factory(SomeService)          # no explicit scope -> APP default, unclaimed
 

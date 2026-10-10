@@ -6,6 +6,21 @@ Tests often need to swap a real dependency (database, HTTP client, clock) for a 
 
 `container.override(provider, replacement)` replaces what the provider resolves to, immediately, and returns an `OverrideHandle`. Used as a context manager, it auto-resets on exit, and that is the primary spelling for tests:
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, providers
+
+
+class ApiClient: ...
+
+
+class MyGroup(Group):
+    api_client = providers.Factory(ApiClient)
+
+
+container = Container(groups=[MyGroup])
+mock_client = ApiClient()
+-->
+
 ```python
 with container.override(MyGroup.api_client, mock_client) as client:
     ...  # resolution returns mock_client; prior state restored on exit
@@ -18,6 +33,8 @@ The override applies at the `override()` call, not at `__enter__`. `__exit__` re
 ## Pattern 1: Simple mock override
 
 For unit-style tests, override the provider with a fake before exercising the code under test:
+
+<!-- skip: next "imports the reader's own app module" -->
 
 ```python
 from unittest.mock import AsyncMock

@@ -42,6 +42,25 @@ Inspect `.exceptions` to see every underlying issue, or read the traceback. Each
 `ArgumentResolutionError`, or `AliasSourceNotRegisteredError` today. Fix each one; their own pages cover the specific cause and
 remedy:
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, exceptions, providers
+
+
+class Missing: ...
+
+
+class NeedsMissing:
+    def __init__(self, missing: Missing) -> None:
+        self.missing = missing
+
+
+class Dependencies(Group):
+    needs_missing = providers.Factory(NeedsMissing)
+
+
+container = Container(groups=[Dependencies])
+-->
+
 ```python
 try:
     container.validate()

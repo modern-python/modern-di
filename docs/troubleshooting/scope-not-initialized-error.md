@@ -18,6 +18,19 @@ built.
 
 Build the deeper-scoped container before resolving from it:
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, providers
+
+
+class RequestScopedThing: ...
+
+
+class MyGroup(Group):
+    thing = providers.Factory(RequestScopedThing, scope=Scope.REQUEST)
+-->
+
+<!-- raises: ScopeNotInitializedError -->
+
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 

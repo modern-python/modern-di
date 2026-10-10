@@ -16,6 +16,15 @@ at call time.
 
 Match the `kwargs` keys to the creator's actual parameter names:
 
+<!-- invisible-code-block: python
+from modern_di import Group, Scope, providers
+
+
+class Service: ...
+-->
+
+<!-- raises: UnknownFactoryKwargError -->
+
 ```python
 def create_service(connection_string: str) -> Service: ...
 

@@ -14,6 +14,43 @@ from modern_di import Container, Scope, providers, exceptions
 
 If you want a provider warmed up at startup (e.g. eager-connect the database engine), call `container.resolve(SomeType)` for it in your application's startup hook.
 
+<!-- invisible-code-block: python
+from modern_di import Group
+
+
+class Settings: ...
+
+
+class Engine:
+    def dispose(self) -> None: ...
+
+
+class AsyncEngine:
+    async def dispose(self) -> None: ...
+
+
+class AsyncSession:
+    async def close(self) -> None: ...
+
+
+def create_session(engine: AsyncEngine) -> AsyncSession:
+    return AsyncSession()
+
+
+async def close_session(session: AsyncSession) -> None:
+    await session.close()
+
+
+class Dependencies(Group):
+    settings = providers.Factory(Settings, cache=True)
+    engine = providers.Factory(AsyncEngine, cache=True)
+    session = providers.Factory(
+        create_session,
+        scope=Scope.REQUEST,
+        cache=providers.CacheSettings(finalizer=close_session),
+    )
+-->
+
 ```python
 container = Container(groups=[Dependencies])
 
@@ -80,6 +117,22 @@ So a broken finalizer can't leak a resource that a later finalizer would have cl
 Because it is an exception group, `except*` catches the finalizer errors by type. `except
 FinalizerError` and `except ModernDIError` still catch the whole group:
 
+<!-- invisible-code-block: python
+class Connection: ...
+
+
+def close_connection(connection: Connection) -> None:
+    raise ConnectionError("connection reset")
+
+
+class ConnectionDependencies(Group):
+    connection = providers.Factory(Connection, cache=providers.CacheSettings(finalizer=close_connection))
+
+
+container = Container(groups=[ConnectionDependencies])
+container.resolve(Connection)
+-->
+
 ```python
 try:
     container.close_sync()
@@ -98,6 +151,10 @@ If `close_async()` is cancelled, or a finalizer raises a `BaseException` that is
 container is marked closed, and every resource whose finalizer has not completed, including the one
 that was interrupted, stays queued. Awaiting `close_async()` again runs the remaining finalizers:
 
+<!-- invisible-code-block: python
+import asyncio
+-->
+
 ```python
 try:
     await asyncio.wait_for(container.close_async(), timeout=5)
@@ -113,6 +170,20 @@ delivered inside the aggregated `FinalizerError` (as an entry in `.exceptions`),
 aggregates like any other failure. The resource's cache entry is **retained**
 rather than discarded, so the resource is not lost: a later `await container.close_async()` finalizes
 it correctly and completes the cleanup.
+
+<!-- invisible-code-block: python
+class AsyncResource: ...
+
+
+async def close_async_resource(resource: AsyncResource) -> None: ...
+
+
+class AsyncResourceDependencies(Group):
+    async_resource = providers.Factory(AsyncResource, cache=providers.CacheSettings(finalizer=close_async_resource))
+
+
+container = Container(groups=[AsyncResourceDependencies])
+-->
 
 ```python
 # Resource with an async finalizer, resolved into the cache.
@@ -150,6 +221,8 @@ stays closed until it is reopened. Building a child of a closed container still 
 resolves what it owns; only a provider that resolves in the closed scope raises. Calling `open()`
 reopens the container, and so does entering `with container:` or `async with container:` again,
 because `__enter__` and `__aenter__` call `open()`:
+
+<!-- raises: ContainerClosedError -->
 
 ```python
 container = Container(groups=[Dependencies])

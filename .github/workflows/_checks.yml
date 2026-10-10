@@ -49,6 +49,7 @@ jobs:
         if: endsWith(matrix.python-version, 't')
         run: uv run --no-sync python -c "import sys; assert not sys._is_gil_enabled(), 'GIL is enabled on a t-build'"
       - run: just test-ci
+      - run: just test-docs
       - name: Stress the thread-race tests (free-threaded only)
         if: endsWith(matrix.python-version, 't')
         run: just test-race --count=50

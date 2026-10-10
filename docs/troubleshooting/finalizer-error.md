@@ -22,6 +22,34 @@ at the first failure: every finalizer runs regardless, so this error aggregates 
 
 Inspect `.exceptions` for the individual exceptions and fix the offending finalizer(s):
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, exceptions, providers
+
+
+class Database: ...
+
+
+class Cache: ...
+
+
+def close_database(database: Database) -> None:
+    raise ConnectionError("database is gone")
+
+
+def close_cache(cache: Cache) -> None:
+    raise ValueError("cache is gone")
+
+
+class Dependencies(Group):
+    database = providers.Factory(Database, scope=Scope.APP, cache=providers.CacheSettings(finalizer=close_database))
+    cache = providers.Factory(Cache, scope=Scope.APP, cache=providers.CacheSettings(finalizer=close_cache))
+
+
+container = Container(groups=[Dependencies])
+container.resolve(Database)
+container.resolve(Cache)
+-->
+
 ```python
 try:
     container.close_sync()
@@ -31,6 +59,11 @@ except exceptions.FinalizerError as exc:
 ```
 
 To handle one kind of finalizer failure and let the rest propagate, use `except*`:
+
+<!-- invisible-code-block: python
+container.open()
+container.resolve(Database)
+-->
 
 ```python
 try:

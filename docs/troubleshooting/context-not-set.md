@@ -21,6 +21,16 @@ When a creator body calls `container.resolve(TenantId)` itself, the chain ends a
 
 Context never propagates between containers; see [context propagation](../providers/context.md#context-propagation) for why. For a REQUEST-scoped provider, only the request container's registry is ever consulted, so setting the value on the parent has no effect, regardless of build order.
 
+<!-- invisible-code-block: python
+from modern_di import Container, Scope, providers
+
+
+class TenantId(str): ...
+
+
+app_container = Container(scope=Scope.APP)
+-->
+
 ```python
 # Broken: TenantId provider has scope=Scope.REQUEST, so it reads the REQUEST
 # container's registry. Setting it on the APP parent does nothing.

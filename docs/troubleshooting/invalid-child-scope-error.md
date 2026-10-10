@@ -15,6 +15,15 @@ shallower (e.g. `Scope.APP` from a `SESSION` parent) raises this error.
 
 Pass a scope whose value is strictly greater than the parent's:
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group
+
+
+class MyGroup(Group): ...
+-->
+
+<!-- raises: InvalidChildScopeError -->
+
 ```python
 from modern_di import Scope
 

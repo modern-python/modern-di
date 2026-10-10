@@ -25,6 +25,23 @@ The chain has no container at the provider's scope, for one of two reasons:
 
 Build child containers through every intermediate scope your providers need:
 
+<!-- invisible-code-block: python
+from modern_di import Container, Group, Scope, providers
+
+
+class AppScopedThing: ...
+
+
+class RequestScopedThing: ...
+
+
+class MyGroup(Group):
+    app_thing = providers.Factory(AppScopedThing)
+    request_thing = providers.Factory(RequestScopedThing, scope=Scope.REQUEST)
+-->
+
+<!-- raises: ScopeSkippedError -->
+
 ```python
 app_container = Container(scope=Scope.APP, groups=[MyGroup])
 
@@ -40,6 +57,8 @@ action_container.resolve(RequestScopedThing)
 
 When the root is too deep, build the root at the provider's scope and derive the deeper containers
 from it:
+
+<!-- raises: ScopeSkippedError -->
 
 ```python
 # Broken: the chain starts at SESSION, so there is no APP container

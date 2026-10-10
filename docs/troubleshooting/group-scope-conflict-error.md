@@ -17,6 +17,13 @@ which one wins.
 
 There are three ways to resolve it; pick whichever fits:
 
+<!-- invisible-code-block: python
+from modern_di import Group, Scope, providers
+
+
+class SomeService: ...
+-->
+
 ```python
 # 1. Set scope= explicitly on the shared provider — explicit always wins over a group default.
 shared = providers.Factory(SomeService, scope=Scope.REQUEST)

@@ -20,6 +20,13 @@ error.
 Make `kwargs` cover exactly what the signature requires. `.original_error` (also the `__cause__`)
 holds the binding `TypeError` naming the mismatched argument:
 
+<!-- invisible-code-block: python
+from modern_di import Group, Scope, providers
+
+
+class Service: ...
+-->
+
 ```python
 def create_service(host: str, port: int) -> Service: ...
 

@@ -136,6 +136,10 @@ Context never propagates between containers. A `ContextProvider` reads the conte
 
 Each container copies the `context=` dict it is built with, so containers built from one dict do not share values, and `set_context()` never writes into your dict.
 
+<!-- invisible-code-block: python
+value = CustomContext(user_id="123", tenant_id="abc")
+-->
+
 !!! warning "Scope determines which container is read, not timing"
     Setting context on a parent container never reaches a child-scoped provider, regardless of when you call `set_context`:
 
@@ -229,6 +233,8 @@ For explicit, provider-based resolution, every integration also exports the unde
 `aiohttp_request_provider`, `faststream_message_provider`) so you can wire it through `kwargs`
 instead of relying on type-based resolution. This is useful with `skip_creator_parsing=True`, or
 when the parameter name doesn't match the type:
+
+<!-- skip: next "continues the FastAPI example above" -->
 
 ```python
 kwargs={"request": fastapi_request_provider}  # explicit wiring, see Factories: kwargs
