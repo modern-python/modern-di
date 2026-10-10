@@ -139,7 +139,7 @@ including when it raises.
 
 There is no `Scope.SESSION` for aiogram: each Telegram update is handled
 independently; there's no persistent per-chat/per-user connection comparable
-to a WebSocket. See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule).
+to a WebSocket. See [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for).
 
 ## Sync resolution, async cleanup
 

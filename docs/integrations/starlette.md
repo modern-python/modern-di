@@ -85,7 +85,7 @@ container.validate()  # after setup_di — its connection providers are now regi
 
 ### 3. Scopes
 
-See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule).
+See [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for).
 An HTTP request opens a `Scope.REQUEST` child container; a WebSocket connection
 opens a `Scope.SESSION` one, built by the middleware before your handler runs
 and kept open for the whole life of the connection.

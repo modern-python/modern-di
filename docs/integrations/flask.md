@@ -117,7 +117,7 @@ wraps views that weren't injected yet.
 
 ### 4. Scopes and request lifecycle
 
-See [the scope hierarchy](../providers/scopes.md#the-scope-dependency-rule).
+See [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for).
 Flask has no websocket concept, so the integration only ever opens one child
 scope: `before_request` builds a `Scope.REQUEST` child of the root container
 and stores it on `flask.g`; `teardown_appcontext` closes it with `close_sync()`

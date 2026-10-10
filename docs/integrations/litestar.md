@@ -105,7 +105,7 @@ With `autowired_groups` set, `FromDI` on a route can still take a type. Pass a p
 ## Websockets
 
 Websockets add `SESSION` scope between `APP` and `REQUEST`; see [the scope
-hierarchy](../providers/scopes.md#the-scope-dependency-rule). `SESSION` covers
+hierarchy](../providers/scopes.md#what-each-scope-is-for). `SESSION` covers
 the lifetime of the websocket connection and is entered automatically;
 `REQUEST` covers one message and must be entered manually:
 
