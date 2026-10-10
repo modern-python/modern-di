@@ -56,7 +56,7 @@ broker = NatsBroker()
 app = faststream.FastStream(broker)
 container = Container(groups=[AppGroup])
 modern_di_faststream.setup_di(app, container)
-container.validate()  # after setup_di — its connection providers are now registered
+container.validate()  # after setup_di: its context provider is now registered
 
 
 @broker.subscriber("orders.in")
@@ -66,69 +66,27 @@ async def handle_order(
     return report.as_dict()
 ```
 
-### Several brokers
-
-`setup_di` covers every broker of the app, not only the first. The DI middleware is installed
-by an `on_startup` hook that walks `app.brokers`, so a broker passed to `FastStream(...)` and
-one added with `app.add_broker` after `setup_di` are treated the same:
-
-<!-- clear-namespace -->
-
-<!-- invisible-code-block: python
-import faststream
-import modern_di_faststream
-from faststream.kafka import KafkaBroker
-from faststream.nats import NatsBroker
-from modern_di import Container
-
-container = Container()
-nats_broker = NatsBroker()
-kafka_broker = KafkaBroker()
--->
-
-```python
-app = faststream.FastStream(nats_broker)
-modern_di_faststream.setup_di(app, container)
-app.add_broker(kafka_broker)  # also gets the DI middleware at startup
-```
-
-A broker created inside an `on_startup` hook is covered as well, since `setup_di` doesn't need a
-broker at call time. Hooks run in registration order, so register that hook **before**
-calling `setup_di`; otherwise the install step runs first and does not see the broker. If the
-app still has no broker when the install step runs, it raises a `RuntimeError` naming both
-remedies.
-
-<!-- clear-namespace -->
-
-<!-- invisible-code-block: python
-import faststream
-import modern_di_faststream
-from faststream.nats import NatsBroker
-from modern_di import Container
-
-container = Container()
--->
-
-```python
-app = faststream.FastStream()
-
-
-@app.on_startup
-async def attach_broker() -> None:
-    app.add_broker(NatsBroker(settings.nats_url))
-
-
-modern_di_faststream.setup_di(app, container)  # after the hook, so startup sees the broker
-```
-
-Between `setup_di` and startup no broker carries the middleware yet; see
-[Testing](#testing) for the one place that shows.
+`setup_di` takes a `faststream.FastStream` or an `AsgiFastStream` app. It registers the
+message context provider, installs a middleware on every broker of the app at startup that
+builds a `Scope.REQUEST` child container per message, and closes the root container at
+shutdown.
 
 ## Scopes
 
-The integration creates a `Scope.REQUEST` child container for each message the subscriber receives. REQUEST-scoped providers (and their finalizers) live for the duration of that one message; APP-scoped providers persist for the whole process. At app shutdown, the integration runs `await container.close_async()` on the APP container.
+The integration creates a `Scope.REQUEST` child container for each message a subscriber
+receives. REQUEST-scoped providers and their finalizers live for that one message. The
+child is closed with `close_async()`, so finalizers may be async or sync. Resolution itself
+is synchronous, as everywhere in modern-di.
 
-There is no `Scope.SESSION` for FastStream: message brokers don't have a session concept comparable to websockets.
+There is no `Scope.SESSION` for FastStream: message brokers don't have a session concept
+comparable to websockets.
+
+## Root container lifecycle
+
+`setup_di` registers two `on_startup` hooks: one opens the root container and the next
+installs the middleware on every broker. An `after_shutdown` hook closes the root with
+`close_async()`, which runs APP-scoped finalizers. Because startup reopens the container,
+an app that stops and starts again on the same container works.
 
 ## Framework context objects
 
@@ -182,22 +140,91 @@ class AppGroup(Group):
 
 ## Testing
 
-!!! warning "Pair the test broker with `TestApp` in the same `with` statement"
-    When testing DI-using subscribers, pair the test broker (`TestNatsBroker`,
-    etc.) with `TestApp` in the **same** `with` / `async with` statement.
-    FastStream's `TestBroker` decides whether to run app `on_startup` hooks by
-    inspecting that statement; `async with TestNatsBroker(broker):` alone
-    starts the broker without running `on_startup`. The integration installs
-    its middleware and reopens the container in those hooks, so a `FromDI`
-    subscriber reached this way has no request container and raises a
-    `RuntimeError` that names `setup_di` and `TestApp` as the fix.
+The middleware is installed and the container reopened by the app's `on_startup` hooks,
+and FastStream's `TestApp` is what runs them. Enter the test broker first and `TestApp`
+after it, either in one `async with` statement or with `TestApp` nested inside:
 
-    <!-- skip: next "br.publish(...) is a placeholder; NatsBroker.publish needs a message and a subject" -->
+```python
+from faststream import TestApp
+from faststream.nats import TestNatsBroker
 
-    ```python
-    async with TestNatsBroker(broker) as br, TestApp(app):
-        await br.publish(...)
-    ```
+
+
+async def test_handle_order() -> None:
+    async with TestNatsBroker(broker) as test_broker, TestApp(app):
+        response = await test_broker.request({"order_id": 1}, "orders.in")
+        assert await response.decode() == {"service": "catalog"}
+```
+
+<!-- invisible-code-block: python
+import warnings
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", RuntimeWarning)  # TestNatsBroker cannot parse a Markdown file's AST
+    await test_handle_order()
+-->
+
+A test broker without `TestApp` runs no startup hook, so a `FromDI` subscriber finds no
+request container and raises a `RuntimeError` that names `setup_di` and `TestApp`.
+Entering `TestApp` before the test broker makes the app connect to the real broker.
+
+## Several brokers
+
+`setup_di` covers every broker of the app, not only the first. The DI middleware is installed
+by an `on_startup` hook that walks `app.brokers`, so a broker passed to `FastStream(...)` and
+one added with `app.add_broker` after `setup_di` are treated the same:
+
+<!-- clear-namespace -->
+
+<!-- invisible-code-block: python
+import faststream
+import modern_di_faststream
+from faststream.kafka import KafkaBroker
+from faststream.nats import NatsBroker
+from modern_di import Container
+
+container = Container()
+nats_broker = NatsBroker()
+kafka_broker = KafkaBroker()
+-->
+
+```python
+app = faststream.FastStream(nats_broker)
+modern_di_faststream.setup_di(app, container)
+app.add_broker(kafka_broker)  # also gets the DI middleware at startup
+```
+
+A broker created inside an `on_startup` hook is covered as well, since `setup_di` doesn't need a
+broker at call time. Hooks run in registration order, so register that hook **before**
+calling `setup_di`; otherwise the install step runs first and does not see the broker. If the
+app still has no broker when the install step runs, it raises a `RuntimeError` naming both
+remedies.
+
+<!-- clear-namespace -->
+
+<!-- invisible-code-block: python
+import faststream
+import modern_di_faststream
+from faststream.nats import NatsBroker
+from modern_di import Container
+
+container = Container()
+-->
+
+```python
+app = faststream.FastStream()
+
+
+@app.on_startup
+async def attach_broker() -> None:
+    app.add_broker(NatsBroker())
+
+
+modern_di_faststream.setup_di(app, container)  # after the hook, so startup sees the broker
+```
+
+Between `setup_di` and startup no broker carries the middleware yet; see
+[Testing](#testing) for the one place that shows.
 
 ## See also
 

@@ -82,70 +82,81 @@ async def main() -> None:
     await pool.enqueue_job("run_report")
 ```
 
-`setup_di(worker_settings, container)` seeds the container into arq's `ctx` dict
-(arq's per-worker state store) and wraps four of arq's lifecycle hooks:
-`on_startup`/`on_shutdown` open and close the root container, and
-`on_job_start`/`on_job_end` build and, as a safety net, close a `Scope.REQUEST`
-child container around each job. Any hook you already defined still runs: yours
-runs *after* ours on startup/job-start and *before* ours on shutdown/job-end. The
-root container is live in all of them, but for an `@inject` task the child is
-already closed by the time your `on_job_end` runs. It accepts a `WorkerSettings` class (the common
-case) or a plain settings `dict`, and returns the container.
+`setup_di(worker_settings, container)` puts the container in arq's `ctx` dict and
+wraps four of arq's hooks: `on_startup` and `on_shutdown` open and close the root
+container, and `on_job_start` and `on_job_end` build and close a `Scope.REQUEST`
+child around each job. It accepts a `WorkerSettings` class or a plain settings
+`dict`, and returns the container.
 
-`@inject` resolves each `FromDI`-annotated parameter from the per-job child
-container and forwards it to your task. Your task **must** declare arq's `ctx`
-dict as its first parameter (arq calls every task as `task(ctx, *args)`).
-Injection is parameter-order-insensitive, so a `FromDI` parameter may sit
-anywhere in the signature, and a task with no `FromDI` parameter is returned
-unchanged.
+`@inject` resolves each `FromDI`-annotated parameter from the job's child container
+and passes it to your task. arq calls every task as `task(ctx, *args)`, so `ctx`
+must be the first parameter apart from the `FromDI` ones, which may sit anywhere in
+the signature. A task with no `FromDI` parameter is returned unchanged.
 
 ## Scopes
 
-The integration builds one `Scope.REQUEST` child container per job in
-`on_job_start`. For an `@inject` task, the wrapper closes it with
-`close_async()` when the task body exits, whether it returned or raised. Nested
-or concurrent `@inject` calls in the same job share the child, and the last one
-to exit closes it. `on_job_end` closes the child only if it is still open, which
-covers jobs that ran no `@inject` wrapper. Either way REQUEST-scoped providers
-(and their finalizers) never leak on the error path. APP-scoped providers persist for the whole worker: `setup_di` opens
-the root container on `on_startup` and closes it on `on_shutdown`, running
-APP-scoped finalizers once when the worker stops.
+`on_job_start` builds one `Scope.REQUEST` child container per job. For an `@inject`
+task, the wrapper closes it when the task body exits, whether it returned or
+raised. Nested or concurrent `@inject` calls in the same job share the child, and
+the last one to exit closes it. `on_job_end` closes the child only if it is still
+open, which covers a job that ran no `@inject` wrapper.
+
+Resolution is synchronous, as everywhere in modern-di. The child is closed with
+`close_async()`, so REQUEST-scoped finalizers may be async or sync.
 
 There is no `Scope.SESSION` for arq: a job queue has no session concept
 comparable to a websocket connection.
 
-## Async resolution, no connection object
+## Root container lifecycle
 
-`FromDI` resolves its dependency with `Container.resolve_dependency(...)`, which
-is synchronous: modern-di's resolution is always sync, regardless of the
-framework. Container *lifecycle* here is async, matching arq: the root and each
-per-job child are closed with `close_async()`, so REQUEST- and APP-scoped
-finalizers may be async (or sync).
+`on_startup` opens the root container and `on_shutdown` closes it with
+`close_async()`, which runs APP-scoped finalizers once when the worker stops. A
+worker that starts again on the same container, after a restart or in a test that
+runs the worker twice, reopens it on startup.
 
-arq's per-job `ctx` is a plain `dict` (`job_id`, `job_try`, `redis`, ...), not a
-dedicated request/message type, so `modern_di_arq` registers no context
-provider, as with Celery and Typer. A task that needs job metadata reads it from the
-`ctx` argument arq already passes. If you need the root container elsewhere (for
-example in your own `on_job_start`), `fetch_di_container(ctx)` returns it.
+A hook you already defined on `WorkerSettings` still runs. Yours runs after ours
+on startup and job start, and before ours on shutdown and job end. The root
+container is open in all of them, but for an `@inject` task the job's child is
+already closed by the time your `on_job_end` runs.
 
-## Restart safety
+Calling `setup_di` twice on the same `worker_settings` raises a `TypeError`,
+because stacking the hook wrappers would leak a per-job child container.
 
-`setup_di` wires `container.open()` onto `on_startup`, and calling `open()` again
-on an already-open container is a no-op: it unconditionally clears `closed` and
-runs no validation, so it costs nothing regardless of graph state. A worker that
-starts, stops (closing the container), and starts again (a restart, or a test
-that runs the worker twice) reopens the same container cleanly. Calling `setup_di` twice on the same `worker_settings` is rejected with
-a `TypeError`, since stacking the hook wrappers would leak a per-job child
-container.
+## Framework context objects
+
+arq's per-job `ctx` is a plain `dict` (`job_id`, `job_try`, `redis` and so on),
+so `modern_di_arq` registers no context provider. A task that needs job metadata
+reads it from the `ctx` argument. To reach the root container elsewhere, for
+example in your own `on_job_start`, call `fetch_di_container(ctx)`.
 
 ## Tasks with `*args`/`**kwargs`
 
 `@inject` resolves dependencies by binding the task signature by name, which is
 what makes injection order-insensitive. A task that mixes a `FromDI` parameter
 with `*args` or `**kwargs` cannot be bound unambiguously, so `@inject` raises a
-`TypeError` at decoration time rather than silently misrouting arguments.
-Give an `@inject` task explicit named parameters. (A task with no `FromDI`
-parameter is untouched and may use `*args`/`**kwargs` freely.)
+`TypeError` at decoration time. Give an `@inject` task explicit named parameters.
+A task with no `FromDI` parameter is left untouched and may use `*args`/`**kwargs`
+freely.
+
+## Testing
+
+A burst worker runs the queued jobs and stops, so it drives the whole lifecycle
+in a test: startup, one child per job, and shutdown. It needs a running Redis.
+
+<!-- skip: next "needs a running Redis server" -->
+
+```python
+from arq.worker import create_worker
+
+
+async def test_run_report() -> None:
+    pool = await create_pool(RedisSettings(host="localhost"))
+    job = await pool.enqueue_job("run_report")
+    worker = create_worker(WorkerSettings, burst=True, handle_signals=False)
+    await worker.main()
+    await worker.close()
+    assert await job.result() == "service=catalog"
+```
 
 ## See also
 
