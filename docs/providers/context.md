@@ -292,7 +292,7 @@ kwargs={"request": fastapi_request_provider}  # explicit wiring, see Factories: 
 ```
 
 Each integration's page lists its provider names, scopes and types:
-[aiohttp](../integrations/aiohttp.md#api),
+[aiohttp](../integrations/aiohttp.md#framework-context-objects),
 [aiogram](../integrations/aiogram.md#framework-context-objects),
 [FastAPI](../integrations/fastapi.md#framework-context-objects),
 [FastMCP](../integrations/fastmcp.md#framework-context-objects),

@@ -109,6 +109,7 @@ await container.close_async()
 
 - Two providers for the same type make `Container(groups=[...])` raise `DuplicateProviderTypeError`, whichever groups they are in. Give one of them `bound_type=None` and pass it to its consumers through [`kwargs`](../providers/factories.md#kwargs); see [DuplicateProviderTypeError](../troubleshooting/duplicate-type-error.md).
 - A provider object belongs to one group. Assigning it to a second group (`engine = Database.engine`) registers it twice and raises the same `DuplicateProviderTypeError`. To use another group's provider, depend on its type, or reference it in `kwargs={"engine": Database.engine}`.
+- Passing one group twice, or a group together with its subclass, also registers the same providers twice and raises `DuplicateProviderTypeError`, with a `bound_type=None` hint that does not apply. Pass each group once; for a subclass, pass only the subclass. See [issue #669](https://github.com/modern-python/modern-di/issues/669).
 - `Container` ignores attribute names, so two groups can both have a `session` attribute. Litestar's `autowired_groups` and `modern-di-pytest`'s `expose()` do use them: the first warns and keeps the provider from the last group, and the second raises `ValueError`.
 - The order of `groups=[...]` does not matter. Nothing checks the combined graph for you, so call `container.validate()` at startup.
 

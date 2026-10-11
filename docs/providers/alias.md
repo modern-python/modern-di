@@ -111,7 +111,7 @@ inside one `ValidationFailedError`:
 
 - `AliasSourceNotRegisteredError` when nothing is registered for `source_type`.
 - `CircularDependencyError` for a cycle that passes through an alias; see
-  [Troubleshooting: Circular dependency](../troubleshooting/circular-dependency.md).
+  [CircularDependencyError](../troubleshooting/circular-dependency.md).
 - `InvalidScopeDependencyError` when a provider depends, through an alias, on a source at a deeper
   scope.
 
@@ -142,7 +142,7 @@ cache_container.validate()  # .exceptions holds an AliasSourceNotRegisteredError
     `validate()` applies the [scope dependency rule](scopes.md#the-scope-dependency-rule) through
     aliases. The error names every hop of the chain and its terminal source, since the alias's own
     type carries no scope to point at; see
-    [Troubleshooting: Scope chain](../troubleshooting/scope-chain.md#when-the-dependency-is-reached-through-an-alias).
+    [InvalidScopeDependencyError: when the dependency is reached through an alias](../troubleshooting/scope-chain.md#when-the-dependency-is-reached-through-an-alias).
 
 ## See also
 

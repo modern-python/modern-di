@@ -405,6 +405,8 @@ When you rewrite:
 - Guard sweeps that apply `@inject` for the user (Flask and aiogram `auto_inject`, Celery `DITask`)
   against double wrapping with `integrations.is_injected(func)` and
   `integrations.mark_injected(wrapper)`.
+- Say which handlers a sweep leaves alone. aiogram's `auto_inject` skips handlers on `update`
+  observers, so those need `@inject` by hand, and its page says so.
 - Leave nested scopes to the caller. Typer's `action_scope(ctx)` yields a fresh `ACTION` child of the
   per-call container for each `with` block.
 
@@ -445,9 +447,17 @@ Each official integration is its own repository and PyPI package, with the same 
   `ruff` floats forward in CI, so keep `CPY001` in the lint `ignore` list.
 - In the `modern-di` repo, add `docs/integrations/<framework>.md` and a `mkdocs.yml` nav entry under
   the matching family: Web, Tasks & events, Bots, RPC, CLI or Testing. Model the page on an existing one
-  such as [Starlette](starlette.md): one compact example with the same two providers as `examples/app.py`,
-  `container.validate()` after `setup_di`, connection injection in its own "Framework context objects"
-  section, then framework-specific sections, a `## See also` block, and the `## API` table last.
+  in the same family, with one compact example using the same two providers as `examples/app.py` and
+  `container.validate()` after `setup_di`. Web pages such as [Starlette](starlette.md) use
+  `## Installation`, `## Usage`, `## Injecting into handlers`, `## Scopes and lifecycle`, and
+  `## Websockets` where the framework has them. Other pages such as [taskiq](taskiq.md) use
+  `## How to use`, `## Scopes`, `## Root container lifecycle`, and usually `## Testing`. Both kinds
+  give connection injection its own section, named `## Framework context objects` on every page but
+  gRPC's and present even when the integration registers no context provider. Framework-specific
+  sections follow, then a `## See also` block, and the `## API` table last. Write `FromDI` in the
+  `Annotated` form, except where the framework needs another: the [FastMCP](fastmcp.md) page uses the
+  default-value form, and the [Litestar](litestar.md) page puts `FromDI` in a route's `dependencies`
+  mapping.
   For a provider that must also resolve outside a connection, show an optional parameter
   (`request: FrameworkType | None = None`), as the [gRPC page](grpc.md#injecting-the-servicercontext)
   does; [Optional parameters](../providers/context.md#optional-parameters) explains it.

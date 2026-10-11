@@ -197,7 +197,7 @@ assert request_app.test_client().get("/describe").json == [{"method": "GET", "ur
 ## See also
 
 - [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
-- [Multi-group organization](../recipes/multi-group.md): structuring a larger container.
+- [Organize a large container with multiple Groups](../recipes/multi-group.md): structuring a larger container.
 - [Lifecycle](../providers/lifecycle.md): finalizers and container teardown.
 - [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 

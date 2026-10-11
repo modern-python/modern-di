@@ -28,6 +28,13 @@ same `bound_type` when:
 - two factories' creators return the same type, such as a primary and a replica `DatabaseConfig`;
 - two groups passed to the same container each declare a provider for the type.
 
+The same provider object registered twice raises it too, with both bullets naming one provider and
+`.first_provider is .second_provider`. That happens when a group and its subclass are both passed,
+when one group is passed twice, or when one provider is assigned in two groups. The hint about
+`bound_type=None` does not apply here. Pass each group once, and for a subclass pass only the
+subclass, which already holds the base group's providers. This is tracked in
+[issue #669](https://github.com/modern-python/modern-di/issues/669).
+
 ## Fix
 
 If the two providers stand for different things, give each its own type. A thin subclass is enough,

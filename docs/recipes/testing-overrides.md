@@ -223,6 +223,7 @@ Under the default mode, a `session.rollback()` in the code under test rolls back
 - Overrides are global to the container tree. Override on any container and every container sharing its root sees the replacement. That is what tests want; keep it in mind if you ever override outside tests.
 - `override` is keyed by provider object. Pass `Dependencies.user_repository`, not the string `"user_repository"`, which raises `AttributeError`.
 - Always reset. A leaked override reaches every later test that shares the container, and nothing reports it. With a session-scoped container, set overrides in a function-scoped fixture with `with container.override(...)`, so they are reset after each test even when it fails.
+- Watch cached dependents. A cached instance (`cache=True`) keeps the dependencies it was built with, so overriding one of its dependencies does not reach an instance already in the cache, and an instance first built under an override keeps the fake after the override ends. Override the cached provider itself, or build the tests that need the fake a fresh container. [Pytest integration: Overrides](../integrations/pytest.md#overrides) has the same caveat for session-scoped fixtures.
 - Override the right level. If you override the engine but tests resolve the session, the session's creator still runs, so the replacement has to be something that creator accepts. If a test relies on a specific session, override the session itself.
 
 ## See also

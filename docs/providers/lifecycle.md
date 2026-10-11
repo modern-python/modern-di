@@ -178,6 +178,9 @@ A finalizer that raises still drops its cached instance, and the next resolve af
 builds a fresh one. With `clear_cache=False` the instance is kept, as it is after a finalizer that
 succeeds.
 
+See [FinalizerError](../troubleshooting/finalizer-error.md) for reading the group and fixing the
+finalizers that raised.
+
 ### Async finalizers and `close_sync()`
 
 `close_sync()` cannot await. When it reaches an instance with an async finalizer, it adds an
@@ -209,8 +212,10 @@ except* exceptions.AsyncFinalizerInSyncCloseError:
 await container.close_async()  # runs the async finalizer
 ```
 
-Use `async with container:` or `await container.close_async()` when any provider has an async
-finalizer.
+Until then the instance stays cached: a repeated `close_sync()` reports it again, and resolving after
+a reopen returns the same object. Use `async with container:` or `await container.close_async()`
+when any provider has an async finalizer; see
+[AsyncFinalizerInSyncCloseError](../troubleshooting/async-finalizer-in-sync-close-error.md).
 
 ### Cancelled close
 
@@ -261,7 +266,7 @@ with container:                 # reopened by __enter__
     container.resolve(Settings)
 ```
 
-See [Troubleshooting: ContainerClosedError](../troubleshooting/container-closed-error.md) for what to
+See [ContainerClosedError](../troubleshooting/container-closed-error.md) for what to
 check when a container is closed where you did not expect it, and
 [Migration: To 4.x](../migration/to-4.x.md#resolving-on-a-closed-container-raises) for the 3.x
 behavior, which warned and reopened instead.
@@ -295,7 +300,7 @@ container.validate()  # raises ValidationFailedError listing every issue
 ```
 
 It reports every issue in one `exceptions.ValidationFailedError` instead of stopping at the first;
-see [Troubleshooting: ValidationFailedError](../troubleshooting/validation-failed-error.md). An
+see [ValidationFailedError](../troubleshooting/validation-failed-error.md). An
 integration that registers its own providers with `add_providers` should validate after that; see
 [Writing an integration](../integrations/writing-integrations.md#lifecycle-rules).
 
@@ -306,4 +311,6 @@ adds nothing to resolve time. Call it at startup or in one test.
 
 - [Scopes](scopes.md): child containers and which container caches an instance.
 - [Factories](factories.md): `CacheSettings` is configured on the factory itself.
-- [Async resources via lifespan](../recipes/async-lifespan.md): sync creator + async finalizer is the most common shape.
+- [Async SQLAlchemy: engine, session, repository](../recipes/sqlalchemy.md): sync creators with async finalizers.
+- [Async resources via lifespan](../recipes/async-lifespan.md): resources whose construction needs `await`.
+- [FinalizerError](../troubleshooting/finalizer-error.md) and [AsyncFinalizerInSyncCloseError](../troubleshooting/async-finalizer-in-sync-close-error.md): the errors a close can raise.

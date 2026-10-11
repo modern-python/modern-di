@@ -82,8 +82,9 @@ container.open()
 Mark every injected parameter with `NamedDependency[...]` from `litestar.di`. Litestar 2.23
 deprecated inferring a dependency from a plain annotation, and Litestar 3.0 removes it.
 
-Call `container.validate()` after the plugin is installed. A factory that takes a `litestar.Request`
-depends on the context provider that the plugin registers, so validating before it fails with
+Call `container.validate()` after `Litestar(...)` is constructed. The plugin registers its context
+providers in `on_app_init`, which Litestar runs during construction, and a factory that takes a
+`litestar.Request` depends on one of them, so validating before that fails with
 `ValidationFailedError`.
 
 ## Injecting into handlers
@@ -223,7 +224,7 @@ with TestClient(request_app) as client:
 ## See also
 
 - [Testing with overrides](../recipes/testing-overrides.md): swap providers in your tests.
-- [Multi-group organization](../recipes/multi-group.md): splitting providers across groups, with `autowired_groups`.
+- [Organize a large container with multiple Groups](../recipes/multi-group.md): splitting providers across groups, with `autowired_groups`.
 - [Lifecycle](../providers/lifecycle.md): finalizers and `close_async()`.
 - [Scopes](../providers/scopes.md): the APP → REQUEST lifetime model.
 
