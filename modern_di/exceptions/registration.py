@@ -1,5 +1,6 @@
 """Errors reporting declaration mistakes, detected at declaration time or by ``validate()``."""
 
+import abc
 import enum
 import typing
 
@@ -199,7 +200,6 @@ class _DependencyChainError(RegistrationError):
     """
 
     _chain_headline: typing.ClassVar[str]
-    _message: typing.Callable[[], str]
 
     __slots__ = ("dependency_chain", "parameter_name", "provider")
 
@@ -214,6 +214,9 @@ class _DependencyChainError(RegistrationError):
         self.parameter_name = parameter_name
         self.dependency_chain = dependency_chain
         super().__init__(self._message())
+
+    @abc.abstractmethod
+    def _message(self) -> str: ...
 
     @property
     def dependency_provider(self) -> "AbstractProvider[typing.Any]":
