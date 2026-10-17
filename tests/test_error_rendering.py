@@ -3,7 +3,7 @@ import inspect
 
 import pytest
 
-from modern_di import Scope, exceptions, providers, suggester
+from modern_di import Container, Scope, exceptions, providers, suggester
 from modern_di.exceptions import rendering
 
 
@@ -115,7 +115,24 @@ def test_invalid_child_scope_error_derives_the_allowed_scopes() -> None:
     # being handed it — the same comprehension used to be written out at two raise sites.
     error = exceptions.InvalidChildScopeError(parent_scope=Scope.REQUEST, child_scope=Scope.APP)
     assert error.allowed_scopes == [Scope.ACTION, Scope.STEP]
-    assert "Possible scopes are ['ACTION', 'STEP']." in str(error)
+    assert "Deeper members of Scope are ['ACTION', 'STEP']." in str(error)
+
+
+def test_invalid_child_scope_error_from_the_last_member_states_the_value_rule() -> None:
+    with pytest.raises(exceptions.InvalidChildScopeError) as exc:
+        Container(scope=Scope.STEP).build_child_container(scope=Scope.STEP)
+    message = str(exc.value)
+    assert "any IntEnum member with a value greater than 5" in message
+    assert "[]" not in message
+    assert exc.value.allowed_scopes == []
+
+
+def test_invalid_child_scope_error_from_app_states_the_rule_and_lists_deeper_members() -> None:
+    with pytest.raises(exceptions.InvalidChildScopeError) as exc:
+        Container(scope=Scope.APP).build_child_container(scope=Scope.APP)
+    message = str(exc.value)
+    assert "any IntEnum member with a value greater than 1" in message
+    assert "Deeper members of Scope are ['SESSION', 'REQUEST', 'ACTION', 'STEP']." in message
 
 
 def test_unknown_factory_kwarg_error_derives_its_own_suggestions() -> None:
