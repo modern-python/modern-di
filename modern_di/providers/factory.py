@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import functools
 import inspect
 import typing
 import warnings
@@ -96,6 +97,8 @@ class Factory(AbstractProvider[types.T_co]):
         skip_creator_parsing: bool,
     ) -> ParsedCreator:
         """Parse and check ``creator`` for ``__init__``; warnings point at the ``Factory(...)`` call."""
+        if Factory._is_async_creator(creator):
+            raise exceptions.AsyncCreatorError(creator=creator)
         if skip_creator_parsing:
             if bound_type is types.UNSET:
                 warnings.warn(
@@ -121,6 +124,15 @@ class Factory(AbstractProvider[types.T_co]):
                 stacklevel=3,
             )
         return parsed
+
+    @staticmethod
+    def _is_async_creator(creator: typing.Callable[..., typing.Any]) -> bool:
+        """Whether calling ``creator`` returns a coroutine or async generator, through partials or ``__call__``."""
+        if isinstance(creator, type):
+            return False
+        if not (inspect.isfunction(creator) or inspect.ismethod(creator) or isinstance(creator, functools.partial)):
+            creator = type(creator).__call__
+        return inspect.iscoroutinefunction(creator) or inspect.isasyncgenfunction(creator)
 
     @staticmethod
     def _reject_unknown_kwargs(
