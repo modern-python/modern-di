@@ -5,7 +5,17 @@ import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import ModernDIError
-from modern_di.exceptions.rendering import ResolutionStep, render_chain, render_suggestions, type_name
+from modern_di.exceptions.rendering import (
+    ResolutionStep,
+    render_chain,
+    render_provider_lines,
+    render_suggestions,
+    type_name,
+)
+
+
+if typing.TYPE_CHECKING:
+    from modern_di.providers.abstract import AbstractProvider
 
 
 class ResolutionError(ModernDIError):
@@ -63,18 +73,43 @@ class ProviderNotRegisteredError(ResolutionError):
 
 
 class AliasSourceNotRegisteredError(ResolutionError):
-    """An ``Alias`` points at a ``.source_type`` that has no registered provider."""
+    """An ``Alias`` points at a ``.source_type`` that has no provider registered under that type.
+
+    ``.reference_only_providers`` lists the reference-only providers whose creator returns ``.source_type``.
+    """
 
     docs_slug = "alias-source-not-registered-error"
 
-    __slots__ = ("source_type",)
+    __slots__ = ("reference_only_providers", "source_type")
 
-    def __init__(self, *, source_type: type) -> None:
+    def __init__(
+        self,
+        *,
+        source_type: type,
+        reference_only_providers: "list[AbstractProvider[typing.Any]] | None" = None,
+    ) -> None:
         self.source_type = source_type
-        super().__init__(
-            f"Alias source type {source_type} is not registered in providers registry. "
-            f"Register a provider for {source_type} before the alias is resolved."
-        )
+        self.reference_only_providers = reference_only_providers or []
+        if not self.reference_only_providers:
+            super().__init__(
+                f"Alias source type {source_type} is not registered in providers registry. "
+                f"Register a provider for {source_type} before the alias is resolved."
+            )
+            return
+        several = len(self.reference_only_providers) > 1
+        lines = [
+            (
+                f"Alias source type {source_type} is not registered by type: "
+                f"{'these providers serve' if several else 'this provider serves'} it with bound_type=None, "
+                "and an alias cannot reach a reference-only provider."
+            ),
+            *render_provider_lines(self.reference_only_providers),
+            (
+                f"Give {'one of them' if several else 'it'} bound_type={type_name(source_type)}, "
+                "or remove bound_type=None."
+            ),
+        ]
+        super().__init__("\n".join(lines))
 
 
 class ArgumentResolutionError(ResolutionError):

@@ -62,6 +62,7 @@ class Factory(AbstractProvider[types.T_co]):
         "_kwargs",
         "_params",
         "_positional_names",
+        "_return_type",
     )
 
     def __init__(  # noqa: PLR0913
@@ -78,6 +79,7 @@ class Factory(AbstractProvider[types.T_co]):
             creator, bound_type=bound_type, kwargs=kwargs, skip_creator_parsing=skip_creator_parsing
         )
         self._params = parsed.params
+        self._return_type = parsed.return_type.arg_type
         names = tuple(parsed.params)
         self._positional_names: tuple[str, ...] | None = names
         if (names and parsed.has_positional_only_gap) or any(item.is_keyword_only for item in parsed.params.values()):
