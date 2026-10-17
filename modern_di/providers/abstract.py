@@ -1,5 +1,6 @@
 import enum
 import itertools
+import sys
 import typing
 
 from modern_di import exceptions, types
@@ -16,7 +17,16 @@ class AbstractProvider(typing.Generic[types.T_co]):
     or any provider, outside modern-di raises ``TypeError``.
     """
 
-    __slots__ = ("_bound_type", "_explicit_scope", "_group_claim", "_provider_id", "_registered")
+    __slots__ = (
+        "_bound_type",
+        "_call_line",
+        "_call_module",
+        "_declared_as",
+        "_explicit_scope",
+        "_group_claim",
+        "_provider_id",
+        "_registered",
+    )
 
     _takes_group_scope: typing.ClassVar[bool] = True
     """Whether a Group-level default scope applies. False when the effective scope is derived."""
@@ -43,11 +53,25 @@ class AbstractProvider(typing.Generic[types.T_co]):
         self._registered = False
         self._bound_type = inferred_bound_type if isinstance(bound_type, types.UnsetType) else bound_type
         self._provider_id = next(_provider_id_counter)
+        self._declared_as: str | None = None
+        # Frame 2 is whoever called the concrete provider's __init__, which calls this one directly.
+        caller = sys._getframe(2)  # noqa: SLF001
+        self._call_module: str | None = caller.f_globals.get("__name__")
+        self._call_line = caller.f_lineno
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        if self._declared_as is None:
+            self._declared_as = f"{owner.__name__}.{name}"
 
     @property
     def bound_type(self) -> type | None:
         """The type this provider is registered under, or ``None`` when it resolves by reference only."""
         return self._bound_type
+
+    @property
+    def _call_site(self) -> str | None:
+        """``module:line`` of the call that built this provider; None when the module is unknown."""
+        return None if self._call_module is None else f"{self._call_module}:{self._call_line}"
 
     @property
     def provider_id(self) -> int:

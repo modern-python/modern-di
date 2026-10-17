@@ -4,17 +4,18 @@
 
 ```
 modern_di.exceptions.registration.DuplicateProviderTypeError: Provider is duplicated by type <class 'myapp.dup.DatabaseConfig'>.
-  - Factory (myapp.dup:7)
-  - Factory (myapp.dup:10)
+  - Configs.primary: Factory (myapp.dup:12)
+  - Configs.replica: Factory (myapp.dup:13)
 Set bound_type=None on one of them to make it resolvable by reference only.
 See: https://modern-di.modern-python.org/troubleshooting/duplicate-type-error/
 ```
 
 It is raised when the second provider is registered: by `Container(groups=[...])` at startup, or by
-`container.add_providers(...)`. Each bullet names one provider, the one registered first on top. A
-`Factory` is shown by where its creator is declared and any other provider by its repr, so two
-factories that share a creator show the same location twice. `.first_provider` and
-`.second_provider` hold the provider objects.
+`container.add_providers(...)`. Each bullet names one provider, with the one registered first on
+top. A bullet shows the group attribute the provider was declared as, its kind, and the module and
+line of the call that built it, such as `Factory(...)`. A provider built outside a group class body
+has no attribute, so its bullet starts with the kind. `.first_provider` and `.second_provider` hold
+the provider objects.
 
 The class descends from `RegistrationError`, then `ModernDIError`, then `RuntimeError`, so
 `except DuplicateProviderTypeError`, `except RegistrationError` and `except RuntimeError` all catch

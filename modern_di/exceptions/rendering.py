@@ -41,11 +41,13 @@ def provider_step(provider: "AbstractProvider[typing.Any]", scope: enum.IntEnum 
 
 
 def render_provider_lines(providers: "list[AbstractProvider[typing.Any]]") -> list[str]:
-    """Draw providers as a bulleted list: each by its kind and declaration site, else by its repr."""
+    """Draw providers as a bulleted list: each by its group attribute, then its kind and call site, else its repr."""
     lines = []
     for provider in providers:
-        site = provider.definition_site
-        lines.append(f"  - {type(provider).__name__} ({site})" if site else f"  - {provider!r}")
+        site = provider._call_site  # noqa: SLF001
+        declared_as = provider._declared_as  # noqa: SLF001
+        label = f"{type(provider).__name__} ({site})" if site else repr(provider)
+        lines.append(f"  - {declared_as}: {label}" if declared_as else f"  - {label}")
     return lines
 
 
