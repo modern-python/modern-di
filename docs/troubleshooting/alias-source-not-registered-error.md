@@ -21,7 +21,7 @@ Give it bound_type=Implementation, or remove bound_type=None.
 See: https://modern-di.modern-python.org/troubleshooting/alias-source-not-registered-error/
 ```
 
-`resolve()` and `resolve_provider()` raise it with the chain shown above. The alias's step shows `?`
+`resolve()` and `resolve_provider()` raise it with a dependency chain, as in both samples. The alias's step shows `?`
 in place of a scope, because an alias resolves at its source's scope and there is no source to read
 it from. `container.validate()` reports it inside [`ValidationFailedError`](validation-failed-error.md),
 without the chain. `.source_type` holds the type the alias points at, and `.reference_only_providers`
