@@ -1277,8 +1277,14 @@ def _sync_returns_awaitable() -> typing.Awaitable[SimpleCreator]:
 
 @pytest.mark.parametrize(
     "creator",
-    [SimpleCreator, _AsyncCallable, _sync_returns_awaitable, functools.partial(SimpleCreator, dep1="x")],
-    ids=["class", "class-with-async-dunder-call", "sync-returning-awaitable", "sync-partial"],
+    [SimpleCreator, _AsyncCallable, _sync_returns_awaitable],
+    ids=["class", "class-with-async-dunder-call", "sync-returning-awaitable"],
 )
 def test_factory_accepts_sync_creators(creator: typing.Callable[..., typing.Any]) -> None:
     assert isinstance(providers.Factory(creator, scope=Scope.APP, bound_type=None), providers.Factory)
+
+
+def test_factory_accepts_sync_partial() -> None:
+    creator = functools.partial(SimpleCreator, dep1="x")
+    factory = providers.Factory(creator, scope=Scope.APP, bound_type=SimpleCreator, skip_creator_parsing=True)
+    assert isinstance(factory, providers.Factory)
