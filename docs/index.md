@@ -20,7 +20,8 @@ long as its scope lives, and runs its teardown when that scope closes.
   direct unit tests all see the same fake.
 - Typed end to end, with no type-checker plugin.
 - Integrations for aiogram, aiohttp, arq, Celery, FastAPI, FastMCP, FastStream, Flask, gRPC,
-  Litestar, Starlette, taskiq and Typer, plus a pytest plugin.
+  Litestar, Starlette, taskiq and Typer, plus `modern-di-pytest`, which turns dependencies into
+  pytest fixtures.
 
 [About DI](introduction/about-di.md) explains dependency injection from scratch, and
 [modern-di vs other libraries](introduction/comparison.md) covers when you need a container and how
@@ -48,7 +49,7 @@ modern-di differs from Dishka, dependency-injector and the rest. For complete se
     ```
 
 Each framework integration is a separate package named `modern-di-<framework>`, such as
-`modern-di-fastapi`. The pytest plugin is `modern-di-pytest`.
+`modern-di-fastapi`. `modern-di-pytest` turns dependencies into pytest fixtures.
 
 ## 2. Resolve a dependency
 
@@ -200,14 +201,15 @@ async def get_user(
     return repository.find(user_id)
 ```
 
-`setup_di` also closes the root container at shutdown, which runs the `HttpClient` finalizer. The
-other integrations work the same way; each has its own page under Integrations, starting with
-[FastAPI](integrations/fastapi.md).
+`setup_di` also closes the root container at shutdown, which runs the `HttpClient` finalizer. Most
+other integrations do the same, but Flask, gRPC and Typer leave the root container for you to close;
+see [Per-scope finalization](providers/lifecycle.md#per-scope-finalization). Each integration has its
+own page under Integrations, starting with [FastAPI](integrations/fastapi.md).
 
 ## 6. Override in tests
 
-`container.override` replaces a provider for the whole container tree. Used as a context manager,
-it restores the original on exit.
+`container.override` replaces what a provider resolves to across the whole container tree. Used as
+a context manager, it restores the original on exit.
 
 ```python
 fake_client = HttpClient(settings=Settings(api_url="http://test"))
@@ -223,8 +225,8 @@ FastAPI route above would see the fake too. See [Testing with overrides](recipes
 
 ## Where to next
 
-- [Resolving](introduction/resolving.md): how parameters are matched by type, and what happens when
-  they can't be.
+- [Resolving dependencies](introduction/resolving.md): how parameters are matched by type, and what
+  happens when they can't be.
 - [Scopes](providers/scopes.md): the full scope model, from APP down to STEP.
 - [Factories](providers/factories.md): every `Factory` option.
 - [Lifecycle](providers/lifecycle.md): finalizers, async teardown and validation.

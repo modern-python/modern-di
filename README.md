@@ -43,7 +43,8 @@ long as its scope lives, and runs its teardown when that scope closes.
   direct unit tests all see the same fake.
 - Typed end to end, with no type-checker plugin.
 - Integrations for aiogram, aiohttp, arq, Celery, FastAPI, FastMCP, FastStream, Flask, gRPC,
-  Litestar, Starlette, taskiq and Typer, plus a pytest plugin.
+  Litestar, Starlette, taskiq and Typer, plus `modern-di-pytest`, which turns dependencies into
+  pytest fixtures.
 
 ## Install
 

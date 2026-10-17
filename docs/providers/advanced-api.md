@@ -32,8 +32,7 @@ iterate all providers declared on a group hierarchy. `Group.get_named_providers(
 providers as a dict keyed by attribute name.
 
 A subclass already includes its parents' providers. Passing a group together with its subclass to
-`Container(groups=[...])`, or one group twice, registers the same provider objects twice and raises
-`DuplicateProviderTypeError`.
+`Container(groups=[...])`, or one group twice, is allowed: each provider object is registered once.
 
 !!! note "The provider set is closed: `AbstractProvider` is not an extension point"
     `Factory`, `Alias`, `ContextProvider`, and the pre-built `container_provider` are the
