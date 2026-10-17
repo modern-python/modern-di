@@ -12,7 +12,7 @@ repository and ships as a separate PyPI package, `modern-di-pytest` included.
 ## Commands
 
 `just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth:
-run `just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
+`just --list`, or read it. Every recipe carries its intent as a comment. The one thing it does not
 say: `just docs-build` runs `mkdocs --strict` over the site only. Local links in every Markdown file,
 root and `docs/agents/` included, are checked by the `links` job in CI (lychee, offline), which has
 no `just` recipe.
