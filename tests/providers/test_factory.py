@@ -1239,6 +1239,15 @@ class _AsyncCallable:
         return SimpleCreator(dep1="async")
 
 
+async def async_gen_make_service() -> typing.AsyncIterator[SimpleCreator]:
+    yield SimpleCreator(dep1="async")
+
+
+class _AsyncGenCallable:
+    async def __call__(self) -> typing.AsyncIterator[SimpleCreator]:
+        yield SimpleCreator(dep1="async")
+
+
 @pytest.mark.parametrize(
     ("creator", "creator_name"),
     [
@@ -1246,8 +1255,19 @@ class _AsyncCallable:
         (functools.partial(async_make_service), "async_make_service"),
         (_AsyncCallable(), "_AsyncCallable"),
         (_AsyncCallable().build, "build"),
+        (async_gen_make_service, "async_gen_make_service"),
+        (functools.partial(async_gen_make_service), "async_gen_make_service"),
+        (_AsyncGenCallable(), "_AsyncGenCallable"),
     ],
-    ids=["coroutine-function", "partial", "async-dunder-call", "bound-method"],
+    ids=[
+        "coroutine-function",
+        "partial",
+        "async-dunder-call",
+        "bound-method",
+        "async-generator-function",
+        "async-generator-partial",
+        "async-generator-dunder-call",
+    ],
 )
 def test_factory_rejects_async_creator_at_declaration(
     creator: typing.Callable[..., typing.Any], creator_name: str

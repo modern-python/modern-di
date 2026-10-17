@@ -193,8 +193,8 @@ class AsyncCreatorError(RegistrationError):
         creator_name = getattr(target, "__name__", type(target).__name__)
         super().__init__(
             f"Factory creator {creator_name} is async, but resolution is synchronous, so resolve() would "
-            "return an un-awaited coroutine. Build the resource in your framework's lifespan and hand it to "
-            "the container with set_context() and a ContextProvider: "
+            "return an un-awaited coroutine or async generator. Build the resource in your framework's "
+            "lifespan and hand it to the container with set_context() and a ContextProvider: "
             f"{_ASYNC_LIFESPAN_RECIPE_URL}"
         )
 

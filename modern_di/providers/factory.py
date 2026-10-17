@@ -127,12 +127,12 @@ class Factory(AbstractProvider[types.T_co]):
 
     @staticmethod
     def _is_async_creator(creator: typing.Callable[..., typing.Any]) -> bool:
-        """Whether calling ``creator`` returns a coroutine: an ``async def``, through partials or ``__call__``."""
+        """Whether calling ``creator`` returns a coroutine or async generator, through partials or ``__call__``."""
         if isinstance(creator, type):
             return False
-        if inspect.isfunction(creator) or inspect.ismethod(creator) or isinstance(creator, functools.partial):
-            return inspect.iscoroutinefunction(creator)
-        return inspect.iscoroutinefunction(type(creator).__call__)
+        if not (inspect.isfunction(creator) or inspect.ismethod(creator) or isinstance(creator, functools.partial)):
+            creator = type(creator).__call__
+        return inspect.iscoroutinefunction(creator) or inspect.isasyncgenfunction(creator)
 
     @staticmethod
     def _reject_unknown_kwargs(
