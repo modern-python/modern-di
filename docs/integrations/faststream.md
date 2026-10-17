@@ -105,7 +105,9 @@ inside another framework's lifespan, such as FastAPI's, wrap it in `FastStream(b
 Since modern-di-faststream 4.0.1, the integration keeps its containers in the FastStream context
 under the keys `modern_di_root_container` and `modern_di_request_container`, so a context value of
 your own named `di_container` or `request_container` no longer replaces them. Code that read
-`di_container` from the context should call `fetch_di_container(app)` instead.
+`di_container` from the context should call `fetch_di_container(app)` instead. Since
+modern-di-faststream 4.2.2, the request container is not in the FastStream context at all, so
+`modern_di_request_container` is gone too; only the root container key remains.
 
 ## Framework context objects
 
