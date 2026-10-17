@@ -199,13 +199,19 @@ with `grpc.aio.server(migration_thread_pool=...)`, for example a `futures.Thread
 gRPC runs them in that pool, and `@inject` resolves from the per-call container. Before 4.1.0,
 every sync method on an aio server with the interceptor failed, with or without `@inject`.
 
+A cancelled server-streaming RPC is the one case where the child is not closed. When the client
+cancels, gRPC never closes a sync method's generator on the aio server, so the child container stays
+open and its REQUEST finalizers do not run. grpcio 1.83.1 does the same without the interceptor. On
+the aio server, write server-streaming methods as async generators.
+
 ## Scopes
 
 The integration opens one `Scope.REQUEST` child container per RPC call, for
 all four RPC types (unary-unary, server-streaming, client-streaming, bidi). The
 child is created when the RPC starts and closed when it ends. For a streaming
 RPC it stays open for the whole stream and closes after the last message,
-including on the error and client-cancellation paths. REQUEST-scoped providers
+including on the error and client-cancellation paths (with one exception for
+[sync methods on the aio server](#sync-methods-on-the-aio-server)). REQUEST-scoped providers
 (and their finalizers) live for exactly one RPC. APP-scoped providers persist for
 the life of the container.
 
