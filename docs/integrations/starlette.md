@@ -96,6 +96,27 @@ resolves it from the connection's child container, which it finds through the `R
 raises `TypeError`, and a request that did not pass through the `setup_di` middleware raises
 `RuntimeError`.
 
+Since modern-di-starlette 4.1.0, `@inject` also takes a plain `def` endpoint or `HTTPEndpoint`
+method. It returns a sync wrapper for it, so Starlette still runs the endpoint in its threadpool:
+
+```python
+@inject
+def get_report_sync(
+    request: Request,
+    report: typing.Annotated[Report, FromDI(Report)],
+) -> JSONResponse:
+    return JSONResponse(report.as_dict())
+
+
+app.routes.append(Route("/report-sync", get_report_sync))
+```
+
+<!-- invisible-code-block: python
+with TestClient(app) as client:
+    assert client.get("/report-sync").json() == {"service": "catalog"}
+container.open()
+-->
+
 ### Class-based endpoints
 
 `@inject` works the same on the methods of an `HTTPEndpoint` or `WebSocketEndpoint` subclass.
@@ -155,13 +176,39 @@ a `lifespan=` you passed to `Starlette()` stays the outer context and the state 
 through, the container reopens on startup, and it closes with `close_async()` on shutdown. The
 lifespan shutdown is the only thing that closes the root container.
 
+### Mounted apps
+
+An app mounted with `Mount` can call `setup_di` with its own container. Its routes then resolve
+from that container, and the routes of a mounted app without `setup_di` resolve from the outer
+app's. Before modern-di-starlette 4.1.0, a mounted app with its own `setup_di` raised `KeyError`
+after every response.
+
+Starlette runs only the outermost app's lifespan. Since 4.1.0, the lifespan that `setup_di`
+composes on the outer app also opens and closes the root container of every mounted app that
+called `setup_di`, under `Mount` and `Host` routes at any depth. It looks for them at startup. A
+`Mount` with its own `middleware=` hides the app it mounts, so that app's container is not found.
+
+```python
+from starlette.routing import Mount
+
+admin_app = Starlette(routes=[Route("/report", get_report)])
+admin_container = setup_di(admin_app, Container(groups=[AppGroup]))
+outer_app = Starlette(routes=[Mount("/admin", app=admin_app)])
+setup_di(outer_app, Container(groups=[AppGroup]))
+```
+
+<!-- invisible-code-block: python
+with TestClient(outer_app) as client:
+    assert client.get("/admin/report").json() == {"service": "catalog"}
+assert admin_container.closed
+-->
+
 !!! warning "Deployment: mounted sub-apps and disabled lifespan"
-    A `setup_di`-wired app mounted as a sub-application (`app.mount("/sub", subapp)`) never
-    receives the lifespan events from its parent, and deployments that disable lifespan (for
-    example Mangum with `lifespan="off"`) skip them too. Requests still succeed, because the root
-    container is open from construction, but nothing closes it, so its finalizers never run. Call
-    `setup_di` on the top-level served app, or close the root yourself
-    (`await container.close_async()`) at shutdown.
+    Deployments that disable lifespan (for example Mangum with `lifespan="off"`) skip the lifespan
+    events, and so does a `setup_di`-wired app mounted under an outer app that has no `setup_di`
+    of its own. Requests still succeed, because the root container is open from construction, but
+    nothing closes it, so its finalizers never run. Call `setup_di` on the top-level served app,
+    or close the root yourself (`await container.close_async()`) at shutdown.
 
 ## Websockets
 
@@ -255,9 +302,9 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Stores the container on `app.state`, registers the request and websocket context providers, wraps the lifespan so the container reopens on startup and closes on shutdown, and installs the middleware that builds a per-connection child container; returns the container. |
+| `setup_di(app, container)` | Stores the container on `app.state`, registers the request and websocket context providers, wraps the lifespan so the container reopens on startup and closes on shutdown, along with the root container of each mounted app that called `setup_di`, and installs the middleware that builds a per-connection child container; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
-| `inject` | Decorator for an `async def handler(connection: Request | WebSocket, ...)`, a function endpoint or a method of an `HTTPEndpoint` / `WebSocketEndpoint` subclass; resolves its `FromDI`-annotated parameters. Raises `TypeError` when the handler receives no `Request` or `WebSocket` positionally, and `RuntimeError` naming `setup_di` when the connection did not pass through the middleware. |
+| `inject` | Decorator for a sync or `async def` `handler(connection: Request | WebSocket, ...)`, a function endpoint or a method of an `HTTPEndpoint` / `WebSocketEndpoint` subclass; resolves its `FromDI`-annotated parameters. Raises `TypeError` when the handler receives no `Request` or `WebSocket` positionally, and `RuntimeError` naming `setup_di` when the connection did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.state`. |
 | `starlette_request_provider` | `ContextProvider` for `starlette.requests.Request` (REQUEST scope), auto-registered. |
 | `starlette_websocket_provider` | `ContextProvider` for `starlette.websockets.WebSocket` (SESSION scope), auto-registered. |

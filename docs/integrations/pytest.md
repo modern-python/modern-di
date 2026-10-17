@@ -134,9 +134,23 @@ email_client = modern_di_fixture(EmailClient)  # one fixture, named after this v
 
 `expose` installs its fixtures onto the module that calls it, found by stack inspection, so call it at
 module level in `conftest.py` or a test module, or pass `module=` explicitly. Attributes that are not
-providers are skipped. Before installing anything, it raises `ValueError` when two groups share an
-attribute name and `TypeError` when called with no groups. It overwrites any module attribute with the
-same name as a fixture.
+providers are skipped. Before installing anything, it raises `TypeError` when called with no groups
+and `ValueError` when a provider name clashes:
+
+- Two groups share an attribute name.
+- A provider has the name of the container fixture (`di_container`, or the `container_fixture=` you
+  pass).
+- The module already defines the name, for example as your own fixture or an import.
+
+The last two checks are new in modern-di-pytest 4.0.1; earlier releases install the fixture anyway.
+Call `expose()` after your own fixtures: a fixture defined after the call replaces the exposed one,
+and `expose()` cannot detect that.
+
+An exposed fixture follows pytest's override rules. It replaces a fixture of the same name from
+pytest, a plugin or a parent conftest for every test under the conftest or module that calls
+`expose()`, so a provider named `tmp_path` replaces pytest's `tmp_path`. To avoid that, rename the
+provider, or leave its group out of `expose()` and create the group's fixtures with
+`modern_di_fixture()`, giving the clashing one another name.
 
 ### 4. Use the fixtures in tests
 
@@ -286,4 +300,4 @@ For transactional database sessions and other patterns, see
 | Symbol | Description |
 |---|---|
 | `modern_di_fixture(dependency, *, container_fixture="di_container", name=None, pytest_scope="function")` | Returns a pytest fixture that resolves `dependency` (a type or a provider) through `container.resolve_dependency` on the container fixture. Assign it to a module-level name; `name=` overrides the fixture name. |
-| `expose(*groups, container_fixture="di_container", pytest_scope="function", module=None)` | Installs one fixture per provider attribute of each group onto the calling module, or onto `module=`. Raises `ValueError` on a duplicate name across groups and `TypeError` with no groups, before installing anything. |
+| `expose(*groups, container_fixture="di_container", pytest_scope="function", module=None)` | Installs one fixture per provider attribute of each group onto the calling module, or onto `module=`. Raises `ValueError` on a duplicate name across groups, a provider named like the container fixture, or a name the module already defines, and `TypeError` with no groups, before installing anything. |

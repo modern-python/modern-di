@@ -93,6 +93,11 @@ APP-scoped finalizers. As with the per-command child, an async finalizer fails t
 The integration registers no context provider. A command reads its own arguments, and a command
 that needs the Click context declares a `typer.Context` parameter.
 
+Since modern-di-typer 4.0.1, the context parameter that `@inject` adds is named
+`_modern_di_typer_ctx`, so a decorated command can also have an option named `ctx`. The root
+container is no longer stored in `ctx.obj`; get it with `fetch_di_container(ctx)`. `setup_di` sets
+`obj` to an empty dict when you did not set one, and leaves your own `obj` as you set it.
+
 ## Action scope
 
 `modern_di_typer.action_scope(ctx)` opens a `Scope.ACTION` child of the command's container and

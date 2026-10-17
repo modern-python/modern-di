@@ -77,6 +77,14 @@ async def greet(
 report_settings, report_group = Settings, AppGroup
 -->
 
+Since modern-di-aiogram 4.1.0, a handler can also be a plain `def`, with `@inject` or with
+`auto_inject=True`. aiogram runs it in a worker thread as usual, and its `FromDI` parameters
+resolve from the same per-update child container.
+
+A handler may also declare `**kwargs`. aiogram then passes it the whole data dict, and a `FromDI`
+parameter whose name matches a data key, such as `bot`, still gets the resolved dependency. Before
+4.1.0, `@inject` raised `ValueError` on a handler with both `**kwargs` and a `FromDI` parameter.
+
 ## Scopes
 
 The integration creates one `Scope.REQUEST` child container per update. Its middleware is an
@@ -282,6 +290,7 @@ the per-update container.
   install `aiogram-dialog` yourself.
 - The `FromDI` marker is the same one used for handlers; it is re-exported from
   `modern_di_aiogram.dialog` for convenience.
+- Getters and callbacks must be `async def`, because aiogram-dialog always awaits them.
 - An `@inject` getter must still declare `**kwargs` (aiogram-dialog always calls
   getters with the full `middleware_data`), and a `FromDI` getter parameter must
   not share a name with a `middleware_data` key (e.g. `bot`, `event`).
@@ -349,7 +358,7 @@ await test_report()
 |---|---|
 | `setup_di(dispatcher, container, *, auto_inject=False)` | Stores the container on the dispatcher, registers `aiogram_update_provider`/`aiogram_event_provider`, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close the container, and installs the per-update middleware. With `auto_inject=True`, also wraps every handler already registered on the dispatcher at startup. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-update child container. |
-| `inject` | Decorator for an aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed. |
+| `inject` | Decorator for a sync or `async def` aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed. |
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher. |
 | `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (REQUEST scope). |
 | `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (REQUEST scope), the concrete event unwrapped from the `Update`. |

@@ -149,8 +149,9 @@ described in [Writing an integration](writing-integrations.md#lifecycle-rules).
 ### 3. Async server (`grpc.aio`)
 
 `DIAioInterceptor` is the async twin: pass it to `grpc.aio.server(...)` and write
-`async def` servicer methods (server-streaming methods as `async` generators). The
-`AppGroup` and `container` from the sync example work unchanged:
+`async def` servicer methods (server-streaming methods as `async` generators), or sync methods
+[with a thread pool](#sync-methods-on-the-aio-server). The `AppGroup` and `container` from the
+sync example work unchanged:
 
 <!-- invisible-code-block: python
 import asyncio
@@ -186,6 +187,13 @@ asyncio.set_event_loop(None)
 or async generator (server-streaming), so the same decorator works on any of the
 four RPC types on either server.
 
+#### Sync methods on the aio server
+
+Since modern-di-grpc 4.1.0, the aio server also takes sync servicer methods when you create it
+with `grpc.aio.server(migration_thread_pool=...)`, for example a `futures.ThreadPoolExecutor()`.
+gRPC runs them in that pool, and `@inject` resolves from the per-call container. Before 4.1.0,
+every sync method on an aio server with the interceptor failed, with or without `@inject`.
+
 ## Scopes
 
 The integration opens one `Scope.REQUEST` child container per RPC call, for
@@ -198,7 +206,8 @@ the life of the container.
 
 The sync server closes each RPC's child with `close_sync()`, so an async finalizer on a
 REQUEST-scoped provider fails the RPC with `StatusCode.UNKNOWN` and a `FinalizerError` in the
-details. The aio server closes it with `close_async()`, where async finalizers run.
+details. The aio server closes it with `close_async()`, where async finalizers run, except for a
+sync method: its child is closed with `close_sync()`, as on the sync server.
 
 There is no `Scope.SESSION` for gRPC: a streaming RPC is one method invocation,
 modelled as a single REQUEST-scoped unit of work.
@@ -297,7 +306,7 @@ task that declares `*args` or `**kwargs`.
 | Symbol | Description |
 |---|---|
 | `DIInterceptor(container)` | `grpc.ServerInterceptor` for the sync thread-pool server. Opens a `Scope.REQUEST` child per RPC (`close_sync`); auto-registers `grpc_context_provider`. |
-| `DIAioInterceptor(container)` | `grpc.aio.ServerInterceptor` for the async server. Same, with `close_async`. |
+| `DIAioInterceptor(container)` | `grpc.aio.ServerInterceptor` for the async server. Same, with `close_async`, except that the child of a sync method, run in the server's `migration_thread_pool`, is closed with `close_sync`. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in servicer-method signatures; accepts a provider instance or a plain type. |
 | `@inject` | Decorates a servicer method to resolve its `FromDI` parameters from the current RPC's child container; adapts to sync / async / async-generator methods. Raises `RuntimeError` naming `DIInterceptor` when the RPC did not pass through the interceptor. |
 | `fetch_di_container()` | Returns the current RPC's child container (raises `RuntimeError` naming `DIInterceptor` outside an intercepted RPC). |

@@ -88,6 +88,11 @@ installs the middleware on every broker. An `after_shutdown` hook closes the roo
 `close_async()`, which runs APP-scoped finalizers. Because startup reopens the container,
 an app that stops and starts again on the same container works.
 
+Since modern-di-faststream 4.0.1, the integration keeps its containers in the FastStream context
+under the keys `modern_di_root_container` and `modern_di_request_container`, so a context value of
+your own named `di_container` or `request_container` no longer replaces them. Code that read
+`di_container` from the context should call `fetch_di_container(app)` instead.
+
 ## Framework context objects
 
 `faststream.StreamMessage` is automatically made available by the integration, so factories can declare it as a parameter and get the current message. See [Framework context objects](../providers/context.md#framework-context-objects) for how implicit and explicit resolution work.

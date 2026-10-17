@@ -82,6 +82,11 @@ handler receives. A decorated handler without one among its positional arguments
 `TypeError`, and a request that did not pass through the `setup_di` middleware raises
 `RuntimeError`.
 
+Since modern-di-aiohttp 4.1.0, `@inject` also takes a plain `def` handler. It returns a sync
+wrapper for it, so aiohttp treats the decorated handler like the undecorated one, including the
+deprecation warning aiohttp gives for sync handlers. Sync methods on a `web.View` are not
+supported, because aiohttp awaits view methods directly.
+
 ### Class-based views
 
 `@inject` works the same on the methods of a `web.View` subclass. Decorate the method, not the
@@ -115,6 +120,11 @@ REQUEST-scoped provider then fails with `ScopeNotInitializedError`, and the clie
 The root container is open from the moment you construct it. `setup_di` reopens it on startup and
 closes it with `close_async()` on cleanup. An app attached with `add_subapp` receives both signals
 from its parent, so a `setup_di`-wired sub-app is closed too.
+
+A sub-app route resolves from the sub-app's container when the sub-app called `setup_di`, and from
+the parent's otherwise. When both call it, each middleware opens and closes its own child container
+for the request. Before modern-di-aiohttp 4.1.0, calling `setup_di` on both made every sub-app route
+return 500.
 
 ## Websockets
 
@@ -252,7 +262,7 @@ with warnings.catch_warnings():
 |---|---|
 | `setup_di(app, container)` | Stores the container on the app, registers the request and websocket context providers, reopens the container on startup and closes it on cleanup, and installs the middleware that builds a per-connection child container; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
-| `inject` | Decorator for an `async def handler(request: web.Request, ...)`, a function handler or a method of a `web.View` subclass; resolves its `FromDI`-annotated parameters. Raises `TypeError` when the handler receives neither a `web.Request` nor a `web.View`, and `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
+| `inject` | Decorator for a sync or `async def` `handler(request: web.Request, ...)`, or an `async def` method of a `web.View` subclass; resolves its `FromDI`-annotated parameters. Raises `TypeError` when the handler receives neither a `web.Request` nor a `web.View`, and `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on the app. |
 | `fetch_request_container(request)` | Returns the per-connection child container the middleware built (REQUEST for HTTP, SESSION for a websocket). Raises `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `aiohttp_request_provider` | `ContextProvider` for `web.Request` (REQUEST scope), auto-registered by type. |
