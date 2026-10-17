@@ -45,6 +45,10 @@ _Avoid_: mock, patch
 The type a provider is registered under.
 _Avoid_: registered type, return type
 
+**Reference-only provider**:
+A provider with no bound type, resolvable only by passing the provider itself.
+_Avoid_: unbound provider, anonymous provider
+
 **Wiring plan**:
 The partition of a creator's parameters by how each is satisfied.
 _Avoid_: compiled kwargs
