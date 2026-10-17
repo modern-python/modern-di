@@ -124,10 +124,12 @@ An HTTP request gets a `Scope.REQUEST` child container and a websocket connectio
 `build_di_container` creates the child as a `yield` dependency, so a handler that injects nothing
 gets no child, and FastAPI's dependency cleanup closes it.
 
-The root container is open from the moment you construct it. `setup_di` wraps the app's lifespan:
-a `lifespan=` you passed to `FastAPI()` stays the outer context and the state it yields passes
-through, the container reopens on startup, and it closes with `close_async()` on shutdown. The
-lifespan shutdown is the only thing that closes the root container.
+The root container is open from the moment you construct it. `setup_di` wraps the app's lifespan,
+and the state yielded by a `lifespan=` you passed to `FastAPI()` passes through. Since
+modern-di-fastapi 4.2.0, the container is the outer context: it reopens before your lifespan's
+startup code and closes with `close_async()` after its shutdown code. Both can resolve APP-scoped
+dependencies, and APP finalizers run last. Earlier releases closed the container before your
+shutdown code ran. The lifespan shutdown is the only thing that closes the root container.
 
 Since modern-di-fastapi 4.1.0, `setup_di(app, container, manage_lifespan=False)` leaves the root
 container's open and close to you, for a container shared with another app; see
@@ -141,8 +143,10 @@ A FastAPI app mounted with `app.mount` can call `setup_di` with its own containe
 resolve from that container. Starlette runs only the outermost app's lifespan. Since
 modern-di-fastapi 4.0.1, the lifespan that `setup_di` composes on the outer app also opens and
 closes the root container of every mounted FastAPI app that called `setup_di`, under `Mount` and
-`Host` routes at any depth. It looks for them at startup. Since 4.0.2 this includes an app
-mounted with `Mount(app, middleware=[...])`.
+`Host` routes at any depth. Since 4.0.2 this includes an app mounted with
+`Mount(app, middleware=[...])`. It looks for them at startup, before your lifespan's startup code.
+Mounts added after `setup_di` are found, but since 4.2.0 a mount added inside your lifespan is not,
+so add mounts before the app starts.
 
 ```python
 admin_app = fastapi.FastAPI()
@@ -249,7 +253,7 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container, *, manage_lifespan=True)` | Stores the container on the app, registers the request and websocket context providers, and wraps the app's lifespan (any `lifespan=` you passed included) so the container reopens on startup and closes on shutdown, along with the root container of each mounted FastAPI app that called `setup_di`; with `manage_lifespan=False`, this app's own container is left to you. Returns the container. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Stores the container on the app, registers the request and websocket context providers, and wraps the app's lifespan (any `lifespan=` you passed included) so the container reopens before your startup code and closes after your shutdown code, along with the root container of each mounted FastAPI app that called `setup_di`; with `manage_lifespan=False`, this app's own container is left to you. Returns the container. |
 | `FromDI(dependency, *, use_cache=True)` | A `fastapi.Depends` that resolves a provider or type from the connection's child container (REQUEST for HTTP, SESSION for a websocket). Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
 | `build_di_container(connection)` | A `fastapi.Depends` callable that yields the connection's child container: REQUEST scope for an HTTP request, SESSION scope for a websocket. |
 | `fastapi_request_provider` | `ContextProvider` for `fastapi.Request` (REQUEST scope), auto-registered. |

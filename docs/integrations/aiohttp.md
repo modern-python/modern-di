@@ -121,6 +121,14 @@ The root container is open from the moment you construct it. `setup_di` reopens 
 closes it with `close_async()` on cleanup. An app attached with `add_subapp` receives both signals
 from its parent, so a `setup_di`-wired sub-app is closed too.
 
+`setup_di` appends the close to `app.on_cleanup`. `on_shutdown` handlers, `cleanup_ctx` teardown,
+and `on_cleanup` handlers added before `setup_di` run before the close and can still resolve from
+the container. `on_cleanup` handlers added after `setup_di` run after it and get
+`ContainerClosedError`. Add them before `setup_di`. If you can't, pass `manage_lifespan=False` and
+close the container yourself after `runner.cleanup()`, as the
+[modern-di-aiohttp README](https://github.com/modern-python/modern-di-aiohttp#sharing-a-container)
+shows.
+
 Since modern-di-aiohttp 4.2.0, `setup_di(app, container, manage_lifespan=False)` registers neither
 the startup nor the cleanup hook and leaves the root container's open and close to you, for a
 container shared with another app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).

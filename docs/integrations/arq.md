@@ -123,6 +123,13 @@ on startup and job start, and before ours on shutdown and job end. The root
 container is open in all of them, but for an `@inject` task the job's child is
 already closed by the time your `on_job_end` runs.
 
+arq has one slot per hook, so set `on_startup`, `on_shutdown`, `on_job_start` and `on_job_end`
+on `worker_settings` before calling `setup_di`. Don't assign them afterwards, and don't pass them
+to `create_worker(...)` or `Worker(...)`. Either way your hook replaces the wrapper and nothing
+raises. A replaced `on_shutdown` never closes the root, so APP-scoped finalizers never run. A
+replaced `on_job_end` leaves the child of a job without `@inject` open, and a replaced
+`on_job_start` makes `@inject` tasks raise `RuntimeError`.
+
 Calling `setup_di` twice on the same `worker_settings` raises a `TypeError`,
 because stacking the hook wrappers would leak a per-job child container.
 

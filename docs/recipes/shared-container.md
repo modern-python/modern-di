@@ -185,8 +185,9 @@ await run_in_lifespan()
 -->
 
 The container closes after `stream.stop()` returns, so messages still in flight at shutdown resolve
-from an open container. With the default flag, modern-di-fastapi would close the container inside
-your lifespan, before `stream.stop()` runs.
+from an open container. Since modern-di-fastapi 4.2.0, the FastAPI side at its default flag would
+give the same order, because it closes the container after your lifespan's shutdown code. Earlier
+releases closed it inside your lifespan, before `stream.stop()` ran.
 
 `stream.start()` and `stream.stop()` do not run a `FastStream(lifespan=...)`, so put that setup and
 teardown in the FastAPI lifespan.
