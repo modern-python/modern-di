@@ -66,8 +66,9 @@ def run_report(report: typing.Annotated[Report, FromDI(Report)]) -> str:
 `setup_di(app, container)` registers the container for the app and connects Celery's
 worker signals that open and close it. `@inject` builds a `Scope.REQUEST` child container
 for each task call and resolves `FromDI`-annotated parameters from it. It looks the
-container up through Celery's `current_app` at call time, so it resolves against
-whichever app is active.
+container up through the running task's app, so a task resolves from its own app's
+container even when another app is current. Outside a task it falls back to Celery's
+`current_app`. Before modern-di-celery 4.2.2, the lookup always went through `current_app`.
 
 Celery closes containers with `close_sync()`, both the per-task child and the root at
 worker shutdown. Finalizers must therefore be sync: an async finalizer makes the close
