@@ -104,6 +104,44 @@ def test_duplicate_type_across_two_groups_raises() -> None:
         Container(scope=Scope.APP, groups=[_GroupOne, _GroupTwo])
 
 
+class _GroupOneChild(_GroupOne):
+    extra = providers.Factory(scope=Scope.APP, creator=_ExtraSvc)
+
+
+def test_group_with_its_subclass_registers_inherited_providers_once() -> None:
+    container = Container(scope=Scope.APP, groups=[_GroupOne, _GroupOneChild])
+    assert isinstance(container.resolve(_DupA), _DupA)
+    assert isinstance(container.resolve(_ExtraSvc), _ExtraSvc)
+
+
+def test_same_group_passed_twice_registers_once() -> None:
+    container = Container(scope=Scope.APP, groups=[_GroupOne, _GroupOne])
+    assert container.find_provider(_DupA) is _GroupOne.a
+
+
+def test_one_provider_in_two_groups_registers_once() -> None:
+    shared = providers.Factory(scope=Scope.APP, creator=_DupA)
+
+    class First(Group):
+        a = shared
+
+    class Second(Group):
+        a_too = shared
+
+    container = Container(scope=Scope.APP, groups=[First, Second])
+    assert container.find_provider(_DupA) is shared
+
+
+def test_two_distinct_providers_of_one_type_still_raise_with_shared_ones_deduplicated() -> None:
+    class Other(Group):
+        a_again = providers.Factory(scope=Scope.APP, creator=_DupA)
+
+    with pytest.raises(DuplicateProviderTypeError) as exc:
+        Container(scope=Scope.APP, groups=[_GroupOne, _GroupOneChild, Other])
+    assert exc.value.first_provider is _GroupOne.a
+    assert exc.value.second_provider is Other.a_again
+
+
 def test_failed_group_registration_does_not_pollute_shared_registry() -> None:
     app = Container(scope=Scope.APP, groups=[_GroupOne])
     with pytest.raises(DuplicateProviderTypeError):
