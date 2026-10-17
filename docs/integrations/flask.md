@@ -161,10 +161,12 @@ registered in. It is built on first use, so a `before_request` hook registered b
 can use `@inject`, and the close runs after every `teardown_appcontext` handler, including ones
 registered after `setup_di`.
 
-!!! warning "`stream_with_context` on Flask 3.1.2 and later"
-    Flask 3.1.2 and later tear the request context down before the response body is iterated, so
-    the child is already closed by then. A `stream_with_context` generator that resolves REQUEST
-    dependencies gets `ContainerClosedError`. modern-di-flask 4.1.0 behaves the same.
+Since modern-di-flask 4.2.1, a streamed response keeps the child open until the response closes,
+after the body is sent. A `stream_with_context` generator can then resolve REQUEST dependencies on
+Flask 3.1.2 and later, and a plain generator response keeps the dependencies the view resolved
+live while it streams. A `direct_passthrough` response, such as one from `send_file`, and a request
+that raises still close the child at teardown. In 4.1.0 and 4.2.0 a `stream_with_context`
+generator got `ContainerClosedError` on Flask 3.1.2 and later.
 
 Because the child closes with `close_sync()`, REQUEST-scoped finalizers must be sync. An async
 finalizer raises [`AsyncFinalizerInSyncCloseError`](../troubleshooting/async-finalizer-in-sync-close-error.md),

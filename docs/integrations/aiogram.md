@@ -106,8 +106,9 @@ events, and so does an aiohttp app wired with aiogram's `setup_application()`.
 Since modern-di-aiogram 4.3.0, shutdown runs in this order: the plugin waits for the updates still
 in flight, then the shutdown handlers run (the dispatcher's, then every sub-router's), and the root
 closes last. aiogram can still be handling updates when it emits shutdown, for example when polling
-with `handle_as_tasks=True` (the default), so without the wait those handlers could outlive the
-container. Shutdown handlers registered after `setup_di` or on sub-routers can resolve
+with `handle_as_tasks=True` (the default) or with the webhook handlers in
+`aiogram.webhook.aiohttp_server`, inline or in the background, so without the wait those handlers
+could outlive the container. Shutdown handlers registered after `setup_di` or on sub-routers can resolve
 APP-scoped dependencies, and APP finalizers run last. `setup_di` sets this order on each startup,
 so a shutdown handler added during or after startup gets it from the next startup on.
 
