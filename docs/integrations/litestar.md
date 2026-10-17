@@ -124,8 +124,9 @@ If an attribute name appears in more than one group, or matches a dependency the
 last one wins.
 
 !!! warning "Don't name a provider `di_container`"
-    An autowired provider named `di_container` replaces the plugin's own container dependency,
-    which every `FromDI` depends on. Litestar then fails to build the app with `RecursionError`.
+    The name `di_container` is reserved for the plugin's own dependency, which every `FromDI`
+    depends on. An autowired group that declares a provider under that name raises
+    `litestar.exceptions.ImproperlyConfiguredException` when the app is created.
 
 With `autowired_groups` set, `FromDI` on a route can still take a type. Pass a provider instance
 only for providers outside `autowired_groups`: Litestar rejects one provider registered under two
