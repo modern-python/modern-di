@@ -135,8 +135,8 @@ A FastAPI app mounted with `app.mount` can call `setup_di` with its own containe
 resolve from that container. Starlette runs only the outermost app's lifespan. Since
 modern-di-fastapi 4.0.1, the lifespan that `setup_di` composes on the outer app also opens and
 closes the root container of every mounted FastAPI app that called `setup_di`, under `Mount` and
-`Host` routes at any depth. It looks for them at startup. A `Mount` with its own `middleware=`
-hides the app it mounts, so that app's container is not found.
+`Host` routes at any depth. It looks for them at startup. Since 4.0.2 this includes an app
+mounted with `Mount(app, middleware=[...])`.
 
 ```python
 admin_app = fastapi.FastAPI()
