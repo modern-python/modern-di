@@ -34,8 +34,8 @@ FastStream, Flask, gRPC, Litestar, Starlette, taskiq, and Typer.
 | Async resolution | ❌ (async finalizers ✅) | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Graph validation before first resolve | `container.validate()`, called explicitly | automatic at container build | `check_dependencies()`, undefined dependencies only | automatic at container creation | ❌ | ❌ |
 | Test override | `container.override(provider, mock)` | a provider with `override=True` | `provider.override(mock)` | `container.override({Type: fake})` | `provider.override_sync(mock)` | no API; build the injector from test modules |
-| First-party pytest plugin | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Integrations | 13 frameworks + a pytest plugin | 13 built in + 10 community | wiring works with any framework; `ext` module for Starlette | 10, including Django and FastMCP | FastAPI, FastStream | none bundled; `flask_injector` (same org), `fastapi-injector` (third party) |
+| First-party pytest integration | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Integrations | 13 frameworks + pytest fixtures | 13 built in + 10 community | wiring works with any framework; `ext` module for Starlette | 10, including Django and FastMCP | FastAPI, FastStream | none bundled; `flask_injector` (same org), `fastapi-injector` (third party) |
 | Typed resolution | ✅ | ✅ | partial (`Provide[...]` is `Any`) | ✅ | ✅ | ✅ |
 | Speed vs modern-di | n/a | [modern-di faster in 4 of 5 scenarios](performance.md#at-a-glance) | [modern-di faster in 4 of 5](performance.md#at-a-glance) | [modern-di faster in 4 of 5](performance.md#at-a-glance) | [modern-di faster in 4 of 5](performance.md#at-a-glance) | not benchmarked |
 | License | MIT | Apache-2.0 | BSD-3 | MIT | MIT | BSD-3 |
@@ -98,8 +98,8 @@ Where modern-di differs:
 `dependency-injector` is the most popular Python DI library, with a mature, Cython-accelerated core
 and a declarative style using `Provide[...]` markers and `@inject`. It is actively maintained again
 after an earlier pause. modern-di wires by type instead of by marker, and adds nested request scopes,
-a typed injection marker and a first-party pytest plugin. If you prefer explicit declarative wiring
-and the largest community, dependency-injector is the established option. The
+a typed injection marker and a first-party pytest integration. If you prefer explicit declarative
+wiring and the largest community, dependency-injector is the established option. The
 [migration guide](../migration/from-dependency-injector.md) maps it provider by provider.
 
 ### vs wireup
@@ -108,7 +108,7 @@ wireup is typed, MIT-licensed and wires by type, like modern-di. It validates th
 container is created, supports async resolution and generator teardown, and has 10 integrations,
 including Django, Click and FastMCP. Its scopes are lifetimes (singleton, scoped, transient), and its
 docs say it avoids full nested scopes. modern-di has an ordered scope chain you can nest and extend,
-and a pytest plugin.
+and a pytest integration.
 
 ### vs injector
 
