@@ -59,11 +59,25 @@ class SignatureItem:
         return cls(**result)
 
 
+def _annotation(name: str, signature_annotation: object, type_hints: dict[str, typing.Any] | None) -> typing.Any:  # noqa: ANN401
+    """Return the hint for ``name``, else its signature annotation when that is already a type object, else ``UNSET``.
+
+    A ``type_hints`` of None means the hints failed to resolve, and then nothing is read.
+    """
+    if type_hints is None:
+        return UNSET
+    if name in type_hints:
+        return type_hints[name]
+    if signature_annotation is inspect.Signature.empty or isinstance(signature_annotation, str):
+        return UNSET
+    return signature_annotation
+
+
 def _parse_parameter(
     creator: typing.Callable[..., typing.Any],
     param_name: str,
     param: inspect.Parameter,
-    type_hints: dict[str, typing.Any],
+    type_hints: dict[str, typing.Any] | None,
 ) -> SignatureItem | None:
     if param.kind is inspect.Parameter.POSITIONAL_ONLY:
         if param.default is not param.empty:
@@ -79,10 +93,11 @@ def _parse_parameter(
     if param.default is not param.empty:
         default = param.default
 
-    if param_name in type_hints:
-        item = SignatureItem.from_type(type_hints[param_name], default=default)
-    else:
+    annotation = _annotation(param_name, param.annotation, type_hints)
+    if annotation is UNSET:
         item = SignatureItem(default=default)
+    else:
+        item = SignatureItem.from_type(annotation, default=default)
     if param.kind is inspect.Parameter.KEYWORD_ONLY:
         return dataclasses.replace(item, is_keyword_only=True)
     return item
@@ -146,6 +161,7 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
         )
 
     is_class = isinstance(creator, type)
+    type_hints: dict[str, typing.Any] | None
     try:
         type_hints = _class_type_hints(creator) if is_class else typing.get_type_hints(creator)
     except (NameError, TypeError) as e:
@@ -155,7 +171,7 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
             UserWarning,
             stacklevel=2,
         )
-        type_hints = {}
+        type_hints = None
 
     params = {}
     has_positional_only_gap = False
@@ -174,8 +190,8 @@ def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
 
     if is_class:
         return_sig = SignatureItem.from_type(creator)
-    elif "return" in type_hints:
-        return_sig = SignatureItem.from_type(type_hints["return"])
+    elif (return_annotation := _annotation("return", sig.return_annotation, type_hints)) is not UNSET:
+        return_sig = SignatureItem.from_type(return_annotation)
         if return_sig.unresolvable_generic is not None:
             return_sig = SignatureItem(arg_type=typing.get_origin(return_sig.unresolvable_generic))
     else:
