@@ -125,8 +125,9 @@ last one wins.
 
 !!! warning "Don't name a provider `di_container`"
     The name `di_container` is reserved for the plugin's own dependency, which every `FromDI`
-    depends on. An autowired group that declares a provider under that name raises
-    `litestar.exceptions.ImproperlyConfiguredException` when the app is created.
+    depends on. Since modern-di-litestar 4.0.1, an autowired group that declares a provider under
+    that name raises `litestar.exceptions.ImproperlyConfiguredException` when the app is created.
+    Earlier releases replace the plugin's dependency, and Litestar never finishes building the app.
 
 With `autowired_groups` set, `FromDI` on a route can still take a type. Pass a provider instance
 only for providers outside `autowired_groups`: Litestar rejects one provider registered under two

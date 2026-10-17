@@ -63,7 +63,7 @@ def run_report(report: typing.Annotated[Report, FromDI(Report)]) -> str:
     return report.render()
 ```
 
-`setup_di(app, container)` stores the container on `app.conf` and connects Celery's
+`setup_di(app, container)` registers the container for the app and connects Celery's
 worker signals that open and close it. `@inject` builds a `Scope.REQUEST` child container
 for each task call and resolves `FromDI`-annotated parameters from it. It looks the
 container up through Celery's `current_app` at call time, so it resolves against
@@ -105,12 +105,14 @@ Under prefork each child process gets its own APP-scoped instances. `worker_init
 container and closing one with nothing cached are both no-ops, so the overlap is
 harmless.
 
-!!! warning "The prefork pool fails on macOS"
-    On macOS, billiard starts prefork children with the spawn method, which pickles
-    the Celery app. The container that `setup_di` stores on `app.conf` cannot be
-    pickled, so the worker stops at startup with
-    `TypeError: cannot pickle '_thread._local' object`. Run the worker with
-    `--pool=solo` or `--pool=threads` there.
+!!! note "Prefork with the spawn start method"
+    Celery starts prefork children with fork on Linux and macOS. Spawn is used on Windows or
+    when you force it with `billiard.set_start_method("spawn", force=True)`, and Celery then
+    needs `FORKED_BY_MULTIPROCESSING=1` in the environment. Since modern-di-celery 4.0.1, a
+    spawn child gets the container that `setup_di` builds when the child re-imports your task
+    module, matched to the app by its `main` name, so give each app in a process its own name.
+    Earlier releases store the container on `app.conf`, which cannot be pickled, and the pool
+    fails at startup under spawn.
 
 Code that calls tasks without a worker, such as a script or a test in eager mode,
 fires none of these signals. Close the root yourself when it is done, for example
@@ -177,7 +179,7 @@ with container:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Wire the APP-scope container into Celery: stores it on `app.conf` and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. Returns the container. |
+| `setup_di(app, container)` | Wire the APP-scope container into Celery: registers it for the app and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. Returns the container. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. |
 | `@inject` | Decorator that builds a `Scope.REQUEST` child container per call, resolves `FromDI`-annotated parameters from it, and closes the child container with `close_sync()` afterwards. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called. A task with `FromDI` parameters that also declares `*args`/`**kwargs` raises `TypeError` at decoration. |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` method automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)`. |

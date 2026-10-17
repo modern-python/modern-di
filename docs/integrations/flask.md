@@ -124,17 +124,27 @@ else:
 
 ### Async views
 
-`@inject` and `auto_inject=True` also take `async def` views. Flask runs them through asgiref, so
-install Flask's async extra (`flask[async]`). The markers are resolved from the request's child
-container before the view is awaited:
+Since modern-di-flask 4.1.0, `@inject` and `auto_inject=True` also take `async def` views. Flask
+runs them through asgiref, so install Flask's async extra (`flask[async]`). The markers are resolved
+from the request's child container before the view is awaited:
 
-<!-- skip: next "needs a modern-di-flask release with async view support" -->
 ```python
-@app.route("/async-report")
+async_app = Flask(__name__)
+
+
+@async_app.route("/async-report")
 @inject
 async def get_async_report(report: typing.Annotated[Report, FromDI(Report)]) -> dict[str, str]:
     return report.as_dict()
+
+
+setup_di(async_app, Container(groups=[AppGroup]))
 ```
+
+<!-- invisible-code-block: python
+async_app.testing = True
+assert async_app.test_client().get("/async-report").json == {"service": "catalog"}
+-->
 
 Teardown is still sync (`close_sync()`), so a REQUEST-scoped provider with an async finalizer is
 not supported; see [Scopes and lifecycle](#scopes-and-lifecycle).
