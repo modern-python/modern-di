@@ -496,6 +496,11 @@ Each official integration is its own repository and PyPI package, with the same 
       [the decorator path](#frameworks-without-native-di-the-decorator-path).
 - [ ] Tests cover the lifespan with a restart, resolution through `FromDI`, context injection from the
       connection object, and the public surface; the coverage gate is green.
+- [ ] Shutdown-order tests: a shutdown hook registered before `setup_di` and one registered after
+      it can both resolve an APP dependency, and the APP finalizer runs after both, over two lifespan
+      cycles. Cover the framework's other places for shutdown code too, such as sub-routers, mounted
+      apps or middleware. Where the framework can't give this order, a test pins what it does and the
+      usage page says so.
 - [ ] Usage page and `mkdocs.yml` nav entry added in the `modern-di` repo.
 - [ ] `examples/app.py` with a smoke test that asserts real injected output, and a README
       `Usage example:` line with an absolute link.
