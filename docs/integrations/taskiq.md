@@ -84,8 +84,13 @@ comparable to websockets.
 ## Root container lifecycle
 
 `setup_di` opens the root container on `TaskiqEvents.WORKER_STARTUP` and closes it with
-`close_async()` on `WORKER_SHUTDOWN`, which runs APP-scoped finalizers. `taskiq worker`
+`close_async()` at `WORKER_SHUTDOWN`, which runs APP-scoped finalizers. `taskiq worker`
 fires both. With an `InMemoryBroker`, `async with broker:` fires both too.
+
+Since modern-di-taskiq 4.2.0, the close runs after all worker shutdown code: every
+`WORKER_SHUTDOWN` handler, including ones added after `setup_di`, and every middleware's
+`shutdown()`. That code can still resolve APP-scoped dependencies. This release requires
+taskiq 0.11.8 or later, because earlier taskiq releases never call middleware `shutdown()`.
 
 Since modern-di-taskiq 4.1.0, `setup_di(broker, container, manage_lifespan=False)` hooks neither
 event and leaves the root container's open and close to you, for a container shared with another
@@ -171,7 +176,7 @@ assert result.return_value == {"service": "catalog"}
 
 | Symbol | Description |
 |---|---|
-| `setup_di(broker, container, *, manage_lifespan=True)` | Wire the APP-scope container into taskiq: a REQUEST child container is then built through `TaskiqDepends` for each task that uses `FromDI`; opens/closes the APP container on worker startup/shutdown, unless `manage_lifespan=False`. |
+| `setup_di(broker, container, *, manage_lifespan=True)` | Wire the APP-scope container into taskiq: a REQUEST child container is then built through `TaskiqDepends` for each task that uses `FromDI`; opens the APP container on worker startup and closes it after all worker shutdown code, unless `manage_lifespan=False`. |
 | `FromDI(provider_or_type, *, use_cache=True)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. `use_cache` is passed through to `TaskiqDepends`. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called. |
 | `fetch_di_container(broker)` | Returns the APP-scope container registered with the taskiq broker. |
 | `taskiq_message_provider` | `ContextProvider` for the current `taskiq.TaskiqMessage`. |

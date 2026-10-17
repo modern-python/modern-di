@@ -3,8 +3,8 @@
 `modern-di-litestar` builds on Litestar's own dependency injection. `FromDI` returns a Litestar
 `Provide`, which you list in a route's `dependencies` like any other, and the handler declares the
 parameter with `NamedDependency[...]`. `ModernDIPlugin` gives each HTTP request a `Scope.REQUEST`
-child container and each websocket connection a `Scope.SESSION` one, and adds a lifespan hook that
-closes the root container on shutdown.
+child container and each websocket connection a `Scope.SESSION` one, and adds lifespan hooks that
+reopen the root container on startup and close it on shutdown.
 
 *More advanced example of usage with Litestar: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)*
 
@@ -140,13 +140,21 @@ An HTTP request gets a `Scope.REQUEST` child container and a websocket connectio
 child is a Litestar generator dependency, so it is built only for handlers that inject something
 and closed in Litestar's dependency cleanup.
 
-The root container is open from the moment you construct it. The plugin appends a lifespan hook
-that reopens it on startup and closes it with `close_async()` on shutdown. That hook is the only
-thing that closes the root container, so when the server skips the lifespan, requests still
-succeed but its finalizers never run. Close it yourself (`await container.close_async()`) at
-shutdown in that case.
+The root container is open from the moment you construct it. The plugin puts a manager first in
+the app's `lifespan` list, which reopens the container on startup, and a hook last in `on_shutdown`,
+which closes it with `close_async()`. Since modern-di-litestar 4.2.0, the container opens before
+your other lifespan code and closes after all your shutdown code, so your `lifespan` managers and
+`on_startup` and `on_shutdown` hooks can resolve APP-scoped dependencies, and APP finalizers run
+last. Earlier releases closed it before your `on_shutdown` hooks ran. The order holds for code
+passed to `Litestar(...)` or added by an `on_app_init` handler or a plugin listed before
+`ModernDIPlugin`. A plugin listed after it can still add a manager ahead of it or a shutdown hook
+behind it.
 
-Since modern-di-litestar 4.1.0, `ModernDIPlugin(container, manage_lifespan=False)` adds no lifespan
+The shutdown hook is the only thing that closes the root container, so when the server skips the
+lifespan, requests still succeed but its finalizers never run. Close it yourself
+(`await container.close_async()`) at shutdown in that case.
+
+Since modern-di-litestar 4.1.0, `ModernDIPlugin(container, manage_lifespan=False)` adds neither
 hook and leaves the root container's open and close to you, for a container shared with another
 app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).
 
@@ -238,7 +246,7 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `ModernDIPlugin(container, autowired_groups=None, *, manage_lifespan=True)` | Litestar `InitPlugin` that stores the container on the app state, registers the request and websocket context providers and the `di_container` dependency, appends a lifespan hook that closes the container on shutdown (none with `manage_lifespan=False`), and (if `autowired_groups` is given) exposes each provider in those groups as a Litestar dependency keyed by attribute name. |
+| `ModernDIPlugin(container, autowired_groups=None, *, manage_lifespan=True)` | Litestar `InitPlugin` that stores the container on the app state, registers the request and websocket context providers and the `di_container` dependency, puts a manager first in `lifespan` that reopens the container and a hook last in `on_shutdown` that closes it (neither with `manage_lifespan=False`), and (if `autowired_groups` is given) exposes each provider in those groups as a Litestar dependency keyed by attribute name. |
 | `FromDI(dependency)` | Returns a Litestar `Provide` that resolves a provider or type from the connection's child container (REQUEST for HTTP, SESSION for a websocket). |
 | `di_container` | The dependency name the plugin registers for the connection's child container; declare `di_container: NamedDependency[Container]` to receive it. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on the Litestar app. |

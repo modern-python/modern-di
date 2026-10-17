@@ -69,9 +69,9 @@ with TestClient(app) as client:
 
 `WeatherApi` receives the session through its `client: aiohttp.ClientSession` annotation. `aiohttp.ClientSession` needs a running event loop when it is constructed, and the lifespan runs inside the application's loop.
 
-`setup_di` wraps your lifespan: yours stays the outer context, and the integration opens the container inside it and closes it at shutdown, before your `async with` block exits. APP-scoped finalizers therefore run while the session is still open, and the session closes after them.
+`setup_di` wraps your lifespan. Since modern-di-fastapi 4.2.0, the container is the outer context: it opens before your lifespan's startup code and closes after your `async with` block exits. APP-scoped finalizers therefore run after the session has closed. If one of them needs the session, pass `manage_lifespan=False` to `setup_di` and enter the container yourself, as below.
 
-Without an integration, enter the container yourself, after the resource, so it closes first:
+Without an integration, or with `manage_lifespan=False`, enter the container yourself, after the resource, so it closes first:
 
 ```python
 import contextlib
@@ -103,7 +103,7 @@ The same pattern fits `asyncpg.create_pool(...)`, which returns a pool that open
 ## Pitfalls
 
 - `set_context` never propagates between containers; see [Context propagation](../providers/context.md#context-propagation). Here that is fine: the `ContextProvider` is APP-scoped and the value is set on the APP container, so every REQUEST child reaches it.
-- Don't also wrap the lifespan in `async with container:` when you use `setup_di`. It is redundant: the integration already closes the container, and the second close runs no finalizers.
+- Give the container one owner. With `setup_di` at the default `manage_lifespan=True`, the integration opens and closes it, so don't also enter `async with container:` in the lifespan. To own the close yourself, pass `manage_lifespan=False`.
 - The container does not own the lifespan's resource. It was never created by a `Factory`, so no finalizer closes it; the `async with aiohttp.ClientSession()` block does.
 
 ## When a sync creator works instead

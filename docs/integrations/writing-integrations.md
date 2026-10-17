@@ -94,7 +94,7 @@ def setup_di(app: myfw.App, container: Container) -> Container:
 
     @contextlib.asynccontextmanager
     async def lifespan(app_: myfw.App) -> typing.AsyncIterator[None]:
-        async with original_lifespan(app_), fetch_di_container(app_):
+        async with fetch_di_container(app_), original_lifespan(app_):
             yield
 
     app.lifespan = lifespan
@@ -233,12 +233,19 @@ in for a type at call sites.
 
 ## Lifecycle rules
 
+- Open the root before any user startup code and close it after all user shutdown code. That code
+  can then resolve APP-scoped dependencies, and APP finalizers run last. With a context-manager
+  lifespan, make the container the outer context, as `setup_di` above does. With callback hooks,
+  the close must run after every shutdown hook, including ones registered after `setup_di`.
+  FastStream registers its close at startup, and taskiq moves its close to the end at shutdown.
+  Where the framework can't give that order, say on the docs page which user code runs outside it,
+  as the [aiohttp](aiohttp.md) and [FastMCP](fastmcp.md) pages do.
 - Reopen the root container on startup. A container closed on shutdown stays closed, and the next
   resolve raises `ContainerClosedError`, so a second lifespan cycle in the same process (a test client
   re-entered, a broker restarted) needs the reopen. With a context-manager lifespan, compose
   `async with container` around the existing lifespan, as `setup_di` above does: `__aenter__` opens and
-  `__aexit__` closes. With callback hooks, register `container.open` on startup and
-  `container.close_async` on shutdown, as FastStream, aiogram and taskiq do. `open()` validates nothing
+  `__aexit__` closes. With callback hooks, open the container on startup and close it with
+  `close_async` on shutdown, as FastStream, aiogram and taskiq do. `open()` validates nothing
   and is a no-op on an open container.
 - Close the child container on every exit path, errors included.
 - Match async and sync to the framework: `close_async` in an async framework, `close_sync` in a
@@ -279,7 +286,7 @@ Pick the closest precedent for your framework:
 | Integration | Path | Child built by | Connection providers | Root lifecycle |
 |---|---|---|---|---|
 | [FastAPI](fastapi.md) | native, `Depends` | async dependency generator | request, websocket | composed lifespan |
-| [Litestar](litestar.md) | native, `Provide` | async dependency generator | request, websocket | `ModernDIPlugin.on_app_init` adds a lifespan |
+| [Litestar](litestar.md) | native, `Provide` | async dependency generator | request, websocket | `ModernDIPlugin.on_app_init` adds a lifespan manager and an `on_shutdown` hook |
 | [FastStream](faststream.md) | native, `Depends` | `BaseMiddleware.consume_scope` | message | `on_startup` / `after_shutdown` callbacks |
 | [taskiq](taskiq.md) | native, `TaskiqDepends` | async dependency generator | message | worker startup and shutdown events |
 | [FastMCP](fastmcp.md) | native, default-value `FromDI` | middleware | `fastmcp.Context` | lifespan provider |
@@ -478,7 +485,8 @@ Each official integration is its own repository and PyPI package, with the same 
 - [ ] A per-unit-of-work builder opens a child container at the right scope, injects the connection as
       context, and closes it on every exit path.
 - [ ] The root container reopens on startup, so a restart doesn't raise `ContainerClosedError`, and
-      closes on shutdown so finalizers run.
+      closes on shutdown so finalizers run. It opens before user startup code and closes after all
+      user shutdown code.
 - [ ] `close_async` or `close_sync` matches the framework.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves through `integrations.Marker`
       (or is `integrations.from_di` on the decorator path).

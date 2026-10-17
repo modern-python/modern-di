@@ -101,6 +101,15 @@ components, and a `FromDI` parameter on the parent's own tools then fails with a
 `manage_lifespan=False` it leaves both to another app; see
 [Sharing a container with FastAPI](#sharing-a-container-with-fastapi).
 
+The open and close come from a lifespan provider that `setup_di` adds to the server. FastMCP tears
+providers down in reverse order, so providers added after `setup_di` tear down before the close and
+can still resolve from the container. The teardown of `FastMCP(lifespan=...)` and of providers
+added before `setup_di` runs after the close and gets `ContainerClosedError`. If that code needs
+the container, pass `manage_lifespan=False` and enter `async with container:` in your server
+lifespan, as the
+[modern-di-fastmcp README](https://github.com/modern-python/modern-di-fastmcp#shutdown-order)
+shows.
+
 ## Framework context objects
 
 The current `fastmcp.Context` is available through `fastmcp_context_provider`, at `Scope.REQUEST`.

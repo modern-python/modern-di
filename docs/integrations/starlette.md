@@ -171,10 +171,12 @@ An HTTP request gets a `Scope.REQUEST` child container and a websocket connectio
 middleware builds the child before your handler runs and closes it once the app is done with the
 connection: after the response is sent for HTTP, and when the socket closes for a websocket.
 
-The root container is open from the moment you construct it. `setup_di` wraps the app's lifespan:
-a `lifespan=` you passed to `Starlette()` stays the outer context and the state it yields passes
-through, the container reopens on startup, and it closes with `close_async()` on shutdown. The
-lifespan shutdown is the only thing that closes the root container.
+The root container is open from the moment you construct it. `setup_di` wraps the app's lifespan,
+and the state yielded by a `lifespan=` you passed to `Starlette()` passes through. Since
+modern-di-starlette 4.3.0, the container is the outer context: it reopens before your lifespan's
+startup code and closes with `close_async()` after its shutdown code. Both can resolve APP-scoped
+dependencies, and APP finalizers run last. Earlier releases closed the container before your
+shutdown code ran. The lifespan shutdown is the only thing that closes the root container.
 
 Since modern-di-starlette 4.2.0, `setup_di(app, container, manage_lifespan=False)` leaves the root
 container's open and close to you, for a container shared with another app; see
@@ -191,8 +193,10 @@ after every response.
 
 Starlette runs only the outermost app's lifespan. Since 4.1.0, the lifespan that `setup_di`
 composes on the outer app also opens and closes the root container of every mounted app that
-called `setup_di`, under `Mount` and `Host` routes at any depth. It looks for them at startup.
-Since 4.1.1 this includes an app mounted with `Mount(app, middleware=[...])`.
+called `setup_di`, under `Mount` and `Host` routes at any depth. Since 4.1.1 this includes an app
+mounted with `Mount(app, middleware=[...])`. It looks for them at startup, before your lifespan's
+startup code. Mounts added after `setup_di` are found, but since 4.3.0 a mount added inside your
+lifespan is not, so add mounts before the app starts.
 
 ```python
 from starlette.routing import Mount
@@ -308,7 +312,7 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container, *, manage_lifespan=True)` | Stores the container on `app.state`, registers the request and websocket context providers, wraps the lifespan so the container reopens on startup and closes on shutdown, along with the root container of each mounted app that called `setup_di`, and installs the middleware that builds a per-connection child container. With `manage_lifespan=False`, this app's own container is left to you. Returns the container. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Stores the container on `app.state`, registers the request and websocket context providers, wraps the lifespan so the container reopens before your startup code and closes after your shutdown code, along with the root container of each mounted app that called `setup_di`, and installs the middleware that builds a per-connection child container. With `manage_lifespan=False`, this app's own container is left to you. Returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
 | `inject` | Decorator for a sync or `async def` `handler(connection: Request | WebSocket, ...)`, a function endpoint or a method of an `HTTPEndpoint` / `WebSocketEndpoint` subclass; resolves its `FromDI`-annotated parameters. Raises `TypeError` when the handler receives no `Request` or `WebSocket` positionally, and `RuntimeError` naming `setup_di` when the connection did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.state`. |

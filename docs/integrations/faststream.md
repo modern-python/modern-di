@@ -83,15 +83,24 @@ comparable to websockets.
 
 ## Root container lifecycle
 
-`setup_di` registers two `on_startup` hooks: one opens the root container and the next
-installs the middleware on every broker. An `after_shutdown` hook closes the root with
+`setup_di` registers two `on_startup` hooks: one installs the middleware on every broker and
+the next opens the root container. An `after_shutdown` hook closes the root with
 `close_async()`, which runs APP-scoped finalizers. Because startup reopens the container,
 an app that stops and starts again on the same container works.
+
+Since modern-di-faststream 4.2.0, the close runs after every `on_shutdown` and `after_shutdown`
+hook, including ones registered after `setup_di`, so they can still resolve APP-scoped
+dependencies. FastStream exits a `FastStream(lifespan=...)` context manager after all hooks, so
+its teardown runs after the close. If that teardown needs the container, pass
+`manage_lifespan=False` and wrap `app.run()` in `async with container:` yourself.
 
 Since modern-di-faststream 4.1.0, `setup_di(app, container, manage_lifespan=False)` registers
 neither the open hook nor the close hook and leaves the root container's open and close to you, for
 a container shared with another app; see
-[FastAPI and FastStream sharing a container](../recipes/shared-container.md).
+[FastAPI and FastStream sharing a container](../recipes/shared-container.md). To run a broker
+inside another framework's lifespan, such as FastAPI's, wrap it in `FastStream(broker)` and call
+`start()` and `stop()` from that lifespan, as in
+[Starting FastStream inside the FastAPI lifespan](../recipes/shared-container.md#starting-faststream-inside-the-fastapi-lifespan).
 
 Since modern-di-faststream 4.0.1, the integration keeps its containers in the FastStream context
 under the keys `modern_di_root_container` and `modern_di_request_container`, so a context value of
