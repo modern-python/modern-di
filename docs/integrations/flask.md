@@ -156,6 +156,16 @@ Flask has no websocket concept, so the integration only ever opens one child sco
 `Scope.REQUEST` child of the root container and stores it on `flask.g`, and `teardown_appcontext`
 closes it with `close_sync()` once the request, error handling included, is done.
 
+Since modern-di-flask 4.2.0, the child is usable from every request hook, whatever the order it was
+registered in. It is built on first use, so a `before_request` hook registered before `setup_di`
+can use `@inject`, and the close runs after every `teardown_appcontext` handler, including ones
+registered after `setup_di`.
+
+!!! warning "`stream_with_context` on Flask 3.1.2 and later"
+    Flask 3.1.2 and later tear the request context down before the response body is iterated, so
+    the child is already closed by then. A `stream_with_context` generator that resolves REQUEST
+    dependencies gets `ContainerClosedError`. modern-di-flask 4.1.0 behaves the same.
+
 Because the child closes with `close_sync()`, REQUEST-scoped finalizers must be sync. An async
 finalizer raises [`AsyncFinalizerInSyncCloseError`](../troubleshooting/async-finalizer-in-sync-close-error.md),
 and it or any other failing finalizer reaches Flask as a `FinalizerError` from the teardown. The
