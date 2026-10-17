@@ -87,11 +87,11 @@ Usage examples:
 - with Litestar: [litestar-sqlalchemy-template](https://github.com/modern-python/litestar-sqlalchemy-template)
 - with FastAPI: [fastapi-sqlalchemy-template](https://github.com/modern-python/fastapi-sqlalchemy-template)
 
-## 📚 [Documentation](https://modern-di.modern-python.org)
+## Links
 
-## 📦 [PyPI](https://pypi.org/project/modern-di)
-
-## 📝 [License](https://github.com/modern-python/modern-di/blob/main/LICENSE)
+- [Documentation](https://modern-di.modern-python.org)
+- [PyPI](https://pypi.org/project/modern-di)
+- [License](https://github.com/modern-python/modern-di/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
