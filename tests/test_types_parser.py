@@ -253,6 +253,17 @@ def test_get_type_hints_typeerror_is_warn_skipped(monkeypatch: pytest.MonkeyPatc
     assert provider is not None
 
 
+def test_failed_type_hints_skip_signature_annotations_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_type_error(*_args: object, **_kwargs: object) -> dict[str, object]:
+        msg = "synthetic: not a module, class, method, or function"
+        raise TypeError(msg)
+
+    monkeypatch.setattr(typing, "get_type_hints", _raise_type_error)
+    with pytest.warns(UserWarning, match="wiring will be skipped"):
+        parsed = parse_creator(_partial_target)
+    assert (parsed.return_type, parsed.params) == (SignatureItem(), {"x": SignatureItem(), "y": SignatureItem()})
+
+
 def test_partial_creator_does_not_crash() -> None:
     # B-2 motivating case: declaring a Factory from a functools.partial must not crash on any
     # supported Python. On <=3.13 get_type_hints raises TypeError (warn-skipped); on 3.14+ it
@@ -396,6 +407,65 @@ def test_hints_come_from_the_callable_the_signature_reads(creator: type, dep_typ
 
     container = Container(groups=[Dependencies])
     assert isinstance(container.resolve(creator).dep, dep_type)  # ty: ignore[unresolved-attribute]
+
+
+def _signature_only(*parameters: inspect.Parameter, return_annotation: object = inspect.Signature.empty) -> typing.Any:  # noqa: ANN401
+    def creator(**kwargs: object) -> object:
+        return kwargs
+
+    del creator.__annotations__["kwargs"], creator.__annotations__["return"]
+    creator.__signature__ = inspect.Signature(  # ty: ignore[unresolved-attribute]
+        list(parameters), return_annotation=return_annotation
+    )
+    return creator
+
+
+def _keyword(name: str, annotation: object) -> inspect.Parameter:
+    return inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, annotation=annotation)
+
+
+class _SignatureOnlyModel:
+    """Shaped like a pydantic model: the fields are typed only on ``__signature__``."""
+
+    __signature__ = inspect.Signature([_keyword("dep", _Dep)])
+
+    def __init__(self, **data: object) -> None:
+        self.dep = data["dep"]
+
+
+def test_parameter_typed_only_on_signature_is_wired() -> None:
+    creator = _signature_only(_keyword("dep", _Dep), return_annotation=_OtherDep)
+
+    parsed = parse_creator(creator)
+
+    assert parsed.params["dep"] == SignatureItem(arg_type=_Dep, is_keyword_only=True)
+    assert parsed.return_type == SignatureItem(arg_type=_OtherDep)
+
+
+def test_class_typed_only_on_signature_is_wired() -> None:
+    class Dependencies(Group):
+        dep = providers.Factory(_Dep)
+        model = providers.Factory(_SignatureOnlyModel)
+
+    assert isinstance(Container(groups=[Dependencies]).resolve(_SignatureOnlyModel).dep, _Dep)
+
+
+def test_string_annotation_on_signature_is_not_wired() -> None:
+    creator = _signature_only(_keyword("dep", "_Dep"))
+
+    assert parse_creator(creator).params["dep"] == SignatureItem(is_keyword_only=True)
+
+
+def test_type_hint_wins_over_signature_annotation() -> None:
+    def creator(**kwargs: object) -> _OtherDep: ...  # ty: ignore[empty-body]
+
+    creator.__annotations__ = {"dep": _OtherDep, "return": _OtherDep}
+    creator.__signature__ = inspect.Signature([_keyword("dep", _Dep)], return_annotation=_Dep)  # ty: ignore[unresolved-attribute]
+
+    parsed = parse_creator(creator)
+
+    assert parsed.params["dep"].arg_type is _OtherDep
+    assert parsed.return_type.arg_type is _OtherDep
 
 
 _UserId = typing.NewType("_UserId", int)

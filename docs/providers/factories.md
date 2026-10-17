@@ -63,6 +63,11 @@ The callable, a function or a class, that builds the instance. `modern-di` reads
 1. Find the return type, which becomes the `bound_type` unless you set one.
 2. Find the parameter names and types to wire by type.
 
+The types come from the creator's annotations. When a parameter or the return has no annotation
+there, the one on `inspect.signature(creator)` is used, if it is a type rather than a string.
+Pydantic models and msgspec `Struct`s keep their field types only on the signature, so this is
+what wires their fields.
+
 ### scope
 
 The provider's lifetime. Without `scope=`, the provider takes its group's default scope, or
