@@ -30,11 +30,16 @@ class InvalidChildScopeError(ContainerError):
         # Derived, not handed over: the allowed scopes are a pure function of the parent's
         # own enum class, so a raise site has nothing to add.
         self.allowed_scopes = deeper_members(parent_scope)
-        super().__init__(
-            f"Scope of child container cannot be {child_scope.name} if parent scope is {parent_scope.name} "
-            f"(child scope value must be strictly greater than parent scope value). "
-            f"Possible scopes are {[member.name for member in self.allowed_scopes]}."
+        message = (
+            f"Scope of child container cannot be {child_scope.name} if parent scope is {parent_scope.name}. "
+            f"Pass any IntEnum member with a value greater than {int(parent_scope)}."
         )
+        if self.allowed_scopes:
+            message += (
+                f" Deeper members of {type(parent_scope).__name__} are "
+                f"{[member.name for member in self.allowed_scopes]}."
+            )
+        super().__init__(message)
 
 
 class MaxScopeReachedError(ContainerError):

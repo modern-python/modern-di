@@ -406,6 +406,98 @@ def test_validate_handles_factory_with_static_kwargs() -> None:
     Container(groups=[G]).validate()  # must not raise
 
 
+class _RefSession: ...
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _RefMissing: ...
+
+
+def _make_ref_service(session: _RefSession) -> object:
+    return session
+
+
+def _make_ref_broken(missing: _RefMissing) -> object:
+    return missing
+
+
+class _RefHolder:
+    def __init__(self, service: object = None) -> None:
+        self.service = service
+
+
+def test_validate_checks_the_scope_of_a_reference_only_provider() -> None:
+    class G(Group):
+        session = providers.Factory(_RefSession, scope=Scope.REQUEST)
+        service = providers.Factory(_make_ref_service, bound_type=None)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        Container(groups=[G]).validate()
+    [issue] = exc.value.exceptions
+    assert isinstance(issue, InvalidScopeDependencyError)
+    assert issue.provider is G.service
+    assert issue.parameter_name == "session"
+
+
+def test_validate_checks_a_skip_creator_parsing_provider_without_a_bound_type() -> None:
+    session = providers.Factory(_RefSession, scope=Scope.REQUEST)
+    with pytest.warns(UserWarning, match="skip_creator_parsing=True"):
+        service = providers.Factory(_RefHolder, skip_creator_parsing=True, kwargs={"service": session})
+    container = Container()
+    container.add_providers(session, service)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    [issue] = exc.value.exceptions
+    assert isinstance(issue, InvalidScopeDependencyError)
+    assert issue.provider is service
+
+
+def test_validate_reports_an_unresolvable_parameter_of_a_reference_only_provider() -> None:
+    class G(Group):
+        broken = providers.Factory(_make_ref_broken, bound_type=None)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        Container(groups=[G]).validate()
+    [issue] = exc.value.exceptions
+    assert isinstance(issue, ArgumentResolutionError)
+    assert issue.parameter_name == "missing"
+
+
+def test_validate_passes_a_healthy_reference_only_provider() -> None:
+    class G(Group):
+        session = providers.Factory(_RefSession)
+        service = providers.Factory(_make_ref_service, bound_type=None)
+
+    Container(groups=[G]).validate()  # must not raise
+
+
+def test_validate_reports_a_reference_only_kwargs_dependency_once() -> None:
+    broken = providers.Factory(_make_ref_broken, bound_type=None)
+    holder = providers.Factory(_RefHolder, kwargs={"service": broken})
+    container = Container()
+    container.add_providers(holder, broken)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    [issue] = exc.value.exceptions
+    assert isinstance(issue, ArgumentResolutionError)
+    assert issue.creator is _make_ref_broken
+
+
+def test_validate_checks_a_reference_only_provider_added_after_construction() -> None:
+    container = Container()
+    container.validate()
+    broken = providers.Factory(_make_ref_broken, bound_type=None)
+
+    container.add_providers(broken)
+
+    with pytest.raises(ValidationFailedError) as exc:
+        container.validate()
+    [issue] = exc.value.exceptions
+    assert isinstance(issue, ArgumentResolutionError)
+
+
 def test_validation_failed_error_details_come_from_the_traceback_tree() -> None:
     container = Container(groups=[CycleGroup])
     with pytest.raises(ValidationFailedError) as exc:
