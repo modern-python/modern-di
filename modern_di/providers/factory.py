@@ -62,6 +62,7 @@ class Factory(AbstractProvider[types.T_co]):
         "_kwargs",
         "_params",
         "_positional_names",
+        "_return_type",
     )
 
     def __init__(  # noqa: PLR0913
@@ -78,6 +79,7 @@ class Factory(AbstractProvider[types.T_co]):
             creator, bound_type=bound_type, kwargs=kwargs, skip_creator_parsing=skip_creator_parsing
         )
         self._params = parsed.params
+        self._return_type = parsed.return_type.arg_type
         names = tuple(parsed.params)
         self._positional_names: tuple[str, ...] | None = names
         if (names and parsed.has_positional_only_gap) or any(item.is_keyword_only for item in parsed.params.values()):
@@ -174,6 +176,11 @@ class Factory(AbstractProvider[types.T_co]):
     def cache_settings(self) -> CacheSettings[typing.Any] | None:
         """The cache configuration, or ``None`` for an uncached factory."""
         return self._cache_settings
+
+    @property
+    def return_type(self) -> type | None:
+        """The creator's parsed return type; ``None`` when it is not a single type or parsing was skipped."""
+        return self._return_type
 
     def __repr__(self) -> str:
         return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"

@@ -65,6 +65,15 @@ def redirect_target(
     return None
 
 
+def reference_only_sources(source_type: type, registry: "ProvidersRegistry") -> "list[AbstractProvider[typing.Any]]":
+    """Return the reference-only factories whose creator returns ``source_type``, in registration order."""
+    return [
+        provider
+        for provider in registry.reference_only_providers()
+        if type(provider) is Factory and provider.return_type is source_type
+    ]
+
+
 def dependencies_of(
     provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
 ) -> dict[str, "AbstractProvider[typing.Any]"]:
@@ -74,7 +83,10 @@ def dependencies_of(
     if type(provider) is Alias:
         source = redirect_target(provider, registry)
         if source is None:
-            raise exceptions.AliasSourceNotRegisteredError(source_type=provider._source_type)  # noqa: SLF001
+            source_type = provider._source_type  # noqa: SLF001
+            raise exceptions.AliasSourceNotRegisteredError(
+                source_type=source_type, reference_only_providers=reference_only_sources(source_type, registry)
+            )
         return {"source": source}
     return {}
 

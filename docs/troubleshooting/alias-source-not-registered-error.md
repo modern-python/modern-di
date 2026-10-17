@@ -9,9 +9,22 @@ modern_di.exceptions.resolution.AliasSourceNotRegisteredError: Cannot resolve de
 See: https://modern-di.modern-python.org/troubleshooting/alias-source-not-registered-error/
 ```
 
+When the only provider for the source type is a reference-only provider, the message names that
+provider instead:
+
+```
+modern_di.exceptions.resolution.AliasSourceNotRegisteredError: Cannot resolve dependency chain:
+  APP  Interface
+  caused by: Alias source type <class 'myapp.alias.Implementation'> is not registered by type: this provider serves it with bound_type=None, and an alias cannot reach a reference-only provider.
+  - Factory (myapp.alias:9)
+Give it bound_type=Implementation, or remove bound_type=None.
+See: https://modern-di.modern-python.org/troubleshooting/alias-source-not-registered-error/
+```
+
 `resolve()` and `resolve_provider()` raise it with the chain shown above. `container.validate()`
 reports it inside [`ValidationFailedError`](validation-failed-error.md), without the chain. `.source_type`
-holds the type the alias points at.
+holds the type the alias points at, and `.reference_only_providers` lists the reference-only
+providers whose creator returns it.
 
 ## Cause
 
@@ -20,9 +33,10 @@ these applies:
 
 - No provider for `X` was ever declared.
 - The group that declares it was not passed to `Container(groups=[...])`.
-- The provider for `X` was declared with `bound_type=None`. The alias looks its source up by type, so a
-  provider that is reachable only by reference does not count, and the message still says
-  `not registered`.
+- The provider for `X` was declared with `bound_type=None`, which makes it a reference-only provider.
+  The alias looks its source up by type, so it cannot reach that provider. The message lists every
+  reference-only `Factory` whose creator is annotated to return `X`. One declared with
+  `skip_creator_parsing=True` has no parsed return type, so the message cannot name it.
 
 ## Fix
 
@@ -53,6 +67,37 @@ assert isinstance(container.resolve(Interface), Implementation)
 The source only has to be registered by the time the alias is first resolved, so a provider added
 later with `container.add_providers(...)` also works. Calling `container.validate()` at startup
 reports a missing source before the first request.
+
+### The source is a reference-only provider
+
+A `bound_type=None` provider is never registered under its type, so an alias cannot use it as a
+source:
+
+```python
+# Broken:
+class ReferenceOnly(Group):
+    impl = providers.Factory(Implementation, bound_type=None)
+    interface_alias = providers.Alias(Implementation, bound_type=Interface)
+```
+
+<!-- raises: AliasSourceNotRegisteredError -->
+
+```python
+Container(groups=[ReferenceOnly]).resolve(Interface)
+```
+
+Drop `bound_type=None`, so the provider binds under its creator's return type, or pass that type
+explicitly:
+
+```python
+# Works:
+class BoundByType(Group):
+    impl = providers.Factory(Implementation, bound_type=Implementation)
+    interface_alias = providers.Alias(Implementation, bound_type=Interface)
+
+
+assert isinstance(Container(groups=[BoundByType]).resolve(Interface), Implementation)
+```
 
 ## See also
 
