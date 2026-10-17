@@ -7,7 +7,7 @@ from modern_di import Container, Scope, exceptions, providers, suggester
 from modern_di.exceptions import rendering
 
 
-def _step(name: str, scope: Scope = Scope.APP, location: str | None = None) -> exceptions.ResolutionStep:
+def _step(name: str, scope: Scope | None = Scope.APP, location: str | None = None) -> exceptions.ResolutionStep:
     return exceptions.ResolutionStep(scope=scope, name=name, location=location)
 
 
@@ -32,6 +32,10 @@ def test_render_chain_is_a_pure_function_of_its_steps() -> None:
 def test_render_chain_aligns_the_scope_column_to_the_widest_name() -> None:
     lines = rendering.render_chain([_step("A"), _step("B", scope=Scope.REQUEST)])
     assert lines == ["  APP      A", "  REQUEST  └─> B"]
+
+
+def test_render_chain_draws_an_unknown_scope_as_a_question_mark() -> None:
+    assert rendering.render_chain([_step("A", scope=None)]) == ["  ?  A"]
 
 
 @pytest.mark.parametrize(

@@ -135,6 +135,8 @@ as the error propagates, from the type you asked for down to the one that failed
 non-empty, the message starts with `Cannot resolve dependency chain:`, draws one line per step, and
 ends the chain with a `caused by:` line holding the error's own message. `ContainerClosedError`
 always has an empty path, and `CircularDependencyError` draws its cycle from `.steps` instead.
+A step's `.scope` is `None` when the scope is unknown, as for an alias whose source is not registered,
+and the chain draws it as `?`.
 
 ### `RegistrationError`: declaring and registering providers
 

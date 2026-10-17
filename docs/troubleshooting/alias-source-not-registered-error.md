@@ -4,14 +4,15 @@
 
 ```
 modern_di.exceptions.resolution.AliasSourceNotRegisteredError: Cannot resolve dependency chain:
-  APP  Interface
+  ?  Interface
   caused by: Alias source type <class 'myapp.alias.Implementation'> is not registered in providers registry. Register a provider for <class 'myapp.alias.Implementation'> before the alias is resolved.
 See: https://modern-di.modern-python.org/troubleshooting/alias-source-not-registered-error/
 ```
 
-`resolve()` and `resolve_provider()` raise it with the chain shown above. `container.validate()`
-reports it inside [`ValidationFailedError`](validation-failed-error.md), without the chain. `.source_type`
-holds the type the alias points at.
+`resolve()` and `resolve_provider()` raise it with the chain shown above. The alias's step shows `?`
+in place of a scope, because an alias resolves at its source's scope and there is no source to read
+it from. `container.validate()` reports it inside [`ValidationFailedError`](validation-failed-error.md),
+without the chain. `.source_type` holds the type the alias points at.
 
 ## Cause
 
