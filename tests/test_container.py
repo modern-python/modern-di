@@ -5,6 +5,7 @@ import gc
 import inspect
 import threading
 import traceback
+import types
 import typing
 import weakref
 
@@ -825,18 +826,97 @@ def test_add_providers_raises_on_duplicate_intra_batch() -> None:
     assert exc.value.second_provider is other_str_factory
 
 
-def test_duplicate_provider_message_names_both_definition_sites() -> None:
-    first = providers.Factory(creator=_make_str_one, bound_type=str)
-    second = providers.Factory(creator=_make_str_two, bound_type=str)
+class _SharedCreator(Group):
+    first = providers.Factory(_make_str_one)
+    second = providers.Factory(_make_str_one)
+
+
+def _provider_lines(error: DuplicateProviderTypeError) -> list[str]:
+    return str(error).splitlines()[1:3]
+
+
+def test_duplicate_providers_sharing_a_creator_are_named_by_their_group_attribute() -> None:
+    with pytest.raises(DuplicateProviderTypeError) as exc:
+        Container(scope=Scope.APP, groups=[_SharedCreator])
+
+    assert _provider_lines(exc.value) == [
+        f"  - _SharedCreator.first: Factory ({_SharedCreator.first.call_site})",
+        f"  - _SharedCreator.second: Factory ({_SharedCreator.second.call_site})",
+    ]
+    assert _SharedCreator.first.call_site != _SharedCreator.second.call_site
+
+
+def test_duplicate_providers_outside_a_group_are_named_by_their_call_site() -> None:
+    first = providers.Factory(_make_str_one)
+    second = providers.Factory(_make_str_one)
     container = Container(scope=Scope.APP)
 
     with pytest.raises(DuplicateProviderTypeError) as exc:
         container.add_providers(first, second)
 
-    message = str(exc.value)
-    assert f"  - Factory ({first.definition_site})" in message
-    assert f"  - Factory ({second.definition_site})" in message
-    assert "kwargs" not in message
+    assert _provider_lines(exc.value) == [f"  - Factory ({first.call_site})", f"  - Factory ({second.call_site})"]
+    assert first.call_site != second.call_site
+
+
+def test_duplicate_providers_with_different_creators_are_each_named() -> None:
+    class Contexts(Group):
+        one = providers.ContextProvider(str)
+        two = providers.Alias(int, bound_type=str)
+
+    with pytest.raises(DuplicateProviderTypeError) as exc:
+        Container(scope=Scope.APP, groups=[Contexts])
+
+    assert _provider_lines(exc.value) == [
+        f"  - Contexts.one: ContextProvider ({Contexts.one.call_site})",
+        f"  - Contexts.two: Alias ({Contexts.two.call_site})",
+    ]
+
+
+def test_a_provider_without_a_call_site_is_shown_by_its_repr() -> None:
+    namespace: dict[str, typing.Any] = {"providers": providers, "make": _make_str_one}
+    exec("provider = providers.Factory(make)", namespace)  # noqa: S102
+    provider = namespace["provider"]
+
+    error = DuplicateProviderTypeError(provider_type=str, first_provider=provider)
+
+    assert provider.call_site is None
+    assert _provider_lines(error)[0] == f"  - {provider!r}"
+
+
+def _current_line() -> int:
+    frame = inspect.currentframe()
+    assert frame is not None
+    assert frame.f_back is not None
+    return frame.f_back.f_lineno
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda: providers.Factory(_make_str_one),
+        lambda: providers.ContextProvider(str),
+        lambda: providers.Alias(int, bound_type=str),
+    ],
+)
+def test_call_site_is_the_line_that_built_the_provider(build: types.FunctionType) -> None:
+    assert build().call_site == f"{__name__}:{build.__code__.co_firstlineno}"
+
+
+def test_call_site_of_a_multi_line_call_is_its_first_line() -> None:
+    line = _current_line() + 1
+    provider = providers.Factory(
+        _make_str_one,
+        scope=Scope.APP,
+    )
+    assert provider.call_site == f"{__name__}:{line}"
+
+
+def test_declared_as_keeps_the_first_group_attribute_a_provider_was_assigned_to() -> None:
+    class Reassigned(Group):
+        again = _SharedCreator.first
+
+    assert Reassigned.again.declared_as == "_SharedCreator.first"
+    assert providers.Factory(_make_str_one).declared_as is None
 
 
 def test_add_providers_on_child_container_raises() -> None:
