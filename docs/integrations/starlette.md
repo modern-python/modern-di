@@ -185,8 +185,8 @@ after every response.
 
 Starlette runs only the outermost app's lifespan. Since 4.1.0, the lifespan that `setup_di`
 composes on the outer app also opens and closes the root container of every mounted app that
-called `setup_di`, under `Mount` and `Host` routes at any depth. It looks for them at startup. A
-`Mount` with its own `middleware=` hides the app it mounts, so that app's container is not found.
+called `setup_di`, under `Mount` and `Host` routes at any depth. It looks for them at startup.
+Since 4.1.1 this includes an app mounted with `Mount(app, middleware=[...])`.
 
 ```python
 from starlette.routing import Mount
