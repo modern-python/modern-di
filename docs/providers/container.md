@@ -13,9 +13,9 @@ to resolve:
 - `scope`: any `IntEnum` member; anything else raises `InvalidScopeTypeError`.
 - `context`: values for the root's [context providers](context.md). The dict is copied, so later
   changes to it are not seen.
-- `groups`: a list of `Group` classes whose providers it registers. Passing a group together with
-  its subclass, or one group twice, registers the same providers twice and raises
-  `DuplicateProviderTypeError`.
+- `groups`: a list of `Group` classes whose providers it registers. A provider object that arrives
+  more than once, from a group passed together with its subclass or one group passed twice, is
+  registered once.
 
 <!-- invisible-code-block: python
 import copy
