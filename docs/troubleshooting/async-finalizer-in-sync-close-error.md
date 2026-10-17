@@ -69,6 +69,6 @@ Use `close_sync()` only for containers you know hold no async finalizer.
 
 ## See also
 
-- [Lifecycle: async finalizers and `close_sync()`](../providers/lifecycle.md#async-finalizers-and-close_sync)
-  — how `close_sync()` treats an async finalizer.
-- [FinalizerError](finalizer-error.md) — the group this error arrives in.
+- [Lifecycle: async finalizers and `close_sync()`](../providers/lifecycle.md#async-finalizers-and-close_sync):
+  how `close_sync()` treats an async finalizer.
+- [FinalizerError](finalizer-error.md): the group this error arrives in.

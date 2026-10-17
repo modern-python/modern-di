@@ -150,9 +150,9 @@ cache_container.validate()  # .exceptions holds an AliasSourceNotRegisteredError
 
 ## See also
 
-- [Factories: `bound_type`](factories.md#bound_type) — how a provider's registered type is chosen.
-- [AliasSourceNotRegisteredError](../troubleshooting/alias-source-not-registered-error.md) — the
+- [Factories: `bound_type`](factories.md#bound_type): how a provider's registered type is chosen.
+- [AliasSourceNotRegisteredError](../troubleshooting/alias-source-not-registered-error.md): the
   source type has no provider.
-- [AliasBoundToSourceError](../troubleshooting/alias-bound-to-source-error.md) — an alias bound to
+- [AliasBoundToSourceError](../troubleshooting/alias-bound-to-source-error.md): an alias bound to
   its own source type.
-- [Testing with overrides](../recipes/testing-overrides.md) — overriding providers in tests.
+- [Testing with overrides](../recipes/testing-overrides.md): overriding providers in tests.

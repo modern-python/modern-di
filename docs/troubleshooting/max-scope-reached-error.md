@@ -71,7 +71,7 @@ their values match, and resolving raises [`ScopeSkippedError`](scope-skipped-err
 
 ## See also
 
-- [Scopes: custom scopes](../providers/scopes.md#custom-scopes) — extending the hierarchy with your
+- [Scopes: custom scopes](../providers/scopes.md#custom-scopes): extending the hierarchy with your
   own `IntEnum`.
-- [InvalidChildScopeError](invalid-child-scope-error.md) — the error for an explicit `scope=` that is
+- [InvalidChildScopeError](invalid-child-scope-error.md): the error for an explicit `scope=` that is
   not deeper than the parent's.

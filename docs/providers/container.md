@@ -160,8 +160,8 @@ if provider is not None:
 
 ## See also
 
-- [Context providers](context.md#context-propagation) — how context values reach (and don't
+- [Context providers](context.md#context-propagation): how context values reach (and don't
   reach) a `ContextProvider`.
-- [Scopes](scopes.md) — the scope model and child containers.
-- [Advanced / low-level API](advanced-api.md) — the public modules, `find_container`,
+- [Scopes](scopes.md): the scope model and child containers.
+- [Advanced / low-level API](advanced-api.md): the public modules, `find_container`,
   `parent_container` and `Group.get_providers()`.

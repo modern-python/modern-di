@@ -91,7 +91,7 @@ instance cached, and a later `await container.close_async()` runs its finalizer.
 
 ## See also
 
-- [Lifecycle: close-failure semantics](../providers/lifecycle.md#close-failure-semantics) — what
+- [Lifecycle: close-failure semantics](../providers/lifecycle.md#close-failure-semantics): what
   closing does when a finalizer fails or is cancelled.
-- [AsyncFinalizerInSyncCloseError](async-finalizer-in-sync-close-error.md) — an async finalizer
+- [AsyncFinalizerInSyncCloseError](async-finalizer-in-sync-close-error.md): an async finalizer
   reached by `close_sync()`.

@@ -70,8 +70,8 @@ this gives callers is in [Cached factories](factories.md#cached-factories).
 
 ## See also
 
-- [Container](container.md) — building containers and a map of their methods.
-- [Writing an integration](../integrations/writing-integrations.md) — the contract built on
+- [Container](container.md): building containers and a map of their methods.
+- [Writing an integration](../integrations/writing-integrations.md): the contract built on
   `modern_di.integrations`.
-- [Design decisions](../introduction/design-decisions.md) — why the public surface is small and
+- [Design decisions](../introduction/design-decisions.md): why the public surface is small and
   `Container` subclassing is limited.

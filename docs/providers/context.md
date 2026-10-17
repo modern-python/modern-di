@@ -307,11 +307,11 @@ Each integration's page lists its provider names, scopes and types:
 
 ## See also
 
-- [Factories](factories.md) — how factories receive injected context values.
-- [Scopes](scopes.md) — choosing the scope a `ContextProvider` is bound to.
-- [Container](container.md) — building containers with `context=`, and where `set_context` and
+- [Factories](factories.md): how factories receive injected context values.
+- [Scopes](scopes.md): choosing the scope a `ContextProvider` is bound to.
+- [Container](container.md): building containers with `context=`, and where `set_context` and
   `build_child_container` are covered.
-- [ContextProvider has no value](../troubleshooting/context-not-set.md) — fixing
+- [ContextProvider has no value](../troubleshooting/context-not-set.md): fixing
   `ContextValueNotSetError`.
-- [Writing an integration](../integrations/writing-integrations.md) — how an integration registers
+- [Writing an integration](../integrations/writing-integrations.md): how an integration registers
   its providers and seeds the context.

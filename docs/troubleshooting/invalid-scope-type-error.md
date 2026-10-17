@@ -48,5 +48,5 @@ way the hierarchy should nest.
 
 ## See also
 
-- [Scopes: custom scopes](../providers/scopes.md#custom-scopes) — using your own `IntEnum` as a
+- [Scopes: custom scopes](../providers/scopes.md#custom-scopes): using your own `IntEnum` as a
   scope.
