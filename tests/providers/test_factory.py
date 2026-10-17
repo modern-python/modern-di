@@ -1225,3 +1225,60 @@ def test_subclassing_abstract_provider_outside_modern_di_raises_at_definition() 
 
         class _MyProvider(providers.AbstractProvider[int]):
             __slots__ = ()
+
+
+async def async_make_service() -> SimpleCreator:
+    return SimpleCreator(dep1="async")
+
+
+class _AsyncCallable:
+    async def __call__(self) -> SimpleCreator:
+        return SimpleCreator(dep1="async")
+
+    async def build(self) -> SimpleCreator:
+        return SimpleCreator(dep1="async")
+
+
+@pytest.mark.parametrize(
+    ("creator", "creator_name"),
+    [
+        (async_make_service, "async_make_service"),
+        (functools.partial(async_make_service), "async_make_service"),
+        (_AsyncCallable(), "_AsyncCallable"),
+        (_AsyncCallable().build, "build"),
+    ],
+    ids=["coroutine-function", "partial", "async-dunder-call", "bound-method"],
+)
+def test_factory_rejects_async_creator_at_declaration(
+    creator: typing.Callable[..., typing.Any], creator_name: str
+) -> None:
+    with pytest.raises(exceptions.AsyncCreatorError) as exc:
+        providers.Factory(creator, scope=Scope.APP)
+    assert exc.value.creator is creator
+    message = str(exc.value)
+    assert creator_name in message
+    assert "resolution is synchronous" in message
+    assert "https://modern-di.modern-python.org/recipes/async-lifespan/" in message
+    assert message.endswith("See: https://modern-di.modern-python.org/troubleshooting/async-creator-error/")
+
+
+def test_factory_rejects_async_creator_without_creator_parsing() -> None:
+    with pytest.raises(exceptions.AsyncCreatorError):
+        providers.Factory(async_make_service, skip_creator_parsing=True, bound_type=SimpleCreator)
+
+
+def test_async_creator_error_is_a_registration_error() -> None:
+    assert issubclass(exceptions.AsyncCreatorError, exceptions.RegistrationError)
+
+
+def _sync_returns_awaitable() -> typing.Awaitable[SimpleCreator]:
+    return async_make_service()
+
+
+@pytest.mark.parametrize(
+    "creator",
+    [SimpleCreator, _AsyncCallable, _sync_returns_awaitable, functools.partial(SimpleCreator, dep1="x")],
+    ids=["class", "class-with-async-dunder-call", "sync-returning-awaitable", "sync-partial"],
+)
+def test_factory_accepts_sync_creators(creator: typing.Callable[..., typing.Any]) -> None:
+    assert isinstance(providers.Factory(creator, scope=Scope.APP, bound_type=None), providers.Factory)

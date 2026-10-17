@@ -18,6 +18,7 @@ from modern_di.exceptions.lifecycle import (
 )
 from modern_di.exceptions.registration import (
     AliasBoundToSourceError,
+    AsyncCreatorError,
     ChildContainerRegistrationError,
     DuplicateProviderTypeError,
     GroupScopeConflictError,
@@ -44,6 +45,7 @@ __all__ = [
     "AliasBoundToSourceError",
     "AliasSourceNotRegisteredError",
     "ArgumentResolutionError",
+    "AsyncCreatorError",
     "AsyncFinalizerInSyncCloseError",
     "ChildContainerRegistrationError",
     "CircularDependencyError",
