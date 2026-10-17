@@ -70,7 +70,7 @@ def reference_only_sources(source_type: type, registry: "ProvidersRegistry") -> 
     return [
         provider
         for provider in registry.reference_only_providers()
-        if type(provider) is Factory and provider.return_type is source_type
+        if type(provider) is Factory and provider._return_type is source_type  # noqa: SLF001
     ]
 
 

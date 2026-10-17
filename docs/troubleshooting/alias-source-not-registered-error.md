@@ -16,7 +16,7 @@ provider instead:
 modern_di.exceptions.resolution.AliasSourceNotRegisteredError: Cannot resolve dependency chain:
   APP  Interface
   caused by: Alias source type <class 'myapp.alias.Implementation'> is not registered by type: this provider serves it with bound_type=None, and an alias cannot reach a reference-only provider.
-  - Factory (myapp.alias:9)
+  - ReferenceOnly.impl: Factory (myapp.alias:14)
 Give it bound_type=Implementation, or remove bound_type=None.
 See: https://modern-di.modern-python.org/troubleshooting/alias-source-not-registered-error/
 ```

@@ -598,7 +598,7 @@ def test_alias_source_served_by_reference_only_provider_says_so() -> None:
     message = str(exc.value)
     assert exc.value.reference_only_providers == [Dependencies.p]
     assert "bound_type=None" in message
-    assert f"Factory ({Dependencies.p.definition_site})" in message
+    assert f"  - Dependencies.p: Factory ({Dependencies.p._call_site})\n" in message
     assert "bound_type=_ReferenceOnlySource" in message
     assert "Register a provider for" not in message
 
@@ -630,8 +630,8 @@ def test_alias_source_served_by_two_reference_only_providers_names_both() -> Non
         Container(groups=[Dependencies]).resolve(_ReferenceOnlyTarget)
     message = str(exc.value)
     assert exc.value.reference_only_providers == [Dependencies.first, Dependencies.second]
-    assert f"Factory ({Dependencies.first.definition_site})" in message
-    assert f"Factory ({Dependencies.second.definition_site})" in message
+    assert f"  - Dependencies.first: Factory ({Dependencies.first._call_site})\n" in message
+    assert f"  - Dependencies.second: Factory ({Dependencies.second._call_site})\n" in message
     assert "one of them" in message
 
 

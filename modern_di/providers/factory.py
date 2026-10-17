@@ -177,11 +177,6 @@ class Factory(AbstractProvider[types.T_co]):
         """The cache configuration, or ``None`` for an uncached factory."""
         return self._cache_settings
 
-    @property
-    def return_type(self) -> type | None:
-        """The creator's parsed return type; ``None`` when it is not a single type or parsing was skipped."""
-        return self._return_type
-
     def __repr__(self) -> str:
         return f"Factory(creator={self._creator!r}, scope={self.scope!r}, cached={self.cache_settings is not None})"
 
