@@ -2,12 +2,15 @@
 
 import abc
 import enum
+import functools
 import typing
 
 from modern_di import suggester
 from modern_di.exceptions.base import ModernDIError
 from modern_di.exceptions.rendering import provider_step, render_chain, render_provider_lines, render_suggestion_lines
 
+
+_ASYNC_LIFESPAN_RECIPE_URL = "https://modern-di.modern-python.org/recipes/async-lifespan/"
 
 if typing.TYPE_CHECKING:
     from modern_di.providers.abstract import AbstractProvider
@@ -175,6 +178,25 @@ class UnknownFactoryKwargError(RegistrationError):
             f"Known parameters: {known_keys}",
         ]
         super().__init__("\n".join(parts))
+
+
+class AsyncCreatorError(RegistrationError):
+    """A ``Factory`` was declared with an async creator, which resolution cannot await. Inspect ``.creator``."""
+
+    docs_slug = "async-creator-error"
+
+    __slots__ = ("creator",)
+
+    def __init__(self, *, creator: "typing.Callable[..., typing.Any]") -> None:
+        self.creator = creator
+        target = creator.func if isinstance(creator, functools.partial) else creator
+        creator_name = getattr(target, "__name__", type(target).__name__)
+        super().__init__(
+            f"Factory creator {creator_name} is async, but resolution is synchronous, so resolve() would "
+            "return an un-awaited coroutine or async generator. Build the resource in your framework's "
+            "lifespan and hand it to the container with set_context() and a ContextProvider: "
+            f"{_ASYNC_LIFESPAN_RECIPE_URL}"
+        )
 
 
 class UnsupportedCreatorParameterError(RegistrationError):

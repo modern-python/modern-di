@@ -28,6 +28,10 @@ def make_repository(database: Database) -> Repository:
     raise NotImplementedError
 
 
+async def make_repository_async(database: Database) -> Repository:
+    raise NotImplementedError
+
+
 class KeywordOnlyError(Exception):
     def __init__(self, *, detail: str) -> None:
         super().__init__(f"detail={detail}")
@@ -122,6 +126,7 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
     exceptions.UnknownFactoryKwargError: lambda: exceptions.UnknownFactoryKwargError(
         creator=make_repository, unknown_keys=["databse"], known_keys=["database"]
     ),
+    exceptions.AsyncCreatorError: lambda: exceptions.AsyncCreatorError(creator=make_repository_async),
     exceptions.UnsupportedCreatorParameterError: lambda: exceptions.UnsupportedCreatorParameterError(
         creator=make_repository, parameter_name="args", reason="variadic parameters are not supported"
     ),

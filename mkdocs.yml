@@ -71,6 +71,7 @@ nav:
       - Provider scope frozen: troubleshooting/provider-scope-frozen-error.md
       - Unknown factory kwarg: troubleshooting/unknown-factory-kwarg-error.md
       - Unsupported creator parameter: troubleshooting/unsupported-creator-parameter-error.md
+      - Async creator: troubleshooting/async-creator-error.md
       - Invalid scope dependency: troubleshooting/scope-chain.md
       - Scope enum mismatch: troubleshooting/scope-enum-mismatch-error.md
       - Finalizer error: troubleshooting/finalizer-error.md
@@ -218,6 +219,7 @@ plugins:
           - troubleshooting/provider-scope-frozen-error.md: Diagnosing ProviderScopeFrozenError
           - troubleshooting/unknown-factory-kwarg-error.md: Diagnosing UnknownFactoryKwargError
           - troubleshooting/unsupported-creator-parameter-error.md: Diagnosing UnsupportedCreatorParameterError
+          - troubleshooting/async-creator-error.md: Diagnosing AsyncCreatorError
           - troubleshooting/scope-chain.md: Diagnosing InvalidScopeDependencyError
           - troubleshooting/scope-enum-mismatch-error.md: Diagnosing ScopeEnumMismatchError
           - troubleshooting/finalizer-error.md: Diagnosing FinalizerError

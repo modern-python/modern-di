@@ -41,6 +41,7 @@ ModernDIError (RuntimeError)
 │   ├── ProviderScopeFrozenError
 │   ├── UnknownFactoryKwargError
 │   ├── UnsupportedCreatorParameterError
+│   ├── AsyncCreatorError
 │   ├── InvalidScopeDependencyError
 │   └── ScopeEnumMismatchError
 ├── FinalizerError (also an ExceptionGroup)
@@ -146,6 +147,7 @@ always has an empty path, and `CircularDependencyError` draws its cycle from `.s
 | [`ProviderScopeFrozenError`](../troubleshooting/provider-scope-frozen-error.md) | a `Group` that would change the scope of a provider already registered with a container | `.provider`, `.group_name`, `.current_scope`, `.new_scope` |
 | [`UnknownFactoryKwargError`](../troubleshooting/unknown-factory-kwarg-error.md) | `Factory(kwargs={...})` with a key that is not a parameter of the creator | `.creator`, `.unknown_keys`, `.known_keys`, `.suggestions` |
 | [`UnsupportedCreatorParameterError`](../troubleshooting/unsupported-creator-parameter-error.md) | a creator parameter `modern-di` cannot wire | `.creator`, `.parameter_name`, `.reason` |
+| [`AsyncCreatorError`](../troubleshooting/async-creator-error.md) | `Factory(...)` with an async creator | `.creator` |
 | [`InvalidScopeDependencyError`](../troubleshooting/scope-chain.md) | `validate()`, for a provider that depends on a deeper-scoped one | `.provider`, `.parameter_name`, `.dependency_chain`, `.dependency_provider`, `.dependency_terminal` |
 | [`ScopeEnumMismatchError`](../troubleshooting/scope-enum-mismatch-error.md) | `validate()`, for a dependency at a same-valued scope of another enum | `.provider`, `.parameter_name`, `.dependency_chain`, `.dependency_provider`, `.dependency_terminal` |
 
