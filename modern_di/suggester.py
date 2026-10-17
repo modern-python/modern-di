@@ -25,24 +25,28 @@ class Suggestion:
     scope: enum.IntEnum | None = None
 
 
-def suggest(requested_type: type, providers: "typing.Iterable[AbstractProvider[typing.Any]]") -> list[Suggestion]:
+def suggest(
+    requested_type: type,
+    providers: "typing.Iterable[AbstractProvider[typing.Any]]",
+    scope_of: "typing.Callable[[AbstractProvider[typing.Any]], enum.IntEnum | None]",
+) -> list[Suggestion]:
     """Candidates the caller may have meant for ``requested_type``, best first, capped at three.
 
     A registered subclass or base class first, then fuzzy name matches. ``providers`` is read by
-    duck typing on ``bound_type``/``scope`` to avoid an import cycle.
+    duck typing on ``bound_type`` to avoid an import cycle; ``scope_of`` gives each candidate's scope.
     """
     requested_is_class = inspect.isclass(requested_type)
     requested_name = getattr(requested_type, "__name__", str(requested_type))
 
     hierarchy_hints: list[Suggestion] = []
-    name_to_scope: dict[str, enum.IntEnum] = {}
+    name_to_scope: dict[str, enum.IntEnum | None] = {}
 
     for provider in list(providers):
         registered = provider.bound_type
         if registered is None or registered is requested_type:
             continue
 
-        hint = _hierarchy_hint(requested_type, provider) if requested_is_class else None
+        hint = _hierarchy_hint(requested_type, provider, scope_of) if requested_is_class else None
         if hint is not None:
             hierarchy_hints.append(hint)
             if len(hierarchy_hints) >= _MAX_SUGGESTIONS:
@@ -51,7 +55,7 @@ def suggest(requested_type: type, providers: "typing.Iterable[AbstractProvider[t
 
         name = getattr(registered, "__name__", None)
         if name:
-            name_to_scope[name] = provider.scope
+            name_to_scope[name] = scope_of(provider)
 
     remaining = _MAX_SUGGESTIONS - len(hierarchy_hints)
     typo_hints = [
@@ -61,7 +65,11 @@ def suggest(requested_type: type, providers: "typing.Iterable[AbstractProvider[t
     return hierarchy_hints + typo_hints
 
 
-def _hierarchy_hint(requested_type: type, provider: "AbstractProvider[typing.Any]") -> "Suggestion | None":
+def _hierarchy_hint(
+    requested_type: type,
+    provider: "AbstractProvider[typing.Any]",
+    scope_of: "typing.Callable[[AbstractProvider[typing.Any]], enum.IntEnum | None]",
+) -> "Suggestion | None":
     """Return a subclass/base-class hint for a provider whose ``bound_type`` is a class, else None."""
     registered = provider.bound_type
     if registered is None or not inspect.isclass(registered):
@@ -75,7 +83,7 @@ def _hierarchy_hint(requested_type: type, provider: "AbstractProvider[typing.Any
             return None
     except TypeError:
         return None
-    return Suggestion(name=registered.__name__, reason=reason, scope=provider.scope)
+    return Suggestion(name=registered.__name__, reason=reason, scope=scope_of(provider))
 
 
 def close_matches(target: str, candidates: typing.Iterable[str], *, n: int, cutoff: float = 0.6) -> list[str]:

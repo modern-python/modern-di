@@ -82,7 +82,8 @@ class AbstractProvider(typing.Generic[types.T_co]):
     def scope(self) -> enum.IntEnum:
         """The declared scope: the provider's own ``scope=``, else a Group default, else ``Scope.APP``.
 
-        A redirect such as ``Alias`` resolves at its source's scope instead.
+        For a redirect such as ``Alias`` this is a ``Scope.APP`` placeholder, not the effective scope: an
+        alias resolves at its source's scope.
         """
         if self._explicit_scope is not None:
             return self._explicit_scope

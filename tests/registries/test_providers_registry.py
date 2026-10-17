@@ -215,7 +215,7 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
             try:
                 for _ in range(50):
                     list(iter(registry))
-                    suggester.suggest(_RaceBase, registry)
+                    suggester.suggest(_RaceBase, registry, registry._known_effective_scope)
             except BaseException as e:  # noqa: BLE001
                 errors_seen.append(e)
 
