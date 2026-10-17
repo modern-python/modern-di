@@ -188,6 +188,9 @@ The container closes after `stream.stop()` returns, so messages still in flight 
 from an open container. With the default flag, modern-di-fastapi would close the container inside
 your lifespan, before `stream.stop()` runs.
 
+`stream.start()` and `stream.stop()` do not run a `FastStream(lifespan=...)`, so put that setup and
+teardown in the FastAPI lifespan.
+
 ## Pitfalls
 
 - Set the flag on both integrations. One left at the default still closes the root when its app
