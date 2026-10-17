@@ -93,6 +93,12 @@ The integration creates one `Scope.REQUEST` child container per update. Its midd
 child is closed with `close_async()` after the handler returns or raises, so REQUEST-scoped
 finalizers may be async or sync. Resolution itself is synchronous, as everywhere in modern-di.
 
+An error handler on `dispatcher.errors` runs after that child is closed, so the middleware is also
+an outer middleware there and builds the error handler a child of its own, bound to the failing
+update and its event. REQUEST-scoped instances in it are new ones, not the failing handler's. Before
+modern-di-aiogram 4.3.4, an `@inject` error handler that resolved a REQUEST-scoped dependency raised
+`ContainerClosedError` instead.
+
 There is no `Scope.SESSION` for aiogram: each Telegram update is handled
 independently; there's no persistent per-chat/per-user connection comparable
 to a WebSocket. See [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for).
