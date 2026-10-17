@@ -840,10 +840,10 @@ def test_duplicate_providers_sharing_a_creator_are_named_by_their_group_attribut
         Container(scope=Scope.APP, groups=[_SharedCreator])
 
     assert _provider_lines(exc.value) == [
-        f"  - _SharedCreator.first: Factory ({_SharedCreator.first.call_site})",
-        f"  - _SharedCreator.second: Factory ({_SharedCreator.second.call_site})",
+        f"  - _SharedCreator.first: Factory ({_SharedCreator.first._call_site})",
+        f"  - _SharedCreator.second: Factory ({_SharedCreator.second._call_site})",
     ]
-    assert _SharedCreator.first.call_site != _SharedCreator.second.call_site
+    assert _SharedCreator.first._call_site != _SharedCreator.second._call_site
 
 
 def test_duplicate_providers_outside_a_group_are_named_by_their_call_site() -> None:
@@ -854,8 +854,8 @@ def test_duplicate_providers_outside_a_group_are_named_by_their_call_site() -> N
     with pytest.raises(DuplicateProviderTypeError) as exc:
         container.add_providers(first, second)
 
-    assert _provider_lines(exc.value) == [f"  - Factory ({first.call_site})", f"  - Factory ({second.call_site})"]
-    assert first.call_site != second.call_site
+    assert _provider_lines(exc.value) == [f"  - Factory ({first._call_site})", f"  - Factory ({second._call_site})"]
+    assert first._call_site != second._call_site
 
 
 def test_duplicate_providers_with_different_creators_are_each_named() -> None:
@@ -867,8 +867,8 @@ def test_duplicate_providers_with_different_creators_are_each_named() -> None:
         Container(scope=Scope.APP, groups=[Contexts])
 
     assert _provider_lines(exc.value) == [
-        f"  - Contexts.one: ContextProvider ({Contexts.one.call_site})",
-        f"  - Contexts.two: Alias ({Contexts.two.call_site})",
+        f"  - Contexts.one: ContextProvider ({Contexts.one._call_site})",
+        f"  - Contexts.two: Alias ({Contexts.two._call_site})",
     ]
 
 
@@ -879,7 +879,7 @@ def test_a_provider_without_a_call_site_is_shown_by_its_repr() -> None:
 
     error = DuplicateProviderTypeError(provider_type=str, first_provider=provider)
 
-    assert provider.call_site is None
+    assert provider._call_site is None
     assert _provider_lines(error)[0] == f"  - {provider!r}"
 
 
@@ -899,7 +899,7 @@ def _current_line() -> int:
     ],
 )
 def test_call_site_is_the_line_that_built_the_provider(build: types.FunctionType) -> None:
-    assert build().call_site == f"{__name__}:{build.__code__.co_firstlineno}"
+    assert build()._call_site == f"{__name__}:{build.__code__.co_firstlineno}"
 
 
 def test_call_site_of_a_multi_line_call_is_its_first_line() -> None:
@@ -908,15 +908,15 @@ def test_call_site_of_a_multi_line_call_is_its_first_line() -> None:
         _make_str_one,
         scope=Scope.APP,
     )
-    assert provider.call_site == f"{__name__}:{line}"
+    assert provider._call_site == f"{__name__}:{line}"
 
 
 def test_declared_as_keeps_the_first_group_attribute_a_provider_was_assigned_to() -> None:
     class Reassigned(Group):
         again = _SharedCreator.first
 
-    assert Reassigned.again.declared_as == "_SharedCreator.first"
-    assert providers.Factory(_make_str_one).declared_as is None
+    assert Reassigned.again._declared_as == "_SharedCreator.first"
+    assert providers.Factory(_make_str_one)._declared_as is None
 
 
 def test_add_providers_on_child_container_raises() -> None:

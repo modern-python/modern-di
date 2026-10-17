@@ -69,12 +69,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
         return self._bound_type
 
     @property
-    def declared_as(self) -> str | None:
-        """``Owner.attribute`` of the first class body this provider was assigned in, else None."""
-        return self._declared_as
-
-    @property
-    def call_site(self) -> str | None:
+    def _call_site(self) -> str | None:
         """``module:line`` of the call that built this provider; None when the module is unknown."""
         return None if self._call_module is None else f"{self._call_module}:{self._call_line}"
 
