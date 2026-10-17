@@ -21,7 +21,7 @@ container still pays off in a single service, and more as the app grows:
   wiring instead of a parallel copy, and so does code that runs off the request path: startup and
   background tasks.
 
-modern-di adds 1.74 µs to a request cycle on the [benchmark machine](performance.md), and its
+modern-di adds 1.66 µs to a request cycle on the [benchmark machine](performance.md), and its
 wiring is shared across thirteen frameworks: aiogram, aiohttp, arq, Celery, FastAPI, FastMCP,
 FastStream, Flask, gRPC, Litestar, Starlette, taskiq, and Typer.
 
