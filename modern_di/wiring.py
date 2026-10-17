@@ -96,7 +96,7 @@ def argument_resolution_error(
         parameter_type=item.arg_type,
         bound_type=factory.bound_type,
         creator=factory._creator,  # noqa: SLF001
-        suggestions=suggester.suggest(item.arg_type, registry, registry.known_effective_scope)
+        suggestions=suggester.suggest(item.arg_type, registry, registry._known_effective_scope)  # noqa: SLF001
         if item.arg_type is not None
         else [],
         member_types=item.member_types,

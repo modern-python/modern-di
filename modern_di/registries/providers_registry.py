@@ -130,13 +130,13 @@ class ProvidersRegistry:
         if provider is None:
             raise exceptions.ProviderNotRegisteredError(
                 dependency_type=dependency_type,
-                suggestions=suggester.suggest(dependency_type, self, self.known_effective_scope),
+                suggestions=suggester.suggest(dependency_type, self, self._known_effective_scope),
             )
         resolver = self.resolver_for(provider)
         self._publish(self._resolvers_by_type, dependency_type, resolver, generation)
         return resolver
 
-    def known_effective_scope(self, provider: AbstractProvider[typing.Any]) -> enum.IntEnum | None:
+    def _known_effective_scope(self, provider: AbstractProvider[typing.Any]) -> enum.IntEnum | None:
         """Return the effective scope of ``provider``, or None when a redirect on its chain has no source."""
         terminal = terminal_chain(provider, self)[-1]
         return None if type(terminal) is Alias else terminal.scope
