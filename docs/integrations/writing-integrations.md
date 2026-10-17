@@ -256,6 +256,8 @@ in for a type at call sites.
 - On ASGI the lifespan scope is optional. A mounted sub-application never receives it from its parent,
   and some deployments turn it off (Mangum `lifespan="off"`), so call `setup_di` on the top-level
   served app or have the caller close the root.
+  modern-di-starlette and modern-di-fastapi also open and close the root containers of mounted apps
+  that called `setup_di`, from the outer app's lifespan.
 
 ## Scope mapping
 
