@@ -14,6 +14,9 @@ checking the overrides registry.
 
 - The hot path is a string. `ruff`, `ty` and coverage do not see it; the shape-enumeration test
   in `tests/test_resolver_compiler.py` is the gate for a template / namespace mismatch.
-- One code object per shape, not per provider. Per provider is 20-30% faster on chains (call sites
-  stay monomorphic) but costs ~70 µs of `compile()` per provider, which a suite building a
-  container per test pays per test.
+- A shape is compiled once, and each factory runs on its own copy of the compiled code. The
+  specialising interpreter keeps its caches on the code object, so a copy shared across a shape's
+  factories makes every call site in it polymorphic, which costs 20-30% on chains. `compile()` costs
+  ~70 µs, too much to pay per provider in a suite that builds a container per test, so it stays per
+  shape. The per-factory copy is a `code.replace()`, about 1 µs on a factory's first compile and
+  again after each override change drops the compiled resolvers.
