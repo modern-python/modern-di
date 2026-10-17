@@ -112,7 +112,7 @@ _CACHED = (
     cache_items = target._cache_items
     cache_item = cache_items.get(pid)
     if cache_item is None:
-        cache_item = cache_items.setdefault(pid, CacheItem(settings=cache_settings))
+        cache_item = cache_items.setdefault(pid, CacheItem(cache_settings))
     cached = cache_item.cache
     if cached is not UNSET:
         return cached

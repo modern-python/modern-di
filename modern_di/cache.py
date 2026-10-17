@@ -1,4 +1,3 @@
-import dataclasses
 import inspect
 import threading
 import typing
@@ -12,12 +11,14 @@ _T = typing.TypeVar("_T")
 _V = typing.TypeVar("_V")
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
 class CacheItem:
-    settings: CacheSettings[typing.Any]
-    cache: typing.Any = types.UNSET
-    finalized: bool = False
-    lock: threading.RLock = dataclasses.field(default_factory=threading.RLock, repr=False, compare=False)
+    __slots__ = ("cache", "finalized", "lock", "settings")
+
+    def __init__(self, settings: CacheSettings[typing.Any]) -> None:
+        self.settings = settings
+        self.cache: typing.Any = types.UNSET
+        self.finalized = False
+        self.lock = threading.RLock()
 
     def clear(self) -> None:
         if self.settings.clear_cache:
