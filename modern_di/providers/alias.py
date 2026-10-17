@@ -10,8 +10,9 @@ class Alias(AbstractProvider[types.T_co]):
     Register it under ``bound_type``, typically an abstract base or ``Protocol``, to make that type
     resolve to an existing implementation, or pass ``bound_type=None`` to resolve it by reference only.
     A ``bound_type`` equal to ``source_type`` raises ``AliasBoundToSourceError``. An alias holds no
-    instance and has no scope of its own: caching and scope come from the source provider. The alias and
-    its source can be overridden independently.
+    instance and has no scope of its own: caching and scope come from the source provider. Its effective
+    scope is the source's; ``scope`` is a ``Scope.APP`` placeholder and the repr omits scope. The alias
+    and its source can be overridden independently.
     """
 
     __slots__ = ("_source_type",)
@@ -30,4 +31,4 @@ class Alias(AbstractProvider[types.T_co]):
         self._source_type = source_type
 
     def __repr__(self) -> str:
-        return f"Alias(source_type={self._source_type!r}, bound_type={self.bound_type!r}, scope={self.scope!r})"
+        return f"Alias(source_type={self._source_type!r}, bound_type={self.bound_type!r})"
