@@ -18,7 +18,7 @@ class CacheSettings(typing.Generic[types.T_contra]):
     ``finalizer`` runs on the instance when its container closes; it may be sync or async. With
     ``clear_cache=True``, the default, the instance is dropped at close and rebuilt on the next
     resolve after reopening. With ``clear_cache=False`` the same instance survives close and reopen,
-    and its finalizer runs only once.
+    and its finalizer is called only at the first close, even if it raises.
     """
 
     clear_cache: bool = True

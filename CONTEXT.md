@@ -55,7 +55,7 @@ kwargs, cached. Factories of one shape share a code object.
 _Avoid_: template (that is the source the shape is rendered into), signature
 
 **Finalizer**:
-A cleanup callback on a cached provider, run LIFO at close.
+A cleanup callback on a cached provider, run LIFO at close and at most once per instance.
 _Avoid_: teardown, destructor
 
 **Connection**:

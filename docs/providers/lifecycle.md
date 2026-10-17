@@ -176,7 +176,7 @@ except* ConnectionError as group:
 
 A finalizer that raises still drops its cached instance, and the next resolve after reopening
 builds a fresh one. With `clear_cache=False` the instance is kept, as it is after a finalizer that
-succeeds.
+succeeds. Either way, that finalizer is not called again for that instance.
 
 See [FinalizerError](../troubleshooting/finalizer-error.md) for reading the group and fixing the
 finalizers that raised.
@@ -246,6 +246,11 @@ The container counts as closed as soon as `close_sync()` or `close_async()` star
 that resolves from its own container gets `ContainerClosedError`. Give a finalizer what it needs
 through the cached instance.
 
+Closing does not wait for resolves running on other threads. If another thread is still building a
+cached instance when the close starts, that close does not finalize it: the instance stays cached in
+the closed container, and its finalizer runs at the next close. Stop resolving from a container
+before you close it.
+
 After close, resolving raises `ContainerClosedError` and the creator does not run. That includes a
 resolve through a child that reaches the closed container. A child of a closed container can still
 be built and resolves what it owns. `open()` reopens the container, and so does entering
@@ -275,8 +280,8 @@ What survives close and reopen depends on `CacheSettings`:
 
 - With the default `clear_cache=True`, the instance is finalized at close and rebuilt on the next
   resolve after reopening.
-- With `clear_cache=False`, reopening returns the same object, and its finalizer runs only at the
-  first close. That object has already been through its finalizer, so use this only for a resource
+- With `clear_cache=False`, reopening returns the same object, and its finalizer is called only at
+  the first close, even if it raised there. That object has already been through its finalizer, so use this only for a resource
   that still works afterwards.
 - Overrides are configuration, not cached instances, so closing does not touch them. Clear one with
   `reset_override()` or by exiting the `with container.override(...)` block.
