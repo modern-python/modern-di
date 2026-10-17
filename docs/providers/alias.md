@@ -73,6 +73,10 @@ that the source's instances satisfy `bound_type`.
 source's scope: an alias of a REQUEST-scoped factory resolves from a REQUEST container and raises
 `ScopeNotInitializedError` from the APP container, the same as its source.
 
+An alias's effective scope is its source's, which only a container with the source type registered
+can determine. `repr(alias)` therefore shows no scope, and `alias.scope` returns a `Scope.APP`
+placeholder wherever the source lives, so it is not the scope the alias resolves at.
+
 ## Overrides
 
 Overrides are keyed by the provider, so the alias and its source can be overridden independently.

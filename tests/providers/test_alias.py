@@ -140,9 +140,15 @@ def test_alias_bound_type_none_is_accepted() -> None:
 
 def test_alias_repr() -> None:
     alias = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
-    assert repr(alias) == (
-        f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r}, scope=<Scope.APP: 1>)"
-    )
+    assert repr(alias) == f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r})"
+
+
+def test_alias_repr_in_request_group_claims_no_scope() -> None:
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        repo = providers.Factory(creator=PostgresRepository)
+        iface = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
+
+    assert "Scope.APP" not in repr(RequestGroup.iface)
 
 
 def test_alias_has_no_definition_site() -> None:
