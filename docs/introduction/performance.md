@@ -136,7 +136,7 @@ a ratio would compare different work.
 
 ## See also
 
-- [Comparison](comparison.md) — how modern-di compares on features.
-- [Design decisions](design-decisions.md) — why resolution is sync-only.
-- [Performance history](../dev/performance-history.md) — each optimization and what it measured.
-- [`benchmarks/README.md`](https://github.com/modern-python/modern-di/blob/main/benchmarks/README.md) — method, per-framework code and the guard tier.
+- [Comparison](comparison.md): how modern-di compares on features.
+- [Design decisions](design-decisions.md): why resolution is sync-only.
+- [Performance history](../dev/performance-history.md): each optimization and what it measured.
+- [`benchmarks/README.md`](https://github.com/modern-python/modern-di/blob/main/benchmarks/README.md): method, per-framework code and the guard tier.

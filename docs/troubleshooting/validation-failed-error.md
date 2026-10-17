@@ -33,13 +33,13 @@ line and the `See:` line.
 The provider graph has one or more problems. `validate()` walks the whole graph in one pass and
 collects every issue, so `.exceptions` may hold several kinds at once. Each entry is one of these:
 
-- [`CircularDependencyError`](circular-dependency.md) — a cycle in the graph.
-- [`InvalidScopeDependencyError`](scope-chain.md) — a provider that depends on a deeper-scoped one.
-- [`ScopeEnumMismatchError`](scope-enum-mismatch-error.md) — a dependency at a same-valued scope of
+- [`CircularDependencyError`](circular-dependency.md): a cycle in the graph.
+- [`InvalidScopeDependencyError`](scope-chain.md): a provider that depends on a deeper-scoped one.
+- [`ScopeEnumMismatchError`](scope-enum-mismatch-error.md): a dependency at a same-valued scope of
   another enum.
-- [`ArgumentResolutionError`](argument-resolution-error.md) — a creator parameter that nothing can
+- [`ArgumentResolutionError`](argument-resolution-error.md): a creator parameter that nothing can
   resolve.
-- [`AliasSourceNotRegisteredError`](alias-source-not-registered-error.md) — an alias whose source
+- [`AliasSourceNotRegisteredError`](alias-source-not-registered-error.md): an alias whose source
   type has no provider.
 
 ## Fix
@@ -91,5 +91,5 @@ Nothing validates the graph for you, not even construction, `open()` or `resolve
 
 ## See also
 
-- [Lifecycle: validation](../providers/lifecycle.md#validation) — when to call `validate()` and what
+- [Lifecycle: validation](../providers/lifecycle.md#validation): when to call `validate()` and what
   it checks.

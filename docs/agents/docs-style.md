@@ -32,13 +32,14 @@ Every drift found so far came from a pass that recased headings and stopped ther
 
 ## Em dashes
 
-Mid-sentence em dashes go, per the humanizer skill's §8. Four shapes keep theirs, because the dash
-separates a term from its gloss instead of joining two clauses:
+No em or en dashes outside code: not mid-sentence (per the humanizer skill's §8), not in See-also
+lists, not in tables. A bullet that pairs a term with its gloss uses a colon:
 
-- `## See also` bullets — `- [Scopes](scopes.md) — the APP → REQUEST lifetime model.`
-- Table cells.
-- Term-gloss bullets, the same shape outside a See-also list.
-- Comments inside fenced code blocks.
+- `## See also` bullets: `- [Scopes](scopes.md): the APP → REQUEST lifetime model.`
+- Term-gloss bullets: `- **Scope**: the lifetime level a provider belongs to.`
+
+When a long link pushes the gloss onto the next line, the colon ends the link line. Dashes inside
+fenced code blocks and inline code are left alone.
 
 ## Contrast markers in code samples
 

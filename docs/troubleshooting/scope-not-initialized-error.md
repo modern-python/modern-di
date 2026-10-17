@@ -77,8 +77,8 @@ every captive dependency at startup and reports it as
 
 ## See also
 
-- [InvalidScopeDependencyError](scope-chain.md) — the same problem reported by `validate()`.
-- [Scopes: the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule) — why a
+- [InvalidScopeDependencyError](scope-chain.md): the same problem reported by `validate()`.
+- [Scopes: the scope dependency rule](../providers/scopes.md#the-scope-dependency-rule): why a
   provider cannot depend on a deeper scope.
-- [Captive dependency](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one)
-  — the bug this error usually points at.
+- [Captive dependency](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one):
+  the bug this error usually points at.

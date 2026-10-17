@@ -114,9 +114,9 @@ scope or a shallower one.
 
 ## See also
 
-- [Scopes: how to choose a scope](../providers/scopes.md#how-to-choose-a-scope) — the shallowest
+- [Scopes: how to choose a scope](../providers/scopes.md#how-to-choose-a-scope): the shallowest
   scope a provider can have, given its dependencies.
-- [Captive dependency](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one)
-  — the mistake this error reports, and its fix.
-- [Lifecycle: validation](../providers/lifecycle.md#validation) — when to call `validate()` and what
+- [Captive dependency](../recipes/good-and-bad-practices.md#1-captive-dependency-a-wide-scoped-provider-holding-a-narrow-scoped-one):
+  the mistake this error reports, and its fix.
+- [Lifecycle: validation](../providers/lifecycle.md#validation): when to call `validate()` and what
   it checks.

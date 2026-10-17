@@ -81,7 +81,7 @@ the container from a finalizer. Give the cached instance what its finalizer need
 
 ## See also
 
-- [Lifecycle: closing and reopening](../providers/lifecycle.md#closing-and-reopening) — what close
+- [Lifecycle: closing and reopening](../providers/lifecycle.md#closing-and-reopening): what close
   runs and what survives a reopen.
-- [Migration: To 4.x](../migration/to-4.x.md#resolving-on-a-closed-container-raises) — the 3.x
+- [Migration: To 4.x](../migration/to-4.x.md#resolving-on-a-closed-container-raises): the 3.x
   warn-and-reopen behavior this replaced.

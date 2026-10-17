@@ -81,6 +81,6 @@ Container(groups=[Dependencies]).validate()
 
 ## See also
 
-- [Scopes: custom scopes](../providers/scopes.md#custom-scopes) — how scopes from different enums
+- [Scopes: custom scopes](../providers/scopes.md#custom-scopes): how scopes from different enums
   mix in one tree.
-- [InvalidScopeDependencyError](scope-chain.md) — a dependency on a deeper scope.
+- [InvalidScopeDependencyError](scope-chain.md): a dependency on a deeper scope.

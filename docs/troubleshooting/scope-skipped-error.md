@@ -107,7 +107,7 @@ message, and give your providers those scopes.
 
 ## See also
 
-- [InvalidScopeDependencyError](scope-chain.md) — a provider that depends on a deeper scope, found by
+- [InvalidScopeDependencyError](scope-chain.md): a provider that depends on a deeper scope, found by
   `validate()`.
-- [Scopes: building child containers](../providers/scopes.md#building-child-containers) — how a
+- [Scopes: building child containers](../providers/scopes.md#building-child-containers): how a
   container chain maps to the scope hierarchy.

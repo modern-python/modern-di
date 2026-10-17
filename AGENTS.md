@@ -24,9 +24,9 @@ passes code that CI rejects.
 
 ## Architecture
 
-- **Scope** — `IntEnum`, `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. A provider resolves only
+- **Scope**: `IntEnum`, `APP=1 → SESSION=2 → REQUEST=3 → ACTION=4 → STEP=5`. A provider resolves only
   from a container of the same or deeper (higher-int) scope; otherwise a clear error is raised.
-- **Container** — the central object. A child (`build_child_container`) shares the parent's
+- **Container**: the central object. A child (`build_child_container`) shares the parent's
   providers/overrides registries; cache and context are per-container. `container.validate()` (cycle +
   transitive-scope checks) is the only thing that validates.
 
@@ -45,15 +45,15 @@ not tell you:
   formatting; the class renders its own f-string and sets a `docs_slug` (its page under
   `docs/troubleshooting/`, enforced by `tests/test_docs_slug_census.py`). Add a message, a glyph, or a
   class here, never at the raise site. Submodules split by family; `__init__` re-exports every public name.
-- `registries/` — `providers_registry` (type → provider, plus the shared plan/resolver memos) and
+- `registries/`: `providers_registry` (type → provider, plus the shared plan/resolver memos) and
   `overrides_registry` are shared tree-wide.
-- `cache.py` — `CacheItem` and the functions over a container's own cache items and creation order
+- `cache.py`: `CacheItem` and the functions over a container's own cache items and creation order
   (fetch, count, close). Cache and context are per-container and live in the container's slots; the
   context is a plain dict.
 - `dependency_graph.py` walks `WiringPlan.provider_kwargs`, so what `validate()` traverses is exactly what
   `resolve()` follows. Explicit-stack, never recursive: a caller runs it inside a `RecursionError`
   handler near CPython's stack limit.
-- `types.py` — `UNSET` is load-bearing on the resolve path: the miss marker for both the override
+- `types.py`: `UNSET` is load-bearing on the resolve path: the miss marker for both the override
   lookup and the cache slot, separating "not passed" from "explicitly `None`".
 
 ### Testing patterns
@@ -73,7 +73,7 @@ description, and PyPI does not rewrite relative links, so a relative one 404s on
 - Design principle: conservative feature set; resolution is sync-only (async resolution was removed
   in 2.x), though finalizers may still be sync or async (`close_sync`/`close_async`); no global state
 - Docstrings: public API documents the contract; internal helpers get a one-line contract, plus at most
-  1–2 lines for a genuinely non-obvious constraint. Never narrate implementation or justify code to a
+  one or two lines for a genuinely non-obvious constraint. Never narrate implementation or justify code to a
   reviewer; cross-file rationale lives in an invariant test's docstring
 - `ruff` (`select = ["ALL"]`) and `ty` are configured in `pyproject.toml` and run by `just lint`
 
@@ -96,7 +96,7 @@ Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/
 Docs pages, PR and issue bodies, and commit messages run through the
 [humanizer](https://github.com/blader/humanizer) skill when it is installed
 (`npx skills add blader/humanizer`). Repo conventions it does not cover (heading and nav
-casing, the em-dash carve-outs, contrast markers in code samples) are in
+casing, colons in place of dashes in gloss bullets, contrast markers in code samples) are in
 `docs/agents/docs-style.md`.
 
 ### Cutting a release

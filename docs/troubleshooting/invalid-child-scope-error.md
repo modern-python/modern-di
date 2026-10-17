@@ -72,7 +72,7 @@ substep_container = step_container.build_child_container(scope=MyScope.SUBSTEP)
 
 ## See also
 
-- [Scopes: custom scopes](../providers/scopes.md#custom-scopes) — how members of different enums mix
+- [Scopes: custom scopes](../providers/scopes.md#custom-scopes): how members of different enums mix
   in one container tree.
-- [MaxScopeReachedError](max-scope-reached-error.md) — the error from `build_child_container()`
+- [MaxScopeReachedError](max-scope-reached-error.md): the error from `build_child_container()`
   without `scope=` at the last member of an enum.
