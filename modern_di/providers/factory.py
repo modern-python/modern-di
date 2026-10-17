@@ -180,7 +180,7 @@ class Factory(AbstractProvider[types.T_co]):
 
     @property
     def display_name(self) -> str:
-        if self.bound_type:
+        if self.bound_type is not None:
             return self.bound_type.__name__
         return getattr(self._creator, "__name__", repr(self._creator))
 

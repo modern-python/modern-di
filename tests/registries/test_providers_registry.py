@@ -341,3 +341,21 @@ def test_mutation_during_plan_build_does_not_strand_a_stale_plan(monkeypatch: py
 
     monkeypatch.undo()
     assert isinstance(container.resolve_provider(svc).dep, _RaceDep)
+
+
+class _EmptyMeta(type):
+    def __len__(cls) -> int:
+        return 0
+
+
+class _FalsyType(metaclass=_EmptyMeta): ...
+
+
+def test_bound_type_that_is_falsy_is_still_registered() -> None:
+    class Dependencies(Group):
+        falsy = providers.Factory(_FalsyType)
+
+    container = Container(groups=[Dependencies])
+
+    assert container.find_provider(_FalsyType) is Dependencies.falsy
+    assert isinstance(container.resolve(_FalsyType), _FalsyType)

@@ -144,7 +144,7 @@ class ProvidersRegistry:
         registered = {id(provider): provider for provider in (*new_providers.values(), *args)}
         for provider in registered.values():
             provider_type = provider.bound_type
-            if not provider_type or new_providers.get(provider_type) is provider:
+            if provider_type is None or new_providers.get(provider_type) is provider:
                 continue
             if provider_type in new_providers:
                 raise exceptions.DuplicateProviderTypeError(
