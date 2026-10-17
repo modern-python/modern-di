@@ -1,8 +1,11 @@
+import enum
 import threading
 import typing
 
 from modern_di import exceptions, suggester, types
+from modern_di.dependency_graph import terminal_chain
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.alias import Alias
 from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.resolver_compiler import compile_resolver
 from modern_di.wiring import WiringPlan
@@ -120,11 +123,17 @@ class ProvidersRegistry:
         provider = self._providers.get(dependency_type)
         if provider is None:
             raise exceptions.ProviderNotRegisteredError(
-                dependency_type=dependency_type, suggestions=suggester.suggest(dependency_type, self)
+                dependency_type=dependency_type,
+                suggestions=suggester.suggest(dependency_type, self, self.known_effective_scope),
             )
         resolver = self.resolver_for(provider)
         self._publish(self._resolvers_by_type, dependency_type, resolver, generation)
         return resolver
+
+    def known_effective_scope(self, provider: AbstractProvider[typing.Any]) -> enum.IntEnum | None:
+        """Return the effective scope of ``provider``, or None when a redirect on its chain has no source."""
+        terminal = terminal_chain(provider, self)[-1]
+        return None if type(terminal) is Alias else terminal.scope
 
     def drop_resolvers(self) -> None:
         """Drop the compiled resolvers — the overrides changed. Plans and the validation flag survive."""
