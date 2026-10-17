@@ -59,6 +59,7 @@ test-docs-integrations *args:
     uv venv --quiet "$dir/venv"
     uv pip install --quiet --python "$dir/venv" --overrides "$dir/overrides.txt" \
         --editable . pytest pytest-asyncio sybil {{ docs_integration_extras }} $packages
+    uv pip list --python "$dir/venv" | grep '^modern-di'
     "$dir/venv/bin/python" -m pytest docs --docs-integrations {{ args }}
 
 # The gated full run: 100% line and branch coverage of modern_di required. CI runs this.
