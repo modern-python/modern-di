@@ -291,8 +291,11 @@ What survives close and reopen depends on `CacheSettings`:
 `container.validate()` checks the whole graph in one pass: cycles, dependencies on a deeper scope,
 and dependencies nothing provides. Nothing else validates, not construction, `open()`,
 `add_providers` or `resolve()`. Without it, a broken graph surfaces at the first resolve that
-reaches the problem. It skips a provider declared with `bound_type=None` unless a provider registered
-by type depends on it; see [`bound_type`](factories.md#bound_type).
+reaches the problem. It checks every provider registered with the container, including one
+declared with `bound_type=None` that nothing depends on
+([#656](https://github.com/modern-python/modern-di/issues/656)); see
+[`bound_type`](factories.md#bound_type). A provider that was never registered and is only passed to
+`resolve_provider()` is not checked.
 
 ```python
 container = Container(groups=[Dependencies])

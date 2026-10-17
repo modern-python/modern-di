@@ -78,8 +78,8 @@ annotation.
 
 `bound_type=None` makes the provider resolvable only by reference: through
 `container.resolve_provider(Dependencies.some_provider)` or as a value in another factory's
-[`kwargs`](#kwargs). `container.validate()` does not check such a provider unless a provider
-registered by type depends on it, so a broken one fails on its first resolve instead
+[`kwargs`](#kwargs). If it is registered through a group or `add_providers`,
+`container.validate()` checks it the same way as a provider registered by type
 ([#656](https://github.com/modern-python/modern-di/issues/656)).
 
 A `NewType` or a `type X = ...` alias is a bound type of its own. A provider declared with

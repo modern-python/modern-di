@@ -5,13 +5,13 @@
 `build_child_container(scope=...)` raises it when the scope you pass is not deeper than the parent's:
 
 ```text
-modern_di.exceptions.container.InvalidChildScopeError: Scope of child container cannot be SESSION if parent scope is SESSION (child scope value must be strictly greater than parent scope value). Possible scopes are ['REQUEST', 'ACTION', 'STEP'].
+modern_di.exceptions.container.InvalidChildScopeError: Scope of child container cannot be SESSION if parent scope is SESSION. Pass any IntEnum member with a value greater than 2. Deeper members of Scope are ['REQUEST', 'ACTION', 'STEP'].
 See: https://modern-di.modern-python.org/troubleshooting/invalid-child-scope-error/
 ```
 
 `.parent_scope` and `.child_scope` hold the two scopes, and `.allowed_scopes` holds the members
-listed after `Possible scopes are`. The `Container(...)` constructor never raises this error, because
-a root container can start at any scope.
+listed after `Deeper members of Scope are`. The `Container(...)` constructor never raises this error,
+because a root container can start at any scope.
 
 ## Cause
 
@@ -19,10 +19,15 @@ A child's scope must have a strictly higher integer value than its parent's. A c
 scope (`Scope.SESSION` under a `SESSION` parent) or a shallower one (`Scope.APP` under a `SESSION`
 parent) raises.
 
-The check compares integer values, so a member of another `IntEnum` is accepted when its value is
-higher. The message and `.allowed_scopes` list only the deeper members of the parent's own enum,
-though. Under a `STEP` parent, or a parent at the last member of a custom enum, the message says
-`Possible scopes are [].` even though a higher-valued member of another enum would be accepted.
+The check compares integer values, so a member of any `IntEnum` with a higher value is accepted, and
+the message states that rule. It also lists the deeper members of the parent's own enum, the same
+members `.allowed_scopes` holds. Under a `STEP` parent, or a parent at the last member of a custom
+enum, there are none, so the message states only the rule and `.allowed_scopes` is empty:
+
+```text
+modern_di.exceptions.container.InvalidChildScopeError: Scope of child container cannot be STEP if parent scope is STEP. Pass any IntEnum member with a value greater than 5.
+See: https://modern-di.modern-python.org/troubleshooting/invalid-child-scope-error/
+```
 
 ## Fix
 
