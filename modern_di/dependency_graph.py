@@ -189,9 +189,13 @@ def find_cycle_from(
 
 
 def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
-    """Walk the graph rooted at ``registry``'s providers once; return every wiring error in walk order."""
+    """Walk the graph rooted at every provider in ``registry``, reference-only ones included, once.
+
+    Return every wiring error in walk order.
+    """
     errors: list[Exception] = []
-    for event in walk(roots=registry, registry=registry):
+    roots = [*registry, *registry.reference_only_providers()]
+    for event in walk(roots=roots, registry=registry):
         if type(event) is Edge:
             parent, name, dep = event
             dependency_chain = terminal_chain(dep, registry)
