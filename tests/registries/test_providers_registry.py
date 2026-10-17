@@ -87,26 +87,70 @@ def test_by_type_memo_is_filled_on_a_miss_and_cleared_by_mutation() -> None:
         registry.resolver_for_type(int)
 
 
-def test_providers_registry_add_provider_duplicates() -> None:
+def test_re_adding_the_same_provider_is_ignored() -> None:
     str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
+
+    providers_registry = ProvidersRegistry()
+    providers_registry.add_providers(str_factory)
+    providers_registry.add_providers(str_factory, str_factory)
+
+    assert providers_registry.find_provider(str) is str_factory
+    assert len(providers_registry) == 1
+
+
+def test_a_distinct_provider_for_a_bound_type_raises() -> None:
+    str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
+    other_str_factory = providers.Factory(creator=lambda: "other", bound_type=str)
 
     providers_registry = ProvidersRegistry()
     providers_registry.add_providers(str_factory)
 
     with pytest.raises(DuplicateProviderTypeError, match="Provider is duplicated by type <class 'str'>") as exc:
-        providers_registry.add_providers(str_factory)
-    assert exc.value.provider_type is str
+        providers_registry.add_providers(str_factory, other_str_factory)
+    assert exc.value.first_provider is str_factory
+    assert exc.value.second_provider is other_str_factory
+
+
+def test_re_binding_the_same_provider_is_ignored() -> None:
+    str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
+
+    providers_registry = ProvidersRegistry()
+    providers_registry.add_providers(bindings={str: str_factory})
+    providers_registry.add_providers(str_factory, bindings={str: str_factory})
+
+    assert providers_registry.find_provider(str) is str_factory
 
 
 def test_providers_registry_binding_duplicate_raises() -> None:
     str_factory = providers.Factory(creator=lambda: "string", bound_type=str)
+    other_str_factory = providers.Factory(creator=lambda: "other", bound_type=str)
 
     providers_registry = ProvidersRegistry()
     providers_registry.add_providers(bindings={str: str_factory})
 
     with pytest.raises(DuplicateProviderTypeError, match="Provider is duplicated by type <class 'str'>") as exc:
-        providers_registry.add_providers(bindings={str: str_factory})
+        providers_registry.add_providers(bindings={str: other_str_factory})
     assert exc.value.provider_type is str
+
+
+def test_a_repeated_provider_is_latched_once_per_add(monkeypatch: pytest.MonkeyPatch) -> None:
+    bound = providers.Factory(creator=lambda: "string", bound_type=str)
+    unbound = providers.Factory(creator=lambda: "other", bound_type=None)
+    latched: list[tuple[AbstractProvider[typing.Any], ...]] = []
+    original_add = ProvidersRegistry._add
+
+    def spy_add(
+        self: ProvidersRegistry,
+        new_providers: dict[type, AbstractProvider[typing.Any]],
+        registered: tuple[AbstractProvider[typing.Any], ...],
+    ) -> None:
+        latched.append(registered)
+        original_add(self, new_providers, registered)
+
+    monkeypatch.setattr(ProvidersRegistry, "_add", spy_add)
+    ProvidersRegistry().add_providers(bound, unbound, bound, unbound, bindings={str: bound})
+
+    assert [list(map(id, registered)) for registered in latched] == [[id(bound), id(unbound)]]
 
 
 class _RaceBase: ...

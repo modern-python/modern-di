@@ -74,9 +74,8 @@ class GroupB(Group, scope=Scope.REQUEST):
     svc = shared
 ```
 
-In both of these, pass only one of the two groups to a given container. They list the same provider
-instance, and `Container(groups=[GroupA, GroupB])` currently raises
-[`DuplicateProviderTypeError`](duplicate-type-error.md) naming that one provider twice.
+In both of these the two groups list the same provider instance, so `Container(groups=[GroupA, GroupB])`
+registers it once.
 
 Or give each group its own provider instance. The two then need different types, or `bound_type=None`
 on one, to avoid a [`DuplicateProviderTypeError`](duplicate-type-error.md) when both groups go into

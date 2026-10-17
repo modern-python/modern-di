@@ -775,6 +775,31 @@ def test_add_providers_registers_and_resolves_by_type_and_reference() -> None:
     assert container.resolve_provider(str_factory) == "added"
 
 
+def test_repeated_providers_resolve_override_and_finalize_once() -> None:
+    finalized: list[str] = []
+    cached = providers.Factory(
+        creator=lambda: "cached", bound_type=str, cache=providers.CacheSettings(finalizer=finalized.append)
+    )
+    unbound = providers.Factory(creator=lambda: 1, bound_type=None)
+
+    class Base(Group):
+        str_provider = cached
+        int_provider = unbound
+
+    class Child(Base): ...
+
+    container = Container(scope=Scope.APP, groups=[Base, Child, Base])
+    container.add_providers(cached, unbound, cached)
+    container.validate()
+
+    assert container.resolve(str) == "cached"
+    with container.override(unbound, 2):
+        assert container.resolve_provider(unbound) == 2  # noqa: PLR2004
+    assert container.resolve_provider(unbound) == 1
+    container.close_sync()
+    assert finalized == ["cached"]
+
+
 def test_add_providers_raises_on_duplicate_against_registered() -> None:
     str_factory = providers.Factory(creator=lambda: "one", bound_type=str)
     other_str_factory = providers.Factory(creator=lambda: "two", bound_type=str)

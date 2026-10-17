@@ -136,29 +136,35 @@ class ProvidersRegistry:
         *args: AbstractProvider[typing.Any],
         bindings: dict[type, AbstractProvider[typing.Any]] | None = None,
     ) -> None:
-        """Bind each of ``args`` under its bound type and each of ``bindings`` under its key, in one mutation."""
+        """Bind each of ``args`` under its bound type and each of ``bindings`` under its key, in one mutation.
+
+        A provider object seen again, in this call or already bound under that type, is ignored.
+        """
         new_providers = dict(bindings) if bindings else {}
-        for provider in args:
-            if not provider.bound_type:
+        registered = {id(provider): provider for provider in (*new_providers.values(), *args)}
+        for provider in registered.values():
+            provider_type = provider.bound_type
+            if not provider_type or new_providers.get(provider_type) is provider:
                 continue
-            if provider.bound_type in new_providers:
+            if provider_type in new_providers:
                 raise exceptions.DuplicateProviderTypeError(
-                    provider_type=provider.bound_type,
-                    first_provider=new_providers[provider.bound_type],
+                    provider_type=provider_type,
+                    first_provider=new_providers[provider_type],
                     second_provider=provider,
                 )
-            new_providers[provider.bound_type] = provider
-        self._add(new_providers, (*bindings.values(), *args) if bindings else args)
+            new_providers[provider_type] = provider
+        self._add(new_providers, tuple(registered.values()))
 
     def _add(
         self,
         new_providers: dict[type, AbstractProvider[typing.Any]],
         registered: tuple[AbstractProvider[typing.Any], ...],
     ) -> None:
-        """Bind ``new_providers`` and latch every provider in ``registered``; a type already bound raises."""
+        """Bind ``new_providers`` and latch each of ``registered``; a type bound to another provider raises."""
         with self._lock:
             for provider_type, provider in new_providers.items():
-                if (existing := self._providers.get(provider_type)) is not None:
+                existing = self._providers.get(provider_type)
+                if existing is not None and existing is not provider:
                     raise exceptions.DuplicateProviderTypeError(
                         provider_type=provider_type, first_provider=existing, second_provider=provider
                     )

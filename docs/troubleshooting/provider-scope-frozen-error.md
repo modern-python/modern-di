@@ -90,9 +90,8 @@ container = Container(scope=Scope.APP, groups=[ScopedGroup])
 assert shared.scope == Scope.REQUEST
 ```
 
-Pass only one of the two groups to a given container. Both list the same provider instance, and
-`Container(groups=[PlainGroup, ScopedGroup])` currently raises
-[`DuplicateProviderTypeError`](duplicate-type-error.md) naming that one provider twice.
+Both groups list the same provider instance, so `Container(groups=[PlainGroup, ScopedGroup])`
+registers it once.
 
 Or give the scoped group its own provider instance instead of sharing one:
 
