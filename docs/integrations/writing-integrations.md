@@ -237,7 +237,8 @@ in for a type at call sites.
   can then resolve APP-scoped dependencies, and APP finalizers run last. With a context-manager
   lifespan, make the container the outer context, as `setup_di` above does. With callback hooks,
   the close must run after every shutdown hook, including ones registered after `setup_di`.
-  FastStream registers its close at startup, and taskiq moves its close to the end at shutdown.
+  FastStream and aiogram register their close at startup, Celery moves its close to the end when the
+  worker starts, and taskiq moves its close to the end at shutdown.
   Where the framework can't give that order, say on the docs page which user code runs outside it,
   as the [aiohttp](aiohttp.md) and [FastMCP](fastmcp.md) pages do.
 - Reopen the root container on startup. A container closed on shutdown stays closed, and the next

@@ -99,13 +99,34 @@ to a WebSocket. See [the scope hierarchy](../providers/scopes.md#what-each-scope
 
 ## Root container lifecycle
 
-`setup_di` registers `container.open` on `dispatcher.startup` and `container.close_async` on
+`setup_di` opens the root container on `dispatcher.startup` and closes it with `close_async()` on
 `dispatcher.shutdown`, and closing runs APP-scoped finalizers. `start_polling()` emits both
 events, and so does an aiohttp app wired with aiogram's `setup_application()`.
 
+Since modern-di-aiogram 4.3.0, shutdown runs in this order: the plugin waits for the updates still
+in flight, then the shutdown handlers run (the dispatcher's, then every sub-router's), and the root
+closes last. aiogram can still be handling updates when it emits shutdown, for example when polling
+with `handle_as_tasks=True` (the default), so without the wait those handlers could outlive the
+container. Shutdown handlers registered after `setup_di` or on sub-routers can resolve
+APP-scoped dependencies, and APP finalizers run last. `setup_di` sets this order on each startup,
+so a shutdown handler added during or after startup gets it from the next startup on.
+
+The wait has no limit by default. Pass `shutdown_timeout` in seconds to cap it:
+
+```python
+timed_dispatcher = Dispatcher()
+setup_di(timed_dispatcher, Container(groups=[AppGroup]), shutdown_timeout=10)
+```
+
+When it expires, a warning on the `modern_di_aiogram` logger names how many updates are still in
+flight, and the root closes anyway, so those updates get `ContainerClosedError` on their next
+APP-scoped resolve. Some things can close before the wait starts, such as the bot session in
+webhook mode; see the [modern-di-aiogram README](https://github.com/modern-python/modern-di-aiogram#shutdown).
+
 Since modern-di-aiogram 4.2.0, `setup_di(dispatcher, container, manage_lifespan=False)` registers
 neither hook and leaves the root container's open and close to you, for a container shared with
-another app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).
+another app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening). The plugin then does
+not wait for updates in flight either.
 
 ## Framework context objects
 
@@ -360,7 +381,7 @@ await test_report()
 
 | Symbol | Description |
 |---|---|
-| `setup_di(dispatcher, container, *, auto_inject=False, manage_lifespan=True)` | Stores the container on the dispatcher, registers `aiogram_update_provider`/`aiogram_event_provider`, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close the container (not with `manage_lifespan=False`), and installs the per-update middleware. With `auto_inject=True`, also wraps every handler already registered on the dispatcher at startup. |
+| `setup_di(dispatcher, container, *, auto_inject=False, manage_lifespan=True, shutdown_timeout=None)` | Stores the container on the dispatcher, registers `aiogram_update_provider`/`aiogram_event_provider`, and installs the per-update middleware. Unless `manage_lifespan=False`, opens the container on `dispatcher.startup`; on shutdown waits for updates in flight (at most `shutdown_timeout` seconds when set) before the other shutdown handlers and closes the container after all of them. With `auto_inject=True`, also wraps every handler already registered on the dispatcher at startup. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-update child container. |
 | `inject` | Decorator for a sync or `async def` aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed. |
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher. |

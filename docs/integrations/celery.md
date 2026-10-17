@@ -105,6 +105,12 @@ Under prefork each child process gets its own APP-scoped instances. `worker_init
 container and closing one with nothing cached are both no-ops, so the overlap is
 harmless.
 
+Since modern-di-celery 4.2.0, the root closes after every other `worker_shutdown` and
+`worker_process_shutdown` receiver, including ones connected after `setup_di`, so they can still
+resolve APP-scoped dependencies and APP finalizers run last. The plugin moves its close to the end
+of each signal when the worker or child process starts, so a receiver connected after that runs
+after the close. On a warm shutdown, Celery lets running tasks finish before it sends these signals.
+
 !!! note "Prefork with the spawn start method"
     Celery starts prefork children with fork on Linux and macOS. Spawn is used on Windows or
     when you force it with `billiard.set_start_method("spawn", force=True)`, and Celery then
@@ -186,7 +192,7 @@ with container:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container, *, manage_lifespan=True)` | Wire the APP-scope container into Celery: registers it for the app and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`, unless `manage_lifespan=False`. Returns the container. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Wire the APP-scope container into Celery: registers it for the app and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`, unless `manage_lifespan=False`. The close runs after every other receiver of the shutdown signal connected before the worker starts. Returns the container. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. |
 | `@inject` | Decorator that builds a `Scope.REQUEST` child container per call, resolves `FromDI`-annotated parameters from it, and closes the child container with `close_sync()` afterwards. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called. A task with `FromDI` parameters that also declares `*args`/`**kwargs` raises `TypeError` at decoration. |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` method automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)`. |

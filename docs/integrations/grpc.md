@@ -125,14 +125,18 @@ greeter_pb2_grpc.add_GreeterServicer_to_server(GreeterService(), server)
 container.validate()  # after DIInterceptor(container) — it registers ServicerContext's provider
 server.add_insecure_port("[::]:50051")
 server.start()
-server.wait_for_termination()
+try:
+    server.wait_for_termination()
+finally:
+    server.stop(grace=5).wait()   # let in-flight RPCs finish before APP finalizers run
+    container.close_sync()
 ```
 
 <!-- invisible-code-block: python
 from unittest import mock
 
 grpc.server = real_grpc_server
-sync_server = server
+container.open()
 peer_context = mock.Mock(spec=grpc.ServicerContext)
 peer_context.peer.return_value = "ipv4:127.0.0.1:1"
 say_hello = DIInterceptor(container).intercept_service(
@@ -179,6 +183,7 @@ server = grpc.aio.server(interceptors=[DIAioInterceptor(container)])
 ```
 
 <!-- invisible-code-block: python
+del server
 asyncio.get_event_loop().close()
 asyncio.set_event_loop(None)
 -->
@@ -260,16 +265,11 @@ argument.
 
 gRPC has no server startup/shutdown hook, so the root container's lifecycle is
 yours to own (as with Flask). Build the container, pass it to the interceptor, and
-close it after the server stops to run APP-scoped finalizers:
-
-<!-- invisible-code-block: python
-server = sync_server
--->
-
-```python
-server.stop(grace=5).wait()
-container.close_sync()          # or: await container.close_async() on grpc.aio
-```
+close it after the server stops to run APP-scoped finalizers. The sync example above
+does this in a `finally`, so Ctrl+C still runs them. `server.stop(grace=5)` stops taking
+new RPCs and gives the ones in flight up to 5 seconds to finish, and `.wait()` blocks until
+the server has stopped, so the close does not run under them. On `grpc.aio`, use
+`await server.stop(5)` and then `await container.close_async()`.
 
 ## Resolving without `@inject`
 
