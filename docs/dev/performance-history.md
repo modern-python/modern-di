@@ -158,6 +158,25 @@ Against the commit before the series: −31% on a child build (G6), −37% with 
 (G8), −9 to −11% on `validate()` (G10, G11) and about −23% on building a `Factory`. A child
 container takes 504 bytes instead of 584. Warm resolves (G1-G4) moved less than 2% either way.
 
+## After 4.1: a code object per factory
+
+Each factory now runs on its own copy of its shape's code object. The 3.5 table measured this
+design at −21% on G3 and −30% on G4, and it lost then because a copy meant a `compile()` per
+provider. `code.replace()` copies already compiled code in 0.2-0.6 µs, so the shape is still
+compiled once, and only the copy is made per factory.
+
+Guard tier on 3.14.7, six alternating runs against main (`6ff9b77`):
+
+| G3 chain (6) | G4 wide (10) | G12 override active | G8 cold | G8b cold, cached |
+|---|---|---|---|---|
+| −22.5% | −22.4% | −25.6% | +35.4% | +35.2% |
+
+The other scenarios moved by less than 4%. A single-node resolve does not share a code object with
+its dependency, because the two have different shapes, so it had nothing to gain. The cold cost is
+about 1 µs per factory on its first compile, paid again after an override change drops the compiled
+resolvers. A spot check on 3.11, 3.12, 3.13, 3.15 and free-threaded 3.14 gave the same split, with a
+repeated six-deep resolve 14-33% faster on each.
+
 ## Comparative cells across publications
 
 C4 and C6 are the per-request scenarios, and 4.0 moved both. C6 builds a REQUEST child seeded with a

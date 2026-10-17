@@ -16,7 +16,7 @@ import typing
 
 import pytest
 
-from modern_di import Container, Group, Scope, exceptions, providers
+from modern_di import Container, Group, Scope, exceptions, providers, resolver_compiler
 from modern_di.providers import ContextProvider
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.registries.providers_registry import ProvidersRegistry
@@ -752,11 +752,12 @@ def test_every_resolver_shape_compiles_and_resolves(arity: int, positional: bool
     assert (again is bag) is cached
 
 
-def test_factories_of_one_shape_share_a_code_object() -> None:
-    """INVARIANT: resolvers of the same shape share one code object; only their globals differ.
+def test_each_factory_owns_a_copy_of_its_shapes_code_object() -> None:
+    """INVARIANT: a shape is compiled once, and each factory's resolver runs on its own copy of it.
 
-    The shape is the cache key for `compile()`, which costs ~70 us per call. Keying on anything
-    provider-specific would pay that per provider instead of per shape.
+    The specialising interpreter keeps its inline caches on the code object. Sharing one across a
+    shape's factories makes every call site in it polymorphic, which costs 20-30% on a chain. A copy
+    is a `code.replace()`, under 1 us; `compile()` costs ~70 us, so it stays once per shape.
     """
 
     class _G(Group):
@@ -764,13 +765,17 @@ def test_factories_of_one_shape_share_a_code_object() -> None:
         right = providers.Factory(creator=_L2, scope=Scope.APP)
         leaf = providers.Factory(creator=_L0, scope=Scope.APP)
 
+    shapes = 2  # left and right take one positional argument, leaf takes none
+    resolver_compiler._code.cache_clear()
     container = Container(scope=Scope.APP, groups=[_G])
     left = typing.cast("_pytypes.FunctionType", container._providers_registry.resolver_for(_G.left))
     right = typing.cast("_pytypes.FunctionType", container._providers_registry.resolver_for(_G.right))
     leaf = typing.cast("_pytypes.FunctionType", container._providers_registry.resolver_for(_G.leaf))
 
-    assert left.__code__ is right.__code__
-    assert leaf.__code__ is not left.__code__
+    assert resolver_compiler._code.cache_info().misses == shapes
+    assert left.__code__ is not right.__code__
+    assert left.__code__.co_code == right.__code__.co_code
+    assert leaf.__code__.co_code != left.__code__.co_code
     assert left.__qualname__ == "resolve[_L1]"
 
 

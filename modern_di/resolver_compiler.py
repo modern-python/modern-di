@@ -19,6 +19,7 @@ import functools
 import itertools
 import linecache
 import typing
+from types import CodeType
 
 from modern_di import exceptions, types
 from modern_di.cache import CacheItem
@@ -33,8 +34,6 @@ from modern_di.wiring import argument_resolution_error
 
 
 if typing.TYPE_CHECKING:
-    from types import CodeType
-
     from modern_di import Container
     from modern_di.registries.providers_registry import ProvidersRegistry
     from modern_di.wiring import WiringPlan
@@ -148,12 +147,21 @@ _shape_ids = itertools.count()
 
 
 @functools.cache
-def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool) -> "tuple[CodeType, dict[int, int]]":
-    """Compile one shape's source, so factories of one shape share a code object."""
+def _code(arity: int, names: tuple[str, ...] | None, static: bool, cached: bool) -> tuple[CodeType, dict[int, int]]:
+    """Compile one shape's source once; each factory runs on its own copy (see `_own_copy`)."""
     source, arg_lines = _source(arity, names, static, cached)
     filename = f"<modern_di resolver shape {next(_shape_ids)}>"
     linecache.cache[filename] = (len(source), None, source.splitlines(keepends=True), filename)
     return compile(source, filename, "exec"), arg_lines
+
+
+def _own_copy(code: CodeType) -> CodeType:
+    """Return `code` with fresh copies of the function code objects it defines.
+
+    The specialising interpreter caches on the code object, so a copy keeps one factory's call sites
+    from sharing caches with the rest of its shape.
+    """
+    return code.replace(co_consts=tuple(c.replace() if isinstance(c, CodeType) else c for c in code.co_consts))
 
 
 def _navigate(
@@ -195,6 +203,7 @@ def _compile_factory(f: "Factory[typing.Any]", registry: "ProvidersRegistry") ->
         bool(plan.static_kwargs),
         f.cache_settings is not None,
     )
+    code = _own_copy(code)
     namespace = _FACTORY_GLOBALS.copy()
     namespace["provider"] = f
     namespace["cache_settings"] = f.cache_settings
