@@ -22,7 +22,7 @@ import typing
 
 from modern_di import exceptions, types
 from modern_di.cache import CacheItem
-from modern_di.dependency_graph import redirect_hops, terminal_chain
+from modern_di.dependency_graph import redirect_hops, reference_only_sources, terminal_chain
 from modern_di.exceptions.rendering import UNKNOWN_SCOPE, provider_step
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
@@ -112,7 +112,7 @@ _CACHED = (
     cache_items = target._cache_items
     cache_item = cache_items.get(pid)
     if cache_item is None:
-        cache_item = cache_items.setdefault(pid, CacheItem(settings=cache_settings))
+        cache_item = cache_items.setdefault(pid, CacheItem(cache_settings))
     cached = cache_item.cache
     if cached is not UNSET:
         return cached
@@ -271,7 +271,9 @@ def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "Re
         return registry.resolver_for(source)
 
     def resolve(_: "Container") -> typing.Any:
-        error = exceptions.AliasSourceNotRegisteredError(source_type=source_type)
+        error = exceptions.AliasSourceNotRegisteredError(
+            source_type=source_type, reference_only_providers=reference_only_sources(source_type, registry)
+        )
         error._prepend_step(provider_step(a, UNKNOWN_SCOPE))
         raise error
 

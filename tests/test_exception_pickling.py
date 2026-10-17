@@ -139,7 +139,9 @@ BUILDERS: dict[type[exceptions.ModernDIError], typing.Callable[[], BaseException
     exceptions.ProviderNotRegisteredError: lambda: _with_path(
         exceptions.ProviderNotRegisteredError(dependency_type=Database, suggestions=_SUGGESTIONS)
     ),
-    exceptions.AliasSourceNotRegisteredError: lambda: exceptions.AliasSourceNotRegisteredError(source_type=Database),
+    exceptions.AliasSourceNotRegisteredError: lambda: exceptions.AliasSourceNotRegisteredError(
+        source_type=Database, reference_only_providers=[_request_provider]
+    ),
     exceptions.ArgumentResolutionError: lambda: exceptions.ArgumentResolutionError(
         parameter_name="database",
         parameter_type=None,
@@ -218,7 +220,9 @@ _SLOTTED_PROVIDERS_DEGRADE = {"pickle-0", "pickle-1"}
 
 def _degrade_providers(state: dict[str, typing.Any]) -> dict[str, typing.Any]:
     return {
-        name: repr(value) if name in {"provider", "dependency_chain", "first_provider", "second_provider"} else value
+        name: repr(value)
+        if name in {"provider", "dependency_chain", "first_provider", "second_provider", "reference_only_providers"}
+        else value
         for name, value in state.items()
     }
 

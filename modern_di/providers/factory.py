@@ -18,7 +18,7 @@ class CacheSettings(typing.Generic[types.T_contra]):
     ``finalizer`` runs on the instance when its container closes; it may be sync or async. With
     ``clear_cache=True``, the default, the instance is dropped at close and rebuilt on the next
     resolve after reopening. With ``clear_cache=False`` the same instance survives close and reopen,
-    and its finalizer runs only once.
+    and its finalizer is called only at the first close, even if it raises.
     """
 
     clear_cache: bool = True
@@ -62,6 +62,7 @@ class Factory(AbstractProvider[types.T_co]):
         "_kwargs",
         "_params",
         "_positional_names",
+        "_return_type",
     )
 
     def __init__(  # noqa: PLR0913
@@ -78,6 +79,7 @@ class Factory(AbstractProvider[types.T_co]):
             creator, bound_type=bound_type, kwargs=kwargs, skip_creator_parsing=skip_creator_parsing
         )
         self._params = parsed.params
+        self._return_type = parsed.return_type.arg_type
         names = tuple(parsed.params)
         self._positional_names: tuple[str, ...] | None = names
         if (names and parsed.has_positional_only_gap) or any(item.is_keyword_only for item in parsed.params.values()):
@@ -180,7 +182,7 @@ class Factory(AbstractProvider[types.T_co]):
 
     @property
     def display_name(self) -> str:
-        if self.bound_type:
+        if self.bound_type is not None:
             return self.bound_type.__name__
         return getattr(self._creator, "__name__", repr(self._creator))
 

@@ -144,9 +144,12 @@ def test_concurrent_first_resolves_of_one_provider_build_once() -> None:
 
 async def test_close_async_runs_only_owed_finalizers_and_empties_the_order() -> None:
     finalized: list[object] = []
-    plain = CacheItem(settings=CacheSettings(), cache="plain")
-    persistent = CacheItem(settings=CacheSettings(clear_cache=False), cache="persistent")
-    with_finalizer = CacheItem(settings=CacheSettings(finalizer=finalized.append), cache="finalized")
+    plain = CacheItem(settings=CacheSettings())
+    plain.cache = "plain"
+    persistent = CacheItem(settings=CacheSettings(clear_cache=False))
+    persistent.cache = "persistent"
+    with_finalizer = CacheItem(settings=CacheSettings(finalizer=finalized.append))
+    with_finalizer.cache = "finalized"
     never_built = CacheItem(settings=CacheSettings(finalizer=finalized.append))
     creation_order = [plain, persistent, with_finalizer, never_built]
 

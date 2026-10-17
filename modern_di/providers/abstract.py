@@ -121,7 +121,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
     @property
     def display_name(self) -> str:
         """Human-readable name for error messages and resolution steps: the bound type's, else the repr."""
-        return self.bound_type.__name__ if self.bound_type else repr(self)
+        return self.bound_type.__name__ if self.bound_type is not None else repr(self)
 
     @property
     def definition_site(self) -> str | None:

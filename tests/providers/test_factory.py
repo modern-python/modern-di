@@ -1308,3 +1308,22 @@ def test_factory_accepts_sync_partial() -> None:
     creator = functools.partial(SimpleCreator, dep1="x")
     factory = providers.Factory(creator, scope=Scope.APP, bound_type=SimpleCreator, skip_creator_parsing=True)
     assert isinstance(factory, providers.Factory)
+
+
+class _EmptyMeta(type):
+    def __len__(cls) -> int:
+        return 0
+
+
+class _FalsyType(metaclass=_EmptyMeta): ...
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        pytest.param(providers.Factory(_FalsyType, bound_type=_FalsyType), id="Factory"),
+        pytest.param(providers.ContextProvider(_FalsyType), id="ContextProvider"),
+    ],
+)
+def test_display_name_of_a_falsy_bound_type_is_its_name(provider: providers.AbstractProvider[typing.Any]) -> None:
+    assert provider.display_name == "_FalsyType"
