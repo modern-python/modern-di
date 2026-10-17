@@ -158,6 +158,45 @@ Since modern-di-litestar 4.1.0, `ModernDIPlugin(container, manage_lifespan=False
 hook and leaves the root container's open and close to you, for a container shared with another
 app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).
 
+### Streaming responses
+
+Litestar runs dependency cleanup when the handler returns, before it sends the response, so the
+child container is already closed while a `Stream` or `ServerSentEvent` body runs. A REQUEST-scoped
+instance the handler got through `FromDI` has been finalized by then. A database session would be
+closed, for example. To use REQUEST-scoped dependencies in the body, open a REQUEST child of the
+root container inside the generator:
+
+```python
+import collections.abc
+
+from litestar.response import Stream
+
+
+@litestar.get("/report-stream")
+async def stream_report(request: litestar.Request) -> Stream:
+    async def body() -> collections.abc.AsyncIterator[str]:
+        root = modern_di_litestar.fetch_di_container(request.app)
+        async with root.build_child_container(scope=Scope.REQUEST) as request_container:
+            yield request_container.resolve(Report).as_dict()["service"]
+
+    return Stream(body())
+
+
+stream_app = litestar.Litestar(
+    route_handlers=[stream_report],
+    plugins=[modern_di_litestar.ModernDIPlugin(Container(groups=[AppGroup]))],
+)
+```
+
+<!-- invisible-code-block: python
+with TestClient(stream_app) as client:
+    assert client.get("/report-stream").text == "catalog"
+-->
+
+That child closes when the generator finishes. It has no `litestar.Request` in its context, so a
+factory that takes the request cannot be resolved from it. Pass the values such a factory needs
+into the generator instead.
+
 ## Websockets
 
 In a websocket handler, `di_container` is the connection's `Scope.SESSION` container, which lives
