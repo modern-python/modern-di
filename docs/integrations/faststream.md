@@ -88,6 +88,11 @@ installs the middleware on every broker. An `after_shutdown` hook closes the roo
 `close_async()`, which runs APP-scoped finalizers. Because startup reopens the container,
 an app that stops and starts again on the same container works.
 
+Since modern-di-faststream 4.1.0, `setup_di(app, container, manage_lifespan=False)` registers
+neither the open hook nor the close hook and leaves the root container's open and close to you, for
+a container shared with another app; see
+[FastAPI and FastStream sharing a container](../recipes/shared-container.md).
+
 Since modern-di-faststream 4.0.1, the integration keeps its containers in the FastStream context
 under the keys `modern_di_root_container` and `modern_di_request_container`, so a context value of
 your own named `di_container` or `request_container` no longer replaces them. Code that read
@@ -242,7 +247,7 @@ Between `setup_di` and startup no broker carries the middleware yet; see
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Wire the APP-scope container into FastStream: at startup, installs the middleware that creates a REQUEST child container per message on every broker of the app, and raises `RuntimeError` if there is none by then; closes the APP container at shutdown. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Wire the APP-scope container into FastStream: at startup, installs the middleware that creates a REQUEST child container per message on every broker of the app, and raises `RuntimeError` if there is none by then; opens the APP container at startup and closes it at shutdown, unless `manage_lifespan=False`. |
 | `FromDI(dependency, *, use_cache=True, cast=False)` | A `faststream.Depends` wrapper for `Annotated[T, FromDI(...)]` in subscriber signatures; accepts a provider instance or a plain type. `use_cache` and `cast` are passed through to `faststream.Depends`. Raises `RuntimeError` naming `setup_di` when a message reaches it without the middleware installed. |
 | `fetch_di_container(app)` | Returns the APP-scope container registered with the FastStream app. |
 | `faststream_message_provider` | `ContextProvider` for the current `faststream.StreamMessage`. |

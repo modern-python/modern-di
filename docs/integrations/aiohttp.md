@@ -121,6 +121,10 @@ The root container is open from the moment you construct it. `setup_di` reopens 
 closes it with `close_async()` on cleanup. An app attached with `add_subapp` receives both signals
 from its parent, so a `setup_di`-wired sub-app is closed too.
 
+Since modern-di-aiohttp 4.2.0, `setup_di(app, container, manage_lifespan=False)` registers neither
+the startup nor the cleanup hook and leaves the root container's open and close to you, for a
+container shared with another app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).
+
 A sub-app route resolves from the sub-app's container when the sub-app called `setup_di`, and from
 the parent's otherwise. When both call it, each middleware opens and closes its own child container
 for the request. Before modern-di-aiohttp 4.1.0, calling `setup_di` on both made every sub-app route
@@ -260,7 +264,7 @@ with warnings.catch_warnings():
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Stores the container on the app, registers the request and websocket context providers, reopens the container on startup and closes it on cleanup, and installs the middleware that builds a per-connection child container; returns the container. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Stores the container on the app, registers the request and websocket context providers, reopens the container on startup and closes it on cleanup (neither with `manage_lifespan=False`), and installs the middleware that builds a per-connection child container; returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
 | `inject` | Decorator for a sync or `async def` `handler(request: web.Request, ...)`, or an `async def` method of a `web.View` subclass; resolves its `FromDI`-annotated parameters. Raises `TypeError` when the handler receives neither a `web.Request` nor a `web.View`, and `RuntimeError` naming `setup_di` when the request did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on the app. |

@@ -119,8 +119,9 @@ assert with_request.resolve(AuditLog).client_host == "10.0.0.1"
 The same works with an integration's provider. With `modern-di-fastapi` set up, an
 `AuditLog(request: fastapi.Request | None = None)` gets the real request inside a FastAPI handler
 and `None` in a FastStream consumer that shares the container. The provider itself stays required,
-so `container.resolve(fastapi.Request)` outside a request still raises. Both apps then close the
-same container at shutdown; see [Closing and reopening](lifecycle.md#closing-and-reopening).
+so `container.resolve(fastapi.Request)` outside a request still raises. A container shared by
+two apps needs one owner to open and close it; see
+[FastAPI and FastStream sharing a container](../recipes/shared-container.md).
 
 The fallback has limits:
 

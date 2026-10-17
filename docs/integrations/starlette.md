@@ -176,6 +176,12 @@ a `lifespan=` you passed to `Starlette()` stays the outer context and the state 
 through, the container reopens on startup, and it closes with `close_async()` on shutdown. The
 lifespan shutdown is the only thing that closes the root container.
 
+Since modern-di-starlette 4.2.0, `setup_di(app, container, manage_lifespan=False)` leaves the root
+container's open and close to you, for a container shared with another app; see
+[Lifecycle](../providers/lifecycle.md#closing-and-reopening). The flag covers only this app's own
+container. The lifespan still opens and closes the container of each [mounted app](#mounted-apps),
+unless that app's own `setup_di` set the flag to `False`.
+
 ### Mounted apps
 
 An app mounted with `Mount` can call `setup_di` with its own container. Its routes then resolve
@@ -302,7 +308,7 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Stores the container on `app.state`, registers the request and websocket context providers, wraps the lifespan so the container reopens on startup and closes on shutdown, along with the root container of each mounted app that called `setup_di`, and installs the middleware that builds a per-connection child container; returns the container. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Stores the container on `app.state`, registers the request and websocket context providers, wraps the lifespan so the container reopens on startup and closes on shutdown, along with the root container of each mounted app that called `setup_di`, and installs the middleware that builds a per-connection child container. With `manage_lifespan=False`, this app's own container is left to you. Returns the container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-connection child container. |
 | `inject` | Decorator for a sync or `async def` `handler(connection: Request | WebSocket, ...)`, a function endpoint or a method of an `HTTPEndpoint` / `WebSocketEndpoint` subclass; resolves its `FromDI`-annotated parameters. Raises `TypeError` when the handler receives no `Request` or `WebSocket` positionally, and `RuntimeError` naming `setup_di` when the connection did not pass through the middleware. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.state`. |

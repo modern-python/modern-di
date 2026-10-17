@@ -129,6 +129,12 @@ a `lifespan=` you passed to `FastAPI()` stays the outer context and the state it
 through, the container reopens on startup, and it closes with `close_async()` on shutdown. The
 lifespan shutdown is the only thing that closes the root container.
 
+Since modern-di-fastapi 4.1.0, `setup_di(app, container, manage_lifespan=False)` leaves the root
+container's open and close to you, for a container shared with another app; see
+[FastAPI and FastStream sharing a container](../recipes/shared-container.md). The flag covers only
+this app's own container. The lifespan still opens and closes the container of each
+[mounted app](#mounted-apps), unless that app's own `setup_di` set the flag to `False`.
+
 ### Mounted apps
 
 A FastAPI app mounted with `app.mount` can call `setup_di` with its own container, and its routes
@@ -243,7 +249,7 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Stores the container on the app, registers the request and websocket context providers, and wraps the app's lifespan (any `lifespan=` you passed included) so the container reopens on startup and closes on shutdown, along with the root container of each mounted FastAPI app that called `setup_di`; returns the container. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Stores the container on the app, registers the request and websocket context providers, and wraps the app's lifespan (any `lifespan=` you passed included) so the container reopens on startup and closes on shutdown, along with the root container of each mounted FastAPI app that called `setup_di`; with `manage_lifespan=False`, this app's own container is left to you. Returns the container. |
 | `FromDI(dependency, *, use_cache=True)` | A `fastapi.Depends` that resolves a provider or type from the connection's child container (REQUEST for HTTP, SESSION for a websocket). Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
 | `build_di_container(connection)` | A `fastapi.Depends` callable that yields the connection's child container: REQUEST scope for an HTTP request, SESSION scope for a websocket. |
 | `fastapi_request_provider` | `ContextProvider` for `fastapi.Request` (REQUEST scope), auto-registered. |

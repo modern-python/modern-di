@@ -68,10 +68,11 @@ comes from and stop it outliving the container. Reopening there would hide the l
 cached after the reopen would never be finalized, because the shutdown that should close it has
 already run.
 
-Two apps that share one root container close it for each other. Each integration closes the root
-at its app's shutdown, so when one app stops, the other's next resolve of an APP-scoped provider
-raises. Stop the apps together, or give each app its own container. See
-[Lifecycle: closing and reopening](../providers/lifecycle.md#closing-and-reopening).
+Two apps that share one root container close it for each other. By default each integration
+closes the root at its app's shutdown, so when one app stops, the other's next resolve of an
+APP-scoped provider raises. Pass `manage_lifespan=False` to each integration and open and close
+the container yourself; see
+[FastAPI and FastStream sharing a container](../recipes/shared-container.md).
 
 A finalizer that resolves from its own container fails the same way, because the container counts
 as closed while its finalizers run. That `ContainerClosedError` arrives as an entry inside the
