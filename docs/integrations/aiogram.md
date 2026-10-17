@@ -103,6 +103,10 @@ to a WebSocket. See [the scope hierarchy](../providers/scopes.md#what-each-scope
 `dispatcher.shutdown`, and closing runs APP-scoped finalizers. `start_polling()` emits both
 events, and so does an aiohttp app wired with aiogram's `setup_application()`.
 
+Since modern-di-aiogram 4.2.0, `setup_di(dispatcher, container, manage_lifespan=False)` registers
+neither hook and leaves the root container's open and close to you, for a container shared with
+another app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).
+
 ## Framework context objects
 
 Two types resolve by annotation: `aiogram.types.Update` and `aiogram.types.TelegramObject`,
@@ -356,7 +360,7 @@ await test_report()
 
 | Symbol | Description |
 |---|---|
-| `setup_di(dispatcher, container, *, auto_inject=False)` | Stores the container on the dispatcher, registers `aiogram_update_provider`/`aiogram_event_provider`, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close the container, and installs the per-update middleware. With `auto_inject=True`, also wraps every handler already registered on the dispatcher at startup. |
+| `setup_di(dispatcher, container, *, auto_inject=False, manage_lifespan=True)` | Stores the container on the dispatcher, registers `aiogram_update_provider`/`aiogram_event_provider`, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close the container (not with `manage_lifespan=False`), and installs the per-update middleware. With `auto_inject=True`, also wraps every handler already registered on the dispatcher at startup. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-update child container. |
 | `inject` | Decorator for a sync or `async def` aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed. |
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher. |

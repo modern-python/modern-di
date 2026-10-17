@@ -45,6 +45,7 @@ nav:
   - Recipes:
       - Async SQLAlchemy: recipes/sqlalchemy.md
       - Async resources via lifespan: recipes/async-lifespan.md
+      - FastAPI and FastStream sharing a container: recipes/shared-container.md
       - Multi-group organization: recipes/multi-group.md
       - Testing with overrides: recipes/testing-overrides.md
       - Request-scoped engine selection: recipes/request-scoped-engine.md
@@ -193,6 +194,7 @@ plugins:
         Recipes:
           - recipes/sqlalchemy.md: Wiring an async SQLAlchemy engine, session, and repositories
           - recipes/async-lifespan.md: Constructing async resources via the framework lifespan
+          - recipes/shared-container.md: One container shared by a FastAPI app and a FastStream app in one process, with manage_lifespan=False
           - recipes/multi-group.md: Organizing a large container with multiple Groups
           - recipes/testing-overrides.md: Swapping dependencies in tests with overrides
           - recipes/request-scoped-engine.md: Routing requests to different engines by scope

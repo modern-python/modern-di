@@ -114,6 +114,10 @@ comparable to a websocket connection.
 worker that starts again on the same container, after a restart or in a test that
 runs the worker twice, reopens it on startup.
 
+Since modern-di-arq 4.1.0, `setup_di(worker_settings, container, manage_lifespan=False)`
+leaves the root container's open and close to you, for a container shared with another
+app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).
+
 A hook you already defined on `WorkerSettings` still runs. Yours runs after ours
 on startup and job start, and before ours on shutdown and job end. The root
 container is open in all of them, but for an `@inject` task the job's child is
@@ -169,7 +173,7 @@ async def test_run_report() -> None:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(worker_settings, container)` | Seed the root container into arq's `ctx` and wire root + per-job lifecycle onto arq's `on_startup`/`on_shutdown`/`on_job_start`/`on_job_end` hooks. Accepts a `WorkerSettings` class/object or a settings `dict`; composes with existing hooks; returns the container. Raises `TypeError` if called twice on the same `worker_settings`. |
+| `setup_di(worker_settings, container, *, manage_lifespan=True)` | Seed the root container into arq's `ctx` and wire root + per-job lifecycle onto arq's `on_startup`/`on_shutdown`/`on_job_start`/`on_job_end` hooks; with `manage_lifespan=False`, the hooks leave the root alone. Accepts a `WorkerSettings` class/object or a settings `dict`; composes with existing hooks; returns the container. Raises `TypeError` if called twice on the same `worker_settings`. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. |
 | `@inject` | Decorator that resolves `FromDI`-annotated parameters from the per-job `Scope.REQUEST` child container. Order-insensitive; passthrough for tasks with no `FromDI`; raises `TypeError` at decoration if the task also declares `*args`/`**kwargs`; raises `RuntimeError` naming `setup_di` when a job reaches it without the modern-di hooks installed. |
 | `fetch_di_container(ctx)` | Returns the root container from an arq `ctx` dict. |

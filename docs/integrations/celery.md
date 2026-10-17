@@ -114,6 +114,13 @@ harmless.
     Earlier releases store the container on `app.conf`, which cannot be pickled, and the pool
     fails at startup under spawn.
 
+Since modern-di-celery 4.1.0, `setup_di(app, container, manage_lifespan=False)` stops the
+signals in the table from opening or closing the root and leaves that to you, for a container
+shared with other code in the process; see
+[Lifecycle](../providers/lifecycle.md#closing-and-reopening). A prefork child then inherits the
+open container and nothing closes it there. If the child's APP-scoped finalizers must run, call
+`container.close_sync()` from your own `worker_process_shutdown` handler.
+
 Code that calls tasks without a worker, such as a script or a test in eager mode,
 fires none of these signals. Close the root yourself when it is done, for example
 with `with container:`, as in [Testing](#testing).
@@ -179,7 +186,7 @@ with container:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Wire the APP-scope container into Celery: registers it for the app and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`. Returns the container. |
+| `setup_di(app, container, *, manage_lifespan=True)` | Wire the APP-scope container into Celery: registers it for the app and opens/closes it on `worker_process_init`/`worker_process_shutdown` and `worker_init`/`worker_shutdown`, unless `manage_lifespan=False`. Returns the container. |
 | `FromDI(provider_or_type)` | Marker for `Annotated[T, FromDI(...)]` in task signatures; accepts a provider instance or a plain type. |
 | `@inject` | Decorator that builds a `Scope.REQUEST` child container per call, resolves `FromDI`-annotated parameters from it, and closes the child container with `close_sync()` afterwards. Raises `RuntimeError` naming `setup_di` when a task reaches it without `setup_di` called. A task with `FromDI` parameters that also declares `*args`/`**kwargs` raises `TypeError` at decoration. |
 | `DITask` | `Task` subclass that applies `@inject` to a task's `run` method automatically; pass `task_cls=DITask` to `Celery(...)` or `base=DITask` to `@app.task(...)`. |

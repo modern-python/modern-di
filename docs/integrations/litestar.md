@@ -146,6 +146,10 @@ thing that closes the root container, so when the server skips the lifespan, req
 succeed but its finalizers never run. Close it yourself (`await container.close_async()`) at
 shutdown in that case.
 
+Since modern-di-litestar 4.1.0, `ModernDIPlugin(container, manage_lifespan=False)` adds no lifespan
+hook and leaves the root container's open and close to you, for a container shared with another
+app; see [Lifecycle](../providers/lifecycle.md#closing-and-reopening).
+
 ## Websockets
 
 In a websocket handler, `di_container` is the connection's `Scope.SESSION` container, which lives
@@ -234,7 +238,7 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `ModernDIPlugin(container, autowired_groups=None)` | Litestar `InitPlugin` that stores the container on the app state, registers the request and websocket context providers and the `di_container` dependency, appends a lifespan hook that closes the container on shutdown, and (if `autowired_groups` is given) exposes each provider in those groups as a Litestar dependency keyed by attribute name. |
+| `ModernDIPlugin(container, autowired_groups=None, *, manage_lifespan=True)` | Litestar `InitPlugin` that stores the container on the app state, registers the request and websocket context providers and the `di_container` dependency, appends a lifespan hook that closes the container on shutdown (none with `manage_lifespan=False`), and (if `autowired_groups` is given) exposes each provider in those groups as a Litestar dependency keyed by attribute name. |
 | `FromDI(dependency)` | Returns a Litestar `Provide` that resolves a provider or type from the connection's child container (REQUEST for HTTP, SESSION for a websocket). |
 | `di_container` | The dependency name the plugin registers for the connection's child container; declare `di_container: NamedDependency[Container]` to receive it. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on the Litestar app. |

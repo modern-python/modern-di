@@ -291,13 +291,14 @@ What survives close and reopen depends on `CacheSettings`:
     not the outer one. Use one `with` block per container, or build a child container for
     the inner scope.
 
-!!! caution "Apps that share a container close it for each other"
-    Integrations open the root container at startup and close it at shutdown, and opening an
-    open container does nothing. When two apps share one root container, for example a FastAPI
-    app and a FastStream app in one process, the first app to stop closes it and runs its APP
-    finalizers. After that, any resolve in the other app that reaches an APP-scoped provider
-    raises `ContainerClosedError`. Stop the apps together, or give each app its own container
-    when they stop independently.
+!!! caution "Apps that share a container need one owner"
+    By default an integration opens the root container at startup and closes it at shutdown, so
+    when two apps share one root, the first app to stop closes it under the other. Pass
+    `manage_lifespan=False` to every integration that shares the root, and open and close it
+    yourself, for example with `async with container:` around running the apps. APP finalizers
+    then run once, when your block exits. Flask, gRPC and Typer never open or close the root and
+    have no flag. See
+    [FastAPI and FastStream sharing a container](../recipes/shared-container.md).
 
 ## Validation
 

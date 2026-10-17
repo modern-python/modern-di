@@ -23,7 +23,18 @@ from sybil.parsers.markdown.lexers import DirectiveInHTMLCommentLexer
 
 
 _UNINSTALLED_PACKAGES = frozenset(
-    {"aiohttp", "fastapi", "litestar", "modern_di_litestar", "modern_di_pytest", "pydantic_ai", "redis", "sqlalchemy"}
+    {
+        "aiohttp",
+        "fastapi",
+        "faststream",
+        "litestar",
+        "modern_di_litestar",
+        "modern_di_pytest",
+        "pydantic_ai",
+        "redis",
+        "sqlalchemy",
+        "uvicorn",
+    }
 )
 
 _EXCLUDED_PAGES = (
