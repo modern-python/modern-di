@@ -129,13 +129,36 @@ a `lifespan=` you passed to `FastAPI()` stays the outer context and the state it
 through, the container reopens on startup, and it closes with `close_async()` on shutdown. The
 lifespan shutdown is the only thing that closes the root container.
 
+### Mounted apps
+
+A FastAPI app mounted with `app.mount` can call `setup_di` with its own container, and its routes
+resolve from that container. Starlette runs only the outermost app's lifespan. Since
+modern-di-fastapi 4.0.1, the lifespan that `setup_di` composes on the outer app also opens and
+closes the root container of every mounted FastAPI app that called `setup_di`, under `Mount` and
+`Host` routes at any depth. It looks for them at startup. A `Mount` with its own `middleware=`
+hides the app it mounts, so that app's container is not found.
+
+```python
+admin_app = fastapi.FastAPI()
+admin_app.add_api_route("/report", get_report)
+admin_container = modern_di_fastapi.setup_di(admin_app, Container(groups=[AppGroup]))
+outer_app = fastapi.FastAPI()
+outer_app.mount("/admin", admin_app)
+modern_di_fastapi.setup_di(outer_app, Container(groups=[AppGroup]))
+```
+
+<!-- invisible-code-block: python
+with TestClient(outer_app) as client:
+    assert client.get("/admin/report").json() == {"service": "catalog"}
+assert admin_container.closed
+-->
+
 !!! warning "Deployment: mounted sub-apps and disabled lifespan"
-    A `setup_di`-wired app mounted as a sub-application (`app.mount("/sub", subapp)`) never
-    receives the lifespan events from its parent, and deployments that disable lifespan (for
-    example Mangum with `lifespan="off"`) skip them too. Requests still succeed, because the root
-    container is open from construction, but nothing closes it, so its finalizers never run. Call
-    `setup_di` on the top-level served app, or close the root yourself
-    (`await container.close_async()`) at shutdown.
+    Deployments that disable lifespan (for example Mangum with `lifespan="off"`) skip the lifespan
+    events, and so does a `setup_di`-wired app mounted under an outer app that has no `setup_di`
+    of its own. Requests still succeed, because the root container is open from construction, but
+    nothing closes it, so its finalizers never run. Call `setup_di` on the top-level served app,
+    or close the root yourself (`await container.close_async()`) at shutdown.
 
 ## Websockets
 
@@ -220,7 +243,7 @@ with TestClient(request_app) as client:
 
 | Symbol | Description |
 |---|---|
-| `setup_di(app, container)` | Stores the container on the app, registers the request and websocket context providers, and wraps the app's lifespan (any `lifespan=` you passed included) so the container reopens on startup and closes on shutdown; returns the container. |
+| `setup_di(app, container)` | Stores the container on the app, registers the request and websocket context providers, and wraps the app's lifespan (any `lifespan=` you passed included) so the container reopens on startup and closes on shutdown, along with the root container of each mounted FastAPI app that called `setup_di`; returns the container. |
 | `FromDI(dependency, *, use_cache=True)` | A `fastapi.Depends` that resolves a provider or type from the connection's child container (REQUEST for HTTP, SESSION for a websocket). Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
 | `build_di_container(connection)` | A `fastapi.Depends` callable that yields the connection's child container: REQUEST scope for an HTTP request, SESSION scope for a websocket. |
 | `fastapi_request_provider` | `ContextProvider` for `fastapi.Request` (REQUEST scope), auto-registered. |
