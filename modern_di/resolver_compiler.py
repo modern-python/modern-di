@@ -23,7 +23,7 @@ import typing
 from modern_di import exceptions, types
 from modern_di.cache import CacheItem
 from modern_di.dependency_graph import redirect_hops, reference_only_sources, terminal_chain
-from modern_di.exceptions.rendering import provider_step
+from modern_di.exceptions.rendering import UNKNOWN_SCOPE, provider_step
 from modern_di.providers.abstract import AbstractProvider
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
@@ -274,7 +274,7 @@ def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "Re
         error = exceptions.AliasSourceNotRegisteredError(
             source_type=source_type, reference_only_providers=reference_only_sources(source_type, registry)
         )
-        error._prepend_step(provider_step(a))
+        error._prepend_step(provider_step(a, UNKNOWN_SCOPE))
         raise error
 
     return resolve

@@ -12,6 +12,14 @@ if typing.TYPE_CHECKING:
 
 
 SUGGESTION_HEADER = "Did you mean:"
+UNKNOWN_SCOPE_GLYPH = "?"
+
+
+class _UnknownScope(enum.Enum):
+    UNKNOWN = enum.auto()
+
+
+UNKNOWN_SCOPE: typing.Final = _UnknownScope.UNKNOWN
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -22,22 +30,24 @@ class ResolutionStep:
     :class:`CircularDependencyError`'s cycle, so both render through ``render_chain``.
 
     Attributes:
-        scope: the scope of the provider at this step of the chain.
+        scope: the scope of the provider at this step of the chain, or ``None`` when it is unknown,
+            as for an alias whose source is not registered.
         name: the provider's display name (bound type or creator name).
         location: the provider's declaration site as ``module:line``, when known.
 
     """
 
-    scope: enum.IntEnum
+    scope: enum.IntEnum | None
     name: str
     location: str | None = None
 
 
-def provider_step(provider: "AbstractProvider[typing.Any]", scope: enum.IntEnum | None = None) -> ResolutionStep:
-    """Return ``provider`` as a chain step at ``scope``, its own scope by default."""
-    return ResolutionStep(
-        scope=provider.scope if scope is None else scope, name=provider.display_name, location=provider.definition_site
-    )
+def provider_step(
+    provider: "AbstractProvider[typing.Any]", scope: enum.IntEnum | _UnknownScope | None = None
+) -> ResolutionStep:
+    """Return ``provider`` as a chain step at ``scope``: its own scope by default, unknown for ``UNKNOWN_SCOPE``."""
+    step_scope = provider.scope if scope is None else None if isinstance(scope, _UnknownScope) else scope
+    return ResolutionStep(scope=step_scope, name=provider.display_name, location=provider.definition_site)
 
 
 def render_provider_lines(providers: "list[AbstractProvider[typing.Any]]") -> list[str]:
@@ -57,12 +67,13 @@ def render_chain(steps: "list[ResolutionStep]") -> list[str]:
     The single home of the chain glyphs — used by every chain-shaped error, so a
     resolution path and a dependency cycle cannot drift apart in how they read.
     """
-    scope_width = max(len(step.scope.name) for step in steps)
+    scope_names = [UNKNOWN_SCOPE_GLYPH if step.scope is None else step.scope.name for step in steps]
+    scope_width = max(len(name) for name in scope_names)
     lines = []
-    for i, step in enumerate(steps):
+    for i, (step, scope_name) in enumerate(zip(steps, scope_names, strict=True)):
         prefix = "" if i == 0 else "    " * (i - 1) + "└─> "
         label = f"{step.name} ({step.location})" if step.location else step.name
-        lines.append(f"  {step.scope.name:<{scope_width}}  {prefix}{label}")
+        lines.append(f"  {scope_name:<{scope_width}}  {prefix}{label}")
     return lines
 
 
