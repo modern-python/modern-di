@@ -1,8 +1,11 @@
+import enum
 import threading
 import typing
 
 from modern_di import exceptions, suggester, types
+from modern_di.dependency_graph import terminal_chain
 from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.alias import Alias
 from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.resolver_compiler import compile_resolver
 from modern_di.wiring import WiringPlan
@@ -18,7 +21,7 @@ _V = typing.TypeVar("_V")
 
 
 class ProvidersRegistry:
-    """Type → provider, plus the tree-wide plan and resolver memos.
+    """Type → provider, the reference-only providers, plus the tree-wide plan and resolver memos.
 
     The memo dicts stay underscored: every mutation drops them (`_invalidate`), so a reference held
     across one is stale. The resolve path reads them directly to skip a frame; nothing else should.
@@ -30,6 +33,7 @@ class ProvidersRegistry:
         "_lock",
         "_plans",
         "_providers",
+        "_reference_only",
         "_resolvers",
         "_resolvers_by_type",
         "_validated",
@@ -39,6 +43,7 @@ class ProvidersRegistry:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._providers: dict[type, AbstractProvider[typing.Any]] = {}
+        self._reference_only: dict[int, AbstractProvider[typing.Any]] = {}
         self._plans: dict[int, WiringPlan] = {}
         self._resolvers: dict[int, typing.Callable[[Container], typing.Any]] = {}
         self._resolvers_by_type: dict[type, typing.Callable[[Container], typing.Any]] = {}
@@ -52,6 +57,10 @@ class ProvidersRegistry:
 
     def __iter__(self) -> typing.Iterator[AbstractProvider[typing.Any]]:
         return iter(list(self._providers.values()))
+
+    def reference_only_providers(self) -> list[AbstractProvider[typing.Any]]:
+        """Return the registered providers bound under no type, in registration order."""
+        return list(self._reference_only.values())
 
     def is_validated(self) -> bool:
         """Return whether the graph was validated with no registry mutation since."""
@@ -120,11 +129,17 @@ class ProvidersRegistry:
         provider = self._providers.get(dependency_type)
         if provider is None:
             raise exceptions.ProviderNotRegisteredError(
-                dependency_type=dependency_type, suggestions=suggester.suggest(dependency_type, self)
+                dependency_type=dependency_type,
+                suggestions=suggester.suggest(dependency_type, self, self._known_effective_scope),
             )
         resolver = self.resolver_for(provider)
         self._publish(self._resolvers_by_type, dependency_type, resolver, generation)
         return resolver
+
+    def _known_effective_scope(self, provider: AbstractProvider[typing.Any]) -> enum.IntEnum | None:
+        """Return the effective scope of ``provider``, or None when a redirect on its chain has no source."""
+        terminal = terminal_chain(provider, self)[-1]
+        return None if type(terminal) is Alias else terminal.scope
 
     def drop_resolvers(self) -> None:
         """Drop the compiled resolvers — the overrides changed. Plans and the validation flag survive."""
@@ -144,7 +159,7 @@ class ProvidersRegistry:
         registered = {id(provider): provider for provider in (*new_providers.values(), *args)}
         for provider in registered.values():
             provider_type = provider.bound_type
-            if not provider_type or new_providers.get(provider_type) is provider:
+            if provider_type is None or new_providers.get(provider_type) is provider:
                 continue
             if provider_type in new_providers:
                 raise exceptions.DuplicateProviderTypeError(
@@ -160,7 +175,10 @@ class ProvidersRegistry:
         new_providers: dict[type, AbstractProvider[typing.Any]],
         registered: tuple[AbstractProvider[typing.Any], ...],
     ) -> None:
-        """Bind ``new_providers`` and latch each of ``registered``; a type bound to another provider raises."""
+        """Bind ``new_providers`` and latch each of ``registered``; a type bound to another provider raises.
+
+        A latched provider that is not bound is kept as reference-only.
+        """
         with self._lock:
             for provider_type, provider in new_providers.items():
                 existing = self._providers.get(provider_type)
@@ -169,9 +187,11 @@ class ProvidersRegistry:
                         provider_type=provider_type, first_provider=existing, second_provider=provider
                     )
             self._providers.update(new_providers)
-            # Over `registered`: a reference-only provider never enters `_providers` but is still compiled.
+            bound = {id(provider) for provider in new_providers.values()}
             for provider in registered:
                 provider._registered = True  # noqa: SLF001
+                if id(provider) not in bound:
+                    self._reference_only[provider.provider_id] = provider
             self._invalidate()
 
     def _invalidate(self) -> None:

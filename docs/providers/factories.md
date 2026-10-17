@@ -63,6 +63,11 @@ The callable, a function or a class, that builds the instance. `modern-di` reads
 1. Find the return type, which becomes the `bound_type` unless you set one.
 2. Find the parameter names and types to wire by type.
 
+The types come from the creator's annotations. When a parameter or the return has no annotation
+there, the one on `inspect.signature(creator)` is used, if it is a type rather than a string.
+Pydantic models and msgspec `Struct`s keep their field types only on the signature, so this is
+what wires their fields.
+
 ### scope
 
 The provider's lifetime. Without `scope=`, the provider takes its group's default scope, or
@@ -78,8 +83,8 @@ annotation.
 
 `bound_type=None` makes the provider resolvable only by reference: through
 `container.resolve_provider(Dependencies.some_provider)` or as a value in another factory's
-[`kwargs`](#kwargs). `container.validate()` does not check such a provider unless a provider
-registered by type depends on it, so a broken one fails on its first resolve instead
+[`kwargs`](#kwargs). If it is registered through a group or `add_providers`,
+`container.validate()` checks it the same way as a provider registered by type
 ([#656](https://github.com/modern-python/modern-di/issues/656)).
 
 A `NewType` or a `type X = ...` alias is a bound type of its own. A provider declared with

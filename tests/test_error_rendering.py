@@ -3,11 +3,11 @@ import inspect
 
 import pytest
 
-from modern_di import Scope, exceptions, providers, suggester
+from modern_di import Container, Scope, exceptions, providers, suggester
 from modern_di.exceptions import rendering
 
 
-def _step(name: str, scope: Scope = Scope.APP, location: str | None = None) -> exceptions.ResolutionStep:
+def _step(name: str, scope: Scope | None = Scope.APP, location: str | None = None) -> exceptions.ResolutionStep:
     return exceptions.ResolutionStep(scope=scope, name=name, location=location)
 
 
@@ -32,6 +32,10 @@ def test_render_chain_is_a_pure_function_of_its_steps() -> None:
 def test_render_chain_aligns_the_scope_column_to_the_widest_name() -> None:
     lines = rendering.render_chain([_step("A"), _step("B", scope=Scope.REQUEST)])
     assert lines == ["  APP      A", "  REQUEST  └─> B"]
+
+
+def test_render_chain_draws_an_unknown_scope_as_a_question_mark() -> None:
+    assert rendering.render_chain([_step("A", scope=None)]) == ["  ?  A"]
 
 
 @pytest.mark.parametrize(
@@ -115,7 +119,24 @@ def test_invalid_child_scope_error_derives_the_allowed_scopes() -> None:
     # being handed it — the same comprehension used to be written out at two raise sites.
     error = exceptions.InvalidChildScopeError(parent_scope=Scope.REQUEST, child_scope=Scope.APP)
     assert error.allowed_scopes == [Scope.ACTION, Scope.STEP]
-    assert "Possible scopes are ['ACTION', 'STEP']." in str(error)
+    assert "Deeper members of Scope are ['ACTION', 'STEP']." in str(error)
+
+
+def test_invalid_child_scope_error_from_the_last_member_states_the_value_rule() -> None:
+    with pytest.raises(exceptions.InvalidChildScopeError) as exc:
+        Container(scope=Scope.STEP).build_child_container(scope=Scope.STEP)
+    message = str(exc.value)
+    assert "any IntEnum member with a value greater than 5" in message
+    assert "[]" not in message
+    assert exc.value.allowed_scopes == []
+
+
+def test_invalid_child_scope_error_from_app_states_the_rule_and_lists_deeper_members() -> None:
+    with pytest.raises(exceptions.InvalidChildScopeError) as exc:
+        Container(scope=Scope.APP).build_child_container(scope=Scope.APP)
+    message = str(exc.value)
+    assert "any IntEnum member with a value greater than 1" in message
+    assert "Deeper members of Scope are ['SESSION', 'REQUEST', 'ACTION', 'STEP']." in message
 
 
 def test_unknown_factory_kwarg_error_derives_its_own_suggestions() -> None:

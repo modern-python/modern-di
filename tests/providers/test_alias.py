@@ -88,7 +88,11 @@ def test_alias_missing_source_raises_on_resolve() -> None:
     with pytest.raises(AliasSourceNotRegisteredError, match="PostgresRepository") as exc:
         container.resolve(AbstractRepository)
     assert exc.value.source_type is PostgresRepository
-    assert f"Register a provider for {PostgresRepository} before the alias is resolved." in str(exc.value)
+    assert exc.value.reference_only_providers == []
+    assert (
+        f"caused by: Alias source type {PostgresRepository} is not registered in providers registry. "
+        f"Register a provider for {PostgresRepository} before the alias is resolved.\n"
+    ) in str(exc.value)
 
 
 def test_alias_missing_source_raises_on_validate_provider() -> None:
@@ -136,9 +140,15 @@ def test_alias_bound_type_none_is_accepted() -> None:
 
 def test_alias_repr() -> None:
     alias = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
-    assert repr(alias) == (
-        f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r}, scope=<Scope.APP: 1>)"
-    )
+    assert repr(alias) == f"Alias(source_type={PostgresRepository!r}, bound_type={AbstractRepository!r})"
+
+
+def test_alias_repr_in_request_group_claims_no_scope() -> None:
+    class RequestGroup(Group, scope=Scope.REQUEST):
+        repo = providers.Factory(creator=PostgresRepository)
+        iface = providers.Alias(source_type=PostgresRepository, bound_type=AbstractRepository)
+
+    assert "Scope.APP" not in repr(RequestGroup.iface)
 
 
 def test_alias_has_no_definition_site() -> None:
@@ -570,3 +580,80 @@ def test_mutual_alias_cycle_raises_circular_dependency_at_runtime() -> None:
     # sys.monitoring -- any line following it here runs unrecorded and fails the gate.
     with pytest.raises(CircularDependencyError, match=r"(?s)First.*Second"):
         container.resolve(First)
+
+
+class _ReferenceOnlySource: ...
+
+
+class _ReferenceOnlyTarget: ...
+
+
+def test_alias_source_served_by_reference_only_provider_says_so() -> None:
+    class Dependencies(Group):
+        p = providers.Factory(_ReferenceOnlySource, bound_type=None)
+        q = providers.Alias(_ReferenceOnlySource, bound_type=_ReferenceOnlyTarget)
+
+    with pytest.raises(AliasSourceNotRegisteredError) as exc:
+        Container(groups=[Dependencies]).resolve(_ReferenceOnlyTarget)
+    message = str(exc.value)
+    assert exc.value.reference_only_providers == [Dependencies.p]
+    assert "bound_type=None" in message
+    assert f"  - Dependencies.p: Factory ({Dependencies.p._call_site})\n" in message
+    assert "bound_type=_ReferenceOnlySource" in message
+    assert "Register a provider for" not in message
+
+
+def test_alias_source_ignores_reference_only_provider_with_unannotated_creator() -> None:
+    def make_source():  # noqa: ANN202
+        return _ReferenceOnlySource()
+
+    class Dependencies(Group):
+        typed = providers.Factory(_ReferenceOnlySource, bound_type=None)
+        untyped = providers.Factory(make_source, bound_type=None)
+        q = providers.Alias(_ReferenceOnlySource, bound_type=_ReferenceOnlyTarget)
+
+    with pytest.raises(AliasSourceNotRegisteredError) as exc:
+        Container(groups=[Dependencies]).resolve(_ReferenceOnlyTarget)
+    assert exc.value.reference_only_providers == [Dependencies.typed]
+
+
+def test_alias_source_served_by_two_reference_only_providers_names_both() -> None:
+    def make_source() -> _ReferenceOnlySource:
+        return _ReferenceOnlySource()
+
+    class Dependencies(Group):
+        first = providers.Factory(_ReferenceOnlySource, bound_type=None)
+        second = providers.Factory(make_source, bound_type=None)
+        q = providers.Alias(_ReferenceOnlySource, bound_type=_ReferenceOnlyTarget)
+
+    with pytest.raises(AliasSourceNotRegisteredError) as exc:
+        Container(groups=[Dependencies]).resolve(_ReferenceOnlyTarget)
+    message = str(exc.value)
+    assert exc.value.reference_only_providers == [Dependencies.first, Dependencies.second]
+    assert f"  - Dependencies.first: Factory ({Dependencies.first._call_site})\n" in message
+    assert f"  - Dependencies.second: Factory ({Dependencies.second._call_site})\n" in message
+    assert "one of them" in message
+
+
+def test_alias_source_with_skip_creator_parsing_reference_only_provider_keeps_message() -> None:
+    class Dependencies(Group):
+        p = providers.Factory(_ReferenceOnlySource, bound_type=None, skip_creator_parsing=True)
+        q = providers.Alias(_ReferenceOnlySource, bound_type=_ReferenceOnlyTarget)
+
+    with pytest.raises(AliasSourceNotRegisteredError) as exc:
+        Container(groups=[Dependencies]).resolve(_ReferenceOnlyTarget)
+    assert exc.value.reference_only_providers == []
+    assert f"Register a provider for {_ReferenceOnlySource} before the alias is resolved." in str(exc.value)
+
+
+def test_validate_reports_reference_only_alias_source() -> None:
+    class Dependencies(Group):
+        p = providers.Factory(_ReferenceOnlySource, bound_type=None)
+        q = providers.Alias(_ReferenceOnlySource, bound_type=_ReferenceOnlyTarget)
+
+    with pytest.raises(ValidationFailedError) as exc_info:
+        Container(groups=[Dependencies]).validate()
+    [error] = exc_info.value.exceptions
+    assert isinstance(error, AliasSourceNotRegisteredError)
+    assert error.reference_only_providers == [Dependencies.p]
+    assert "bound_type=None" in str(error)

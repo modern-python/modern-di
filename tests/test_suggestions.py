@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 import typing
 
 import pytest
@@ -8,6 +9,10 @@ from modern_di.exceptions import ArgumentResolutionError, ProviderNotRegisteredE
 
 
 UserId = typing.NewType("UserId", int)
+
+
+def _declared_scope(provider: providers.AbstractProvider[typing.Any]) -> enum.IntEnum:
+    return provider.scope
 
 
 class Database:
@@ -162,14 +167,80 @@ def test_suggestions_capped_at_three() -> None:
     )
 
 
+class Repo(typing.Protocol): ...
+
+
+class Repos(typing.Protocol): ...
+
+
+class PgRepo:
+    pass
+
+
+class UnregisteredSource:
+    pass
+
+
+def test_typo_suggestion_through_alias_shows_effective_scope() -> None:
+    class G(Group, scope=Scope.REQUEST):
+        pg = providers.Factory(creator=PgRepo)
+        repo = providers.Alias(PgRepo, bound_type=Repo)
+
+    with pytest.raises(ProviderNotRegisteredError) as exc_info:
+        Container(groups=[G]).resolve(Repos)
+
+    assert "  - Repo (similar name, scope=REQUEST)\n" in str(exc_info.value)
+
+
+def test_hierarchy_suggestion_through_alias_shows_effective_scope() -> None:
+    class G(Group, scope=Scope.REQUEST):
+        repository = providers.Factory(creator=Repository)
+        db = providers.Alias(Repository, bound_type=Database)
+
+    with pytest.raises(ProviderNotRegisteredError) as exc_info:
+        Container(groups=[G]).resolve(PostgresDatabase)
+
+    assert "  - Database (registered base class, scope=REQUEST)\n" in str(exc_info.value)
+
+
+def test_suggestion_through_alias_without_registered_source_shows_no_scope() -> None:
+    class G(Group, scope=Scope.REQUEST):
+        repo = providers.Alias(UnregisteredSource, bound_type=Repo)
+
+    with pytest.raises(ProviderNotRegisteredError) as exc_info:
+        Container(groups=[G]).resolve(Repos)
+
+    assert exc_info.value.suggestions == [suggester.Suggestion(name="Repo", reason="similar name")]
+    assert "  - Repo (similar name)\n" in str(exc_info.value)
+
+
+def test_argument_resolution_suggestion_through_alias_shows_effective_scope() -> None:
+    @dataclasses.dataclass(kw_only=True, slots=True)
+    class Consumer:
+        repos: Repos
+
+    class G(Group, scope=Scope.REQUEST):
+        pg = providers.Factory(creator=PgRepo)
+        repo = providers.Alias(PgRepo, bound_type=Repo)
+        consumer = providers.Factory(creator=Consumer)
+
+    request_container = Container(groups=[G]).build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(ArgumentResolutionError) as exc_info:
+        request_container.resolve(Consumer)
+
+    assert exc_info.value.suggestions[0] == suggester.Suggestion(
+        name="Repo", reason="similar name", scope=Scope.REQUEST
+    )
+
+
 def test_suggest_skips_non_class_bound_type() -> None:
     provider = providers.Factory(creator=list, bound_type=int | str)
-    assert suggester.suggest(int, [provider]) == []
+    assert suggester.suggest(int, [provider], _declared_scope) == []
 
 
 def test_suggest_skips_bound_type_without_a_name() -> None:
     provider = providers.Factory(creator=lambda: 1, bound_type=typing.ForwardRef("Database"))
-    assert suggester.suggest(Database, [provider]) == []
+    assert suggester.suggest(Database, [provider], _declared_scope) == []
 
 
 def test_suggest_swallows_protocol_typeerror() -> None:
@@ -177,7 +248,7 @@ def test_suggest_swallows_protocol_typeerror() -> None:
         def foo(self) -> None: ...
 
     provider = providers.Factory(creator=lambda: 1, bound_type=int)
-    assert suggester.suggest(MyProto, [provider]) == []
+    assert suggester.suggest(MyProto, [provider], _declared_scope) == []
 
 
 def test_argument_resolution_subclass_suggestion() -> None:

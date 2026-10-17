@@ -336,3 +336,37 @@ def test_dangling_alias_under_a_parent_names_both() -> None:
     with pytest.raises(exceptions.AliasSourceNotRegisteredError) as exc_info:
         container.resolve(_NeedsDangling)
     assert [step.name for step in exc_info.value.dependency_path] == ["_NeedsDangling", "_DanglingIface"]
+
+
+class _Repos:
+    pass
+
+
+class _MissingRepos:
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, slots=True)
+class _Svc:
+    repos: _Repos
+
+
+class _UnknownScopeGroup(Group):
+    repos = providers.Alias(source_type=_MissingRepos, bound_type=_Repos)
+    svc = providers.Factory(scope=Scope.REQUEST, creator=_Svc)
+
+
+def test_dangling_alias_step_has_unknown_scope_drawn_as_question_mark() -> None:
+    request = Container(groups=[_UnknownScopeGroup]).build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(exceptions.AliasSourceNotRegisteredError) as exc_info:
+        request.resolve(_Svc)
+    assert exc_info.value.dependency_path[-1].scope is None
+    chain = [line.split(" (")[0] for line in str(exc_info.value).splitlines()[1:3]]
+    assert chain == ["  REQUEST  _Svc", "  ?        └─> _Repos"]
+
+
+def test_dangling_alias_resolved_directly_draws_question_mark() -> None:
+    request = Container(groups=[_UnknownScopeGroup]).build_child_container(scope=Scope.REQUEST)
+    with pytest.raises(exceptions.AliasSourceNotRegisteredError) as exc_info:
+        request.resolve(_Repos)
+    assert str(exc_info.value).splitlines()[1] == "  ?  _Repos"

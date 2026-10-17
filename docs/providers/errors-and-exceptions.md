@@ -123,7 +123,7 @@ The three errors that are also a `ResolutionError` are in the next table.
 | [`ScopeSkippedError`](../troubleshooting/scope-skipped-error.md) | a resolve that needs a shallower scope with no container in the chain | `.provider_scope`, `.container_scope`, `.root_scope` |
 | [`ContainerClosedError`](../troubleshooting/container-closed-error.md) | a resolve that reaches a closed container | `.container_scope` |
 | [`ProviderNotRegisteredError`](../troubleshooting/missing-provider.md) | `resolve(SomeType)` when no provider is registered for the type | `.dependency_type`, `.suggestions` |
-| [`AliasSourceNotRegisteredError`](../troubleshooting/alias-source-not-registered-error.md) | `validate()` or a resolve, for an `Alias` whose source type has no provider | `.source_type` |
+| [`AliasSourceNotRegisteredError`](../troubleshooting/alias-source-not-registered-error.md) | `validate()` or a resolve, for an `Alias` whose source type has no provider | `.source_type`, `.reference_only_providers` |
 | [`ArgumentResolutionError`](../troubleshooting/argument-resolution-error.md) | `validate()` or a resolve, for a creator parameter with no matching provider or no annotation | `.parameter_name`, `.parameter_type`, `.member_types`, `.bound_type`, `.creator`, `.suggestions` |
 | [`CircularDependencyError`](../troubleshooting/circular-dependency.md) | `validate()`, or the runtime guard in a resolve, for a cycle in the graph | `.steps`, `.cycle_path`, `.cycle_locations` |
 | [`CreatorCallError`](../troubleshooting/creator-call-error.md) | a resolve whose arguments do not bind to the creator's signature, typically a `kwargs` or `skip_creator_parsing` mismatch | `.creator`, `.original_error` |
@@ -135,6 +135,8 @@ as the error propagates, from the type you asked for down to the one that failed
 non-empty, the message starts with `Cannot resolve dependency chain:`, draws one line per step, and
 ends the chain with a `caused by:` line holding the error's own message. `ContainerClosedError`
 always has an empty path, and `CircularDependencyError` draws its cycle from `.steps` instead.
+A step's `.scope` is `None` when the scope is unknown, as for an alias whose source is not registered,
+and the chain draws it as `?`.
 
 ### `RegistrationError`: declaring and registering providers
 

@@ -65,6 +65,15 @@ def redirect_target(
     return None
 
 
+def reference_only_sources(source_type: type, registry: "ProvidersRegistry") -> "list[AbstractProvider[typing.Any]]":
+    """Return the reference-only factories whose creator returns ``source_type``, in registration order."""
+    return [
+        provider
+        for provider in registry.reference_only_providers()
+        if type(provider) is Factory and provider._return_type is source_type  # noqa: SLF001
+    ]
+
+
 def dependencies_of(
     provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
 ) -> dict[str, "AbstractProvider[typing.Any]"]:
@@ -74,7 +83,10 @@ def dependencies_of(
     if type(provider) is Alias:
         source = redirect_target(provider, registry)
         if source is None:
-            raise exceptions.AliasSourceNotRegisteredError(source_type=provider._source_type)  # noqa: SLF001
+            source_type = provider._source_type  # noqa: SLF001
+            raise exceptions.AliasSourceNotRegisteredError(
+                source_type=source_type, reference_only_providers=reference_only_sources(source_type, registry)
+            )
         return {"source": source}
     return {}
 
@@ -189,9 +201,13 @@ def find_cycle_from(
 
 
 def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
-    """Walk the graph rooted at ``registry``'s providers once; return every wiring error in walk order."""
+    """Walk the graph rooted at every provider in ``registry``, reference-only ones included, once.
+
+    Return every wiring error in walk order.
+    """
     errors: list[Exception] = []
-    for event in walk(roots=registry, registry=registry):
+    roots = [*registry, *registry.reference_only_providers()]
+    for event in walk(roots=roots, registry=registry):
         if type(event) is Edge:
             parent, name, dep = event
             dependency_chain = terminal_chain(dep, registry)

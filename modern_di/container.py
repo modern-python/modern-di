@@ -262,6 +262,8 @@ class Container:
         Overrides are kept. A resolve from inside a finalizer raises
         :class:`~modern_di.exceptions.ContainerClosedError`. Every finalizer runs even when one
         raises; the failures come back together as one :class:`~modern_di.exceptions.FinalizerError`.
+        Not coordinated with resolves on other threads: an instance still being built is finalized by
+        the next close.
         """
         self._closed = True
         if self._creation_order:
@@ -273,7 +275,8 @@ class Container:
         Overrides are kept. A resolve from inside a finalizer raises
         :class:`~modern_di.exceptions.ContainerClosedError`. Every finalizer runs even when one
         raises; the failures come back together as one :class:`~modern_di.exceptions.FinalizerError`.
-        An async finalizer fails here and stays pending for a later :meth:`close_async`.
+        An async finalizer fails here and stays pending for a later :meth:`close_async`. Not coordinated
+        with resolves on other threads: an instance still being built is finalized by the next close.
         """
         self._closed = True
         if self._creation_order:

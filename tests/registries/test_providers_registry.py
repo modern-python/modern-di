@@ -153,6 +153,39 @@ def test_a_repeated_provider_is_latched_once_per_add(monkeypatch: pytest.MonkeyP
     assert [list(map(id, registered)) for registered in latched] == [[id(bound), id(unbound)]]
 
 
+def test_reference_only_providers_are_kept_once_and_stay_out_of_the_type_map() -> None:
+    bound = providers.Factory(creator=lambda: "string", bound_type=str)
+    unbound = providers.Factory(creator=lambda: "other", bound_type=None)
+    registry = ProvidersRegistry()
+
+    registry.add_providers(bound, unbound, unbound)
+    registry.add_providers(unbound)
+
+    assert registry.reference_only_providers() == [unbound]
+    assert list(registry) == [bound]
+    assert len(registry) == 1
+    assert registry.find_provider(str) is bound
+
+
+def test_a_provider_bound_by_key_is_not_reference_only() -> None:
+    keyed = providers.Factory(creator=lambda: "string", bound_type=None)
+    registry = ProvidersRegistry()
+
+    registry.add_providers(bindings={str: keyed})
+
+    assert registry.reference_only_providers() == []
+    assert registry.find_provider(str) is keyed
+
+
+def test_adding_a_reference_only_provider_clears_the_validated_flag() -> None:
+    registry = ProvidersRegistry()
+    registry.mark_validated()
+
+    registry.add_providers(providers.Factory(creator=lambda: "other", bound_type=None))
+
+    assert registry.is_validated() is False
+
+
 class _RaceBase: ...
 
 
@@ -182,7 +215,7 @@ def test_iteration_is_safe_while_another_thread_registers() -> None:
             try:
                 for _ in range(50):
                     list(iter(registry))
-                    suggester.suggest(_RaceBase, registry)
+                    suggester.suggest(_RaceBase, registry, registry._known_effective_scope)
             except BaseException as e:  # noqa: BLE001
                 errors_seen.append(e)
 
@@ -341,3 +374,21 @@ def test_mutation_during_plan_build_does_not_strand_a_stale_plan(monkeypatch: py
 
     monkeypatch.undo()
     assert isinstance(container.resolve_provider(svc).dep, _RaceDep)
+
+
+class _EmptyMeta(type):
+    def __len__(cls) -> int:
+        return 0
+
+
+class _FalsyType(metaclass=_EmptyMeta): ...
+
+
+def test_bound_type_that_is_falsy_is_still_registered() -> None:
+    class Dependencies(Group):
+        falsy = providers.Factory(_FalsyType)
+
+    container = Container(groups=[Dependencies])
+
+    assert container.find_provider(_FalsyType) is Dependencies.falsy
+    assert isinstance(container.resolve(_FalsyType), _FalsyType)
