@@ -3,9 +3,8 @@
 Flask has no dependency injection of its own, so `modern-di-flask` provides an `@inject` decorator
 that fills the view parameters marked with `FromDI`. `setup_di` installs a
 `before_request`/`teardown_appcontext` pair that gives each request a `Scope.REQUEST` child
-container and closes it with `close_sync()` once the request finishes. Resolution is sync-only,
-and views must be sync too: `@inject` on an `async def` view hands Flask a coroutine, and the
-request fails with `TypeError`.
+container and closes it with `close_sync()` once the request finishes. Views can be sync or
+`async def`, and resolution is sync for both.
 
 ## Installation
 
@@ -123,6 +122,33 @@ else:
     raise AssertionError("the late route was wrapped")
 -->
 
+### Async views
+
+Since modern-di-flask 4.1.0, `@inject` and `auto_inject=True` also take `async def` views. Flask
+runs them through asgiref, so install Flask's async extra (`flask[async]`). The markers are resolved
+from the request's child container before the view is awaited:
+
+```python
+async_app = Flask(__name__)
+
+
+@async_app.route("/async-report")
+@inject
+async def get_async_report(report: typing.Annotated[Report, FromDI(Report)]) -> dict[str, str]:
+    return report.as_dict()
+
+
+setup_di(async_app, Container(groups=[AppGroup]))
+```
+
+<!-- invisible-code-block: python
+async_app.testing = True
+assert async_app.test_client().get("/async-report").json == {"service": "catalog"}
+-->
+
+Teardown is still sync (`close_sync()`), so a REQUEST-scoped provider with an async finalizer is
+not supported; see [Scopes and lifecycle](#scopes-and-lifecycle).
+
 ## Scopes and lifecycle
 
 Flask has no websocket concept, so the integration only ever opens one child scope; see
@@ -136,8 +162,7 @@ and it or any other failing finalizer reaches Flask as a `FinalizerError` from t
 request then fails with a 500 under the Werkzeug server, and the test client raises the error.
 
 `setup_di` does not close the root container, because Flask has no application-shutdown hook to
-run it from. Close it yourself where your process shuts down, for example with `atexit`. That
-close is a `close_sync()` too, so APP-scoped finalizers must be sync as well:
+run it from. Close it yourself where your process shuts down, for example with `atexit`:
 
 ```python
 import atexit
@@ -146,6 +171,9 @@ from modern_di_flask import fetch_di_container
 
 atexit.register(fetch_di_container(app).close_sync)
 ```
+
+`close_sync()` cannot run an async finalizer. If an APP-scoped provider has one, close the root
+with `asyncio.run(fetch_di_container(app).close_async())` instead.
 
 ## Framework context objects
 
@@ -207,6 +235,6 @@ assert request_app.test_client().get("/describe").json == [{"method": "GET", "ur
 |---|---|
 | `setup_di(app, container, *, auto_inject=False)` | Stores the container on `app.extensions`, registers the request context provider, installs the `before_request`/`teardown_appcontext` pair that builds and closes a per-request `Scope.REQUEST` child container, and, if `auto_inject=True`, wraps every currently registered view with `inject`; returns the container. It does not close the root container. |
 | `FromDI(dependency)` | Marker (used with `@inject`) that resolves a provider or type from the per-request child container. |
-| `inject` | Decorator for a sync view function; resolves its `FromDI`-annotated parameters. Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
+| `inject` | Decorator for a sync or `async def` view; returns a wrapper of the same kind and resolves its `FromDI`-annotated parameters. Raises `RuntimeError` naming `setup_di` when a request reaches it without `setup_di` called. |
 | `fetch_di_container(app)` | Returns the root `Container` stored on `app.extensions`. |
 | `flask_request_provider` | `ContextProvider` for `flask.Request` (REQUEST scope), auto-registered by type. |

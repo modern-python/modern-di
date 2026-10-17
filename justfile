@@ -44,7 +44,7 @@ test-docs *args:
     uv run --no-sync pytest docs {{ args }}
 
 # Packages the docs import that no modern-di-<page> package depends on.
-docs_integration_extras := "faststream[kafka,nats] aiogram-dialog sqlalchemy[asyncio] asyncpg redis pydantic-ai-slim[openai]"
+docs_integration_extras := "faststream[kafka,nats] flask[async] aiogram-dialog sqlalchemy[asyncio] asyncpg redis pydantic-ai-slim[openai]"
 
 # Run every page under docs/, the framework pages under docs/integrations/ included, with the latest
 # modern-di-<page> release of every integration and the extras above installed and modern-di pinned to
