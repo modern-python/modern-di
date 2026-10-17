@@ -40,7 +40,7 @@ nav:
       - CLI:
           - Typer: integrations/typer.md
       - Testing:
-          - Pytest: integrations/pytest.md
+          - pytest: integrations/pytest.md
       - Writing an integration: integrations/writing-integrations.md
   - Recipes:
       - Async SQLAlchemy: recipes/sqlalchemy.md
