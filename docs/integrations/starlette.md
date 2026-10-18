@@ -169,7 +169,10 @@ container.open()
 An HTTP request gets a `Scope.REQUEST` child container and a websocket connection a
 `Scope.SESSION` one; see [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for). The
 middleware builds the child before your handler runs and closes it once the app is done with the
-connection: after the response is sent for HTTP, and when the socket closes for a websocket.
+connection: after the response is sent for HTTP, and when the socket closes for a websocket. The close is
+shielded from cancellation, so a request cancelled by an anyio scope such as `move_on_after` still
+runs its finalizers. A close that takes longer than 10 seconds is abandoned, with a warning on the
+`modern_di_starlette.main` logger.
 
 The root container is open from the moment you construct it. `setup_di` wraps the app's lifespan,
 and the state yielded by a `lifespan=` you passed to `Starlette()` passes through. Since

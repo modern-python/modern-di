@@ -122,7 +122,10 @@ To get the child container itself, use `FromDI(modern_di.Container)` or
 An HTTP request gets a `Scope.REQUEST` child container and a websocket connection a
 `Scope.SESSION` one; see [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for).
 `build_di_container` creates the child as a `yield` dependency, so a handler that injects nothing
-gets no child, and FastAPI's dependency cleanup closes it.
+gets no child, and FastAPI's dependency cleanup closes it. The close is
+shielded from cancellation, so a request cancelled by an anyio scope such as `move_on_after` still
+runs its finalizers. A close that takes longer than 10 seconds is abandoned, with a warning on the
+`modern_di_fastapi.main` logger.
 
 The root container is open from the moment you construct it. `setup_di` wraps the app's lifespan,
 and the state yielded by a `lifespan=` you passed to `FastAPI()` passes through. Since
