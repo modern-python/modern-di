@@ -47,9 +47,10 @@ def cached_count(items: dict[int, CacheItem]) -> int:
 
 
 async def close_async(creation_order: list[CacheItem]) -> None:
-    """Close every item newest first and empty ``creation_order``; failures raise together at the end."""
+    """Close the items queued when this starts, newest first, and dequeue them; failures raise together."""
     finalizer_errors: list[Exception] = []
-    for cache_item in reversed(creation_order):
+    closing = creation_order[:]
+    for cache_item in reversed(closing):
         finalizer = cache_item.settings.finalizer
         if finalizer is not None and cache_item.cache is not types.UNSET and not cache_item.finalized:
             try:
@@ -62,16 +63,17 @@ async def close_async(creation_order: list[CacheItem]) -> None:
             else:
                 cache_item.finalized = True
         cache_item.clear()
-    creation_order.clear()
+    del creation_order[: len(closing)]
     if finalizer_errors:
         raise exceptions.FinalizerError(exceptions=finalizer_errors, is_async=True)
 
 
 def close_sync(creation_order: list[CacheItem]) -> None:
-    """Close every item newest first; an async finalizer stays in ``creation_order`` for a later async close."""
+    """Close the items queued when this starts, newest first; an async finalizer stays queued for an async close."""
     finalizer_errors: list[Exception] = []
     remaining: list[CacheItem] = []
-    for cache_item in reversed(creation_order):
+    closing = creation_order[:]
+    for cache_item in reversed(closing):
         finalizer = cache_item.settings.finalizer
         value = cache_item.cache
         if finalizer is not None and value is not types.UNSET and not cache_item.finalized:
@@ -94,6 +96,6 @@ def close_sync(creation_order: list[CacheItem]) -> None:
                 cache_item.finalized = True
         cache_item.clear()
     remaining.reverse()
-    creation_order[:] = remaining
+    creation_order[: len(closing)] = remaining
     if finalizer_errors:
         raise exceptions.FinalizerError(exceptions=finalizer_errors, is_async=False)
