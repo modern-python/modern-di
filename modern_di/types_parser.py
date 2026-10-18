@@ -152,7 +152,14 @@ def _signature(creator: typing.Callable[..., typing.Any]) -> inspect.Signature:
     return inspect.signature(creator)
 
 
+def _generic_origin(creator: typing.Callable[..., typing.Any]) -> typing.Callable[..., typing.Any]:
+    """Return the class behind a parameterized generic class such as ``Repo[int]``, else ``creator``."""
+    origin = typing.get_origin(creator)
+    return origin if isinstance(origin, type) and not isinstance(creator, type) else creator
+
+
 def parse_creator(creator: typing.Callable[..., typing.Any]) -> ParsedCreator:
+    creator = _generic_origin(creator)
     try:
         sig = _signature(creator)
     except (ValueError, TypeError):
