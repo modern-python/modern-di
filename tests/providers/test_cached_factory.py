@@ -681,6 +681,9 @@ class _First: ...
 class _Second: ...
 
 
+class _Third: ...
+
+
 class _Built:
     count = 0
 
@@ -821,6 +824,40 @@ async def test_cancelled_close_async_keeps_unfinalized_items_queued() -> None:
     container.open()
     assert container.resolve(_First) is not first
     assert container.resolve(_Second) is not second
+
+
+async def test_interrupted_close_sync_keeps_unfinalized_items_queued() -> None:
+    events: list[str] = []
+
+    def sync_finalizer(_: _First) -> None:
+        events.append("first")
+
+    def interrupting_finalizer(_: _Second) -> None:
+        events.append("second")
+        if events.count("second") == 1:
+            raise KeyboardInterrupt
+
+    async def async_finalizer(_: _Third) -> None:
+        events.append("third")
+
+    class InterruptGroup(Group):
+        first = providers.Factory(creator=_First, cache=providers.CacheSettings(finalizer=sync_finalizer))
+        second = providers.Factory(creator=_Second, cache=providers.CacheSettings(finalizer=interrupting_finalizer))
+        third = providers.Factory(creator=_Third, cache=providers.CacheSettings(finalizer=async_finalizer))
+
+    container = Container(groups=[InterruptGroup])
+    container.resolve(_First)
+    container.resolve(_Second)
+    container.resolve(_Third)
+
+    with pytest.raises(KeyboardInterrupt):
+        container.close_sync()
+
+    assert events == ["second"]
+
+    await container.close_async()
+
+    assert events == ["second", "third", "second", "first"]
 
 
 async def test_close_async_after_a_cancelled_close_does_not_refinalize_closed_items() -> None:

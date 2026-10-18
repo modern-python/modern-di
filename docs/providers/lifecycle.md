@@ -246,10 +246,10 @@ The container counts as closed as soon as `close_sync()` or `close_async()` star
 that resolves from its own container gets `ContainerClosedError`. Give a finalizer what it needs
 through the cached instance.
 
-Closing does not wait for resolves running on other threads. If another thread is still building a
-cached instance when the close starts, that close does not finalize it: the instance stays cached in
-the closed container, and its finalizer runs at the next close. Stop resolving from a container
-before you close it.
+Closing does not wait for resolves running on other threads. If another thread finishes building a
+cached instance while a close runs, that close finalizes it. If it finishes after the close returns,
+the instance stays cached in the closed container, and its finalizer runs at the next close. Stop
+resolving from a container before you close it.
 
 After close, resolving raises `ContainerClosedError` and the creator does not run. That includes a
 resolve through a child that reaches the closed container. A child of a closed container can still

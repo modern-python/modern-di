@@ -203,12 +203,12 @@ def _close_with_a_build_finishing_mid_close(
     return container, log
 
 
-def test_a_build_finishing_during_close_sync_is_finalized_by_the_next_close() -> None:
+def test_a_build_finishing_during_close_sync_is_finalized_by_that_close() -> None:
     log: list[str] = []
     container, closed = _close_with_a_build_finishing_mid_close(
         Container.close_sync, x_finalizer=lambda _: log.append("X")
     )
-    assert (closed, log) == (["Y"], [])
+    assert (closed, log) == (["Y"], ["X"])
 
     container.close_sync()
 
@@ -219,10 +219,10 @@ def _close_async(container: Container) -> None:
     asyncio.run(container.close_async())
 
 
-def test_a_build_finishing_during_close_async_is_finalized_by_the_next_close() -> None:
+def test_a_build_finishing_during_close_async_is_finalized_by_that_close() -> None:
     log: list[str] = []
     container, closed = _close_with_a_build_finishing_mid_close(_close_async, x_finalizer=lambda _: log.append("X"))
-    assert (closed, log) == (["Y"], [])
+    assert (closed, log) == (["Y"], ["X"])
 
     _close_async(container)
 
@@ -235,9 +235,13 @@ def test_a_build_finishing_during_close_sync_keeps_an_async_finalizer_pending() 
     async def finalize_x(_: object) -> None:
         log.append("X")
 
-    container, _ = _close_with_a_build_finishing_mid_close(Container.close_sync, x_finalizer=finalize_x)
-    with pytest.raises(FinalizerError):
-        container.close_sync()
+    def close_sync_reporting_the_async_finalizer(container: Container) -> None:
+        with pytest.raises(FinalizerError):
+            container.close_sync()
+
+    container, _ = _close_with_a_build_finishing_mid_close(
+        close_sync_reporting_the_async_finalizer, x_finalizer=finalize_x
+    )
     assert log == []
 
     _close_async(container)

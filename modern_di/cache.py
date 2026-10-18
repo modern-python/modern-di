@@ -47,10 +47,10 @@ def cached_count(items: dict[int, CacheItem]) -> int:
 
 
 async def close_async(creation_order: list[CacheItem]) -> None:
-    """Close the items queued when this starts, newest first, and dequeue them; failures raise together."""
+    """Pop and close items newest first until ``creation_order`` is empty; failures raise together at the end."""
     finalizer_errors: list[Exception] = []
-    closing = creation_order[:]
-    for cache_item in reversed(closing):
+    while creation_order:
+        cache_item = creation_order.pop()
         finalizer = cache_item.settings.finalizer
         if finalizer is not None and cache_item.cache is not types.UNSET and not cache_item.finalized:
             try:
@@ -60,20 +60,22 @@ async def close_async(creation_order: list[CacheItem]) -> None:
             except Exception as e:  # noqa: BLE001
                 e.add_note(finalizer_note(type(cache_item.cache)))
                 finalizer_errors.append(e)
+            except BaseException:
+                creation_order.append(cache_item)
+                raise
             else:
                 cache_item.finalized = True
         cache_item.clear()
-    del creation_order[: len(closing)]
     if finalizer_errors:
         raise exceptions.FinalizerError(exceptions=finalizer_errors, is_async=True)
 
 
 def close_sync(creation_order: list[CacheItem]) -> None:
-    """Close the items queued when this starts, newest first; an async finalizer stays queued for an async close."""
+    """Pop and close items newest first until ``creation_order`` is empty; an async finalizer is queued again."""
     finalizer_errors: list[Exception] = []
     remaining: list[CacheItem] = []
-    closing = creation_order[:]
-    for cache_item in reversed(closing):
+    while creation_order:
+        cache_item = creation_order.pop()
         finalizer = cache_item.settings.finalizer
         value = cache_item.cache
         if finalizer is not None and value is not types.UNSET and not cache_item.finalized:
@@ -86,6 +88,9 @@ def close_sync(creation_order: list[CacheItem]) -> None:
             except Exception as e:  # noqa: BLE001
                 e.add_note(finalizer_note(type(value)))
                 finalizer_errors.append(e)
+            except BaseException:
+                creation_order.extend([cache_item, *reversed(remaining)])
+                raise
             else:
                 if result is not None and inspect.isawaitable(result):
                     if inspect.iscoroutine(result):
@@ -96,6 +101,6 @@ def close_sync(creation_order: list[CacheItem]) -> None:
                 cache_item.finalized = True
         cache_item.clear()
     remaining.reverse()
-    creation_order[: len(closing)] = remaining
+    creation_order[:0] = remaining
     if finalizer_errors:
         raise exceptions.FinalizerError(exceptions=finalizer_errors, is_async=False)
