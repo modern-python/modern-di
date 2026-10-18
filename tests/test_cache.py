@@ -1,3 +1,4 @@
+import asyncio
 import threading
 import typing
 from concurrent.futures import ThreadPoolExecutor
@@ -6,6 +7,7 @@ import pytest
 
 from modern_di import Container, Group, Scope
 from modern_di.cache import CacheItem, close_async
+from modern_di.exceptions import FinalizerError
 from modern_di.providers import CacheSettings, Factory
 from modern_di.types import UNSET
 from tests.helpers import cache_item
@@ -160,3 +162,84 @@ async def test_close_async_runs_only_owed_finalizers_and_empties_the_order() -> 
     assert persistent.cache == "persistent"
     assert with_finalizer.cache is UNSET
     assert creation_order == []
+
+
+def _close_with_a_build_finishing_mid_close(
+    close: typing.Callable[[Container], typing.Any], *, x_finalizer: typing.Callable[[object], typing.Any]
+) -> tuple[Container, list[str]]:
+    """Close a container while another thread's cached build finishes during that close.
+
+    ``Y`` is cached before the close starts. ``X``'s creator blocks until ``Y``'s finalizer
+    releases it, and that finalizer waits for the build to finish, so ``X`` is cached and queued
+    while the close is still running.
+    """
+    log: list[str] = []
+    started = threading.Event()
+    go = threading.Event()
+
+    class X:
+        def __init__(self) -> None:
+            started.set()
+            go.wait(timeout=5)
+
+    class Y: ...
+
+    def finalize_y(_: Y) -> None:
+        log.append("Y")
+        go.set()
+        builder.join(timeout=5)
+
+    class G(Group):
+        x = Factory(creator=X, cache=CacheSettings(finalizer=x_finalizer))
+        y = Factory(creator=Y, cache=CacheSettings(finalizer=finalize_y))
+
+    container = Container(groups=[G])
+    container.resolve(Y)
+    builder = threading.Thread(target=container.resolve, args=(X,))
+    builder.start()
+    assert started.wait(timeout=5)
+    close(container)
+    assert not builder.is_alive()
+    return container, log
+
+
+def test_a_build_finishing_during_close_sync_is_finalized_by_the_next_close() -> None:
+    log: list[str] = []
+    container, closed = _close_with_a_build_finishing_mid_close(
+        Container.close_sync, x_finalizer=lambda _: log.append("X")
+    )
+    assert (closed, log) == (["Y"], [])
+
+    container.close_sync()
+
+    assert log == ["X"]
+
+
+def _close_async(container: Container) -> None:
+    asyncio.run(container.close_async())
+
+
+def test_a_build_finishing_during_close_async_is_finalized_by_the_next_close() -> None:
+    log: list[str] = []
+    container, closed = _close_with_a_build_finishing_mid_close(_close_async, x_finalizer=lambda _: log.append("X"))
+    assert (closed, log) == (["Y"], [])
+
+    _close_async(container)
+
+    assert log == ["X"]
+
+
+def test_a_build_finishing_during_close_sync_keeps_an_async_finalizer_pending() -> None:
+    log: list[str] = []
+
+    async def finalize_x(_: object) -> None:
+        log.append("X")
+
+    container, _ = _close_with_a_build_finishing_mid_close(Container.close_sync, x_finalizer=finalize_x)
+    with pytest.raises(FinalizerError):
+        container.close_sync()
+    assert log == []
+
+    _close_async(container)
+
+    assert log == ["X"]
