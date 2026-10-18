@@ -40,7 +40,10 @@ class SignatureItem:
         if isinstance(type_, types.UnionType) or origin is typing.Union:
             # A parameterized generic member degrades to its origin (list[str] -> list); see
             # test_union_member_degrades_to_bare_origin.
-            union_members = [typing.get_origin(x) or x for x in typing.get_args(type_)]
+            members = [
+                typing.get_args(x)[0] if typing.get_origin(x) is typing.Annotated else x for x in typing.get_args(type_)
+            ]
+            union_members = [typing.get_origin(x) or x for x in members]
             non_none_members = [member for member in union_members if member is not types.NoneType]
             if len(non_none_members) != len(union_members):
                 result["is_nullable"] = True
