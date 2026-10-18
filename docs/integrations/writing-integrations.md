@@ -248,7 +248,10 @@ in for a type at call sites.
   `__aexit__` closes. With callback hooks, open the container on startup and close it with
   `close_async` on shutdown, as FastStream, aiogram and taskiq do. `open()` validates nothing
   and is a no-op on an open container.
-- Close the child container on every exit path, errors included.
+- Close the child container on every exit path, errors included. A close cancelled while a finalizer
+  awaits leaves the rest queued ([Cancelled close](../providers/lifecycle.md#cancelled-close)); to
+  guarantee their release, catch the cancellation, close the child again with cancellation shielded,
+  and re-raise.
 - Match async and sync to the framework: `close_async` in an async framework, `close_sync` in a
   synchronous one (Typer, Flask, a sync gRPC server).
 - Document that `container.validate()` goes after `setup_di`, never before. `setup_di` registers the
