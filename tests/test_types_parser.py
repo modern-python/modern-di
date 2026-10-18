@@ -450,6 +450,52 @@ def test_class_typed_only_on_signature_is_wired() -> None:
     assert isinstance(Container(groups=[Dependencies]).resolve(_SignatureOnlyModel).dep, _Dep)
 
 
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        typing.Annotated[_Dep, "meta"] | None,
+        typing.Optional[typing.Annotated[_Dep, "meta"]],  # noqa: UP045
+        typing.Annotated[typing.Annotated[_Dep, "inner"], "outer"] | None,
+    ],
+)
+def test_annotated_member_of_an_optional_on_signature_is_wired(annotation: object) -> None:
+    creator = _signature_only(_keyword("dep", annotation))
+
+    class Dependencies(Group):
+        dep = providers.Factory(_Dep, cache=True)
+        target = providers.Factory(creator, bound_type=None)
+
+    container = Container(groups=[Dependencies])
+    container.validate()
+
+    assert container.resolve_provider(Dependencies.target)["dep"] is container.resolve(_Dep)
+
+
+def test_annotated_member_of_an_optional_on_signature_falls_back_to_none() -> None:
+    creator = _signature_only(_keyword("dep", typing.Annotated[_Dep, "meta"] | None))
+
+    class Dependencies(Group):
+        target = providers.Factory(creator, bound_type=None)
+
+    container = Container(groups=[Dependencies])
+    container.validate()
+
+    assert container.resolve_provider(Dependencies.target) == {"dep": None}
+
+
+def test_annotated_members_of_a_union_on_signature_resolve_the_first_registered() -> None:
+    creator = _signature_only(_keyword("dep", typing.Annotated[_OtherDep, "a"] | typing.Annotated[_Dep, "b"]))
+
+    class Dependencies(Group):
+        dep = providers.Factory(_Dep)
+        target = providers.Factory(creator, bound_type=None)
+
+    container = Container(groups=[Dependencies])
+    container.validate()
+
+    assert isinstance(container.resolve_provider(Dependencies.target)["dep"], _Dep)
+
+
 def test_string_annotation_on_signature_is_not_wired() -> None:
     creator = _signature_only(_keyword("dep", "_Dep"))
 
