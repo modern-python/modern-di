@@ -68,6 +68,11 @@ there, the one on `inspect.signature(creator)` is used, if it is a type rather t
 Pydantic models and msgspec `Struct`s keep their field types only on the signature, so this is
 what wires their fields.
 
+A parameterized generic class such as `Repo[int]` works as a creator. Its parameters come from
+`Repo`'s constructor, calling `Repo[int]` builds the instance, and the bound type is `Repo`. Two
+parameterizations of one class therefore share a bound type. To register both, set `bound_type=` on
+them, for example `bound_type=None` to resolve each by reference. Before modern-di 4.2.1, such a creator was wired with no parameters and no bound type.
+
 ### scope
 
 The provider's lifetime. Without `scope=`, the provider takes its group's default scope, or

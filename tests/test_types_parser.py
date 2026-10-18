@@ -669,3 +669,59 @@ def test_class_signature_matches_inspect_signature(creator: typing.Callable[...,
     except ValueError as exc:
         actual = (ValueError, str(exc))
     assert actual == expected
+
+
+class _Repo(typing.Generic[types.T]):
+    def __init__(self, dep: _Dep) -> None:
+        self.dep = dep
+
+
+def test_generic_alias_creator_wires_the_origin_class() -> None:
+    class Dependencies(Group):
+        dep = providers.Factory(_Dep)
+        repo = providers.Factory(_Repo[int], cache=True)
+
+    container = Container(groups=[Dependencies])
+    container.validate()
+    repo = container.resolve(_Repo)
+
+    assert Dependencies.repo.bound_type is _Repo
+    assert isinstance(repo.dep, _Dep)
+    assert repo.__orig_class__ == _Repo[int]  # ty: ignore[unresolved-attribute]
+    assert container.resolve_provider(Dependencies.repo) is repo
+
+
+def test_generic_alias_creator_dependencies_are_validated() -> None:
+    class Dependencies(Group):
+        repo = providers.Factory(_Repo[int])
+
+    with pytest.raises(exceptions.ValidationFailedError):
+        Container(groups=[Dependencies]).validate()
+
+
+def test_generic_alias_creator_rejects_an_unknown_kwarg() -> None:
+    with pytest.raises(exceptions.UnknownFactoryKwargError):
+        providers.Factory(_Repo[int], kwargs={"nope": 1})
+
+
+def test_two_parameterizations_of_one_generic_collide_on_the_origin() -> None:
+    class Dependencies(Group):
+        dep = providers.Factory(_Dep)
+        ints = providers.Factory(_Repo[int])
+        strs = providers.Factory(_Repo[str])
+
+    with pytest.raises(exceptions.DuplicateProviderTypeError):
+        Container(groups=[Dependencies])
+
+
+def test_explicit_bound_types_register_parameterizations_side_by_side() -> None:
+    class Dependencies(Group):
+        dep = providers.Factory(_Dep)
+        ints = providers.Factory(_Repo[int], bound_type=None)
+        strs = providers.Factory(_Repo[str], bound_type=None)
+
+    container = Container(groups=[Dependencies])
+    container.validate()
+
+    assert container.resolve_provider(Dependencies.ints).__orig_class__ == _Repo[int]  # ty: ignore[unresolved-attribute]
+    assert container.resolve_provider(Dependencies.strs).__orig_class__ == _Repo[str]  # ty: ignore[unresolved-attribute]
