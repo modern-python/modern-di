@@ -263,6 +263,10 @@ When one inline provider object sits in the `kwargs` of several providers, it ta
 their scopes, so that each of them can resolve it. A module-level provider for a settings field
 shared by an `APP` engine and a `REQUEST` session gets `APP`.
 
+A [derived provider](factories.md#derived-values) has no scope of its own, so the rule passes through
+it: in `kwargs={"session": providers.Factory(DbSession, cache=True).derive(fn)}`, the inline
+`DbSession` factory takes the scope of the provider that uses the derived one.
+
 An explicit `scope=` on the inline provider wins, as it does everywhere. A provider that is a class
 attribute of some group keeps its own scope wherever it is referenced. An inline provider's scope is
 frozen when it is first registered. A later `add_providers()` call never changes it, so a new

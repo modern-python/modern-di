@@ -4,7 +4,7 @@ import typing
 
 from modern_di import exceptions, suggester, types
 from modern_di.dependency_graph import terminal_chain
-from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.abstract import AbstractProvider, _Derived
 from modern_di.providers.alias import Alias
 from modern_di.providers.factory import Factory
 from modern_di.registries.overrides_registry import OverridesRegistry
@@ -209,14 +209,14 @@ class ProvidersRegistry:
 
 
 def _inline_children(provider: AbstractProvider[typing.Any]) -> list[AbstractProvider[typing.Any]]:
-    """Return the providers written inline in ``provider``'s kwargs: none of them is a class attribute."""
-    if type(provider) is not Factory or not provider._kwargs:  # noqa: SLF001
+    """Return the providers written inline in ``provider``'s kwargs or derive source: none is a class attribute."""
+    if type(provider) is _Derived:
+        values: typing.Iterable[typing.Any] = (provider._source,)  # noqa: SLF001
+    elif type(provider) is Factory and provider._kwargs:  # noqa: SLF001
+        values = provider._kwargs.values()  # noqa: SLF001
+    else:
         return []
-    return [
-        value
-        for value in provider._kwargs.values()  # noqa: SLF001
-        if isinstance(value, AbstractProvider) and value._declared_as is None  # noqa: SLF001
-    ]
+    return [value for value in values if isinstance(value, AbstractProvider) and value._declared_as is None]  # noqa: SLF001
 
 
 def _stamp_inline_scopes(registered: tuple[AbstractProvider[typing.Any], ...]) -> None:
@@ -238,6 +238,7 @@ def _stamp_inline_scopes(registered: tuple[AbstractProvider[typing.Any], ...]) -
             parents_of.setdefault(id(child), []).append(parent)
             stack.append(child)
     waiting = {child_id: len(parents) for child_id, parents in parents_of.items()}
+    passed_down = {id(provider): provider.scope for provider in registered}
     ready = list(registered)
     while ready:
         parent = ready.pop()
@@ -245,5 +246,7 @@ def _stamp_inline_scopes(registered: tuple[AbstractProvider[typing.Any], ...]) -
             waiting[id(child)] -= 1
             if waiting[id(child)]:
                 continue
-            child._stamp_inline_scope(min(p.scope for p in parents_of[id(child)]))  # noqa: SLF001
+            scope = min(passed_down[id(p)] for p in parents_of[id(child)])
+            child._stamp_inline_scope(scope)  # noqa: SLF001
+            passed_down[id(child)] = scope if type(child) is _Derived else child.scope
             ready.append(child)

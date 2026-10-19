@@ -171,3 +171,14 @@ def test_group_cannot_change_scope_of_registered_inline_provider() -> None:
             shared_session = session
 
     assert session.scope is Scope.REQUEST
+
+
+def test_inline_source_of_inline_derived_provider_takes_parent_scope() -> None:
+    class Dependencies(Group, scope=Scope.REQUEST):
+        handler = providers.Factory(
+            _Handler, kwargs={"session": providers.Factory(_Session, cache=True).derive(lambda s: s)}
+        )
+
+    a, b = _sessions_of_two_requests(Container(groups=[Dependencies]))
+
+    assert a is not b
