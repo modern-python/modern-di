@@ -138,7 +138,9 @@ keys and raises `ImproperlyConfiguredException`.
 An HTTP request gets a `Scope.REQUEST` child container and a websocket connection a
 `Scope.SESSION` one; see [the scope hierarchy](../providers/scopes.md#what-each-scope-is-for). The
 child is a Litestar generator dependency, so it is built only for handlers that inject something
-and closed in Litestar's dependency cleanup.
+and closed in Litestar's dependency cleanup. The close is shielded from cancellation, so a request
+cancelled by an anyio scope such as `move_on_after` still runs its finalizers. A close that takes
+longer than 10 seconds is abandoned, with a warning on the `modern_di_litestar.main` logger.
 
 The root container is open from the moment you construct it. The plugin puts a manager first in
 the app's `lifespan` list, which reopens the container on startup, and a hook last in `on_shutdown`,
