@@ -77,7 +77,9 @@ them, for example `bound_type=None` to resolve each by reference. Before modern-
 
 The provider's lifetime. Without `scope=`, the provider takes its group's default scope, or
 `Scope.APP` when the group sets none; see
-[Group-level default scope](scopes.md#group-level-default-scope).
+[Group-level default scope](scopes.md#group-level-default-scope). A provider written inline in
+another factory's `kwargs` takes the scope of the providers that use it; see
+[Inline providers](scopes.md#inline-providers).
 [Scopes](scopes.md) covers the five scopes and the dependency rule.
 
 ### bound_type

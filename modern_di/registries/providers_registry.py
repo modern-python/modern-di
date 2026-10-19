@@ -4,8 +4,9 @@ import typing
 
 from modern_di import exceptions, suggester, types
 from modern_di.dependency_graph import terminal_chain
-from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.abstract import AbstractProvider, _Derived
 from modern_di.providers.alias import Alias
+from modern_di.providers.factory import Factory
 from modern_di.registries.overrides_registry import OverridesRegistry
 from modern_di.resolver_compiler import compile_resolver
 from modern_di.wiring import WiringPlan
@@ -13,7 +14,6 @@ from modern_di.wiring import WiringPlan
 
 if typing.TYPE_CHECKING:
     from modern_di import Container
-    from modern_di.providers.factory import Factory
 
 
 _K = typing.TypeVar("_K")
@@ -186,6 +186,7 @@ class ProvidersRegistry:
                     raise exceptions.DuplicateProviderTypeError(
                         provider_type=provider_type, first_provider=existing, second_provider=provider
                     )
+            _stamp_inline_scopes(registered)
             self._providers.update(new_providers)
             bound = {id(provider) for provider in new_providers.values()}
             for provider in registered:
@@ -205,3 +206,47 @@ class ProvidersRegistry:
         self._resolvers.clear()
         self._resolvers_by_type.clear()
         self._generation += 1
+
+
+def _inline_children(provider: AbstractProvider[typing.Any]) -> list[AbstractProvider[typing.Any]]:
+    """Return the providers written inline in ``provider``'s kwargs or derive source: none is a class attribute."""
+    if type(provider) is _Derived:
+        values: typing.Iterable[typing.Any] = (provider._source,)  # noqa: SLF001
+    elif type(provider) is Factory and provider._kwargs:  # noqa: SLF001
+        values = provider._kwargs.values()  # noqa: SLF001
+    else:
+        return []
+    return [value for value in values if isinstance(value, AbstractProvider) and value._declared_as is None]  # noqa: SLF001
+
+
+def _stamp_inline_scopes(registered: tuple[AbstractProvider[typing.Any], ...]) -> None:
+    """Give each scope-defaulted inline provider the shallowest scope among the providers using it.
+
+    A scope set by an earlier registration is kept.
+    """
+    roots = {id(provider) for provider in registered}
+    children_of: dict[int, list[AbstractProvider[typing.Any]]] = {}
+    parents_of: dict[int, list[AbstractProvider[typing.Any]]] = {}
+    stack = list(registered)
+    while stack:
+        parent = stack.pop()
+        if id(parent) in children_of:
+            continue
+        children = [child for child in _inline_children(parent) if id(child) not in roots]
+        children_of[id(parent)] = children
+        for child in children:
+            parents_of.setdefault(id(child), []).append(parent)
+            stack.append(child)
+    waiting = {child_id: len(parents) for child_id, parents in parents_of.items()}
+    passed_down = {id(provider): provider.scope for provider in registered}
+    ready = list(registered)
+    while ready:
+        parent = ready.pop()
+        for child in children_of[id(parent)]:
+            waiting[id(child)] -= 1
+            if waiting[id(child)]:
+                continue
+            scope = min(passed_down[id(p)] for p in parents_of[id(child)])
+            child._stamp_inline_scope(scope)  # noqa: SLF001
+            passed_down[id(child)] = scope if type(child) is _Derived else child.scope
+            ready.append(child)

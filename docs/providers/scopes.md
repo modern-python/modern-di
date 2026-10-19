@@ -220,13 +220,59 @@ Scope resolution follows a priority order:
 
 1. An explicit `scope=` on the provider always wins.
 2. Then the group's `scope=` kwarg, inherited via MRO by subclasses. A subclass may override it with its own `scope=` kwarg, which applies to the providers declared in its own body; inherited providers keep the scope their declaring class gave them.
-3. Otherwise `Scope.APP`, the final default.
+3. For a provider written inline in another factory's `kwargs`, the scope of the providers that use it; see [Inline providers](#inline-providers).
+4. Otherwise `Scope.APP`, the final default.
 
 `Alias` providers do not participate in group-level scope defaults; an alias's scope always derives from its source.
 
 A scope-defaulted provider instance that is shared between two `Group` subclasses with different defaults raises [`GroupScopeConflictError`](../troubleshooting/group-scope-conflict-error.md) at class-creation time. Sharing the same provider instance with the same default scope across multiple groups is allowed.
 
 A group declared without a `scope=` kwarg stamps nothing, so a provider listed only in such a group keeps the `Scope.APP` default and can still be stamped by a later group, but only until it is registered with a container. After that, a group that would *change* its scope raises [`ProviderScopeFrozenError`](../troubleshooting/provider-scope-frozen-error.md), because resolvers compiled before the change already captured the old scope. Declare every group that lists a provider before building the container, or set `scope=` on the provider explicitly.
+
+## Inline providers
+
+A provider written inline in a factory's `kwargs` is not a class attribute, so no group stamps it.
+Without its own `scope=`, it takes the scope of the provider it sits in when the container registers
+them:
+
+```python
+from modern_di import Container, Group, Scope, providers
+
+
+class DbSession:
+    pass
+
+
+class Handler:
+    def __init__(self, session: DbSession) -> None:
+        self.session = session
+
+
+class Handlers(Group, scope=Scope.REQUEST):
+    handler = providers.Factory(Handler, kwargs={"session": providers.Factory(DbSession, cache=True)})
+
+
+handlers_container = Container(groups=[Handlers])
+with handlers_container.build_child_container(scope=Scope.REQUEST) as first:
+    first_session = first.resolve(Handler).session
+with handlers_container.build_child_container(scope=Scope.REQUEST) as second:
+    assert second.resolve(Handler).session is not first_session  # one DbSession per request
+```
+
+When one inline provider object sits in the `kwargs` of several providers, it takes the shallowest of
+their scopes, so that each of them can resolve it. A module-level provider for a settings field
+shared by an `APP` engine and a `REQUEST` session gets `APP`.
+
+A [derived provider](factories.md#derived-values) has no scope of its own, so the rule passes through
+it: in `kwargs={"session": providers.Factory(DbSession, cache=True).derive(fn)}`, the inline
+`DbSession` factory takes the scope of the provider that uses the derived one.
+
+An explicit `scope=` on the inline provider wins, as it does everywhere. A provider that is a class
+attribute of some group keeps its own scope wherever it is referenced. An inline provider's scope is
+frozen when it is first registered. A later `add_providers()` call never changes it, so a new
+provider shallower than that scope fails `validate()` with `InvalidScopeDependencyError`, and a group
+declared later that would change it raises
+[`ProviderScopeFrozenError`](../troubleshooting/provider-scope-frozen-error.md).
 
 ## See also
 

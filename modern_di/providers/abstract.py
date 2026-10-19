@@ -24,6 +24,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
         "_declared_as",
         "_explicit_scope",
         "_group_claim",
+        "_inline_scope",
         "_provider_id",
         "_registered",
     )
@@ -54,6 +55,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
         """
         self._explicit_scope: enum.IntEnum | None = scope if isinstance(scope, enum.IntEnum) else None
         self._group_claim: tuple[enum.IntEnum, str] | None = None
+        self._inline_scope: enum.IntEnum | None = None
         self._registered = False
         self._bound_type = inferred_bound_type if isinstance(bound_type, types.UnsetType) else bound_type
         self._provider_id = next(_provider_id_counter)
@@ -83,7 +85,9 @@ class AbstractProvider(typing.Generic[types.T_co]):
 
     @property
     def scope(self) -> enum.IntEnum:
-        """The declared scope: the provider's own ``scope=``, else a Group default, else ``Scope.APP``.
+        """The declared scope: own ``scope=``, else a Group default, else an inline scope, else ``Scope.APP``.
+
+        An inline provider's scope is the shallowest scope among the providers using it.
 
         For a redirect such as ``Alias`` this is a ``Scope.APP`` placeholder, not the effective scope: an
         alias resolves at its source's scope.
@@ -92,7 +96,15 @@ class AbstractProvider(typing.Generic[types.T_co]):
             return self._explicit_scope
         if self._group_claim is not None:
             return self._group_claim[0]
+        if self._inline_scope is not None:
+            return self._inline_scope
         return Scope.APP
+
+    def _stamp_inline_scope(self, scope: enum.IntEnum) -> None:
+        """Record the scope an inline provider takes from the providers using it, then freeze it."""
+        if not self._registered and self._takes_group_scope and self._explicit_scope is None:
+            self._inline_scope = scope
+        self._registered = True
 
     def _stamp_group_scope(self, scope: enum.IntEnum, group_name: str) -> None:
         """Record a Group-level default scope; a no-op unless the scope is still an unclaimed default.
