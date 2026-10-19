@@ -89,6 +89,10 @@ resource read, a prompt render or a list call. Notifications open nothing. The c
 closed with `close_async()`, so REQUEST-scoped finalizers may be async or sync. There is no
 `Scope.SESSION` child: an MCP session has no close hook, so nothing could close it.
 
+The close is shielded from cancellation, so a call the client abandons, or one whose
+`call_tool(timeout=...)` expires, still runs its finalizers. A close that takes longer than
+10 seconds is abandoned, with a warning on the `modern_di_fastmcp.main` logger.
+
 `setup_di` on the server that clients connect to covers its own components and those of
 every server mounted on it. `setup_di` on a mounted server covers only that server's
 components, and a `FromDI` parameter on the parent's own tools then fails with a

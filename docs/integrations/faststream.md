@@ -78,6 +78,11 @@ receives. REQUEST-scoped providers and their finalizers live for that one messag
 child is closed with `close_async()`, so finalizers may be async or sync. Resolution itself
 is synchronous, as everywhere in modern-di.
 
+The close is shielded from cancellation, so a handler cancelled through an anyio scope, such as a
+concurrent subscriber (`max_workers > 1`) that stops mid-message, still runs its finalizers. A close
+that takes longer than 10 seconds is abandoned, with a warning on the `modern_di_faststream.main`
+logger.
+
 There is no `Scope.SESSION` for FastStream: message brokers don't have a session concept
 comparable to websockets.
 
