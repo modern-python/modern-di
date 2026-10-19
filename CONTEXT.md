@@ -49,6 +49,11 @@ _Avoid_: registered type, return type
 A provider with no bound type, resolvable only by passing the provider itself.
 _Avoid_: unbound provider, anonymous provider
 
+**Inline provider**:
+A provider written as a value in another factory's `kwargs` instead of declared as a group class
+attribute. Without its own scope it takes the shallowest scope among the providers that use it.
+_Avoid_: nested provider
+
 **Wiring plan**:
 The partition of a creator's parameters by how each is satisfied.
 _Avoid_: compiled kwargs
