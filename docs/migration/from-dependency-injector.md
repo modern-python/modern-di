@@ -82,7 +82,7 @@ Use this table as the index for the rest of the guide. "No direct equivalent" ro
 | `Delegate` and the `Delegated*` providers (`DelegatedFactory`, `DelegatedSingleton`, ...) | A creator parameter annotated `Container`, resolving the provider later | [§4](#4-migrate-the-dependency-graph) |
 | `Selector` | No direct equivalent | [§11](#11-no-direct-equivalent) |
 | `Aggregate` / `FactoryAggregate` | No direct equivalent | [§11](#11-no-direct-equivalent) |
-| `.provided` (attribute / item / method-call access on a provider) | No direct equivalent | [§11](#11-no-direct-equivalent) |
+| `.provided` (attribute / item / method-call access on a provider) | `provider.derive(fn)`, e.g. `provider.derive(lambda value: value.attr)` | [Derived values](../providers/factories.md#derived-values) |
 | `@inject` + `Provide[...]` + `container.wire(modules=[...])` (web) | `FromDI(T)` from the framework integration | [§6](#6-wiring-replacement), [§8](#8-framework-integration-and-routes) |
 | `@inject` + `Provide[...]` + `container.wire(modules=[...])` (non-web) | Explicit `container.resolve(T)` | [§6](#6-wiring-replacement) |
 | `DeclarativeContainer` | `Group` (schema) + `Container(groups=[...])` (runtime), checked with `.validate()` | [§2](#2-key-conceptual-shifts) |
@@ -358,7 +358,6 @@ A handful of `dependency-injector` features have no direct port. Workarounds:
 - For `ThreadLocalSingleton`, register an uncached `Factory` whose creator reads the object from a module-level `threading.local()` and creates and stores it there on a thread's first call. A cached `Factory` can't do this, because it caches one object for the whole container.
 - For `Selector`, write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
 - For `Aggregate` / `FactoryAggregate`, resolve each candidate provider individually (by type or by reference) and dispatch on the key yourself in a small creator function, rather than injecting the whole aggregate object.
-- For `.provided` (attribute / item / method-call access on a provider, e.g. `service.provided.value`), resolve the parent inside the consuming creator and access the attribute, item, or method result there, or expose a dedicated `Factory` whose creator returns just that piece.
 - `modern-di` has no general-purpose injection decorator to replace `@inject` + `Provide[...]` on non-framework functions. Call `container.resolve(T)` explicitly at the call site, or expose the function through a framework integration and use `FromDI(T)`.
 - Providers are not partially applied callables. In `dependency-injector`, calling a provider with extra arguments (`container.some_factory(extra_arg)`) merges them with the declared ones for that one call. `modern-di`'s `resolve()` and `resolve_provider()` take no arguments, so every creator argument must come from its type, from `kwargs`, or from a default. Move a static value into `kwargs=`. For a value that varies per call site, use a `ContextProvider` set on the container you resolve from, or a deeper-scoped dependency.
 

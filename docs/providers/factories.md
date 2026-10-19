@@ -110,6 +110,8 @@ Values for creator parameters, by name. A parameter named in `kwargs` is not wir
 - A plain value is passed as is.
 - A provider is resolved when the factory resolves, and its result is passed. Use it to pick a
   specific provider for one parameter, or to wire arguments under `skip_creator_parsing=True`.
+  To pass a piece of another provider's value, such as one settings field, use
+  [`derive`](#derived-values).
 - A name the creator does not have raises `UnknownFactoryKwargError` when the `Factory` is
   declared.
 
@@ -154,6 +156,59 @@ Turns off wiring. With `skip_creator_parsing=True`:
 Without an explicit `bound_type`, `Factory(...)` emits a `UserWarning` saying the provider cannot be
 resolved by type. Pass `bound_type=SomeType` to register it, or `bound_type=None` to confirm it is
 resolved by reference only.
+
+## Derived values
+
+`provider.derive(fn)` returns a provider of `fn(value)`, where `value` is what `provider` resolves
+to. Use it in `kwargs` to pass a field of a settings object without writing a creator function for
+the component:
+
+```python
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Settings:
+    db_dsn: str = "postgresql://localhost/app"
+    db_pool_size: int = 5
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Database:
+    dsn: str
+    pool_size: int
+
+
+class AppDependencies(Group):
+    settings = providers.Factory(Settings, cache=True)
+    database = providers.Factory(
+        Database,
+        kwargs={
+            "dsn": settings.derive(lambda s: s.db_dsn),
+            "pool_size": settings.derive(lambda s: s.db_pool_size),
+        },
+        cache=True,
+    )
+
+
+container = Container(groups=[AppDependencies])
+container.override(AppDependencies.settings, Settings(db_dsn="postgresql://test/app"))
+assert container.resolve(Database).dsn == "postgresql://test/app"
+```
+
+Type checkers infer `s` from `settings`, so mypy, pyright and ty all flag `s.db_dns`. `fn` can read
+an attribute or an item, or call a method, and `derive` calls chain.
+
+A derived provider:
+
+- Has no scope of its own. It resolves at its source's scope, and a group's default scope does not
+  apply to it, so it is valid in `kwargs` in any group. `validate()` checks the consuming factory
+  against the source's scope.
+- Is never cached: `fn` runs on every resolve, so an override of the source always reaches it. If
+  the value is worth caching, give it a `Factory`.
+- Is not registered under any type. Use it in `kwargs`, or resolve it with
+  `container.resolve_provider`.
+- Can be overridden itself, like any provider.
+
+An exception raised by `fn` propagates unchanged, with a note naming the derived provider and the
+line `fn` is defined on.
 
 ## Resolution behavior
 
@@ -269,3 +324,4 @@ assert connection is container.resolve(Connection)  # and is cached now
 - [Lifecycle](lifecycle.md): finalizers, closing, and `validate()`.
 - [Scopes](scopes.md): which container caches an instance.
 - [Alias](alias.md): making one type resolve to another type's provider, such as a `Protocol` to its implementation.
+- [Testing with overrides](../recipes/testing-overrides.md): replacing a settings object in tests.
