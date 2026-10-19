@@ -23,9 +23,9 @@ One band in the container hierarchy.
 _Avoid_: lifetime, layer
 
 **Effective scope**:
-The band a provider actually resolves in, once any redirection to another provider is followed. The
-same as the provider's own scope unless it redirects, where the provider at the end of the chain
-governs.
+The band a provider actually resolves in, once any redirection to another provider, or a derived
+provider's source, is followed. The same as the provider's own scope unless it redirects or derives,
+where the provider at the end of the chain governs.
 _Avoid_: terminal scope
 
 **Group**:
@@ -44,6 +44,11 @@ _Avoid_: mock, patch
 **Bound type**:
 The type a provider is registered under.
 _Avoid_: registered type, return type
+
+**Derived provider**:
+A provider of a function of one source provider's value, built by `provider.derive(fn)`. Never
+cached, with its source's effective scope.
+_Avoid_: computed (implies caching), selector (picks a provider by key in other libraries), attribute getter
 
 **Reference-only provider**:
 A provider with no bound type, resolvable only by passing the provider itself.

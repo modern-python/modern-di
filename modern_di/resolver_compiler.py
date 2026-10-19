@@ -23,9 +23,10 @@ from types import CodeType
 
 from modern_di import exceptions, types
 from modern_di.cache import CacheItem
-from modern_di.dependency_graph import redirect_hops, reference_only_sources, terminal_chain
+from modern_di.dependency_graph import effective_scope, redirect_hops, reference_only_sources, terminal_chain
 from modern_di.exceptions.rendering import UNKNOWN_SCOPE, provider_step
-from modern_di.providers.abstract import AbstractProvider
+from modern_di.exceptions.resolution import derived_note
+from modern_di.providers.abstract import AbstractProvider, _Derived
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.context_provider import ContextProvider
@@ -52,6 +53,8 @@ def compile_resolver(provider: "AbstractProvider[typing.Any]", registry: "Provid
         return _compile_factory(provider, registry)
     if type(provider) is Alias:
         return _compile_alias(provider, registry)
+    if type(provider) is _Derived:
+        return _compile_derived(provider, registry)
     if provider is container_provider:
         return _resolve_to_container
     if type(provider) is ContextProvider:
@@ -285,6 +288,29 @@ def _compile_alias(a: "Alias[typing.Any]", registry: "ProvidersRegistry") -> "Re
         )
         error._prepend_step(provider_step(a, UNKNOWN_SCOPE))
         raise error
+
+    return resolve
+
+
+def _compile_derived(d: "_Derived[typing.Any]", registry: "ProvidersRegistry") -> "Resolver":
+    """Compile to ``fn`` over the source's resolver; the source navigates to its own scope."""
+    source = d._source
+    fn = d._fn
+    source_resolver = registry.resolver_for(source)
+    step = provider_step(d, effective_scope(d, registry))
+    hops = redirect_hops(source, registry)
+
+    def resolve(container: "Container") -> typing.Any:
+        try:
+            value = source_resolver(container)
+        except exceptions.ResolutionError as exc:
+            exc._prepend_step(step, *hops)
+            raise
+        try:
+            return fn(value)
+        except Exception as exc:
+            exc.add_note(derived_note(step))
+            raise
 
     return resolve
 

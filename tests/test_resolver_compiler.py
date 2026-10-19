@@ -549,6 +549,27 @@ def test_alias_hop_costs_no_resolver_frame() -> None:
     )
 
 
+def test_derived_node_costs_its_resolver_frame_and_fn() -> None:
+    """INVARIANT: a derived node costs two Python calls, its resolver and ``fn``, like a ``Factory`` node."""
+
+    class _Source: ...
+
+    def _identity(source: _Source) -> _Source:
+        return source
+
+    class _G(Group):
+        source = providers.Factory(creator=_Source, scope=Scope.APP)
+
+    derived = _G.source.derive(_identity)
+    container = Container(scope=Scope.APP, groups=[_G])
+    container.resolve_provider(derived)  # compile before measuring
+
+    direct = _count_python_calls(lambda: container.resolve_provider(_G.source))
+    through = _count_python_calls(lambda: container.resolve_provider(derived))
+
+    assert through - direct == _CALLS_PER_NODE
+
+
 class _BoundSource:
     def __init__(self) -> None:
         caller = sys._getframe(2)  # 0: this, 1: the source's resolver, 2: its caller

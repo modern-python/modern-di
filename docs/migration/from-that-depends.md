@@ -73,7 +73,7 @@ Use this table as the index for the rest of the guide.
 | `List` | `providers.Factory` with a creator that returns a list | [§4](#4-migrate-the-dependency-graph) |
 | `Dict` | `providers.Factory` with a creator that returns a dict | [§4](#4-migrate-the-dependency-graph) |
 | `Selector` | No direct equivalent | [§9](#9-no-direct-equivalent) |
-| `AttrGetter` (`provider.attr`) | No direct equivalent | [§9](#9-no-direct-equivalent) |
+| `AttrGetter` (`provider.attr`) | `provider.derive(lambda value: value.attr)` | [Derived values](../providers/factories.md#derived-values) |
 | `ThreadLocalSingleton` | No direct equivalent | [§9](#9-no-direct-equivalent) |
 | `State` | `ContextProvider` + `set_context` | [§5](#5-context-resources-and-request-scope) |
 | `provider.bind(T)` | `providers.Factory(..., bound_type=T)`; add an `Alias` per extra type | [§4](#4-migrate-the-dependency-graph) |
@@ -367,7 +367,6 @@ On routes, `FromDI(T)` replaces both `fastapi.Depends(Container.provider)` and `
 A handful of `that-depends` features have no direct port. Workarounds:
 
 - For `Selector`, write a creator function that takes whatever the selector depended on and returns the chosen object. If the choice is static (e.g. one implementation per environment), `Alias` may be cleaner.
-- For `AttrGetter` (`provider.attr` syntax), resolve the parent inside the consuming creator and access the attribute there, or expose a dedicated `Factory` whose creator returns the attribute.
 - For `ThreadLocalSingleton`, register an uncached `Factory` whose creator reads the object from a module-level `threading.local()` and creates and stores it there on a thread's first call. A cached `Factory` can't do this, because it caches one object for the whole container.
 - `modern-di` has no general-purpose injection decorator to replace `@inject` + `Provide[...]` on non-framework functions. Call `container.resolve(T)` explicitly at the call site, or expose the function through a framework integration and use `FromDI(T)`.
 - For `BaseContainer.resolve(func)` and `resolver(func)`, which call `func` with its parameters filled by name, register `func` as a `Factory` with `bound_type=None` and call `container.resolve_provider(...)` on it. Its parameters are then wired by type, not by name.
