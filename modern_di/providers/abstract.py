@@ -30,7 +30,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
     )
 
     _takes_group_scope: typing.ClassVar[bool] = True
-    """Whether a Group-level default scope applies. False when the effective scope is derived."""
+    """Whether a Group-level default scope applies. False when the effective scope comes from another provider."""
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         if cls.__module__.partition(".")[0] != "modern_di":
@@ -47,8 +47,12 @@ class AbstractProvider(typing.Generic[types.T_co]):
         scope: enum.IntEnum | types.UnsetType,
         bound_type: type | types.UnsetType | None,
         inferred_bound_type: type | None = None,
+        call_depth: int = 2,
     ) -> None:
-        """Set the shared state; an unset ``bound_type`` falls back to ``inferred_bound_type``."""
+        """Set the shared state; an unset ``bound_type`` falls back to ``inferred_bound_type``.
+
+        ``call_depth`` is the frame, counted from here, of the user code that built the provider.
+        """
         self._explicit_scope: enum.IntEnum | None = scope if isinstance(scope, enum.IntEnum) else None
         self._group_claim: tuple[enum.IntEnum, str] | None = None
         self._inline_scope: enum.IntEnum | None = None
@@ -56,8 +60,7 @@ class AbstractProvider(typing.Generic[types.T_co]):
         self._bound_type = inferred_bound_type if isinstance(bound_type, types.UnsetType) else bound_type
         self._provider_id = next(_provider_id_counter)
         self._declared_as: str | None = None
-        # Frame 2 is whoever called the concrete provider's __init__, which calls this one directly.
-        caller = sys._getframe(2)  # noqa: SLF001
+        caller = sys._getframe(call_depth)  # noqa: SLF001
         self._call_module: str | None = caller.f_globals.get("__name__")
         self._call_line = caller.f_lineno
 
@@ -139,3 +142,40 @@ class AbstractProvider(typing.Generic[types.T_co]):
     def definition_site(self) -> str | None:
         """``module:line`` of the provider's declaration when known; None by default (no creator)."""
         return None
+
+    def derive(self, fn: typing.Callable[[types.T_co], types.T], /) -> "AbstractProvider[types.T]":
+        """Return a provider of ``fn(value)``, where ``value`` is what this provider resolves to.
+
+        The derived provider is never cached and has no scope of its own: it resolves at this
+        provider's scope, so it is valid in ``kwargs`` of any group, and an override of this provider
+        reaches it. It is not registered under any type. An exception raised by ``fn`` propagates
+        unchanged, with a note naming the derived provider.
+        """
+        return _Derived(self, fn)
+
+
+class _Derived(AbstractProvider[types.T_co]):
+    __slots__ = ("_fn", "_source")
+
+    _takes_group_scope = False
+
+    def __init__(self, source: AbstractProvider[typing.Any], fn: typing.Callable[[typing.Any], types.T_co]) -> None:
+        super().__init__(scope=types.UNSET, bound_type=None, call_depth=3)
+        self._source = source
+        self._fn = fn
+
+    def __repr__(self) -> str:
+        return f"{self.display_name}({self._fn!r})"
+
+    @property
+    def display_name(self) -> str:
+        return f"{self._source.display_name}.derive"
+
+    @property
+    def definition_site(self) -> str | None:
+        """``fn``'s declaration site as ``module:line``; else the ``derive`` call site."""
+        module = getattr(self._fn, "__module__", None)
+        code = getattr(self._fn, "__code__", None)
+        if module is None or code is None:
+            return self._call_site
+        return f"{module}:{code.co_firstlineno}"

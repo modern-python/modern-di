@@ -11,7 +11,7 @@ from typing import NamedTuple
 
 from modern_di import exceptions
 from modern_di.exceptions.rendering import provider_step
-from modern_di.providers.abstract import AbstractProvider
+from modern_di.providers.abstract import AbstractProvider, _Derived
 from modern_di.providers.alias import Alias
 from modern_di.providers.container_provider import container_provider
 from modern_di.providers.factory import Factory
@@ -88,6 +88,8 @@ def dependencies_of(
                 source_type=source_type, reference_only_providers=reference_only_sources(source_type, registry)
             )
         return {"source": source}
+    if type(provider) is _Derived:
+        return {"source": provider._source}  # noqa: SLF001
     return {}
 
 
@@ -110,9 +112,19 @@ def terminal_chain(
     return chain
 
 
+def scope_chain(
+    provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry"
+) -> "list[AbstractProvider[typing.Any]]":
+    """Extend ``terminal_chain`` through derived providers to their sources; the last one owns the scope."""
+    chain = terminal_chain(provider, registry)
+    while type(chain[-1]) is _Derived:
+        chain += terminal_chain(chain[-1]._source, registry)  # noqa: SLF001
+    return chain
+
+
 def effective_scope(provider: "AbstractProvider[typing.Any]", registry: "ProvidersRegistry") -> enum.IntEnum:
-    """Return the scope a provider actually resolves at: its terminal's, once redirects are followed."""
-    return terminal_chain(provider, registry)[-1].scope
+    """Return the scope a provider actually resolves at: that of the last provider in its `scope_chain`."""
+    return scope_chain(provider, registry)[-1].scope
 
 
 def redirect_hops(
@@ -210,7 +222,7 @@ def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
     for event in walk(roots=roots, registry=registry):
         if type(event) is Edge:
             parent, name, dep = event
-            dependency_chain = terminal_chain(dep, registry)
+            dependency_chain = scope_chain(dep, registry)
             if dependency_chain[-1] is container_provider:
                 continue
             dependency_scope = dependency_chain[-1].scope

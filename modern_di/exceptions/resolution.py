@@ -18,6 +18,12 @@ if typing.TYPE_CHECKING:
     from modern_di.providers.abstract import AbstractProvider
 
 
+def derived_note(step: ResolutionStep) -> str:
+    """Return the note for an exception raised by the function of the derived provider drawn as ``step``."""
+    label = f"{step.name} ({step.location})" if step.location else step.name
+    return f"raised by the function of {label}"
+
+
 class ResolutionError(ModernDIError):
     """Base class for errors raised while resolving a provider.
 

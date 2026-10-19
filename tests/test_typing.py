@@ -117,3 +117,9 @@ def test_cache_settings_accepts_a_finalizer_that_returns_a_value() -> None:
 def test_alias_without_bound_type_is_a_type_error() -> None:
     with pytest.raises(TypeError, match="bound_type"):
         providers.Alias(_Base)  # ty: ignore[missing-argument]
+
+
+def test_derive_infers_the_value_type_from_fn() -> None:
+    base = providers.Factory(_make_base)
+    typing.assert_type(base.derive(lambda b: b.closed), providers.AbstractProvider[bool])
+    typing.assert_type(base.derive(lambda b: b).derive(lambda b: b.closed), providers.AbstractProvider[bool])
