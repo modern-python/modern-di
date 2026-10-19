@@ -248,10 +248,15 @@ in for a type at call sites.
   `__aexit__` closes. With callback hooks, open the container on startup and close it with
   `close_async` on shutdown, as FastStream, aiogram and taskiq do. `open()` validates nothing
   and is a no-op on an open container.
-- Close the child container on every exit path, errors included. A close cancelled while a finalizer
-  awaits leaves the rest queued ([Cancelled close](../providers/lifecycle.md#cancelled-close)); to
-  guarantee their release, catch the cancellation, close the child again with cancellation shielded,
-  and re-raise.
+- Close the child container on every exit path, errors included. If the framework runs on anyio,
+  close it under `anyio.move_on_after(10, shield=True)` and log a warning when that bound expires.
+  anyio cancellation is level-triggered: in a cancelled scope every `await` is cancelled again, so an
+  unshielded close stops at the first async finalizer and skips the rest. The bound keeps a hung
+  finalizer from blocking forever. modern-di-starlette's
+  [`_close_child`](https://github.com/modern-python/modern-di-starlette/blob/main/modern_di_starlette/main.py)
+  is the reference; the FastAPI, Litestar, FastMCP and FastStream integrations do the same. Under
+  plain asyncio a `task.cancel()` is delivered once, so the close that follows runs in full and needs
+  no shield.
 - Match async and sync to the framework: `close_async` in an async framework, `close_sync` in a
   synchronous one (Typer, Flask, a sync gRPC server).
 - Document that `container.validate()` goes after `setup_di`, never before. `setup_di` registers the
@@ -492,6 +497,9 @@ Each official integration is its own repository and PyPI package, with the same 
       closes on shutdown so finalizers run. It opens before user startup code and closes after all
       user shutdown code.
 - [ ] `close_async` or `close_sync` matches the framework.
+- [ ] On an anyio framework, the child closes under `anyio.move_on_after(10, shield=True)` and logs a
+      warning when the bound expires, and a test cancels a running handler and checks that every
+      finalizer ran.
 - [ ] `FromDI` accepts `AbstractProvider[T] | type[T]` and resolves through `integrations.Marker`
       (or is `integrations.from_di` on the decorator path).
 - [ ] On the decorator path, `@inject` uses `parse_markers` and `resolve_markers`, and rewrites the
