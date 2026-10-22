@@ -27,7 +27,7 @@ What modern-di guarantees:
   guards `register` and `add_providers` with its own lock and iterates over a snapshot of the
   provider dict, so it never gets corrupted or raises "dict changed size during iteration".
 - Free-threaded CPython (PEP 703) is supported at `2 - Beta` and tested under real multithreading
-  on the `3.14t` build. It is Beta because modern-di relies on object-publication ordering (a
+  on the `3.14t` and `3.15t` builds. It is Beta because modern-di relies on object-publication ordering (a
   reader that sees a stored reference sees fully initialized fields), and CPython implements that
   without a published memory model to guarantee it. Per-operation latency is competitive, but
   throughput does not scale across cores: atomic reference counting of the objects every resolve

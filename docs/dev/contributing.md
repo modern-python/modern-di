@@ -46,7 +46,7 @@ The writing rules are in `docs/agents/docs-style.md`.
 ## What CI runs
 
 Every pull request runs `just lint-ci` and `just adr-check`, `just test-ci` and `just test-docs` on
-Python 3.11 to 3.14 (3.15 as a pre-release), `just test-race --count=50` on the free-threaded
+Python 3.11 to 3.15, `just test-race --count=50` on the free-threaded
 builds, `just test-docs-integrations`, `just docs-build`, and an offline link check of every
 Markdown file.
 
