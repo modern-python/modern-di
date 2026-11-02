@@ -163,6 +163,7 @@ extra_css:
   - css/brand.css
 
 plugins:
+  - search
   - llmstxt:
       full_output: llms-full.txt
       markdown_description: "Powerful dependency-injection framework with IoC container and scopes."
