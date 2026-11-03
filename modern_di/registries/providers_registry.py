@@ -219,34 +219,44 @@ def _inline_children(provider: AbstractProvider[typing.Any]) -> list[AbstractPro
     return [value for value in values if isinstance(value, AbstractProvider) and value._declared_as is None]  # noqa: SLF001
 
 
+def _discover_inline_graph(
+    registered: tuple[AbstractProvider[typing.Any], ...],
+) -> tuple[dict[int, list[AbstractProvider[typing.Any]]], dict[int, list[int]]]:
+    """Find inline children and record their parents in discovery order."""
+    roots = {id(provider) for provider in registered}
+    children_of: dict[int, list[AbstractProvider[typing.Any]]] = {}
+    parents_of: dict[int, list[int]] = {}
+    stack = list(registered)
+    while stack:
+        parent = stack.pop()
+        parent_id = id(parent)
+        if parent_id in children_of:
+            continue
+        children = [child for child in _inline_children(parent) if id(child) not in roots]
+        children_of[parent_id] = children
+        for child in children:
+            parents_of.setdefault(id(child), []).append(parent_id)
+            stack.append(child)
+    return children_of, parents_of
+
+
 def _stamp_inline_scopes(registered: tuple[AbstractProvider[typing.Any], ...]) -> None:
     """Give each scope-defaulted inline provider the shallowest scope among the providers using it.
 
     A scope set by an earlier registration is kept.
     """
-    roots = {id(provider) for provider in registered}
-    children_of: dict[int, list[AbstractProvider[typing.Any]]] = {}
-    parents_of: dict[int, list[AbstractProvider[typing.Any]]] = {}
-    stack = list(registered)
-    while stack:
-        parent = stack.pop()
-        if id(parent) in children_of:
-            continue
-        children = [child for child in _inline_children(parent) if id(child) not in roots]
-        children_of[id(parent)] = children
-        for child in children:
-            parents_of.setdefault(id(child), []).append(parent)
-            stack.append(child)
+    children_of, parents_of = _discover_inline_graph(registered)
     waiting = {child_id: len(parents) for child_id, parents in parents_of.items()}
     passed_down = {id(provider): provider.scope for provider in registered}
     ready = list(registered)
     while ready:
         parent = ready.pop()
         for child in children_of[id(parent)]:
-            waiting[id(child)] -= 1
-            if waiting[id(child)]:
+            child_id = id(child)
+            waiting[child_id] -= 1
+            if waiting[child_id]:
                 continue
-            scope = min(passed_down[id(p)] for p in parents_of[id(child)])
+            scope = min(passed_down[parent_id] for parent_id in parents_of[child_id])
             child._stamp_inline_scope(scope)  # noqa: SLF001
-            passed_down[id(child)] = scope if type(child) is _Derived else child.scope
+            passed_down[child_id] = scope if type(child) is _Derived else child.scope
             ready.append(child)
