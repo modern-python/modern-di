@@ -24,6 +24,7 @@ cost. Runs in CI (informational, non-gating) and locally via `just bench`.
 | G9 | Context resolve: request value by type + APP dep, warm child | a `ContextProvider` dependency's own resolver |
 | G10 | `validate()` on a depth-6 chain (isolated via `pedantic`) | graph-validation traversal, deep |
 | G11 | `validate()` on a wide 10-sibling graph (isolated via `pedantic`) | graph-validation traversal, fan-out |
+| G11b | `validate()` with 100 factories sharing a three-hop alias chain | reuse of effective scope lookups |
 | G12 | Resolve a depth-6 chain with one unrelated override active | that an active override costs the unrelated chain nothing |
 | G13 | Per-request cycle finalizing 10 cached resources (`close_sync`) | LIFO teardown at scale |
 | G13b | Batch of K=100 request cycles, 10 finalizer-less cached REQUEST providers, `await close_async()` | the async close loop when there is nothing to finalize |

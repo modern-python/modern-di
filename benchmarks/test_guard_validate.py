@@ -157,3 +157,29 @@ def test_g11_validate_wide(benchmark):
         rounds=3000,
         iterations=1,
     )
+
+
+def test_g11b_validate_shared_alias_chain(benchmark):
+    class SharedAliasGroup(Group):
+        source = providers.Factory(creator=L0, scope=Scope.APP)
+        inner = providers.Alias(L0, bound_type=L1)
+        middle = providers.Alias(L1, bound_type=L2)
+        outer = providers.Alias(L2, bound_type=L3)
+
+    def consume(value: L3) -> L3:
+        return value
+
+    consumers = tuple(providers.Factory(creator=consume, bound_type=None, scope=Scope.APP) for _ in range(100))
+
+    def build() -> Container:
+        container = Container(scope=Scope.APP, groups=[SharedAliasGroup])
+        container.add_providers(*consumers)
+        return container
+
+    assert isinstance(build().resolve_provider(consumers[0]), L0)
+    benchmark.pedantic(
+        lambda container: container.validate(),
+        setup=lambda: ((build(),), {}),
+        rounds=3000,
+        iterations=1,
+    )

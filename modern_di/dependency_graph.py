@@ -212,27 +212,45 @@ def find_cycle_from(
     return None
 
 
+def _scope_owner(
+    provider: AbstractProvider[typing.Any],
+    registry: "ProvidersRegistry",
+    scope_owners: dict[int, AbstractProvider[typing.Any]],
+) -> AbstractProvider[typing.Any]:
+    """Return the scope owner, memoizing redirected and derived providers for this walk."""
+    if type(provider) not in (Alias, _Derived):
+        return provider
+    provider_id = provider.provider_id
+    owner = scope_owners.get(provider_id)
+    if owner is None:
+        owner = scope_chain(provider, registry)[-1]
+        scope_owners[provider_id] = owner
+    return owner
+
+
 def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
     """Walk the graph rooted at every provider in ``registry``, reference-only ones included, once.
 
     Return every wiring error in walk order.
     """
+    scope_owners: dict[int, AbstractProvider[typing.Any]] = {}
+
     errors: list[Exception] = []
     roots = [*registry, *registry.reference_only_providers()]
     for event in walk(roots=roots, registry=registry):
         if type(event) is Edge:
             parent, name, dep = event
-            dependency_chain = scope_chain(dep, registry)
-            if dependency_chain[-1] is container_provider:
+            dependency_owner = _scope_owner(dep, registry, scope_owners)
+            if dependency_owner is container_provider:
                 continue
-            dependency_scope = dependency_chain[-1].scope
-            parent_scope = effective_scope(parent, registry)
+            dependency_scope = dependency_owner.scope
+            parent_scope = _scope_owner(parent, registry, scope_owners).scope
             if dependency_scope > parent_scope:
                 errors.append(
                     exceptions.InvalidScopeDependencyError(
                         provider=parent,
                         parameter_name=name,
-                        dependency_chain=dependency_chain,
+                        dependency_chain=scope_chain(dep, registry),
                     )
                 )
             elif dependency_scope == parent_scope and dependency_scope is not parent_scope:
@@ -240,7 +258,7 @@ def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
                     exceptions.ScopeEnumMismatchError(
                         provider=parent,
                         parameter_name=name,
-                        dependency_chain=dependency_chain,
+                        dependency_chain=scope_chain(dep, registry),
                     )
                 )
         elif type(event) is NodeEntered:
