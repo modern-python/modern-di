@@ -77,15 +77,9 @@ _NAVIGATE = """\
 _BUILD_ARGUMENTS = """\
     try:
 {build}
-    except ContextValueNotSetError as exc:
-        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        if not exc.dependency_path:
-            exc._name_parameter(name)
-        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], registry))
-        raise
     except ResolutionError as exc:
-        name = [*edges][arg_lines[exc.__traceback__.tb_lineno]]
-        exc._prepend_step(resolution_step(), *redirect_hops(edges[name], registry))
+        index = arg_lines[exc.__traceback__.tb_lineno]
+        _enrich_argument_error(exc, index, edges, resolution_step, registry)
         raise
 """
 
@@ -183,6 +177,20 @@ def _navigate(
         raise
 
 
+def _enrich_argument_error(
+    exc: exceptions.ResolutionError,
+    index: int,
+    edges: dict[str, AbstractProvider[typing.Any]],
+    resolution_step: "typing.Callable[[], exceptions.ResolutionStep]",
+    registry: "ProvidersRegistry",
+) -> None:
+    """Attribute a dependency failure to the argument resolved at the given index."""
+    name = [*edges][index]
+    if isinstance(exc, exceptions.ContextValueNotSetError) and not exc.dependency_path:
+        exc._name_parameter(name)
+    exc._prepend_step(resolution_step(), *redirect_hops(edges[name], registry))
+
+
 _FACTORY_GLOBALS: dict[str, typing.Any] = {
     "UNSET": types.UNSET,
     "CacheItem": CacheItem,
@@ -190,8 +198,7 @@ _FACTORY_GLOBALS: dict[str, typing.Any] = {
     "ResolutionError": exceptions.ResolutionError,
     "CreatorCallError": exceptions.CreatorCallError,
     "ContainerClosedError": exceptions.ContainerClosedError,
-    "ContextValueNotSetError": exceptions.ContextValueNotSetError,
-    "redirect_hops": redirect_hops,
+    "_enrich_argument_error": _enrich_argument_error,
 }
 
 
