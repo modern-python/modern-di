@@ -212,6 +212,25 @@ def find_cycle_from(
     return None
 
 
+def _find_scope_owner(
+    provider: AbstractProvider[typing.Any], registry: "ProvidersRegistry"
+) -> AbstractProvider[typing.Any]:
+    """Follow aliases and derived sources to the scope owner."""
+    seen: set[int] = set()
+    while True:
+        if type(provider) is _Derived:
+            provider = provider._source  # noqa: SLF001
+            seen.clear()
+        elif type(provider) is Alias:
+            target = redirect_target(provider, registry)
+            if target is None or provider.provider_id in seen:
+                return provider
+            seen.add(provider.provider_id)
+            provider = target
+        else:
+            return provider
+
+
 def _scope_owner(
     provider: AbstractProvider[typing.Any],
     registry: "ProvidersRegistry",
@@ -223,7 +242,7 @@ def _scope_owner(
     provider_id = provider.provider_id
     owner = scope_owners.get(provider_id)
     if owner is None:
-        owner = scope_chain(provider, registry)[-1]
+        owner = _find_scope_owner(provider, registry)
         scope_owners[provider_id] = owner
     return owner
 
