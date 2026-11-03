@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 
 import pytest
 
@@ -94,6 +95,24 @@ def test_inline_provider_shared_by_app_and_request_parents_takes_app_scope() -> 
     assert dsn.scope is Scope.APP
     with container.build_child_container(scope=Scope.REQUEST) as child:
         assert child.resolve(_DbConnection).dsn == child.resolve(_Engine).dsn == "postgres://"
+
+
+def test_shared_inline_provider_breaks_scope_ties_in_parent_discovery_order() -> None:
+    class CustomScope(enum.IntEnum):
+        REQUEST = 3
+
+    leaf = providers.Factory(object)
+    nested = providers.Factory(lambda leaf: leaf, scope=CustomScope.REQUEST, kwargs={"leaf": leaf})
+
+    class Dependencies(Group):
+        direct = providers.Factory(
+            lambda leaf, nested: (leaf, nested), scope=Scope.REQUEST, kwargs={"leaf": leaf, "nested": nested}
+        )
+        indirect = providers.Factory(lambda nested: [nested], scope=Scope.REQUEST, kwargs={"nested": nested})
+
+    Container(groups=[Dependencies])
+
+    assert leaf.scope is CustomScope.REQUEST
 
 
 def test_inline_provider_scope_is_fixed_at_first_registration() -> None:
