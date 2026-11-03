@@ -137,17 +137,17 @@ def test_a_repeated_provider_is_latched_once_per_add(monkeypatch: pytest.MonkeyP
     bound = providers.Factory(creator=lambda: "string", bound_type=str)
     unbound = providers.Factory(creator=lambda: "other", bound_type=None)
     latched: list[tuple[AbstractProvider[typing.Any], ...]] = []
-    original_add = ProvidersRegistry._add
+    original_add = ProvidersRegistry._commit_registration
 
     def spy_add(
         self: ProvidersRegistry,
         new_providers: dict[type, AbstractProvider[typing.Any]],
-        registered: tuple[AbstractProvider[typing.Any], ...],
+        registered: dict[int, AbstractProvider[typing.Any]],
     ) -> None:
-        latched.append(registered)
+        latched.append(tuple(registered.values()))
         original_add(self, new_providers, registered)
 
-    monkeypatch.setattr(ProvidersRegistry, "_add", spy_add)
+    monkeypatch.setattr(ProvidersRegistry, "_commit_registration", spy_add)
     ProvidersRegistry().add_providers(bound, unbound, bound, unbound, bindings={str: bound})
 
     assert [list(map(id, registered)) for registered in latched] == [[id(bound), id(unbound)]]
