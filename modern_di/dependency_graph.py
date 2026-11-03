@@ -162,7 +162,7 @@ def walk(
 
     A ``ResolutionError`` from a provider's dependencies becomes a ``DependenciesError`` event.
     """
-    visiting: set[int] = set()
+    active_indices: dict[int, int] = {}
     visited: set[int] = set()
     path: list[AbstractProvider[typing.Any]] = []
     stack: list[typing.Iterator[tuple[str, AbstractProvider[typing.Any]]]] = []
@@ -172,7 +172,7 @@ def walk(
         entering: AbstractProvider[typing.Any] | None = root
         while True:
             if entering is not None:
-                visiting.add(entering.provider_id)
+                active_indices[entering.provider_id] = len(path)
                 path.append(entering)
                 yield NodeEntered(entering)
                 try:
@@ -188,14 +188,14 @@ def walk(
             if step is None:
                 finished_id = path.pop().provider_id
                 stack.pop()
-                visiting.discard(finished_id)
+                del active_indices[finished_id]
                 visited.add(finished_id)
                 continue
             name, dep = step
             yield Edge(path[-1], name, dep)
             dep_id = dep.provider_id
-            if dep_id in visiting:
-                cycle_start = next(i for i, p in enumerate(path) if p.provider_id == dep_id)
+            cycle_start = active_indices.get(dep_id)
+            if cycle_start is not None:
                 yield Cycle([*path[cycle_start:], path[cycle_start]])
             elif dep_id not in visited:
                 entering = dep
