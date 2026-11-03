@@ -62,9 +62,10 @@ class WiringPlan:
                 provider = find_dep_provider(registry, owner, item)
             if provider is not None:
                 provider_kwargs[name] = provider
-            elif item.default is not UNSET:
                 continue
-            elif item.is_nullable:
+            if item.default is not UNSET:
+                continue
+            if item.is_nullable:
                 static_kwargs[name] = None
             else:
                 unwireable.append((name, item))
