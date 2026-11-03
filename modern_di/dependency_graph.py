@@ -228,6 +228,39 @@ def _scope_owner(
     return owner
 
 
+def _check_edge_scope(
+    edge: Edge,
+    registry: "ProvidersRegistry",
+    scope_owners: dict[int, AbstractProvider[typing.Any]],
+    errors: list[Exception],
+) -> None:
+    """Append a scope error when an edge crosses incompatible scopes."""
+    parent, name, dep = edge
+    dependency_owner = _scope_owner(dep, registry, scope_owners)
+    if dependency_owner is container_provider:
+        return
+    dependency_scope = dependency_owner.scope
+    parent_scope = _scope_owner(parent, registry, scope_owners).scope
+    if dependency_scope is parent_scope:
+        return
+    if dependency_scope > parent_scope:
+        errors.append(
+            exceptions.InvalidScopeDependencyError(
+                provider=parent,
+                parameter_name=name,
+                dependency_chain=scope_chain(dep, registry),
+            )
+        )
+    elif dependency_scope == parent_scope:
+        errors.append(
+            exceptions.ScopeEnumMismatchError(
+                provider=parent,
+                parameter_name=name,
+                dependency_chain=scope_chain(dep, registry),
+            )
+        )
+
+
 def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
     """Walk the graph rooted at every provider in ``registry``, reference-only ones included, once.
 
@@ -239,28 +272,7 @@ def collect_errors(registry: "ProvidersRegistry") -> list[Exception]:
     roots = [*registry, *registry.reference_only_providers()]
     for event in walk(roots=roots, registry=registry):
         if type(event) is Edge:
-            parent, name, dep = event
-            dependency_owner = _scope_owner(dep, registry, scope_owners)
-            if dependency_owner is container_provider:
-                continue
-            dependency_scope = dependency_owner.scope
-            parent_scope = _scope_owner(parent, registry, scope_owners).scope
-            if dependency_scope > parent_scope:
-                errors.append(
-                    exceptions.InvalidScopeDependencyError(
-                        provider=parent,
-                        parameter_name=name,
-                        dependency_chain=scope_chain(dep, registry),
-                    )
-                )
-            elif dependency_scope == parent_scope and dependency_scope is not parent_scope:
-                errors.append(
-                    exceptions.ScopeEnumMismatchError(
-                        provider=parent,
-                        parameter_name=name,
-                        dependency_chain=scope_chain(dep, registry),
-                    )
-                )
+            _check_edge_scope(event, registry, scope_owners, errors)
         elif type(event) is NodeEntered:
             provider = event.provider
             if type(provider) is Factory:
