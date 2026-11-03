@@ -155,25 +155,13 @@ class ProvidersRegistry:
 
         A provider object seen again, in this call or already bound under that type, is ignored.
         """
-        new_providers = dict(bindings) if bindings else {}
-        registered = {id(provider): provider for provider in (*new_providers.values(), *args)}
-        for provider in registered.values():
-            provider_type = provider.bound_type
-            if provider_type is None or new_providers.get(provider_type) is provider:
-                continue
-            if provider_type in new_providers:
-                raise exceptions.DuplicateProviderTypeError(
-                    provider_type=provider_type,
-                    first_provider=new_providers[provider_type],
-                    second_provider=provider,
-                )
-            new_providers[provider_type] = provider
-        self._add(new_providers, tuple(registered.values()))
+        new_providers, registered = _prepare_registration(args, bindings)
+        self._commit_registration(new_providers, registered)
 
-    def _add(
+    def _commit_registration(
         self,
         new_providers: dict[type, AbstractProvider[typing.Any]],
-        registered: tuple[AbstractProvider[typing.Any], ...],
+        registered: dict[int, AbstractProvider[typing.Any]],
     ) -> None:
         """Bind ``new_providers`` and latch each of ``registered``; a type bound to another provider raises.
 
@@ -189,9 +177,9 @@ class ProvidersRegistry:
             _stamp_inline_scopes(registered)
             self._providers.update(new_providers)
             bound = {id(provider) for provider in new_providers.values()}
-            for provider in registered:
+            for provider_id, provider in registered.items():
                 provider._registered = True  # noqa: SLF001
-                if id(provider) not in bound:
+                if provider_id not in bound:
                     self._reference_only[provider.provider_id] = provider
             self._invalidate()
 
@@ -208,6 +196,29 @@ class ProvidersRegistry:
         self._generation += 1
 
 
+def _prepare_registration(
+    args: tuple[AbstractProvider[typing.Any], ...],
+    bindings: dict[type, AbstractProvider[typing.Any]] | None,
+) -> tuple[dict[type, AbstractProvider[typing.Any]], dict[int, AbstractProvider[typing.Any]]]:
+    """Collect bindings and providers, rejecting duplicate types within the batch."""
+    new_providers = dict(bindings) if bindings else {}
+    registered = {id(provider): provider for provider in new_providers.values()}
+    for provider in args:
+        registered[id(provider)] = provider
+    for provider in registered.values():
+        provider_type = provider.bound_type
+        if provider_type is None or new_providers.get(provider_type) is provider:
+            continue
+        if provider_type in new_providers:
+            raise exceptions.DuplicateProviderTypeError(
+                provider_type=provider_type,
+                first_provider=new_providers[provider_type],
+                second_provider=provider,
+            )
+        new_providers[provider_type] = provider
+    return new_providers, registered
+
+
 def _inline_children(provider: AbstractProvider[typing.Any]) -> list[AbstractProvider[typing.Any]]:
     """Return the providers written inline in ``provider``'s kwargs or derive source: none is a class attribute."""
     if type(provider) is _Derived:
@@ -220,19 +231,18 @@ def _inline_children(provider: AbstractProvider[typing.Any]) -> list[AbstractPro
 
 
 def _discover_inline_graph(
-    registered: tuple[AbstractProvider[typing.Any], ...],
+    registered: dict[int, AbstractProvider[typing.Any]],
 ) -> tuple[dict[int, list[AbstractProvider[typing.Any]]], dict[int, list[int]]]:
     """Find inline children and record their parents in discovery order."""
-    roots = {id(provider) for provider in registered}
     children_of: dict[int, list[AbstractProvider[typing.Any]]] = {}
     parents_of: dict[int, list[int]] = {}
-    stack = list(registered)
+    stack = list(registered.values())
     while stack:
         parent = stack.pop()
         parent_id = id(parent)
         if parent_id in children_of:
             continue
-        children = [child for child in _inline_children(parent) if id(child) not in roots]
+        children = [child for child in _inline_children(parent) if id(child) not in registered]
         children_of[parent_id] = children
         for child in children:
             parents_of.setdefault(id(child), []).append(parent_id)
@@ -240,15 +250,15 @@ def _discover_inline_graph(
     return children_of, parents_of
 
 
-def _stamp_inline_scopes(registered: tuple[AbstractProvider[typing.Any], ...]) -> None:
+def _stamp_inline_scopes(registered: dict[int, AbstractProvider[typing.Any]]) -> None:
     """Give each scope-defaulted inline provider the shallowest scope among the providers using it.
 
     A scope set by an earlier registration is kept.
     """
     children_of, parents_of = _discover_inline_graph(registered)
     waiting = {child_id: len(parents) for child_id, parents in parents_of.items()}
-    passed_down = {id(provider): provider.scope for provider in registered}
-    ready = list(registered)
+    passed_down = {provider_id: provider.scope for provider_id, provider in registered.items()}
+    ready = list(registered.values())
     while ready:
         parent = ready.pop()
         for child in children_of[id(parent)]:
