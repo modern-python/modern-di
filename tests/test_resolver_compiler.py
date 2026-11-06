@@ -200,7 +200,7 @@ def test_positional_path_binds_args_in_signature_order_at_every_arity(arity: int
     plan = _plan(container._providers_registry, members["bag"])
     assert members["bag"]._can_call_positionally(plan)  # self-guard: positional path selected
 
-    bag = container.resolve_provider(members["bag"])
+    bag = typing.cast("_Bag", container.resolve_provider(members["bag"]))
     assert len(bag.values) == arity
     for i, value in enumerate(bag.values):
         assert isinstance(value, types_[i]), f"arg {i} bound out of order at arity {arity}"
