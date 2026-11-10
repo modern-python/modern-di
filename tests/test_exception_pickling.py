@@ -379,7 +379,7 @@ def test_attribute_with_a_broken_repr_degrades_to_the_default_repr() -> None:
 
 def _self_referencing_error() -> exceptions.ContainerClosedError:
     error = exceptions.ContainerClosedError(container_scope=Scope.APP)
-    error.backref = error  # ty: ignore[unresolved-attribute]
+    error.backref = error  # ty: ignore[missing-attribute]
     return error
 
 
@@ -395,12 +395,12 @@ def test_self_reference_is_restored_as_a_self_reference(
 
     restored = _within(5, lambda: round_trip(error))
 
-    assert restored.backref is restored  # ty: ignore[unresolved-attribute]
+    assert restored.backref is restored  # ty: ignore[missing-attribute]
 
 
 def test_shallow_copy_of_a_self_reference_points_at_the_original() -> None:
     error = _self_referencing_error()
-    assert copy.copy(error).backref is error  # ty: ignore[unresolved-attribute]
+    assert copy.copy(error).backref is error  # ty: ignore[missing-attribute]
 
 
 @pytest.mark.parametrize("round_trip", ROUND_TRIPS.values(), ids=ROUND_TRIPS.keys())

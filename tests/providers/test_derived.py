@@ -164,7 +164,7 @@ def test_source_scope_error_names_the_derived_step() -> None:
 
 def test_fn_error_is_reraised_unchanged_with_a_note_naming_the_derived_provider() -> None:
     def broken(settings: Settings) -> str:
-        return settings.missing  # ty: ignore[unresolved-attribute]
+        return settings.missing  # ty: ignore[missing-attribute]
 
     class G(Group):
         settings = providers.Factory(Settings)

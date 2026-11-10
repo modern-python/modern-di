@@ -408,7 +408,7 @@ When you rewrite:
 - Remove the marked parameters and leave every other parameter in place, so the framework keeps
   parsing them.
 - Assign the cleaned signature to `wrapper.__signature__`. `__signature__` is missing from the stubs,
-  so add `# ty: ignore[unresolved-attribute]`.
+  so add `# ty: ignore[missing-attribute]`.
 - Skip `functools.wraps` when the framework unwraps `__wrapped__` to find the signature, as aiogram
   does; otherwise it reads the original signature and ignores yours.
 - Add any parameter the wrapper needs to reach the container, if the handler did not declare it. Typer
