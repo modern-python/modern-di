@@ -287,7 +287,7 @@ def test_arity_rung_wraps_a_creator_type_error(arity: int) -> None:
         inspect.Parameter(f"p{i}", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=t)
         for i, t in enumerate([_P0, _P1, _P2][:arity])
     ]
-    _needs_one_more.__signature__ = inspect.Signature(params, return_annotation=_Bag)  # ty: ignore[unresolved-attribute]
+    _needs_one_more.__signature__ = inspect.Signature(params, return_annotation=_Bag)  # ty: ignore[missing-attribute]
     _needs_one_more.__annotations__ = {f"p{i}": t for i, t in enumerate([_P0, _P1, _P2][:arity])} | {"return": _Bag}
 
     group = _arity_group(arity, creator=_needs_one_more)

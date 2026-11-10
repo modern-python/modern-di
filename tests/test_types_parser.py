@@ -382,7 +382,7 @@ class _LateDep(_Dep): ...
 class _NewOnlyCreator:
     def __new__(cls, dep: _Dep) -> typing.Self:
         instance = super().__new__(cls)
-        instance.dep = dep  # ty: ignore[unresolved-attribute]
+        instance.dep = dep  # ty: ignore[missing-attribute]
         return instance
 
 
@@ -406,7 +406,7 @@ def test_hints_come_from_the_callable_the_signature_reads(creator: type, dep_typ
         target = providers.Factory(creator)
 
     container = Container(groups=[Dependencies])
-    assert isinstance(container.resolve(creator).dep, dep_type)  # ty: ignore[unresolved-attribute]
+    assert isinstance(container.resolve(creator).dep, dep_type)  # ty: ignore[missing-attribute]
 
 
 def _signature_only(*parameters: inspect.Parameter, return_annotation: object = inspect.Signature.empty) -> typing.Any:  # noqa: ANN401
@@ -414,7 +414,7 @@ def _signature_only(*parameters: inspect.Parameter, return_annotation: object = 
         return kwargs
 
     del creator.__annotations__["kwargs"], creator.__annotations__["return"]
-    creator.__signature__ = inspect.Signature(  # ty: ignore[unresolved-attribute]
+    creator.__signature__ = inspect.Signature(  # ty: ignore[missing-attribute]
         list(parameters), return_annotation=return_annotation
     )
     return creator
@@ -506,7 +506,7 @@ def test_type_hint_wins_over_signature_annotation() -> None:
     def creator(**kwargs: object) -> _OtherDep: ...  # ty: ignore[empty-body]
 
     creator.__annotations__ = {"dep": _OtherDep, "return": _OtherDep}
-    creator.__signature__ = inspect.Signature([_keyword("dep", _Dep)], return_annotation=_Dep)  # ty: ignore[unresolved-attribute]
+    creator.__signature__ = inspect.Signature([_keyword("dep", _Dep)], return_annotation=_Dep)  # ty: ignore[missing-attribute]
 
     parsed = parse_creator(creator)
 
@@ -733,7 +733,7 @@ def test_generic_alias_creator_wires_the_origin_class() -> None:
 
     assert Dependencies.repo.bound_type is _Repo
     assert isinstance(repo.dep, _Dep)
-    assert repo.__orig_class__ == _Repo[int]  # ty: ignore[unresolved-attribute]
+    assert repo.__orig_class__ == _Repo[int]  # ty: ignore[missing-attribute]
     assert container.resolve_provider(Dependencies.repo) is repo
 
 
@@ -769,5 +769,5 @@ def test_explicit_bound_types_register_parameterizations_side_by_side() -> None:
     container = Container(groups=[Dependencies])
     container.validate()
 
-    assert container.resolve_provider(Dependencies.ints).__orig_class__ == _Repo[int]  # ty: ignore[unresolved-attribute]
-    assert container.resolve_provider(Dependencies.strs).__orig_class__ == _Repo[str]  # ty: ignore[unresolved-attribute]
+    assert container.resolve_provider(Dependencies.ints).__orig_class__ == _Repo[int]  # ty: ignore[missing-attribute]
+    assert container.resolve_provider(Dependencies.strs).__orig_class__ == _Repo[str]  # ty: ignore[missing-attribute]
