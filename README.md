@@ -93,6 +93,8 @@ Usage examples:
 - [PyPI](https://pypi.org/project/modern-di)
 - [License](https://github.com/modern-python/modern-di/blob/main/LICENSE)
 
+If this project saves you time, consider giving it a star on GitHub.
+
 ## Part of `modern-python`
 
 Browse the full list of templates and libraries in
