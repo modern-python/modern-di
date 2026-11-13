@@ -77,12 +77,12 @@ def test_nonetype_params_keep_defaults_through_parse_creator() -> None:
     assert params["hook"] == SignatureItem(default=None, is_nullable=True)
 
 
-def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # ty: ignore[empty-body]
+def simple_func(arg1: int, arg2: str | None = None) -> int: ...  # ty: ignore[invalid-implicit-return-in-function-with-stub-body]
 def none_func(arg1: typing.Annotated[int, None], arg2: str | None = None) -> None: ...
 def args_kwargs_func(*args: int, **kwargs: str) -> None: ...
 def func_with_str_annotations(arg1: "str", arg2: "tuple[int, ...]" = ()) -> None: ...
 def func_with_str_generic_annotation(arg1: "list[int]", arg2: "str") -> None: ...
-async def async_func(arg1: int = 1, arg2="str") -> int: ...  # ty: ignore[empty-body]  # noqa: ANN001
+async def async_func(arg1: int = 1, arg2="str") -> int: ...  # ty: ignore[invalid-implicit-return-in-function-with-stub-body]  # noqa: ANN001
 
 
 @dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
@@ -503,7 +503,7 @@ def test_string_annotation_on_signature_is_not_wired() -> None:
 
 
 def test_type_hint_wins_over_signature_annotation() -> None:
-    def creator(**kwargs: object) -> _OtherDep: ...  # ty: ignore[empty-body]
+    def creator(**kwargs: object) -> _OtherDep: ...  # ty: ignore[invalid-implicit-return-in-function-with-stub-body]
 
     creator.__annotations__ = {"dep": _OtherDep, "return": _OtherDep}
     creator.__signature__ = inspect.Signature([_keyword("dep", _Dep)], return_annotation=_Dep)  # ty: ignore[missing-attribute]
@@ -547,7 +547,7 @@ def test_named_type_form_parameter_matches_provider_bound_to_it(form: type) -> N
 
 @pytest.mark.parametrize("form", _NAMED_TYPE_FORMS)
 def test_named_type_form_return_annotation_is_the_bound_type(form: type) -> None:
-    def make() -> int: ...  # ty: ignore[empty-body]
+    def make() -> int: ...  # ty: ignore[invalid-implicit-return-in-function-with-stub-body]
 
     make.__annotations__ = {"return": form}
     assert providers.Factory(make).bound_type is form
@@ -564,7 +564,7 @@ def test_unregistered_named_type_form_names_the_annotation(form: type) -> None:
     assert "_UserId" in str(exc_info.value)
 
 
-def _make_dep_or_other() -> _Dep | _OtherDep: ...  # ty: ignore[empty-body]
+def _make_dep_or_other() -> _Dep | _OtherDep: ...  # ty: ignore[invalid-implicit-return-in-function-with-stub-body]
 def _make_optional_dep() -> _Dep | None: ...
 
 
